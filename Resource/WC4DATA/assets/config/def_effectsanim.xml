@@ -1,0 +1,696 @@
+﻿<EffectsAnimations>
+	<EffectsAnimation name="xx right">
+		<List type="effect">
+			<Effect name="effect_gunfire.xml" at="0" x="3.25" y="-24.6" rot="0" sound="sfx_fire.wav"/>
+			<Effect name="effect_mgunfire.xml" at="0.08" x="17.8" y="-7.2" rot="0" sound="sfx_machine_gun.wav"/>
+		</List>
+	</EffectsAnimation>
+	<EffectsAnimation name="xx left">
+		<List type="effect">
+			<Effect name="effect_gunfire.xml" at="0.0" x="-3.25" y="-24.6" rot="180" sound="sfx_fire.wav"/>
+			<Effect name="effect_mgunfire.xml" at="0.08" x="-17.8" y="-7.2" rot="180" sound="sfx_machine_gun.wav"/>
+		</List>
+	</EffectsAnimation>
+
+	<EffectsAnimation name="Infantry fire">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_fire.wav"/>
+      		<animation res="" name="" at="0.4" x="0" y="0" rot="0" sound="sfx_fire.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="Infantry fire2">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_machine_gun.wav"/>
+      		<animation res="" name="" at="0.5" x="0" y="0" rot="0" sound="sfx_machine_gun.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="Mobile Infantry fire">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_fire.wav"/>
+		<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_click.wav"/>
+      		<animation res="" name="" at="0.4" x="0" y="0" rot="0" sound="sfx_fire.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="Mobile Infantry fire2">
+	  <List type="effect">
+	    <Effect name="" at="0.1" x="0" y="0" rot="0" sound="sfx_exp.wav"/>
+		  <Effect name="" at="0.15" x="0" y="0" rot="0" sound="sfx_machine_gun.wav"/>
+      <Effect name="" at="0.2" x="0" y="0" rot="0" sound="sfx_fire.wav"/>
+		  <Effect name="" at="0.5" x="0" y="0" rot="0" sound=""/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="Japan fire">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.0" x="0" y="0" rot="0" sound="sfx_exp.wav"/>
+      		<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_machine_gun.wav"/>
+		<animation res="" name="" at="0.4" x="0" y="0" rot="0" sound="sfx_machine_gun.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="China fire">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.0" x="0" y="0" rot="0" sound="sfx_click.wav"/>
+      		<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_machine_gun.wav"/>
+		<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_machine_gun.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="silenced shot">
+		<List type="animation">
+			<animation res="" name="" at="0.0" x="0" y="0" rot="0" sound="sfx_silenced_shot.wav"/>
+		</List>
+	</EffectsAnimation>
+	
+	<EffectsAnimation name="panzer1">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_machine_gun.wav"/>
+      		<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_machine_gun.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="panzer2">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_exp.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="panzer3">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_exp.wav"/>
+      		<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_machine_gun.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="panzer4">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_naval_gun.wav"/>
+      		<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_machine_gun.wav"/>
+	  </List>
+  	</EffectsAnimation>
+	
+	<EffectsAnimation name="Artillery">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_naval_gun.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="Rocket">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_rocket.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="hellfire">
+		<List type="animation">
+			<animation res="" name="" at="0.0" x="0" y="0" rot="0" sound="sfx_hellfire_missile.wav"/>
+			<animation res="" name="" at="0.4" x="0" y="0" rot="0" sound="sfx_hellfire_missile.wav"/>
+		</List>
+	</EffectsAnimation>
+
+	<EffectsAnimation name="dronefire">
+		<List type="animation">
+			<animation res="" name="" at="0.0" x="0" y="0" rot="0" sound="sfx_hellfire_missile.wav"/>
+		</List>
+	</EffectsAnimation>
+	
+	<EffectsAnimation name="Punish">
+		<List type="animation">
+			<animation res="" name="" at="0.0" x="0" y="0" rot="0" sound="sfx_punish.wav"/>
+		</List>
+	</EffectsAnimation>
+	
+	<EffectsAnimation name="navy">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_naval.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="bomb">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.0" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+	  </List>
+  	</EffectsAnimation>
+	<EffectsAnimation name="depthcharge">
+		<List type="animation">
+			<animation res="" name="" at="0.0" x="0" y="0" rot="0" sound="sfx_depthcharge.wav"/>
+		</List>
+	</EffectsAnimation>
+	
+	<EffectsAnimation name="Antiair Gun fire">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_machine_gun.wav"/>
+	    	<animation res="" name="" at="0.4" x="0" y="0" rot="0" sound="sfx_machine_gun.wav"/>
+	    	<animation res="" name="" at="0.7" x="0" y="0" rot="0" sound="sfx_machine_gun.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="Antiair Artillery fire">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_exp.wav"/>
+	    	<animation res="" name="" at="1.0" x="0" y="0" rot="0" sound="sfx_exp.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="Antiair Missile fire">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.25" x="0" y="0" rot="0" sound="sfx_emission.wav"/>
+	    	<animation res="" name="" at="0.5" x="0" y="0" rot="0" sound="sfx_emission.wav"/>
+	    	<animation res="" name="" at="0.75" x="0" y="0" rot="0" sound="sfx_emission.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="Missile Sub fire">
+		<List type="animation">
+			<animation res="" name="" at="0.0" x="0" y="0" rot="0" sound="sfx_emission.wav"/>
+		</List>
+	</EffectsAnimation>
+	
+	<EffectsAnimation name="Missile Vehicle fire">
+		<List type="animation">
+			<animation res="" name="" at="0.75" x="0" y="0" rot="0" sound="sfx_emission.wav"/>
+		</List>
+	</EffectsAnimation>
+
+	<EffectsAnimation name="Missile Burke fire">
+		<List type="animation">
+			<animation res="" name="" at="0.0" x="0" y="0" rot="0" sound="sfx_emission.wav"/>
+			<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_emission.wav"/>
+		</List>
+	</EffectsAnimation>
+
+	<EffectsAnimation name="Missile">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.5" x="0" y="0" rot="0" sound="sfx_guided.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="fly">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.0" x="0" y="0" rot="0" sound="sfx_scout1.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="bomber">
+	  <List type="animation">
+		<animation res="" name="" at="1.1" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="bomber cw">
+	  <List type="animation">
+	    	<animation res="" name="" at="0.0" x="0" y="0" rot="0" sound="sfx_scout1.wav"/>
+		<animation res="" name="" at="1.1" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="bomber2">
+	  <List type="animation">
+		<animation res="" name="" at="1.1" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+		<animation res="" name="" at="1.2" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+		<animation res="" name="" at="1.3" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="bomber2 cw">
+	  <List type="animation">
+		<animation res="" name="" at="0.0" x="0" y="0" rot="0" sound="sfx_scout1.wav"/>
+		<animation res="" name="" at="1.1" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+		<animation res="" name="" at="1.2" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+		<animation res="" name="" at="1.3" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+	  </List>
+  	</EffectsAnimation>
+
+	<EffectsAnimation name="bomber stuka">
+		<List type="animation">
+			<animation res="" name="" at="0.0" x="0" y="0" rot="0" sound="sfx_stuka.wav"/>
+			<animation res="" name="" at="0.6" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+		</List>
+	</EffectsAnimation>
+
+  <EffectsAnimation name="Firework">
+    <List type="animation">
+      <animation res="anim_ui" name="anim_firework" at="0.0" x="0" y="-25" hscale="1.0" vscale="1.0" sound=""/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="Firework 2x">
+    <List type="animation">
+      <animation res="anim_ui" name="anim_firework" at="0.0" x="0" y="-50" hscale="2.0" vscale="2.0" sound=""/>
+    </List>
+  </EffectsAnimation>
+
+	<EffectsAnimation name="Army Rescue">
+		<List type="animation">
+			<animation res="anim_target" name="加血特效动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_heal.wav"/>
+		</List>
+	</EffectsAnimation>
+
+	<EffectsAnimation name="Decapitation Strike">
+		<List type="animation">
+			<animation res="anim_decapitation" name="斩击动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_slash.wav"/>
+		</List>
+	</EffectsAnimation>
+	
+	<EffectsAnimation name="Army Impede">
+		<List type="animation">
+			<animation res="anim_target" name="俘获" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound=""/>
+		</List>
+	</EffectsAnimation>
+
+  <EffectsAnimation name="Army Upgrade">
+    <List type="animation">
+      <animation res="anim_status" name="anim_upgrade" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_lvup2.wav"/>
+    </List>
+  </EffectsAnimation>
+
+	<EffectsAnimation name="Miss">
+		<List type="animation">
+			<animation res="anim_miss" name="MISS动画" at="0.0" x="0" y="0" hscale="0.8" vscale="0.8" sound="sfx_helimiss.wav"/>
+		</List>
+	</EffectsAnimation>
+	
+	<EffectsAnimation name="skill 18">
+		<List type="animation">
+			<animation res="anim_status" name="会心一击-步兵指挥官动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+		</List>
+	</EffectsAnimation>
+  <EffectsAnimation name="skill 19">
+    <List type="animation">
+      <animation res="anim_status" name="会心一击-装甲指挥官动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+    </List>
+  </EffectsAnimation>
+	<EffectsAnimation name="skill 20">
+		<List type="animation">
+			<animation res="anim_status" name="会心一击-火炮指挥官动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+		</List>
+	</EffectsAnimation>
+  <EffectsAnimation name="skill 21">
+    <List type="animation">
+      <animation res="anim_status" name="会心一击-舰队指挥官动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="skill 22">
+    <List type="animation">
+      <animation res="anim_status" name="会心一击-空军指挥官动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="skill 32">
+    <List type="animation">
+      <animation res="anim_status" name="回避-隐蔽动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="skill 33">
+    <List type="animation">
+      <animation res="anim_status" name="不反击-游击战动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="skill 34">
+    <List type="animation">
+      <animation res="anim_status" name="不反击-闪电战动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="skill 42">
+    <List type="animation">
+      <animation res="anim_status" name="特殊-谣言动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+    </List>
+  </EffectsAnimation>
+	<EffectsAnimation name="skill 100">
+		<List type="animation">
+			<animation res="anim_skill" name="skil_100_anim" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+		</List>
+	</EffectsAnimation>
+	<EffectsAnimation name="skill 109">
+		<List type="animation">
+			<animation res="anim_skill" name="skil_109_anim" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+		</List>
+	</EffectsAnimation>
+	<EffectsAnimation name="skill 123">
+		<List type="animation">
+			<animation res="anim_skill" name="skil_123_anim" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+		</List>
+	</EffectsAnimation>
+	<EffectsAnimation name="skill 163">
+		<List type="animation">
+			<animation res="anim_skill" name="skil_163_anim" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+		</List>
+	</EffectsAnimation>
+	<EffectsAnimation name="skill 171">
+		<List type="animation">
+			<animation res="anim_skill" name="skil_171_anim" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+		</List>
+	</EffectsAnimation>
+	<EffectsAnimation name="skill 172">
+		<List type="animation">
+			<animation res="anim_skill" name="skil_172_anim" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+		</List>
+	</EffectsAnimation>
+	<EffectsAnimation name="skill 179">
+		<List type="animation">
+			<animation res="anim_skill" name="skil_179_anim" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_knife.wav"/>
+		</List>
+	</EffectsAnimation>
+  <EffectsAnimation name="步兵">
+    <List type="animation">
+      <animation res="unit_infantry" name="步兵攻击特效" at="0" x="0" y="0" hscale="-1.0" vscale="1.0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+    </List>
+  </EffectsAnimation>
+
+  <EffectsAnimation name="突击步兵">
+    <List type="animation">
+      <animation res="unit_infantry" name="机枪兵攻击特效" at="0" x="0" y="0" hscale="-1.0" vscale="1.0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+    </List>
+  </EffectsAnimation>
+
+  <EffectsAnimation name="机动步兵">
+    <List type="animation">	
+      <animation res="unit_infantry" name="手雷和机枪攻击特效 " at="0" x="5" y="20" hscale="-1.2" vscale="1.2" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+    </List>
+  </EffectsAnimation>
+
+  <EffectsAnimation name="装甲步兵 left">
+    <List type="animation">
+      <animation res="unit_infantry" name="火箭筒和机枪攻击特效" at="0" x="0" y="20" hscale="-1.0" vscale="1.0" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="装甲步兵 right">
+    <List type="animation">
+      <animation res="unit_infantry" name="火箭筒和机枪攻击特效" at="0" x="0" y="20" hscale="1.0" vscale="1.0" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+    </List>
+  </EffectsAnimation>
+
+  <EffectsAnimation name="日本特种兵 left">
+    <List type="animation">
+      <animation res="unit_infantry" name="火箭筒和机枪攻击特效" at="0" x="0" y="20" hscale="-1.0" vscale="1.0" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.4" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="日本特种兵 right">
+    <List type="animation">
+      <animation res="unit_infantry" name="火箭筒和机枪攻击特效" at="0" x="0" y="20" hscale="1.0" vscale="1.0" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.4" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+    </List>
+  </EffectsAnimation>
+
+  <EffectsAnimation name="中国特种兵">
+    <List type="animation">
+      <animation res="unit_infantry" name="手雷和机枪攻击特效 " at="0" x="5" y="20" hscale="-1.2" vscale="1.2" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.4" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+    </List>
+  </EffectsAnimation>
+  
+  <EffectsAnimation name="panzer strike">
+    <List type="animation">
+      <animation res="unit_panzer" name="坦克被攻击特效1" at="0" x="10" y="10" hscale="-1.0" vscale="1.0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+    </List>
+  </EffectsAnimation>
+
+  <EffectsAnimation name="tank strike 1">
+    <List type="animation">
+      <animation res="unit_panzer" name="坦克被攻击特效2" at="0" x="0" y="0" hscale="0.7" vscale="0.7" sound="sfx_explode.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="tank strike 2">
+    <List type="animation">
+      <animation res="unit_panzer" name="坦克被攻击特效3" at="0" x="0" y="10" hscale="1.0" vscale="1.0" sound="sfx_explode.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="tank strike 3">
+    <List type="animation">
+      <animation res="unit_panzer" name="坦克被攻击特效4" at="0" x="0" y="0" hscale="0.7" vscale="0.7" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="tank strike 4">
+    <List type="animation">
+      <animation res="unit_panzer" name="坦克被攻击特效5" at="0" x="0" y="0" hscale="0.7" vscale="0.7" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_naval_gun.wav"/>
+    </List>
+  </EffectsAnimation>
+
+  <EffectsAnimation name="transport strike">
+    <List type="animation">
+      <animation res="unit_infantry" name="机枪兵攻击特效" at="0" x="0" y="0" hscale="-1.0" vscale="1.0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="navy strike 1">
+    <List type="animation">
+      <animation res="unit_ship" name="船被攻击特效1" at="0" x="0" y="0" hscale="0.7" vscale="0.7" sound="sfx_explode.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="navy strike 2">
+    <List type="animation">
+      <animation res="unit_ship" name="船被攻击特效2" at="0" x="" y="10" hscale="0.7" vscale="0.7" sound="sfx_explode.wav"/>
+    </List>
+  </EffectsAnimation>
+	<EffectsAnimation name="navy strike 2 ns">
+		<List type="animation">
+			<animation res="unit_ship" name="船被攻击特效2" at="0" x="" y="10" hscale="0.7" vscale="0.7" sound=""/>
+		</List>
+	</EffectsAnimation>
+  <EffectsAnimation name="navy strike 3">
+    <List type="animation">
+      <animation res="unit_ship" name="船被攻击特效3" at="0" x="0" y="0" hscale="0.7" vscale="0.7" sound="sfx_explode.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="navy strike 4">
+    <List type="animation">
+      <animation res="unit_ship" name="船被攻击特效4" at="0" x="0" y="0" hscale="0.7" vscale="0.7" sound="sfx_explode.wav"/>
+    </List>
+  </EffectsAnimation>
+
+  <EffectsAnimation name="rocket strike left">
+    <List type="animation">
+      <animation res="unit_ship" name="火箭炮被攻击特效" at="0" x="-70" y="0" hscale="-0.7" vscale="0.7" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.5" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="rocket strike right">
+    <List type="animation">
+      <animation res="unit_ship" name="火箭炮被攻击特效" at="0" x="70" y="0" hscale="0.7" vscale="0.7" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+	<animation res="" name="" at="0.5" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+    </List>
+  </EffectsAnimation>
+
+  <EffectsAnimation name="airforce strike">
+    <List type="animation">
+      <animation res="unit_ship" name="飞机扫射特效" at="0" x="0" y="0" hscale="0.7" vscale="0.7" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+	<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+    </List>
+  </EffectsAnimation>
+
+	<EffectsAnimation name="copter feature strike">
+		<List type="animation">
+			<animation res="unit_ship" name="飞机扫射特效" at="0" x="0" y="0" hscale="0.7" vscale="0.7" sound="sfx_gunfire.wav"/>
+			<animation res="" name="" at="0.05" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+			<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+			<animation res="" name="" at="0.15" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+		</List>
+	</EffectsAnimation>
+
+	<EffectsAnimation name="cluster missile strike">
+		<List type="animation">
+			<animation res="anim_clusterexp" name="爆炸" at="0" x="0" y="0" hscale="1.2" vscale="1.2" sound="sfx_guided.wav"/>
+			<animation res="" name="" at="0.05" x="0" y="0" rot="0" sound="sfx_guided.wav"/>
+			<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_guided.wav"/>
+			<animation res="" name="" at="0.15" x="0" y="0" rot="0" sound="sfx_guided.wav"/>
+		</List>
+	</EffectsAnimation>
+
+	<EffectsAnimation name="hawk strike left">
+		<List type="animation">
+			<animation res="unit_elitepanzer2" name="鹞式战斗机攻击特效动画总" at="0" x="-29" y="35" hscale="0.9" vscale="0.9" sound="sfx_explode.wav"/>
+			<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+			<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+			<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+		</List>
+	</EffectsAnimation>
+	<EffectsAnimation name="hawk strike right">
+		<List type="animation">
+			<animation res="unit_elitepanzer2" name="鹞式战斗机攻击特效动画总" at="0" x="29" y="35" hscale="-0.9" vscale="0.9" sound="sfx_explode.wav"/>
+			<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+			<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+			<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+		</List>
+	</EffectsAnimation>
+	
+	<EffectsAnimation name="su30v strike left">
+		<List type="animation">
+			<animation res="unit_elitepanzer2" name="鹞式战斗机攻击特效动画总" at="0" x="-29" y="35" hscale="0.9" vscale="0.9" sound="sfx_explode.wav"/>
+			<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+			<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+			<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+		</List>
+	</EffectsAnimation>
+	<EffectsAnimation name="su30v strike right">
+		<List type="animation">
+			<animation res="unit_elitepanzer2" name="鹞式战斗机攻击特效动画总" at="0" x="29" y="35" hscale="-0.9" vscale="0.9" sound="sfx_explode.wav"/>
+			<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+			<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+			<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_explode.wav"/>
+		</List>
+	</EffectsAnimation>
+
+	<EffectsAnimation name="hawk_su30v">
+		<List type="animation">
+			<animation res="" name="" at="0.0" x="0" y="0" rot="0" sound="sfx_hellfire_missile.wav"/>
+			<animation res="" name="" at="0.25" x="0" y="0" rot="0" sound="sfx_hellfire_missile.wav"/>
+			<animation res="" name="" at="0.5" x="0" y="0" rot="0" sound="sfx_hellfire_missile.wav"/>
+		</List>
+	</EffectsAnimation>
+	
+	<EffectsAnimation name="copter strike left">
+		<List type="animation">
+			<animation res="unit_ship" name="飞机扫射特效" at="0" x="0" y="0" hscale="0.7" vscale="0.7" sound="sfx_gunfire.wav"/>
+			<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+			<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+			<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+		</List>
+	</EffectsAnimation>
+
+	<EffectsAnimation name="copter strike right">
+		<List type="animation">
+			<animation res="unit_ship" name="飞机扫射特效" at="0" x="0" y="0" hscale="-0.7" vscale="0.7" sound="sfx_gunfire.wav"/>
+			<animation res="" name="" at="0.1" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+			<animation res="" name="" at="0.2" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+			<animation res="" name="" at="0.3" x="0" y="0" rot="0" sound="sfx_gunfire.wav"/>
+		</List>
+	</EffectsAnimation>
+
+	<EffectsAnimation name="drone strike left">
+		<List type="animation">
+			<animation res="unit_elitepanzer2" name="无人机攻击特效" at="0" x="10" y="24" hscale="0.7" vscale="0.7" sound="sfx_explode.wav"/>
+		</List>
+	</EffectsAnimation>
+	<EffectsAnimation name="drone strike right">
+		<List type="animation">
+			<animation res="unit_elitepanzer2" name="无人机攻击特效" at="0" x="10" y="24" hscale="-0.7" vscale="0.7" sound="sfx_explode.wav"/>
+		</List>
+	</EffectsAnimation>
+	
+	<EffectsAnimation name="missile strike 1 ns">
+		<List type="animation">
+			<animation res="unit_ship" name="导弹01爆炸动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" layer="1" sound=""/>
+		</List>
+	</EffectsAnimation>
+	
+  <EffectsAnimation name="missile strike 1">
+    <List type="animation">
+      <animation res="unit_ship" name="导弹01爆炸动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" layer="1" sound="sfx_guided.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="missile strike 2">
+    <List type="animation">
+      <animation res="unit_ship" name="导弹02爆炸动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" layer="1" sound="sfx_guided.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="missile strike 3">
+    <List type="animation">
+      <animation res="unit_ship" name="导弹03爆炸动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" layer="1" sound="sfx_guided.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="missile strike 4">
+    <List type="animation">
+      <animation res="unit_ship" name="导弹04爆炸动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" layer="1" sound="sfx_guided.wav"/>
+    </List>
+  </EffectsAnimation>
+  
+  <EffectsAnimation name="原子弹 strike">
+    <List type="animation">
+      <animation res="anim_nuclear" name="原子弹动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" layer="1" sound="sfx_guided.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="氢弹 strike">
+    <List type="animation">
+      <animation res="anim_nuclear" name="氢弹动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" layer="1" sound="sfx_guided.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="三相弹 strike">
+    <List type="animation">
+      <animation res="anim_nuclear" name="三相弹爆炸动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" layer="1" sound="sfx_guided.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="反物质弹 strike">
+    <List type="animation">
+      <animation res="anim_nuclear" name="反物质弹" at="0.1" x="0" y="0" hscale="1.0" vscale="1.0" layer="1" sound="sfx_lighting.wav"/>
+	<animation res="" name="" at="1.4" x="0" y="0" rot="0" sound="sfx_guided.wav"/>
+    </List>
+  </EffectsAnimation>
+
+  <EffectsAnimation name="ion strike 1">
+    <List type="animation">
+      <animation res="anim_ion" name="离子炮小动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_laser.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="ion strike 2">
+    <List type="animation">
+      <animation res="anim_ion" name="离子炮中动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_laser.wav"/>
+    </List>
+  </EffectsAnimation>
+  <EffectsAnimation name="ion strike 3">
+    <List type="animation">
+      <animation res="anim_ion" name="离子炮大动画" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_laser.wav"/>
+    </List>
+  </EffectsAnimation>
+
+	<EffectsAnimation name="laser strike">
+		<List type="animation">
+			<animation res="" name="" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound="sfx_laser.wav"/>
+		</List>
+	</EffectsAnimation>
+
+	<EffectsAnimation name="card 15">
+		<List type="animation">
+			<animation res="anim_card" name="物资封锁动画" at="0.0" x="-10" y="-10" hscale="1.0" vscale="1.0" sound=""/>
+		</List>
+	</EffectsAnimation>
+	<EffectsAnimation name="card 14">
+		<List type="animation">
+			<animation res="anim_card" name="戒严令动画" at="0.0" x="-10" y="-10" hscale="1.0" vscale="1.0" sound=""/>
+		</List>
+	</EffectsAnimation>
+	<EffectsAnimation name="card 2">
+		<List type="animation">
+			<animation res="anim_card" name="间谍动画" at="0.0" x="-10" y="-10" hscale="1.0" vscale="1.0" sound=""/>
+		</List>
+	</EffectsAnimation>
+	<EffectsAnimation name="card upgrade">
+		<List type="animation">
+			<animation res="anim_card" name="城市升级" at="0.0" x="0" y="0" hscale="1.0" vscale="1.0" sound=""/>
+		</List>
+	</EffectsAnimation>
+</EffectsAnimations>

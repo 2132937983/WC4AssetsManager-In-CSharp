@@ -1,0 +1,28 @@
+<warzone>
+	<stage id="101" general="21092,20119" power="472" score="424"/>
+	<stage id="102" general="25178,20251" power="503" score="459"/>
+	<stage id="103" general="25001" power="485" score="441"/>
+	<stage id="104" general="21082,21031,29059" power="758" score="658"/>
+	<stage id="201" general="21101,25112,20079" power="759" score="677"/>
+	<stage id="202" general="25097,20078" power="779" score="721"/>
+	<stage id="203" general="25001,20033" power="763" score="705"/>
+	<stage id="204" general="22069,25004,20113" power="716" score="685"/>
+	<stage id="205" general="20074,22066,21012" power="996" score="922"/>
+	<stage id="301" general="29136,20173,25031" power="764" score="819"/>
+	<stage id="302" general="29141,22054,20182" power="924" score="925"/>
+	<stage id="303" general="29142,22094" power="851" score="831"/>
+	<stage id="304" general="25062,25061,29138" power="832" score="887"/>
+	<stage id="305" general="25046,25109,22053" power="1070" score="1111"/>
+	<stage id="401" general="22084,22080,22079" power="1007" score="949"/>
+	<stage id="402" general="21096,25105,22081,25174" power="1012" score="976"/>
+	<stage id="403" general="20075,23072,22083" power="1120" score="957"/>
+	<stage id="404" general="29019,25173,29017" power="999" score="1020"/>
+	<stage id="405" general="20071,20062,20244,22036" power="1345" score="1296"/>
+	<stage id="501" general="20286,20287,20284" power="1426" score="1393"/>
+	<stage id="502" general="20284,20286,20289" power="1377" score="1423"/>
+	<stage id="503" general="20284,20283,20287" power="1459" score="1450"/>
+	<stage id="504" general="20289,20283,20290" power="1466" score="1517"/>
+	<stage id="505" general="20288,20283,20287" power="1450" score="1452"/>
+	<stage id="506" general="20286,20287,25176,25177" power="1928" score="2133"/>
+</warzone>
+

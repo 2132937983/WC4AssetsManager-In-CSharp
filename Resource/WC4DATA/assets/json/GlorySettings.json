@@ -1,0 +1,158 @@
+[
+  {
+    "Id": 1,
+    "Type": 1,
+    "Challenges": [
+      11201,
+      11601,
+      11301
+    ],
+    "Parameter": 55,
+    "Parameters": [
+      5501
+    ]
+  },
+  {
+    "Id": 2,
+    "Type": 1,
+    "Challenges": [
+      11202,
+      11701,
+      11302
+    ],
+    "Parameter": 49,
+    "Parameters": [
+      4901
+    ]
+  },
+  {
+    "Id": 3,
+    "Type": 1,
+    "Challenges": [
+      11203,
+      11801,
+      11303
+    ],
+    "Parameter": 70,
+    "Parameters": [
+      7001
+    ]
+  },
+  {
+    "Id": 4,
+    "Type": 1,
+    "Challenges": [
+      11204,
+      11901,
+      11304
+    ],
+    "Parameter": 53,
+    "Parameters": [
+      5301
+    ]
+  },
+  {
+    "Id": 5,
+    "Type": 1,
+    "Challenges": [
+      11205,
+      12001,
+      11305
+    ],
+    "Parameter": 58,
+    "Parameters": [
+      5801
+    ]
+  },
+  {
+    "Id": 6,
+    "Type": 3,
+    "Challenges": [
+      11401,
+      11402,
+      11501
+    ],
+    "Parameter": 1,
+    "Parameters": []
+  },
+  {
+    "Id": 7,
+    "Type": 3,
+    "Challenges": [
+      10101,
+      10102,
+      10201,
+      10202
+    ],
+    "Parameter": 3,
+    "Parameters": [
+      1,
+      6,
+      7
+    ]
+  },
+  {
+    "Id": 8,
+    "Type": 3,
+    "Challenges": [
+      10103,
+      10104,
+      10203,
+      10204
+    ],
+    "Parameter": 4,
+    "Parameters": [
+      2,
+      3,
+      4,
+      5,
+      8,
+      9,
+      10
+    ]
+  },
+  {
+    "Id": 9,
+    "Type": 3,
+    "Challenges": [
+      10301,
+      10205,
+      10206,
+      10401,
+      10501
+    ],
+    "Parameter": 5,
+    "Parameters": []
+  },
+  {
+    "Id": 10,
+    "Type": 3,
+    "Challenges": [
+      10601,
+      10602,
+      10603,
+      10604,
+      10605,
+      10606,
+      10607,
+      10608,
+      10701
+    ],
+    "Parameter": 2,
+    "Parameters": []
+  },
+  {
+    "Id": 11,
+    "Type": 2,
+    "Challenges": [
+      10801,
+      10901,
+      11001,
+      11101
+    ],
+    "Parameter": 1056,
+    "Parameters": [
+      2
+    ]
+  }
+]

@@ -1,0 +1,140 @@
+﻿<help>
+	<catalog name="help_scenario">
+		<subcatalog name="help_scenario_1">
+			<page name="" desc="help_scenario_desc_1" image="scenario_1"/>
+		</subcatalog>
+		<subcatalog name="help_scenario_2">
+			<page name="" desc="help_scenario_desc_2" image="scenario_2"/>
+		</subcatalog>
+		<subcatalog name="help_scenario_3">
+			<page name="" desc="help_scenario_desc_3" image="scenario_3"/>
+		</subcatalog>
+		<subcatalog name="help_scenario_4">
+			<page name="" desc="help_scenario_desc_4" image="scenario_4"/>
+		</subcatalog>
+		<subcatalog name="help_scenario_5">
+			<page name="" desc="help_scenario_desc_5" image="scenario_5"/>
+		</subcatalog>
+	</catalog>
+	<catalog name="help_conquest">
+		<subcatalog name="help_conquest_1">
+			<page name="" desc="help_conquest_desc_1" image="conquest_1"/>
+		</subcatalog>
+		<subcatalog name="help_conquest_2">
+			<page name="" desc="help_conquest_desc_2" image="conquest_2"/>
+		</subcatalog>
+		<subcatalog name="help_conquest_3">
+			<page name="" desc="help_conquest_desc_3" image="conquest_3"/>
+		</subcatalog>
+		<subcatalog name="help_conquest_4">
+			<page name="" desc="help_conquest_desc_4" image="conquest_4"/>
+		</subcatalog>
+		<subcatalog name="help_conquest_5">
+			<page name="" desc="help_conquest_desc_5" image="conquest_5"/>
+		</subcatalog>
+		<subcatalog name="help_conquest_6">
+			<page name="" desc="help_conquest_desc_6" image="conquest_6"/>
+		</subcatalog>
+		<subcatalog name="help_conquest_7">
+			<page name="" desc="help_conquest_desc_7" image="conquest_7"/>
+		</subcatalog>
+		<subcatalog name="help_conquest_8">
+			<page name="" desc="help_conquest_desc_8" image="conquest_8"/>
+		</subcatalog>
+	</catalog>
+	<catalog name="help_domination">
+		<subcatalog name="help_domination_1">
+			<page name="" desc="help_domination_desc_1" image="domination_1"/>
+		</subcatalog>
+		<subcatalog name="help_domination_2">
+			<page name="" desc="help_domination_desc_2" image="domination_2"/>
+		</subcatalog>
+		<subcatalog name="help_domination_3">
+			<page name="" desc="help_domination_desc_3" image="domination_3"/>
+		</subcatalog>
+		<subcatalog name="help_domination_4">
+			<page name="" desc="help_domination_desc_4" image="domination_4"/>
+		</subcatalog>
+		<subcatalog name="help_domination_5">
+			<page name="" desc="help_domination_desc_5" image="domination_5"/>
+		</subcatalog>
+		<subcatalog name="help_domination_6">
+			<page name="" desc="help_domination_desc_6" image="domination_6"/>
+		</subcatalog>
+	</catalog>
+	<catalog name="help_hq">
+		<subcatalog name="help_hq_1">
+			<page name="" desc="help_hq_desc_1" image="hq_1"/>
+		</subcatalog>
+		<subcatalog name="help_hq_2">
+			<page name="" desc="help_hq_desc_2" image="hq_2"/>
+		</subcatalog>
+		<subcatalog name="help_hq_3">
+			<page name="" desc="help_hq_desc_3" image="hq_3"/>
+		</subcatalog>
+		<subcatalog name="help_hq_4">
+			<page name="" desc="help_hq_desc_4" image="hq_4"/>
+		</subcatalog>
+		<subcatalog name="help_hq_5">
+			<page name="" desc="help_hq_desc_5" image="hq_5"/>
+		</subcatalog>
+		<subcatalog name="help_hq_6">
+			<page name="" desc="help_hq_desc_6" image="hq_6"/>
+		</subcatalog>
+		<subcatalog name="help_hq_7">
+			<page name="" desc="help_hq_desc_7" image="hq_7"/>
+		</subcatalog>
+		<subcatalog name="help_hq_8">
+			<page name="" desc="help_hq_desc_8" image="hq_8"/>
+		</subcatalog>
+		<subcatalog name="help_hq_9">
+			<page name="" desc="help_hq_desc_9" image="hq_9"/>
+		</subcatalog>
+	</catalog>
+	<catalog name="help_battle">
+		<subcatalog name="help_battle_1">
+			<page name="" desc="help_battle_desc_1" image="battle_1"/>
+		</subcatalog>
+		<subcatalog name="help_battle_2">
+			<page name="" desc="help_battle_desc_2" image="battle_2"/>
+		</subcatalog>
+		<subcatalog name="help_battle_3">
+			<page name="" desc="help_battle_desc_3" image="battle_3"/>
+		</subcatalog>
+		<subcatalog name="help_battle_4">
+			<page name="" desc="help_battle_desc_4" image="battle_4"/>
+		</subcatalog>
+		<subcatalog name="help_battle_5">
+			<page name="" desc="help_battle_desc_5" image="battle_5"/>
+		</subcatalog>
+		<subcatalog name="help_battle_6">
+			<page name="" desc="help_battle_desc_6" image="battle_6"/>
+		</subcatalog>
+		<subcatalog name="help_battle_7">
+			<page name="" desc="help_battle_desc_7" image="battle_7"/>
+		</subcatalog>
+		<subcatalog name="help_battle_8">
+			<page name="" desc="help_battle_desc_8" image="battle_8"/>
+		</subcatalog>
+		<subcatalog name="help_battle_9">
+			<page name="" desc="help_battle_desc_9" image="battle_9"/>
+		</subcatalog>
+		<subcatalog name="help_battle_10">
+			<page name="" desc="help_battle_desc_10" image="battle_10"/>
+		</subcatalog>
+	</catalog>
+	<catalog name="help_system">
+		<subcatalog name="help_system_1">
+			<page name="" desc="help_system_desc_1" image="system_1"/>
+		</subcatalog>
+		<subcatalog name="help_system_2">
+			<page name="" desc="help_system_desc_2" image="system_2"/>
+		</subcatalog>
+		<subcatalog name="help_system_3">
+			<page name="" desc="help_system_desc_3" image="system_3"/>
+		</subcatalog>
+		<subcatalog name="help_system_4">
+			<page name="" desc="help_system_desc_4" image="system_4"/>
+		</subcatalog>
+	</catalog>
+</help>

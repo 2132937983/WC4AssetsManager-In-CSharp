@@ -1,0 +1,310 @@
+﻿<strategies>
+  <!-- 产出顺序：陆军 海军 空军 导弹 防御 防空 城市设施-->
+  <strategy id="1001" name="默认产出" type="produce" chance="56,5,17,8,0,0,1" group="1"/>
+  <!-- 城市设施顺序：工厂 科研所 补给站 机场 导弹基地 核弹工厂 -->
+  <strategy id="1000" name="默认设施" type="facility" chance="45,15,10,20,10,0" group="1"/>
+  <!-- 陆军顺序：步兵 坦克 大炮 -->
+  <strategy id="1002" name="默认陆军" type="landforce" chance="30,40,30" group="1"/>
+  <strategy id="1003" name="默认步兵" type="infantry" chance="20,20,20,20,20" group="1"/>
+  <strategy id="1004" name="默认坦克" type="tank" chance="20,20,20,20,20" group="1"/>
+  <strategy id="1005" name="默认大炮" type="artillery" chance="25,25,25,25" group="1"/>
+  <strategy id="1006" name="默认海军" type="navy" chance="20,20,20,20,20" group="1"/>
+  <strategy id="1007" name="默认空军" type="airforce" chance="20,20,20,20,20" group="1"/>
+  <strategy id="1008" name="默认导弹" type="missile" chance="25,25,25,25" group="1"/>
+  <strategy id="1009" name="默认防御" type="fort" chance="0,0,0,0" group="1"/>
+  <strategy id="1010" name="默认防空" type="airdefence" chance="0,0,0" group="1"/>
+  
+ 
+  <strategy id="1011" name="产出二" type="produce" chance="56,5,17,8,7,7" group="2"/>
+  <strategy id="1012" name="陆军3" type="landforce" chance="0,0,100" group="2"/>
+  <strategy id="1013" name="步兵5" type="infantry" chance="0,0,0,0,100" group="2"/>
+  <strategy id="1014" name="坦克5" type="tank" chance="0,0,0,0,100" group="2"/>
+  <strategy id="1015" name="火炮4" type="artillery" chance="0,0,0,100" group="2"/>
+  <strategy id="1016" name="海军5" type="navy" chance="0,0,0,0,100" group="2"/>
+  <strategy id="1017" name="空军5" type="airforce" chance="0,0,0,0,100" group="2"/>
+  <strategy id="1018" name="导弹4" type="missile" chance="0,0,0,100" group="2"/>
+  <strategy id="1019" name="要塞4" type="fort" chance="0,0,0,0" group="2"/>
+  <strategy id="1020" name="防空4" type="airdefence" chance="0,0,0,0" group="2"/>
+
+
+
+  <strategy id="1021" name="产出三" type="produce" chance="56,5,17,8,7,7" group="3"/>
+  <strategy id="1022" name="陆军2" type="landforce" chance="0,100,0" group="3"/>
+  <strategy id="1023" name="步兵4" type="infantry" chance="0,0,0,100,0" group="3"/>
+  <strategy id="1024" name="坦克4" type="tank" chance="0,0,0,100,0" group="3"/>
+  <strategy id="1025" name="火炮3" type="artillery" chance="0,0,100,0" group="3"/>
+  <strategy id="1026" name="海军4" type="navy" chance="0,0,0,100,0" group="3"/>
+  <strategy id="1027" name="空军4" type="airforce" chance="0,0,0,100,0" group="3"/>
+  <strategy id="1028" name="导弹3" type="missile" chance="0,0,100,0" group="3"/>
+  <strategy id="1029" name="要塞3" type="fort" chance="0,0,0,0" group="3"/>
+  <strategy id="1030" name="防空3" type="airdefence" chance="0,0,0,0" group="3"/>
+
+
+  <strategy id="1031" name="产出四" type="produce" chance="56,5,17,8,7,7" group="4"/>
+  <strategy id="1032" name="陆军1" type="landforce" chance="100,0,0" group="4"/>
+  <strategy id="1033" name="步兵3" type="infantry" chance="0,0,100,0,0" group="4"/>
+  <strategy id="1034" name="坦克3" type="tank" chance="0,0,100,0,0" group="4"/>
+  <strategy id="1035" name="火炮2" type="artillery" chance="0,100,0,0" group="4"/>
+  <strategy id="1036" name="海军3" type="navy" chance="0,0,100,0,0" group="4"/>
+  <strategy id="1037" name="空军3" type="airforce" chance="0,0,100,0,0" group="4"/>
+  <strategy id="1038" name="导弹2" type="missile" chance="0,100,0,0" group="4"/>
+  <strategy id="1039" name="要塞2" type="fort" chance="0,0,0,0" group="4"/>
+  <strategy id="1040" name="防空2" type="airdefence" chance="0,0,0,0" group="4"/>
+
+  <strategy id="1041" name="产出五" type="produce" chance="56,5,17,8,7,7" group="5"/>
+  <strategy id="1042" name="陆军3、2" type="landforce" chance="0,50,50" group="5"/>
+  <strategy id="1043" name="步兵2" type="infantry" chance="0,100,0,0,0" group="5"/>
+  <strategy id="1044" name="坦克2" type="tank" chance="0,100,0,0,0" group="5"/>
+  <strategy id="1045" name="火炮1" type="artillery" chance="100,0,0,0" group="5"/>
+  <strategy id="1046" name="海军2" type="navy" chance="0,100,0,0,0" group="5"/>
+  <strategy id="1047" name="空军2" type="airforce" chance="0,100,0,0,0" group="5"/>
+  <strategy id="1048" name="导弹1" type="missile" chance="100,0,0,0" group="5"/>
+  <strategy id="1049" name="要塞1" type="fort" chance="0,0,0,0" group="5"/>
+  <strategy id="1050" name="防空1" type="airdefence" chance="0,0,0,0" group="5"/>
+
+  <strategy id="1051" name="产出六" type="produce" chance="56,5,17,8,7,7" group="6"/>
+  <strategy id="1052" name="陆军2、1" type="landforce" chance="50,50,0" group="6"/>
+  <strategy id="1053" name="步兵1" type="infantry" chance="100,0,0,0,0" group="6"/>
+  <strategy id="1054" name="坦克1" type="tank" chance="100,0,0,0,0" group="6"/>
+  <strategy id="1055" name="火炮1" type="artillery" chance="100,0,0,0" group="6"/>
+  <strategy id="1056" name="海军1" type="navy" chance="100,0,0,0,0" group="6"/>
+  <strategy id="1057" name="空军1" type="airforce" chance="100,0,0,0,0" group="6"/>
+  <strategy id="1058" name="导弹1" type="missile" chance="100,0,0,0" group="6"/>
+  <strategy id="1059" name="要塞1" type="fort" chance="0,0,0,0" group="6"/>
+  <strategy id="1060" name="防空1" type="airdefence" chance="0,0,0,0" group="6"/>
+
+  <strategy id="1061" name="产出七" type="produce" chance="56,5,17,8,7,7" group="7"/>
+  <strategy id="1062" name="默认陆军" type="landforce" chance="30,40,30" group="7"/>
+  <strategy id="1063" name="步兵5、4" type="infantry" chance="0,0,0,50,50" group="7"/>
+  <strategy id="1064" name="坦克5、4" type="tank" chance="0,0,0,50,50" group="7"/>
+  <strategy id="1065" name="火炮4、3" type="artillery" chance="0,0,50,50" group="7"/>
+  <strategy id="1066" name="海军5、4" type="navy" chance="0,0,0,50,50" group="7"/>
+  <strategy id="1067" name="空军5、4" type="airforce" chance="0,0,0,50,50" group="7"/>
+  <strategy id="1068" name="导弹4、3" type="missile" chance="0,0,50,50" group="7"/>
+  <strategy id="1069" name="要塞4、3" type="fort" chance="0,0,0,0" group="7"/>
+  <strategy id="1070" name="防空4、3" type="airdefence" chance="0,0,0,0" group="7"/>
+
+  <strategy id="1071" name="产出八" type="produce" chance="56,5,17,8,7,7" group="8"/>
+  <strategy id="1072" name="默认陆军" type="landforce" chance="30,40,30" group="8"/>
+  <strategy id="1073" name="步兵4、3" type="infantry" chance="0,0,50,50,0" group="8"/>
+  <strategy id="1074" name="坦克4、3" type="tank" chance="0,0,50,50,0" group="8"/>
+  <strategy id="1075" name="火炮3、2" type="artillery" chance="0,50,50,0" group="8"/>
+  <strategy id="1076" name="海军4、3" type="navy" chance="0,0,50,50,0" group="8"/>
+  <strategy id="1077" name="空军4、3" type="airforce" chance="0,0,50,50,0" group="8"/>
+  <strategy id="1078" name="导弹3、2" type="missile" chance="0,50,50,0" group="8"/>
+  <strategy id="1079" name="要塞3、2" type="fort" chance="0,0,0,0" group="8"/>
+  <strategy id="1080" name="防空3、2" type="airdefence" chance="0,0,0,0" group="8"/>
+
+  <strategy id="1081" name="产出九" type="produce" chance="56,5,17,8,7,7" group="9"/>
+  <strategy id="1082" name="默认陆军" type="landforce" chance="30,40,30" group="9"/>
+  <strategy id="1083" name="步兵3、2" type="infantry" chance="0,50,50,0,0" group="9"/>
+  <strategy id="1084" name="坦克3、2" type="tank" chance="0,50,50,0,0" group="9"/>
+  <strategy id="1085" name="火炮2、1" type="artillery" chance="50,50,0,0" group="9"/>
+  <strategy id="1086" name="海军3、2" type="navy" chance="0,50,50,0,0" group="9"/>
+  <strategy id="1087" name="空军3、2" type="airforce" chance="0,50,50,0,0" group="9"/>
+  <strategy id="1088" name="导弹2、1" type="missile" chance="50,50,0,0" group="9"/>
+  <strategy id="1089" name="要塞2、1" type="fort" chance="0,0,0,0" group="9"/>
+  <strategy id="1090" name="防空2、1" type="airdefence" chance="0,0,0,0" group="9"/>
+
+  <strategy id="1091" name="产出十" type="produce" chance="56,5,17,8,7,7" group="10"/>
+  <strategy id="1092" name="默认陆军" type="landforce" chance="30,40,30" group="10"/>
+  <strategy id="1093" name="步兵2、1" type="infantry" chance="50,50,0,0,0" group="10"/>
+  <strategy id="1094" name="坦克2、1" type="tank" chance="50,50,0,0,0" group="10"/>
+  <strategy id="1095" name="火炮2、1" type="artillery" chance="50,50,0,0" group="10"/>
+  <strategy id="1096" name="海军2、1" type="navy" chance="50,50,0,0,0" group="10"/>
+  <strategy id="1097" name="空军2、1" type="airforce" chance="50,50,0,0,0" group="10"/>
+  <strategy id="1098" name="导弹2、1" type="missile" chance="50,50,0,0" group="10"/>
+  <strategy id="1099" name="要塞2、1" type="fort" chance="0,0,0,0" group="10"/>
+  <strategy id="1100" name="防空2、1" type="airdefence" chance="0,0,0,0" group="10"/>
+  
+  <strategy id="1101" name="特殊十一" type="produce" chance="56,5,17,8,7,7" group="11"/>
+  <strategy id="1102" name="默认陆军" type="landforce" chance="30,40,30" group="11"/>
+  <strategy id="1103" name="步兵0" type="infantry" chance="0,0,0,0,0" group="11"/>
+  <strategy id="1104" name="坦克1" type="tank" chance="100,0,0,0,0" group="11"/>
+  <strategy id="1105" name="火炮0" type="artillery" chance="0,0,0,0" group="11"/>
+  <strategy id="1106" name="海军0" type="navy" chance="0,0,0,0,0" group="11"/>
+  <strategy id="1107" name="空军0" type="airforce" chance="0,0,0,0,0" group="11"/>
+  <strategy id="1108" name="导弹0" type="missile" chance="0,0,0,0" group="11"/>
+  <strategy id="1109" name="要塞0" type="fort" chance="0,0,0,0" group="11"/>
+  <strategy id="1110" name="防空0" type="airdefence" chance="0,0,0,0" group="11"/>
+
+  <strategy id="1111" name="特殊十二" type="produce" chance="56,5,17,8,7,7" group="12"/>
+  <strategy id="1112" name="默认陆军" type="landforce" chance="30,40,30" group="12"/>
+  <strategy id="1113" name="步兵0" type="infantry" chance="0,0,0,0,0" group="12"/>
+  <strategy id="1114" name="坦克2" type="tank" chance="0,100,0,0,0" group="12"/>
+  <strategy id="1115" name="火炮0" type="artillery" chance="0,0,0,0" group="12"/>
+  <strategy id="1116" name="海军0" type="navy" chance="0,0,0,0,0" group="12"/>
+  <strategy id="1117" name="空军0" type="airforce" chance="0,0,0,0,0" group="12"/>
+  <strategy id="1118" name="导弹0" type="missile" chance="0,0,0,0" group="12"/>
+  <strategy id="1119" name="要塞0" type="fort" chance="0,0,0,0" group="12"/>
+  <strategy id="1120" name="防空0" type="airdefence" chance="0,0,0,0" group="12"/>
+
+  <strategy id="1121" name="特殊十三" type="produce" chance="56,5,17,8,7,7" group="13"/>
+  <strategy id="1122" name="默认陆军" type="landforce" chance="30,40,30" group="13"/>
+  <strategy id="1123" name="步兵0" type="infantry" chance="0,0,0,0,0" group="13"/>
+  <strategy id="1124" name="坦克3" type="tank" chance="0,0,100,0,0" group="13"/>
+  <strategy id="1125" name="火炮0" type="artillery" chance="0,0,0,0" group="13"/>
+  <strategy id="1126" name="海军0" type="navy" chance="0,0,0,0,0" group="13"/>
+  <strategy id="1127" name="空军0" type="airforce" chance="0,0,0,0,0" group="13"/>
+  <strategy id="1128" name="导弹0" type="missile" chance="0,0,0,0" group="13"/>
+  <strategy id="1129" name="要塞0" type="fort" chance="0,0,0,0" group="13"/>
+  <strategy id="1130" name="防空0" type="airdefence" chance="0,0,0,0" group="13"/>
+
+  <strategy id="1131" name="特殊十四" type="produce" chance="56,5,17,8,7,7" group="14"/>
+  <strategy id="1132" name="默认陆军" type="landforce" chance="30,40,30" group="14"/>
+  <strategy id="1133" name="步兵0" type="infantry" chance="0,0,0,0,0" group="14"/>
+  <strategy id="1134" name="坦克4" type="tank" chance="0,0,0,100,0" group="14"/>
+  <strategy id="1135" name="火炮0" type="artillery" chance="0,0,0,0" group="14"/>
+  <strategy id="1136" name="海军0" type="navy" chance="0,0,0,0,0" group="14"/>
+  <strategy id="1137" name="空军0" type="airforce" chance="0,0,0,0,0" group="14"/>
+  <strategy id="1138" name="导弹0" type="missile" chance="0,0,0,0" group="14"/>
+  <strategy id="1139" name="要塞0" type="fort" chance="0,0,0,0" group="14"/>
+  <strategy id="1140" name="防空0" type="airdefence" chance="0,0,0,0" group="14"/>
+
+  <strategy id="1141" name="特殊十五" type="produce" chance="56,5,17,8,7,7" group="15"/>
+  <strategy id="1142" name="默认陆军" type="landforce" chance="30,40,30" group="15"/>
+  <strategy id="1143" name="步兵0" type="infantry" chance="0,0,0,0,0" group="15"/>
+  <strategy id="1144" name="坦克5" type="tank" chance="0,0,0,0,100" group="15"/>
+  <strategy id="1145" name="火炮0" type="artillery" chance="0,0,0,0" group="15"/>
+  <strategy id="1146" name="海军0" type="navy" chance="0,0,0,0,0" group="15"/>
+  <strategy id="1147" name="空军0" type="airforce" chance="0,0,0,0,0" group="15"/>
+  <strategy id="1148" name="导弹0" type="missile" chance="0,0,0,0" group="15"/>
+  <strategy id="1149" name="要塞0" type="fort" chance="0,0,0,0" group="15"/>
+  <strategy id="1150" name="防空0" type="airdefence" chance="0,0,0,0" group="15"/>
+
+  <strategy id="1151" name="特殊十六" type="produce" chance="56,5,17,8,7,7" group="16"/>
+  <strategy id="1152" name="默认陆军" type="landforce" chance="30,40,30" group="16"/>
+  <strategy id="1153" name="步兵0" type="infantry" chance="0,0,0,0,0" group="16"/>
+  <strategy id="1154" name="坦克0" type="tank" chance="0,0,0,0,0" group="16"/>
+  <strategy id="1155" name="火炮1" type="artillery" chance="100,0,0,0" group="16"/>
+  <strategy id="1156" name="海军0" type="navy" chance="0,0,0,0,0" group="16"/>
+  <strategy id="1157" name="空军0" type="airforce" chance="0,0,0,0,0" group="16"/>
+  <strategy id="1158" name="导弹0" type="missile" chance="0,0,0,0" group="16"/>
+  <strategy id="1159" name="要塞0" type="fort" chance="0,0,0,0" group="16"/>
+  <strategy id="1160" name="防空0" type="airdefence" chance="0,0,0,0" group="16"/>
+
+  <strategy id="1161" name="特殊十七" type="produce" chance="56,5,17,8,7,7" group="17"/>
+  <strategy id="1162" name="默认陆军" type="landforce" chance="30,40,30" group="17"/>
+  <strategy id="1163" name="步兵0" type="infantry" chance="0,0,0,0,0" group="17"/>
+  <strategy id="1164" name="坦克0" type="tank" chance="0,0,0,0,0" group="17"/>
+  <strategy id="1165" name="火炮2" type="artillery" chance="0,100,0,0" group="17"/>
+  <strategy id="1166" name="海军0" type="navy" chance="0,0,0,0,0" group="17"/>
+  <strategy id="1167" name="空军0" type="airforce" chance="0,0,0,0,0" group="17"/>
+  <strategy id="1168" name="导弹0" type="missile" chance="0,0,0,0" group="17"/>
+  <strategy id="1169" name="要塞0" type="fort" chance="0,0,0,0" group="17"/>
+  <strategy id="1170" name="防空0" type="airdefence" chance="0,0,0,0" group="17"/>
+
+  <strategy id="1171" name="特殊十八" type="produce" chance="56,5,17,8,7,7" group="18"/>
+  <strategy id="1172" name="默认陆军" type="landforce" chance="30,40,30" group="18"/>
+  <strategy id="1173" name="步兵0" type="infantry" chance="0,0,0,0,0" group="18"/>
+  <strategy id="1174" name="坦克0" type="tank" chance="0,0,0,0,0" group="18"/>
+  <strategy id="1175" name="火炮3" type="artillery" chance="0,0,100,0" group="18"/>
+  <strategy id="1176" name="海军0" type="navy" chance="0,0,0,0,0" group="18"/>
+  <strategy id="1177" name="空军0" type="airforce" chance="0,0,0,0,0" group="18"/>
+  <strategy id="1178" name="导弹0" type="missile" chance="0,0,0,0" group="18"/>
+  <strategy id="1179" name="要塞0" type="fort" chance="0,0,0,0" group="18"/>
+  <strategy id="1180" name="防空0" type="airdefence" chance="0,0,0,0" group="18"/>
+
+  <strategy id="1181" name="特殊十九" type="produce" chance="56,5,17,8,7,7" group="19"/>
+  <strategy id="1182" name="默认陆军" type="landforce" chance="30,40,30" group="19"/>
+  <strategy id="1183" name="步兵0" type="infantry" chance="0,0,0,0,0" group="19"/>
+  <strategy id="1184" name="坦克0" type="tank" chance="0,0,0,0,0" group="19"/>
+  <strategy id="1185" name="火炮4" type="artillery" chance="0,0,0,100" group="19"/>
+  <strategy id="1186" name="海军0" type="navy" chance="0,0,0,0,0" group="19"/>
+  <strategy id="1187" name="空军0" type="airforce" chance="0,0,0,0,0" group="19"/>
+  <strategy id="1188" name="导弹0" type="missile" chance="0,0,0,0" group="19"/>
+  <strategy id="1189" name="要塞0" type="fort" chance="0,0,0,0" group="19"/>
+  <strategy id="1190" name="防空0" type="airdefence" chance="0,0,0,0" group="19"/>
+
+  <strategy id="1191" name="神秘势力" type="produce" chance="60,10,20,10,0,0" group="20"/>
+  <strategy id="1192" name="默认陆军" type="landforce" chance="30,40,30" group="20"/>
+  <strategy id="1193" name="步兵0" type="infantry" chance="0,0,0,0,100" group="20"/>
+  <strategy id="1194" name="坦克0" type="tank" chance="0,0,0,0,100" group="20"/>
+  <strategy id="1195" name="火炮4" type="artillery" chance="0,0,0,100" group="20"/>
+  <strategy id="1196" name="默认海军" type="navy" chance="0,0,0,0,100" group="20"/>
+  <strategy id="1197" name="默认空军" type="airforce" chance="30,0,40,30,0" group="20"/>
+  <strategy id="1198" name="默认导弹" type="missile" chance="25,25,25,25" group="20"/>
+  <strategy id="1199" name="要塞0" type="fort" chance="0,0,0,0" group="20"/>
+  <strategy id="1200" name="防空0" type="airdefence" chance="0,0,0,0" group="20"/>
+  
+  <strategy id="9001" name="陆军强国减少步兵" type="produce" chance="50,12,20,10,4,4,0" group="901"/>
+  <strategy id="9002" name="设施" type="facility" chance="20,50,0,10,10,10" group="901"/>
+  <strategy id="9003" name="陆军" type="landforce" chance="20,45,35" group="901"/>
+  <strategy id="9004" name="步兵" type="infantry" chance="5,10,40,25,20" group="901"/>
+  <strategy id="9005" name="坦克" type="tank" chance="5,10,40,25,20" group="901"/>
+  <strategy id="9006" name="大炮" type="artillery" chance="5,35,35,25" group="901"/>
+  <strategy id="9007" name="海军" type="navy" chance="10,27,23,20,20" group="901"/>
+  <strategy id="9008" name="空军" type="airforce" chance="10,30,20,20,20" group="901"/>
+  <strategy id="9009" name="导弹" type="missile" chance="25,25,25,25" group="901"/>
+  <strategy id="9010" name="要塞" type="fort" chance="10,35,25,30" group="901"/>
+  <strategy id="9011" name="防空" type="airdefence" chance="13,53,34" group="901"/>
+
+
+  <strategy id="9012" name="陆军强国大幅度减少步兵" type="produce" chance="50,12,20,10,4,4,0" group="902"/>
+  <strategy id="9013" name="设施" type="facility" chance="20,50,0,10,10,10" group="902"/>
+  <strategy id="9014" name="陆军" type="landforce" chance="10,55,35" group="902"/>
+  <strategy id="9015" name="步兵" type="infantry" chance="5,5,20,45,25" group="902"/>
+  <strategy id="9016" name="坦克" type="tank" chance="5,5,20,45,25" group="902"/>
+  <strategy id="9017" name="大炮" type="artillery" chance="5,30,35,30" group="902"/>
+  <strategy id="9018" name="海军" type="navy" chance="5,15,30,30,20" group="902"/>
+  <strategy id="9019" name="空军" type="airforce" chance="5,20,20,35,20" group="902"/>
+  <strategy id="9020" name="导弹" type="missile" chance="25,25,25,25" group="902"/>
+  <strategy id="9021" name="要塞" type="fort" chance="5,35,20,40" group="902"/>
+  <strategy id="9022" name="防空" type="airdefence" chance="8,44,48" group="902"/> 
+  
+  <!-- 产出顺序：陆军 海军 空军 导弹 防御 防空 城市设施-->
+  <!-- 城市设施顺序：工厂 科研所 补给站 机场 导弹基地 核弹工厂 -->
+  <strategy id="9023" name="陆军强国默认产出" type="produce" chance="80,10,5,5,0,0,0" group="903"/>
+  <strategy id="9024" name="设施" type="facility" chance="30,40,0,10,20,0" group="903"/>
+  <strategy id="9025" name="陆军" type="landforce" chance="20,40,40" group="903"/>
+  <strategy id="9026" name="步兵" type="infantry" chance="5,10,10,40,35" group="903"/>
+  <strategy id="9027" name="坦克" type="tank" chance="5,10,10,40,35" group="903"/>
+  <strategy id="9028" name="大炮" type="artillery" chance="5,15,40,40" group="903"/>
+  <strategy id="9029" name="海军" type="navy" chance="20,20,20,20,20" group="903"/>
+  <strategy id="9030" name="空军" type="airforce" chance="5,5,10,40,40" group="903"/>
+  <strategy id="9031" name="导弹" type="missile" chance="25,25,25,25" group="903"/>
+  <strategy id="9032" name="防御" type="fort" chance="0,0,0,0" group="903"/>
+  <strategy id="9033" name="防空" type="airdefence" chance="0,0,0" group="903"/>
+
+  
+  <strategy id="9034" name="海军强国减少步兵" type="produce" chance="33,29,20,10,4,4,0" group="904"/>
+  <strategy id="9035" name="设施" type="facility" chance="20,50,0,10,10,10" group="904"/>
+  <strategy id="9036" name="陆军" type="landforce" chance="20,45,35" group="904"/>
+  <strategy id="9037" name="步兵" type="infantry" chance="5,10,40,25,20" group="904"/>
+  <strategy id="9038" name="坦克" type="tank" chance="5,10,40,25,20" group="904"/>
+  <strategy id="9039" name="大炮" type="artillery" chance="5,35,35,25" group="904"/>
+  <strategy id="9040" name="海军" type="navy" chance="10,27,23,20,20" group="904"/>
+  <strategy id="9041" name="空军" type="airforce" chance="10,30,20,20,20" group="904"/>
+  <strategy id="9042" name="导弹" type="missile" chance="25,25,25,25" group="904"/>
+  <strategy id="9043" name="要塞" type="fort" chance="10,35,25,30" group="904"/>
+  <strategy id="9044" name="防空" type="airdefence" chance="13,53,34" group="904"/>
+
+
+  <strategy id="9045" name="海军强国大幅度减少步兵" type="produce" chance="33,29,20,10,4,4,0" group="905"/>
+  <strategy id="9046" name="设施" type="facility" chance="20,50,0,10,10,10" group="905"/>
+  <strategy id="9047" name="陆军" type="landforce" chance="10,55,35" group="905"/>
+  <strategy id="9048" name="步兵" type="infantry" chance="5,5,20,45,25" group="905"/>
+  <strategy id="9049" name="坦克" type="tank" chance="5,5,20,45,25" group="905"/>
+  <strategy id="9050" name="大炮" type="artillery" chance="5,30,35,30" group="905"/>
+  <strategy id="9051" name="海军" type="navy" chance="5,15,30,30,20" group="905"/>
+  <strategy id="9052" name="空军" type="airforce" chance="5,20,20,35,20" group="905"/>
+  <strategy id="9053" name="导弹" type="missile" chance="25,25,25,25" group="905"/>
+  <strategy id="9054" name="要塞" type="fort" chance="5,35,20,40" group="905"/>
+  <strategy id="9055" name="防空" type="airdefence" chance="8,44,48" group="905"/> 
+  
+
+
+  <strategy id="9056" name="海军强国默认产出" type="produce" chance="55,35,5,5,0,0,0" group="906"/>
+  <strategy id="9057" name="设施" type="facility" chance="30,40,0,10,20,0" group="906"/>
+  <strategy id="9058" name="陆军" type="landforce" chance="20,40,40" group="906"/>
+  <strategy id="9059" name="步兵" type="infantry" chance="5,5,20,35,35" group="906"/>
+  <strategy id="9060" name="坦克" type="tank" chance="5,10,10,40,35" group="906"/>
+  <strategy id="9061" name="大炮" type="artillery" chance="5,15,40,40" group="906"/>
+  <strategy id="9062" name="海军" type="navy" chance="5,10,20,30,35" group="906"/>
+  <strategy id="9063" name="空军" type="airforce" chance="5,5,10,40,40" group="906"/>
+  <strategy id="9064" name="导弹" type="missile" chance="25,25,25,25" group="906"/>
+  <strategy id="9065" name="防御" type="fort" chance="0,0,0,0" group="906"/>
+  <strategy id="9066" name="防空" type="airdefence" chance="0,0,0" group="906"/>
+  
+  
+</strategies>

@@ -1,0 +1,132 @@
+<TacticalMaps>
+		<TacticalMap id="10001" map="image/map/02.png" centerx="505" centery="348.1" width="1434" height="974" scalex="1" scaley="1" age="1943.9" agex="-702.85" agey="278.45">
+		</TacticalMap>
+		<TacticalMap id="10002" map="image/map/01.png" centerx="1036.15" centery="1028.1" width="1434" height="1694" scalex="1" scaley="1" age="1950.6" agex="-700.85" agey="153.45">
+		</TacticalMap>
+		<TacticalMap id="10003" map="image/map/04.png" centerx="341.65" centery="229.95" width="994" height="864" scalex="1" scaley="1" age="1953.3" agex="330.1" agey="386.45">
+		</TacticalMap>
+		<TacticalMap id="10004" map="image/map/01.png" centerx="701.15" centery="1081.1" width="1434" height="1694" scalex="1" scaley="1" age="1940.5" agex="650.05" agey="582.45">
+		</TacticalMap>
+		<TacticalMap id="10101" map="image/map/01.png" centerx="1430.85" centery="1031.55" width="1772.7" height="2094.1" scalex="1.236" scaley="1.236" age="1939.9" agex="25.8" agey="129.4">
+		</TacticalMap>
+		<TacticalMap id="10102" map="image/map/01.png" centerx="972.7249999999999" centery="729.625" width="1577.35" height="1863.35" scalex="1.1" scaley="1.1" age="1940.4" agex="-153.85" agey="-17.45">
+		</TacticalMap>
+		<TacticalMap id="10103" map="image/map/01.png" centerx="939.0500000000001" centery="1255.1" width="1864.2" height="2202.2" scalex="1.3" scaley="1.3" age="1940.5" agex="-132.1" agey="-145.25">
+		</TacticalMap>
+		<TacticalMap id="10104" map="image/map/01.png" centerx="489.57499999999993" centery="1059.675" width="1577.35" height="1863.35" scalex="1.1" scaley="1.1" age="1940.9" agex="-157.4" agey="103.2">
+		</TacticalMap>
+		<TacticalMap id="10105" map="image/map/03.png" centerx="1279.175" centery="331.2" width="1962.35" height="840.4" scalex="1.1" scaley="1.1" age="1941.3" agex="-72.9" agey="108.35">
+		</TacticalMap>
+		<TacticalMap id="10106" map="image/map/01.png" centerx="1113.15" centery="1367.25" width="1434" height="1694" scalex="1" scaley="1" age="1941.5" agex="-49.75" agey="158.55">
+		</TacticalMap>
+		<TacticalMap id="10107" map="image/map/02.png" centerx="409.45" centery="325.65" width="1362.3" height="925.3" scalex="0.95" scaley="0.95" age="1941.7" agex="57.95" agey="178.65">
+		</TacticalMap>
+		<TacticalMap id="10108" map="image/map/03.png" centerx="1755.2" centery="661.85" width="2082" height="891.6" scalex="1.167" scaley="1.167" age="1942.10" agex="88.75" agey="-143.65">
+		</TacticalMap>
+		<TacticalMap id="10109" map="image/map/02.png" centerx="602.45" centery="346.05" width="2028.8" height="1378" scalex="1.415" scaley="1.415" age="1942.6" agex="156.7" agey="-91.5">
+		</TacticalMap>
+		<TacticalMap id="10110" map="image/map/02.png" centerx="916.95" centery="873.5" width="1892" height="1285.1" scalex="1.319" scaley="1.319" age="1942.10" agex="79" agey="154.45">
+		</TacticalMap>
+		<TacticalMap id="10111" map="image/map/02.png" centerx="535" centery="332" width="1434" height="974" scalex="1" scaley="1" age="1945.10" agex="47.05" agey="169">
+		</TacticalMap>
+		<TacticalMap id="10201" map="image/map/01.png" centerx="592.875" centery="1088.075" width="1577.35" height="1863.35" scalex="1.1" scaley="1.1" age="1940.5" agex="-119.1" agey="57.75">
+		</TacticalMap>
+		<TacticalMap id="10202" map="image/map/01.png" centerx="641.675" centery="1000.675" width="1577.35" height="1863.35" scalex="1.1" scaley="1.1" age="1940.9" agex="98.1" agey="-10.6">
+		</TacticalMap>
+		<TacticalMap id="10203" map="image/map/03.png" centerx="720.95" centery="349.05" width="1784" height="764" scalex="1" scaley="1" age="1942.11" agex="-29.65" agey="175.4">
+		</TacticalMap>
+		<TacticalMap id="10204" map="image/map/03.png" centerx="966.05" centery="258.95" width="1784" height="764" scalex="1" scaley="1" age="1943.7" agex="32.6" agey="-136">
+		</TacticalMap>
+		<TacticalMap id="10205" map="image/map/02.png" centerx="637" centery="590.95" width="1434" height="974" scalex="1" scaley="1" age="1943.8" agex="-150.9" agey="-33.1">
+		</TacticalMap>
+		<TacticalMap id="10206" map="image/map/02.png" centerx="558" centery="626.95" width="1434" height="974" scalex="1" scaley="1" age="1943.11" agex="107.85" agey="107.85">
+		</TacticalMap>
+		<TacticalMap id="10207" map="image/map/02.png" centerx="489.95" centery="334.9" width="1434" height="974" scalex="1" scaley="1" age="1944.6" agex="5.8" agey="195.1">
+		</TacticalMap>
+		<TacticalMap id="10208" map="image/map/01.png" centerx="640.6999999999999" centery="1265.9499999999998" width="1867.6" height="2206.2" scalex="1.302" scaley="1.302" age="1944.6" agex="-45.8" agey="185.2">
+		</TacticalMap>
+		<TacticalMap id="10209" map="image/map/01.png" centerx="655.85" centery="1352.15" width="1434" height="1694" scalex="1" scaley="1" age="1944.8" agex="-152.95" agey="9.5">
+		</TacticalMap>
+		<TacticalMap id="10210" map="image/map/01.png" centerx="704.5749999999999" centery="942.625" width="1577.35" height="1863.35" scalex="1.1" scaley="1.1" age="1944.9" agex="-100.95" agey="-19.2">
+		</TacticalMap>
+		<TacticalMap id="10211" map="image/map/01.png" centerx="929" centery="873.05" width="1434" height="1694" scalex="1" scaley="1" age="1945.4" agex="162.35" agey="109.25">
+		</TacticalMap>
+		<TacticalMap id="10301" map="image/map/06.png" centerx="1689.725" centery="1051.575" width="2017.35" height="1929.35" scalex="1.1" scaley="1.1" age="1941.12" agex="-114.15" agey="11.05">
+		</TacticalMap>
+		<TacticalMap id="10302" map="image/map/07.png" centerx="482" centery="514.95" width="1994" height="1934" scalex="1" scaley="1" age="1941.12" agex="161.1" agey="8.2">
+		</TacticalMap>
+		<TacticalMap id="10303" map="image/map/07.png" centerx="311.95000000000005" centery="241.85000000000002" width="1994" height="1934" scalex="1" scaley="1" age="1942.3" agex="-50.65" agey="121.45">
+		</TacticalMap>
+		<TacticalMap id="10304" map="image/map/07.png" centerx="1681.9" centery="968.3" width="1994" height="1934" scalex="1" scaley="1" age="1942.5" agex="49.65" agey="139.25">
+		</TacticalMap>
+		<TacticalMap id="10305" map="image/map/07.png" centerx="1675.95" centery="1483" width="1994" height="1934" scalex="1" scaley="1" age="1943.6" agex="-154.85" agey="67.9">
+		</TacticalMap>
+		<TacticalMap id="10306" map="image/map/07.png" centerx="328.67499999999995" centery="225.67499999999995" width="2193.35" height="2127.35" scalex="1.1" scaley="1.1" age="1944.3" agex="99.1" agey="29.35">
+		</TacticalMap>
+		<TacticalMap id="10307" map="image/map/08.png" centerx="325.6" centery="317.6" width="1554" height="1554" scalex="1" scaley="1" age="1944.8" agex="-42.1" agey="162.3">
+		</TacticalMap>
+		<TacticalMap id="10308" map="image/map/05.png" centerx="325.275" centery="239.2" width="1511.35" height="840.4" scalex="1.1" scaley="1.1" age="1945.7" agex="110.3" agey="-60.75">
+		</TacticalMap>
+		<TacticalMap id="10309" map="image/map/05.png" centerx="823.2" centery="345.6" width="1374" height="764" scalex="1" scaley="1" age="1946.4" agex="-176.9" agey="1.85">
+		</TacticalMap>
+		<TacticalMap id="10401" map="image/map/06.png" centerx="1683.875" centery="1023.4749999999999" width="2017.35" height="1929.35" scalex="1.1" scaley="1.1" age="1941.12" agex="-173.2" agey="-79.55">
+		</TacticalMap>
+		<TacticalMap id="10402" map="image/map/07.png" centerx="420.4749999999999" centery="708.5749999999999" width="2193.35" height="2127.35" scalex="1.1" scaley="1.1" age="1942.1" agex="-102.8" agey="-0.6">
+		</TacticalMap>
+		<TacticalMap id="10403" map="image/map/06.png" centerx="1355.675" centery="909.675" width="2017.35" height="1929.35" scalex="1.1" scaley="1.1" age="1942.6" agex="121.1" agey="71.3">
+		</TacticalMap>
+		<TacticalMap id="10404" map="image/map/06.png" centerx="773.525" centery="1710.3249999999998" width="2017.35" height="1929.35" scalex="1.1" scaley="1.1" age="1942.8" agex="-116.8" agey="-21">
+		</TacticalMap>
+		<TacticalMap id="10405" map="image/map/07.png" centerx="319.9749999999999" centery="226.17499999999995" width="2193.35" height="2127.35" scalex="1.1" scaley="1.1" age="1943.10" agex="-213.35" agey="137.5">
+		</TacticalMap>
+		<TacticalMap id="10406" map="image/map/07.png" centerx="1031.6" centery="377.25" width="1994" height="1934" scalex="1" scaley="1" age="1944.10" agex="138.2" agey="55.4">
+		</TacticalMap>
+		<TacticalMap id="10407" map="image/map/08.png" centerx="1177.8" centery="1152.2" width="1554" height="1554" scalex="1" scaley="1" age="1945.2" agex="-93.4" agey="116.9">
+		</TacticalMap>
+		<TacticalMap id="10408" map="image/map/08.png" centerx="1075.4" centery="276.2" width="1554" height="1554" scalex="1" scaley="1" age="1945.4" agex="102.7" agey="131.8">
+		</TacticalMap>
+		<TacticalMap id="10409" map="image/map/08.png" centerx="1098.2" centery="781" width="1554" height="1554" scalex="1" scaley="1" age="1945.10" agex="-55.7" agey="173.7">
+		</TacticalMap>
+		<TacticalMap id="10501" map="image/map/12.png" centerx="354.84999999999997" centery="256.05" width="884.8" height="611.2" scalex="0.8" scaley="0.8" age="1953.9" agex="67.1" agey="152.85">
+		</TacticalMap>
+		<TacticalMap id="10502" map="image/map/04.png" centerx="694.45" centery="227.14999999999998" width="1093.4" height="950.4" scalex="1.1" scaley="1.1" age="1954.5" agex="157.1" agey="93.35">
+		</TacticalMap>
+		<TacticalMap id="10503" map="image/map/04.png" centerx="319.6" centery="303" width="994" height="864" scalex="1" scaley="1" age="1958.6" agex="108.05" agey="169.5">
+		</TacticalMap>
+		<TacticalMap id="10504" map="image/map/01.png" centerx="754.6" centery="732.5500000000001" width="1147.2" height="1355.2" scalex="0.8" scaley="0.8" age="1961.10" agex="13.5" agey="146.65">
+		</TacticalMap>
+		<TacticalMap id="10505" map="image/map/05.png" centerx="327" centery="483.65" width="1374" height="764" scalex="1" scaley="1" age="1965.7" agex="144.1" agey="47">
+		</TacticalMap>
+		<TacticalMap id="10506" map="image/map/05.png" centerx="947.675" centery="507.9" width="1511.35" height="840.4" scalex="1.1" scaley="1.1" age="1968.8" agex="180.15" agey="-56.45">
+		</TacticalMap>
+		<TacticalMap id="10601" map="image/map/01.png" centerx="653.6" centery="667.5500000000001" width="1147.2" height="1355.2" scalex="0.8" scaley="0.8" age="1946.5" agex="86.1" agey="151.5">
+		</TacticalMap>
+		<TacticalMap id="10602" map="image/map/09.png" centerx="434.6" centery="546.7" width="915.2" height="1083.2" scalex="0.8" scaley="0.8" age="1951.3" agex="177.75" agey="-88.8">
+		</TacticalMap>
+		<TacticalMap id="10603" map="image/map/11.png" centerx="615.975" centery="225.05" width="1737.95" height="924" scalex="1.1" scaley="1.1" age="1962.10" agex="160.9" agey="152.45">
+		</TacticalMap>
+		<TacticalMap id="10604" map="image/map/13.png" centerx="311" centery="228.1" width="630" height="691" scalex="1" scaley="1" age="1964.8" agex="209.45" agey="78.45">
+		</TacticalMap>
+		<TacticalMap id="10605" map="image/map/01.png" centerx="784.6" centery="733.5" width="1147.2" height="1355.2" scalex="0.8" scaley="0.8" age="1966.5" agex="12.1" agey="151.45">
+		</TacticalMap>
+		<TacticalMap id="10606" map="image/map/10.png" centerx="340.65" centery="350.75" width="1018" height="848" scalex="1" scaley="1" age="1970.1" agex="-183.05" agey="10.65">
+		</TacticalMap>
+		<TacticalMap id="10701" map="image/map/04.png" centerx="684.65" centery="579.05" width="994" height="864" scalex="1" scaley="1" age="1980.4" agex="-186.9" agey="-35.85">
+		</TacticalMap>
+		<TacticalMap id="10702" map="image/map/01.png" centerx="719" centery="928" width="1434" height="1694" scalex="1" scaley="1" age="1981.3" agex="29.9" agey="101.05">
+		</TacticalMap>
+		<TacticalMap id="10703" map="image/map/02.png" centerx="536" centery="371.95" width="1434" height="974" scalex="1" scaley="1" age="1981.7" agex="-185.3" agey="53.35">
+		</TacticalMap>
+		<TacticalMap id="10704" map="image/map/05.png" centerx="961.775" centery="353.85" width="1511.35" height="840.4" scalex="1.1" scaley="1.1" age="1982.5" agex="-99.05" agey="125.75">
+		</TacticalMap>
+		<TacticalMap id="10705" map="image/map/07.png" centerx="430.15000000000003" centery="578.1500000000001" width="1196.4" height="1160.4" scalex="0.6" scaley="0.6" age="1982.9" agex="-184.95" agey="52.85">
+		</TacticalMap>
+		<TacticalMap id="10706" map="image/map/08.png" centerx="401.42499999999995" centery="228.77499999999998" width="1709.35" height="1709.35" scalex="1.1" scaley="1.1" age="1983.10" agex="-85.4" agey="61.9">
+		</TacticalMap>
+		<TacticalMap id="10707" map="image/map/08.png" centerx="1188.675" centery="232.77499999999998" width="1709.35" height="1709.35" scalex="1.1" scaley="1.1" age="1983.12" agex="0.55" agey="151">
+		</TacticalMap>
+		<TacticalMap id="10708" map="image/map/11.png" centerx="1089.9" centery="594.05" width="1580" height="840" scalex="1" scaley="1" age="1985.9" agex="59.1" agey="-157.55">
+		</TacticalMap>
+		<TacticalMap id="10709" map="image/map/10.png" centerx="311.65" centery="281.6" width="1018" height="848" scalex="1" scaley="1" age="1986.2" agex="179.1" agey="-87.55">
+		</TacticalMap>
+</TacticalMaps>

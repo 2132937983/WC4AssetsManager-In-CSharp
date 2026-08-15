@@ -1,0 +1,352 @@
+{
+  "fields": [
+    {
+      "text": "Address",
+      "resource": "paypal_checkout_paypal_address"
+    },
+    {
+      "text": "Post code",
+      "resource": "paypal_checkout_paypal_post_code"
+    },
+    {
+      "text": "District",
+      "resource": "paypal_checkout_paypal_district"
+    },
+    {
+      "text": "Postal code",
+      "resource": "paypal_checkout_paypal_postal_code"
+    },
+    {
+      "text": "Address, Number",
+      "resource": "paypal_checkout_paypal_adress_number"
+    },
+    {
+      "text": "CEP",
+      "resource": "paypal_checkout_paypal_cep"
+    },
+    {
+      "text": "Street address",
+      "resource": "paypal_checkout_paypal_street_address"
+    },
+    {
+      "text": "City",
+      "resource": "paypal_checkout_city"
+    },
+    {
+      "text": "State",
+      "resource": "paypal_checkout_state"
+    },
+    {
+      "text": "Zip code",
+      "resource": "paypal_checkout_paypal_zip_code"
+    },
+    {
+      "text": "Apt., ste., bldg.",
+      "resource": "paypal_checkout_paypal_apt_ste_bldg"
+    },
+    {
+      "text": "Address line 1",
+      "resource": "paypal_checkout_paypal_address_line_1"
+    },
+    {
+      "text": "Address line 2",
+      "resource": "paypal_checkout_paypal_address_line_2"
+    },
+    {
+      "text": "City / Town / Village",
+      "resource": "paypal_checkout_paypal_city_town_village"
+    },
+    {
+      "text": "Postal Code",
+      "resource": "paypal_checkout_paypal_postal_code"
+    },
+    {
+      "text": "Province",
+      "resource": "paypal_checkout_paypal_province"
+    },
+    {
+      "text": "Street name and house number",
+      "resource": "paypal_checkout_paypal_street_name_house_number"
+    },
+    {
+      "text": "Additional information",
+      "resource": "paypal_checkout_paypal_additional_information"
+    },
+    {
+      "text": "Locality",
+      "resource": "paypal_checkout_paypal_locality"
+    },
+    {
+      "text": "District / Neighborhood",
+      "resource": "paypal_checkout_paypal_district_neighborhood"
+    },
+    {
+      "text": "District / Capital",
+      "resource": "paypal_checkout_paypal_district_capital"
+    },
+    {
+      "text": "Post Code",
+      "resource": "paypal_checkout_paypal_post_code"
+    },
+    {
+      "text": "Postcode",
+      "resource": "paypal_checkout_paypal_postcode"
+    },
+    {
+      "text": "More address details",
+      "resource": "paypal_checkout_paypal_more_address_details"
+    },
+    {
+      "text": "Island’s name",
+      "resource": "paypal_checkout_paypal_more_island_name"
+    },
+    {
+      "text": "Commune / Locality",
+      "resource": "paypal_checkout_paypal_commune_locality"
+    },
+    {
+      "text": "Region",
+      "resource": "paypal_checkout_paypal_region"
+    },
+    {
+      "text": "Province / Municipality",
+      "resource": "paypal_checkout_paypal_province_municipality"
+    },
+    {
+      "text": "Postal code, Department",
+      "resource": "paypal_checkout_paypal_postal_code_department"
+    },
+    {
+      "text": "Capital District",
+      "resource": "paypal_checkout_paypal_postal_capital_district"
+    },
+    {
+      "text": "Canton",
+      "resource": "paypal_checkout_paypal_postal_canton"
+    },
+    {
+      "text": "Delivery post office",
+      "resource": "paypal_checkout_paypal_delivery_post_office"
+    },
+    {
+      "text": "Province / National District",
+      "resource": "paypal_checkout_paypal_province_national_district"
+    },
+    {
+      "text": "Municipality",
+      "resource": "paypal_checkout_paypal_municipality"
+    },
+    {
+      "text": "Department",
+      "resource": "paypal_checkout_paypal_department"
+    },
+    {
+      "text": "District / Parish",
+      "resource": "paypal_checkout_paypal_district_parish"
+    },
+    {
+      "text": "District / Area",
+      "resource": "paypal_checkout_paypal_district_area"
+    },
+    {
+      "text": "Town",
+      "resource": "paypal_checkout_paypal_town"
+    },
+    {
+      "text": "County",
+      "resource": "paypal_checkout_paypal_county"
+    },
+    {
+      "text": "Town / City",
+      "resource": "paypal_checkout_paypal_town_city"
+    },
+    {
+      "text": "County / State",
+      "resource": "paypal_checkout_paypal_county_state"
+    },
+    {
+      "text": "PIN code",
+      "resource": "paypal_checkout_paypal_pin_code"
+    },
+    {
+      "text": "County / Dublin postal district",
+      "resource": "paypal_checkout_paypal_county_dublin_postal_district"
+    },
+    {
+      "text": "Prefecture",
+      "resource": "paypal_checkout_paypal_prefecture"
+    },
+    {
+      "text": "City / Ward / Town / Village",
+      "resource": "paypal_checkout_paypal_city_ward_town_village"
+    },
+    {
+      "text": "Building name, floor, room number",
+      "resource": "paypal_checkout_paypal_building_name_floor_room_number"
+    },
+    {
+      "text": "Region / Independent city",
+      "resource": "paypal_checkout_paypal_region_independent_city"
+    },
+    {
+      "text": "City / Town / Locality",
+      "resource": "paypal_checkout_paypal_city_town_locality"
+    },
+    {
+      "text": "State / Federal territory",
+      "resource": "paypal_checkout_paypal_state_federal_territory"
+    },
+    {
+      "text": "Sub-locality",
+      "resource": "paypal_checkout_paypal_sub_locality"
+    },
+    {
+      "text": "Main village / Town",
+      "resource": "paypal_checkout_paypal_main_village_town"
+    },
+    {
+      "text": "District / Dependency",
+      "resource": "paypal_checkout_paypal_district_dependency"
+    },
+    {
+      "text": "Neighborhood / Quarter",
+      "resource": "paypal_checkout_paypal_neighborhood_quarter"
+    },
+    {
+      "text": "Sub-district / Sub-division",
+      "resource": "paypal_checkout_paypal_sub_district_sub_division"
+    },
+    {
+      "text": "District / Sub-province",
+      "resource": "paypal_checkout_paypal_district_sub_province"
+    },
+    {
+      "text": "Capital / Province",
+      "resource": "paypal_checkout_paypal_capital_province"
+    },
+    {
+      "text": "City / District",
+      "resource": "paypal_checkout_paypal_city_district"
+    },
+    {
+      "text": "Zone / Capital",
+      "resource": "paypal_checkout_paypal_zone_capital"
+    },
+    {
+      "text": "City / Suburb",
+      "resource": "paypal_checkout_paypal_city_suburb"
+    },
+    {
+      "text": "State / Capital",
+      "resource": "paypal_checkout_paypal_state_capital"
+    },
+    {
+      "text": "Province / Region",
+      "resource": "paypal_checkout_paypal_province_region"
+    },
+    {
+      "text": "Street name, house number, subdivision",
+      "resource": "paypal_checkout_paypal_street_name_house_number_subdivision"
+    },
+    {
+      "text": "Barangay / District",
+      "resource": "paypal_checkout_paypal_barangay_district"
+    },
+    {
+      "text": "City / Municipality",
+      "resource": "paypal_checkout_paypal_city_municipality"
+    },
+    {
+      "text": "Town / Village / Post office",
+      "resource": "paypal_checkout_paypal_town_village_post_office"
+    },
+    {
+      "text": "Judet / Sector",
+      "resource": "paypal_checkout_paypal_judet_sector"
+    },
+    {
+      "text": "Street, building, apartment",
+      "resource": "paypal_checkout_paypal_street_building_apartment"
+    },
+    {
+      "text": "Center of population (city, village)",
+      "resource": "paypal_checkout_paypal_center_population_city_village"
+    },
+    {
+      "text": "Post Office name",
+      "resource": "paypal_checkout_paypal_post_office_name"
+    },
+    {
+      "text": "Province / Autonomous city",
+      "resource": "paypal_checkout_paypal_province_autonomous_city"
+    },
+    {
+      "text": "Plot/house number, moo/lane and street name",
+      "resource": "paypal_checkout_paypal_plot_house_number_moo_lane_street_name"
+    },
+    {
+      "text": "Subdistrict",
+      "resource": "paypal_checkout_paypal_subdistrict"
+    },
+    {
+      "text": "Center of population",
+      "resource": "paypal_checkout_paypal_center_population"
+    },
+    {
+      "text": "PO Box",
+      "resource": "paypal_checkout_paypal_po_box"
+    },
+    {
+      "text": "Emirate",
+      "resource": "paypal_checkout_paypal_emirate"
+    },
+    {
+      "text": "Department",
+      "resource": "paypal_checkout_paypal_department"
+    },
+    {
+      "text": "State / Capital District / Federal Dependencies",
+      "resource": "paypal_checkout_paypal_state_capital_district_federal_dependencies"
+    },
+    {
+      "text": "Larger city / Province",
+      "resource": "paypal_checkout_paypal_larger_city_province"
+    },
+    {
+      "text": "City / Neighborhood",
+      "resource": "paypal_checkout_paypal_city_neighborhood"
+    },
+    {
+      "text": "State / Territory",
+      "resource": "paypal_checkout_paypal_state_territory"
+    },
+    {
+      "text": "Zone",
+      "resource": "paypal_checkout_paypal_zone"
+    },
+    {
+      "text": "Department / Capital District",
+      "resource": "paypal_checkout_paypal_dep_cap_district"
+    },
+    {
+      "text": "City / Delivery post office",
+      "resource": "paypal_checkout_paypal_city_del_post_office"
+    },
+    {
+      "text": "City / Town",
+      "resource": "paypal_checkout_paypal_city_town"
+    },
+    {
+      "text": "Post town",
+      "resource": "paypal_checkout_paypal_post_town"
+    },
+    {
+      "text": "Street and house number",
+      "resource": "paypal_checkout_paypal_street_house"
+    },
+    {
+      "text": "Street name, street number",
+      "resource": "paypal_checkout_paypal_street_name"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "tracks": [
+    {
+      "filename": "百万级录音棚听《明日方舟》六周年PV BGM.mp3",
+      "loop": true,
+      "volume": 1.0
+    },
+    {
+      "filename": "YOASOBI「夜に駆ける」钢琴编曲.mp3",
+      "loop": true,
+      "volume": 1.0
+    },
+    {
+      "filename": "【ピアノ】春嵐 ／john を弾いてみた。.mp3",
+      "loop": true,
+      "volume": 1.0
+    },
+    {
+      "filename": "【钢琴】千本樱——你可见过如此快的编曲.mp3",
+      "loop": true,
+      "volume": 1.0
+    },
+    {
+      "filename": "【钢琴改编】rabbit【john】 谁教你这么弹的！？？.mp3",
+      "loop": true,
+      "volume": 1.0
+    },
+    {
+      "filename": "丢失的雨伞【ロストアンブレラ(Lost Umbrella)Piano Cover】稲葉曇.mp3",
+      "loop": true,
+      "volume": 1.0
+    }
+  ],
+  "settings": {
+    "random": false,
+    "loop": true,
+    "crossfadeDuration": 2000,
+    "defaultVolume": 0.8
+  }
+}

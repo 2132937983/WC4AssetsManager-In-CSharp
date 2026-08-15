@@ -1,0 +1,1815 @@
+﻿<Units>
+  <Unit name="Soldier" res="unit_infantry" dir="-1" x="0" y="0" scale="1.0">
+    <Motion name="通用普通步兵待机组合动画" type="standby"/>
+    <Motion name="通用普通步兵点中组合动画 " type="ready"/>
+    <Motion name="通用普通步兵攻击组合动画  " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="通用普通步兵死亡组合动画 " type="die"/>
+  </Unit>
+  
+  <Unit name="轻型步兵" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="通用普通步兵待机组合动画" type="standby"/>
+    <Motion name="通用普通步兵点中组合动画 " type="ready"/>
+    <Motion name="通用普通步兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="通用普通步兵攻击组合动画  " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="通用普通步兵死亡组合动画 " type="die"/>
+  </Unit>
+  	<Unit name="轻型步兵 1" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="英国普通步兵待机组合动画 " type="standby"/>
+    <Motion name="英国普通步兵点中组合动画  " type="ready"/>
+    <Motion name="英国普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="英国普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="英国普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 2" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="普通法国步兵待机组合动画" type="standby"/>
+    <Motion name="普通法国步兵点中组合动画 " type="ready"/>
+    <Motion name="普通法国步兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="普通法国步兵攻击组合动画  " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="普通法国步兵死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 3" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="德国普通步兵待机组合动画 " type="standby"/>
+    <Motion name="德国普通步兵点中组合动画  " type="ready"/>
+    <Motion name="德国普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="德国普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="德国普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 5" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="苏联普通步兵待机组合动画" type="standby"/>
+    <Motion name="苏联普通步兵点中组合动画 " type="ready"/>
+    <Motion name="苏联普通步兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="苏联普通步兵攻击组合动画  " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="苏联普通步兵死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 6" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="美国普通步兵待机组合动画 " type="standby"/>
+    <Motion name="美国普通步兵点中组合动画  " type="ready"/>
+    <Motion name="美国普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="美国普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="美国普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 7" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="意大利普通步兵待机组合动画 " type="standby"/>
+    <Motion name="意大利普通步兵点中组合动画  " type="ready"/>
+    <Motion name="意大利普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="意大利普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="意大利普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 8" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="国军普通步兵待机组合动画 " type="standby"/>
+    <Motion name="国军普通步兵点中组合动画  " type="ready"/>
+    <Motion name="国军普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="国军普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="国军普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 9" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="共军普通步兵待机组合动画 " type="standby"/>
+    <Motion name="共军普通步兵点中组合动画  " type="ready"/>
+    <Motion name="共军普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="共军普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="共军普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 10" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="日本普通步兵待机组合动画 " type="standby"/>
+    <Motion name="日本普通步兵点中组合动画  " type="ready"/>
+    <Motion name="日本普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="日本普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="日本普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 11" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="芬兰普通步兵待机组合动画 " type="standby"/>
+    <Motion name="芬兰普通步兵点中组合动画  " type="ready"/>
+    <Motion name="芬兰普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="芬兰普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="芬兰普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 12" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="波兰普通步兵待机组合动画 " type="standby"/>
+    <Motion name="波兰普通步兵点中组合动画  " type="ready"/>
+    <Motion name="波兰普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="波兰普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="波兰普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 13" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="南斯拉夫普通步兵待机组合动画 " type="standby"/>
+    <Motion name="南斯拉夫普通步兵点中组合动画  " type="ready"/>
+    <Motion name="南斯拉夫普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="南斯拉夫普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="南斯拉夫普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 15" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="澳大利亚普通步兵待机组合动画 " type="standby"/>
+    <Motion name="澳大利亚普通步兵点中组合动画  " type="ready"/>
+    <Motion name="澳大利亚普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="澳大利亚普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="澳大利亚普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 23" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="匈牙利普通步兵待机组合动画 " type="standby"/>
+    <Motion name="匈牙利普通步兵点中组合动画  " type="ready"/>
+    <Motion name="匈牙利普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="匈牙利普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="匈牙利普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 24" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="罗马尼亚普通步兵待机组合动画 " type="standby"/>
+    <Motion name="罗马尼亚普通步兵点中组合动画  " type="ready"/>
+    <Motion name="罗马尼亚普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="罗马尼亚普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="罗马尼亚普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 27" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="希腊普通步兵待机组合动画 " type="standby"/>
+    <Motion name="希腊普通步兵点中组合动画  " type="ready"/>
+    <Motion name="希腊普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="希腊普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="希腊普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 29" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="中东普通步兵待机组合动画 " type="standby"/>
+    <Motion name="中东普通步兵点中组合动画  " type="ready"/>
+    <Motion name="中东普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="中东普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="中东普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="轻型步兵 30" res="unit_infantry" strike="步兵" dir="-1" x="-5" y="15">
+    <Motion name="埃及普通步兵待机组合动画 " type="standby"/>
+    <Motion name="埃及普通步兵点中组合动画  " type="ready"/>
+    <Motion name="埃及普通步兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="埃及普通步兵射击组合动画   " type="attack" at="0.72" effect="Infantry fire"/>
+    <Motion name="埃及普通步兵死亡组合动画  " type="die"/>
+  </Unit>
+  
+  <Unit name="突击步兵" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="通用普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="通用普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="通用普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="通用普通机枪兵攻击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="通用普通机枪兵死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 1" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="英国普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="英国普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="英国普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="英国普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="英国普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 2" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="普通法国机枪兵待机组合动画" type="standby"/>
+    <Motion name="普通法国机枪兵点中组合动画 " type="ready"/>
+    <Motion name="普通法国机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="普通法国机枪兵攻击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="普通法国机枪兵死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 3" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="德国普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="德国普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="德国普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="德国普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="德国普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 5" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="苏联普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="苏联普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="苏联普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="苏联普通机枪兵攻击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="苏联普通机枪兵死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 6" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="美国普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="美国普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="美国普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="美国普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="美国普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 7" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="意大利普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="意大利普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="意大利普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="意大利普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="意大利普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 8" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="国军普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="国军普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="国军普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="国军普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="国军普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 9" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="共军普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="共军普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="共军普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="共军普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="共军普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 10" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="日本普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="日本普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="日本普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="日本普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="日本普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 11" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="芬兰普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="芬兰普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="芬兰普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="芬兰普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="芬兰普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 12" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="波兰普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="波兰普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="波兰普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="波兰普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="波兰普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 13" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="南斯拉夫普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="南斯拉夫普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="南斯拉夫普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="南斯拉夫普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="南斯拉夫普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 15" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="澳大利亚普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="澳大利亚普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="澳大利亚普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="澳大利亚普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="澳大利亚普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 23" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="匈牙利普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="匈牙利普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="匈牙利普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="匈牙利普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="匈牙利普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 24" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="罗马尼亚普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="罗马尼亚普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="罗马尼亚普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="罗马尼亚普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="罗马尼亚普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 27" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="希腊普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="希腊普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="希腊普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="希腊普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="希腊普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 29" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="中东普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="中东普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="中东普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="中东普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="中东普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+  <Unit name="突击步兵 30" res="unit_infantry" strike="突击步兵" dir="-1" x="-5" y="15">
+    <Motion name="埃及普通机枪兵待机组合动画" type="standby"/>
+    <Motion name="埃及普通机枪兵点中组合动画 " type="ready"/>
+    <Motion name="埃及普通机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="埃及普通机枪兵射击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+    <Motion name="埃及普通机枪兵死亡组合动画   " type="die"/>
+  </Unit>
+
+  <Unit name="机动步兵" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="通用卡车待机组合动画" type="standby"/>
+    <Motion name="通用卡车点中组合动画" type="ready"/>
+    <Motion name="通用卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="通用卡车射击组合动画" type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="通用卡车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 1" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="英国卡车待机组合动画" type="standby"/>
+    <Motion name="英国卡车点中组合动画" type="ready"/>
+    <Motion name="英国卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="英国卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="英国卡车死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 2" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="法国卡车待机组合动画" type="standby"/>
+    <Motion name="法国卡车点中组合动画" type="ready"/>
+    <Motion name="法国卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="法国卡车射击组合动画" type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="法国卡车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 3" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="德国卡车待机组合动画" type="standby"/>
+    <Motion name="德国卡车点中组合动画" type="ready"/>
+    <Motion name="德国卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="德国卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="德国卡车死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 5" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="苏联卡车待机组合动画" type="standby"/>
+    <Motion name="苏联卡车点中组合动画" type="ready"/>
+    <Motion name="苏联卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="苏联卡车射击组合动画" type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="苏联卡车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 6" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="美国卡车待机组合动画" type="standby"/>
+    <Motion name="美国卡车点中组合动画" type="ready"/>
+    <Motion name="美国卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="美国卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="美国卡车死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 7" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="意大利卡车待机组合动画" type="standby"/>
+    <Motion name="意大利卡车点中组合动画" type="ready"/>
+    <Motion name="意大利卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="意大利卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="意大利卡车死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 8" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="国军卡车待机组合动画" type="standby"/>
+    <Motion name="国军卡车点中组合动画" type="ready"/>
+    <Motion name="国军卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="国军卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="国军卡车死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 9" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="共军卡车待机组合动画" type="standby"/>
+    <Motion name="共军卡车点中组合动画" type="ready"/>
+    <Motion name="共军卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="共军卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="共军卡车死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 10" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="日本卡车待机组合动画" type="standby"/>
+    <Motion name="日本卡车点中组合动画" type="ready"/>
+    <Motion name="日本卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="日本卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="日本卡车死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 11" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="芬兰卡车待机组合动画" type="standby"/>
+    <Motion name="芬兰卡车点中组合动画" type="ready"/>
+    <Motion name="芬兰卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="芬兰卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="芬兰卡车死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 12" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="波兰卡车待机组合动画" type="standby"/>
+    <Motion name="波兰卡车点中组合动画" type="ready"/>
+    <Motion name="波兰卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="波兰卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="波兰卡车死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 13" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="南斯拉夫卡车待机组合动画" type="standby"/>
+    <Motion name="南斯拉夫卡车点中组合动画" type="ready"/>
+    <Motion name="南斯拉夫卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="南斯拉夫卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="南斯拉夫卡车死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 15" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="澳大利亚卡车待机组合动画" type="standby"/>
+    <Motion name="澳大利亚卡车点中组合动画" type="ready"/>
+    <Motion name="澳大利亚卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="澳大利亚卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="澳大利亚卡车死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 23" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="匈牙利卡车待机组合动画" type="standby"/>
+    <Motion name="匈牙利卡车点中组合动画" type="ready"/>
+    <Motion name="匈牙利卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="匈牙利卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="匈牙利卡车死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 24" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="罗马尼亚卡车待机组合动画" type="standby"/>
+    <Motion name="罗马尼亚卡车点中组合动画" type="ready"/>
+    <Motion name="罗马尼亚卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="罗马尼亚卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="罗马尼亚卡车死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 27" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="希腊卡车待机组合动画" type="standby"/>
+    <Motion name="希腊卡车点中组合动画" type="ready"/>
+    <Motion name="希腊卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="希腊卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="希腊卡车死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 29" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="中东卡车待机组合动画" type="standby"/>
+    <Motion name="中东卡车点中组合动画" type="ready"/>
+    <Motion name="中东卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="中东卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="中东卡车死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="机动步兵 30" res="unit_infantry" strike="机动步兵" dir="-1" x="5" y="0">
+    <Motion name="埃及卡车待机组合动画" type="standby"/>
+    <Motion name="埃及卡车点中组合动画" type="ready"/>
+    <Motion name="埃及卡车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="埃及卡车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire"/>
+    <Motion name="埃及卡车死亡组合动画  " type="die"/>
+  </Unit>
+  
+  <Unit name="装甲步兵" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="通用装甲车待机组合动画" type="standby"/>
+    <Motion name="通用装甲车点中组合动画" type="ready"/>
+    <Motion name="通用装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="通用装甲车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="通用装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 1" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="英国卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="英国卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="英国卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="英国卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="英国卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 2" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="法国装甲车待机组合动画" type="standby"/>
+    <Motion name="法国装甲车点中组合动画" type="ready"/>
+    <Motion name="法国装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="法国装甲车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="法国装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 3" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="德国卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="德国卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="德国卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="德国卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="德国卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 5" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="苏联装甲车待机组合动画" type="standby"/>
+    <Motion name="苏联装甲车点中组合动画" type="ready"/>
+    <Motion name="苏联装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="苏联装甲车射击组合动画 " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="苏联装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 6" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="美国卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="美国卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="美国卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="美国卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="美国卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 7" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="意大利卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="意大利卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="意大利卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="意大利卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="意大利卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 8" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="国军卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="国军卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="国军卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="国军卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="国军卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 9" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="共军卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="共军卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="共军卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="共军卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="共军卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 10" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="日本卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="日本卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="日本卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="日本卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="日本卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 11" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="芬兰卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="芬兰卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="芬兰卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="芬兰卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="芬兰卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 12" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="波兰卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="波兰卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="波兰卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="波兰卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="波兰卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 13" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="南斯拉夫卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="南斯拉夫卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="南斯拉夫卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="南斯拉夫卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="南斯拉夫卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 15" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="澳大利亚卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="澳大利亚卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="澳大利亚卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="澳大利亚卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="澳大利亚卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 23" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="匈牙利卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="匈牙利卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="匈牙利卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="匈牙利卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="匈牙利卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 24" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="罗马尼亚卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="罗马尼亚卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="罗马尼亚卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="罗马尼亚卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="罗马尼亚卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 27" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="希腊卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="希腊卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="希腊卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="希腊卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="希腊卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 29" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="中东卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="中东卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="中东卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="中东卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="中东卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="装甲步兵 30" res="unit_infantry" strike="装甲步兵" dir="-1" x="5" y="0">
+    <Motion name="埃及卡车装甲车待机组合动画" type="standby"/>
+    <Motion name="埃及卡车装甲车点中组合动画 " type="ready"/>
+    <Motion name="埃及卡车装甲车待机组合动画" type="move" effect="sfx_armour.wav"/>
+    <Motion name="埃及卡车装甲车射击组合动画  " type="attack" at="0.72" effect="Mobile Infantry fire2"/>
+    <Motion name="埃及卡车装甲车死亡组合动画 " type="die"/>
+  </Unit>
+  
+  <Unit name="日本特种兵" res="unit_infantry" strike="日本特种兵" dir="-1" x="0" y="0">
+    <Motion name="日本伊，伊，埃高级国共高级待机组合动画" type="standby"/>
+    <Motion name="日本伊，伊，埃高级国共高级点中组合动画 " type="ready"/>
+    <Motion name="日本伊，伊，埃高级国共高级待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="日本伊，伊，埃高级国共高级射击组合动画 " type="attack" at="0.72" effect="Japan fire"/>
+    <Motion name="日本伊，伊，埃高级国共高级死亡组合动画" type="die"/>
+  </Unit>
+  <Unit name="中国特种兵 8" res="unit_infantry" strike="中国特种兵" dir="-1" x="0" y="0">
+    <Motion name="国军高级机枪兵待机组合动画 " type="standby"/>
+    <Motion name="国军高级机枪兵点中组合动画  " type="ready"/>
+    <Motion name="国军高级机枪兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="国军高级机枪兵射击组合动画   " type="attack" at="0.72" effect="China fire"/>
+    <Motion name="国军高级机枪兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="中国特种兵 9" res="unit_infantry" strike="中国特种兵" dir="-1" x="0" y="0">
+    <Motion name="共军国共高级机枪兵待机组合动画 " type="standby"/>
+    <Motion name="共军国共高级机枪兵点中组合动画  " type="ready"/>
+    <Motion name="共军国共高级机枪兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="共军国共高级机枪兵射击组合动画   " type="attack" at="0.72" effect="China fire"/>
+    <Motion name="共军国共高级机枪兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="山地特种兵 7" res="unit_infantry" strike="中国特种兵" dir="-1" x="0" y="0">
+    <Motion name="意大利高级机枪兵待机组合动画 " type="standby"/>
+    <Motion name="意大利高级机枪兵点中组合动画  " type="ready"/>
+    <Motion name="意大利高级机枪兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="意大利高级机枪兵射击组合动画   " type="attack" at="0.72" effect="China fire"/>
+    <Motion name="意大利高级机枪兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="山地特种兵 24" res="unit_infantry" strike="中国特种兵" dir="-1" x="0" y="0">
+    <Motion name="罗马尼亚高级机枪兵待机组合动画 " type="standby"/>
+    <Motion name="罗马尼亚高级机枪兵点中组合动画  " type="ready"/>
+    <Motion name="罗马尼亚高级机枪兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="罗马尼亚高级机枪兵射击组合动画   " type="attack" at="0.72" effect="China fire"/>
+    <Motion name="罗马尼亚高级机枪兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="山地特种兵 27" res="unit_infantry" strike="中国特种兵" dir="-1" x="0" y="0">
+    <Motion name="希腊高级机枪兵待机组合动画 " type="standby"/>
+    <Motion name="希腊高级机枪兵点中组合动画  " type="ready"/>
+    <Motion name="希腊高级机枪兵待机组合动画 " type="move" effect="sfx_leg.wav"/>
+    <Motion name="希腊高级机枪兵射击组合动画   " type="attack" at="0.72" effect="China fire"/>
+    <Motion name="希腊高级机枪兵死亡组合动画  " type="die"/>
+  </Unit>
+  <Unit name="沙漠特种兵" res="unit_infantry" strike="中国特种兵" dir="-1" x="0" y="0">
+    <Motion name="埃及伊，伊，埃高级国共高级待机组合动画" type="standby"/>
+    <Motion name="埃及伊，伊，埃高级国共高级点中组合动画 " type="ready"/>
+    <Motion name="埃及伊，伊，埃高级国共高级待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="埃及伊，伊，埃高级国共高级射击组合动画 " type="attack" at="0.72" effect="Japan fire"/>
+    <Motion name="埃及伊，伊，埃高级国共高级死亡组合动画" type="die"/>
+  </Unit>
+  <Unit name="丛林特种兵 12" res="unit_infantry" strike="日本特种兵" dir="-1" x="0" y="0">
+    <Motion name="波兰澳，波，匈，日高级机枪兵待机组合动画" type="standby"/>
+    <Motion name="波兰澳，波，匈，日高级机枪兵点中组合动画 " type="ready"/>
+    <Motion name="波兰澳，波，匈，日高级机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="波兰澳，波，匈，日高级机枪兵射击组合动画  " type="attack" at="0.72" effect="Japan fire"/>
+    <Motion name="波兰澳，波，匈，日高级机枪兵死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="丛林特种兵 15" res="unit_infantry" strike="日本特种兵" dir="-1" x="0" y="0">
+    <Motion name="澳大利亚澳，波，匈，日高级机枪兵待机组合动画" type="standby"/>
+    <Motion name="澳大利亚澳，波，匈，日高级机枪兵点中组合动画 " type="ready"/>
+    <Motion name="澳大利亚澳，波，匈，日高级机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="澳大利亚澳，波，匈，日高级机枪兵射击组合动画  " type="attack" at="0.72" effect="Japan fire"/>
+    <Motion name="澳大利亚澳，波，匈，日高级机枪兵死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="丛林特种兵 23" res="unit_infantry" strike="日本特种兵" dir="-1" x="0" y="0">
+    <Motion name="匈牙利澳，波，匈，日高级机枪兵待机组合动画" type="standby"/>
+    <Motion name="匈牙利澳，波，匈，日高级机枪兵点中组合动画 " type="ready"/>
+    <Motion name="匈牙利澳，波，匈，日高级机枪兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="匈牙利澳，波，匈，日高级机枪兵射击组合动画  " type="attack" at="0.72" effect="Japan fire"/>
+    <Motion name="匈牙利澳，波，匈，日高级机枪兵死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="狙击特种兵 11" res="unit_infantry" strike="中国特种兵" dir="-1" x="0" y="0">
+    <Motion name="芬兰伊，伊，埃高级国共高级待机组合动画" type="standby"/>
+    <Motion name="芬兰伊，伊，埃高级国共高级点中组合动画 " type="ready"/>
+    <Motion name="芬兰伊，伊，埃高级国共高级待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="芬兰伊，伊，埃高级国共高级射击组合动画 " type="attack" at="0.72" effect="Japan fire"/>
+    <Motion name="芬兰伊，伊，埃高级国共高级死亡组合动画" type="die"/>
+  </Unit>
+  <Unit name="狙击特种兵 13" res="unit_infantry" strike="中国特种兵" dir="-1" x="0" y="0">
+    <Motion name="南斯拉夫伊，伊，埃高级国共高级待机组合动画" type="standby"/>
+    <Motion name="南斯拉夫伊，伊，埃高级国共高级点中组合动画 " type="ready"/>
+    <Motion name="南斯拉夫伊，伊，埃高级国共高级待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="南斯拉夫伊，伊，埃高级国共高级射击组合动画 " type="attack" at="0.72" effect="Japan fire"/>
+    <Motion name="南斯拉夫伊，伊，埃高级国共高级死亡组合动画" type="die"/>
+  </Unit>
+  <Unit name="装甲车" res="unit_panzer" strike="panzer strike" dir="-1" x="-5" y="15" scale="0.8">
+    <Motion name="通用坦克1待机动画" type="standby"/>
+    <Motion name="通用坦克1行动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="通用坦克1攻击动画" type="attack" at="0.72" effect="panzer1"/>
+    <Motion name="通用坦克1死亡动画" type="die"/>
+  </Unit>
+  <Unit name="装甲车 1" res="unit_panzer" strike="panzer strike" logo="1" dir="-1" x="-3" y="15" scale="0.8">
+    <Motion name="英国坦克1待机动画" type="standby"/>
+    <Motion name="英国坦克1行动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="英国坦克1攻击动画" type="attack" at="0.72" effect="panzer1"/>
+    <Motion name="英国坦克1死亡动画" type="die"/>
+  </Unit>
+  <Unit name="装甲车 2" res="unit_panzer" strike="panzer strike" logo="2" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="法国坦克1待机动画" type="standby"/>
+    <Motion name="法国坦克1行动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="法国坦克1攻击动画" type="attack" at="0.72" effect="panzer1"/>
+    <Motion name="法国坦克1死亡动画" type="die"/>
+  </Unit>
+  <Unit name="装甲车 3" res="unit_panzer" strike="panzer strike" logo="3" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="德国坦克1待机动画" type="standby"/>
+    <Motion name="德国坦克1行动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="德国坦克1攻击动画" type="attack" at="0.72" effect="panzer1"/>
+    <Motion name="德国坦克1死亡动画" type="die"/>
+  </Unit>
+  <Unit name="装甲车 5" res="unit_panzer" strike="panzer strike" logo="5" dir="-1" x="-3" y="15" scale="0.8">
+    <Motion name="苏联坦克1待机动画" type="standby"/>
+    <Motion name="苏联坦克1行动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="苏联坦克1攻击动画" type="attack" at="0.72" effect="panzer1"/>
+    <Motion name="苏联坦克1死亡动画" type="die"/>
+  </Unit>
+  <Unit name="装甲车 6" res="unit_panzer" strike="panzer strike" logo="6" dir="-1" x="-3" y="15" scale="0.8">
+    <Motion name="美国坦克1待机动画" type="standby"/>
+    <Motion name="美国坦克1行动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="美国坦克1攻击动画" type="attack" at="0.72" effect="panzer1"/>
+    <Motion name="美国坦克1死亡动画" type="die"/>
+  </Unit>
+  <Unit name="装甲车 7" res="unit_panzer" strike="panzer strike" logo="7" dir="-1" x="-6" y="15" scale="0.8">
+    <Motion name="意大利坦克1待机动画" type="standby"/>
+    <Motion name="意大利坦克1行动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="意大利坦克1攻击动画" type="attack" at="0.72" effect="panzer1"/>
+    <Motion name="意大利坦克1死亡动画" type="die"/>
+  </Unit>
+  <Unit name="装甲车 10" res="unit_panzer" strike="panzer strike" logo="10" dir="-1" x="-3" y="15" scale="0.8">
+    <Motion name="日本坦克1待机动画" type="standby"/>
+    <Motion name="日本坦克1行动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="日本坦克1攻击动画" type="attack" at="0.72" effect="panzer1"/>
+    <Motion name="日本坦克1死亡动画" type="die"/>
+  </Unit>
+  
+  <Unit name="轻型坦克" res="unit_panzer" strike="tank strike 2" dir="-1" x="-4" y="15" scale="0.8">
+    <Motion name="通用坦克2待机动画 " type="standby"/>
+    <Motion name="通用坦克2行动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="通用坦克2攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="通用坦克2死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="轻型坦克 1" res="unit_panzer" strike="tank strike 2" logo="1" dir="-1" x="-3" y="15" scale="0.8">
+    <Motion name="英国坦克2待机动画 " type="standby"/>
+    <Motion name="英国坦克2行动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="英国坦克2攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="英国坦克2死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="轻型坦克 2" res="unit_panzer" strike="tank strike 2" logo="2" dir="-1" x="-3" y="15" scale="0.8">
+    <Motion name="法国坦克2待机动画 " type="standby"/>
+    <Motion name="法国坦克2行动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="法国坦克2攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="法国坦克2死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="轻型坦克 3" res="unit_panzer" strike="tank strike 2" logo="3" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="德国坦克2待机动画 " type="standby"/>
+    <Motion name="德国坦克2行动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="德国坦克2攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="德国坦克2死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="轻型坦克 5" res="unit_panzer" strike="tank strike 2" logo="5" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="苏联坦克2待机动画 " type="standby"/>
+    <Motion name="苏联坦克2行动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="苏联坦克2攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="苏联坦克2死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="轻型坦克 6" res="unit_panzer" strike="tank strike 2" logo="6" dir="-1" x="-4" y="15" scale="0.8">
+    <Motion name="美国坦克2待机动画 " type="standby"/>
+    <Motion name="美国坦克2行动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="美国坦克2攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="美国坦克2死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="轻型坦克 7" res="unit_panzer" strike="tank strike 2" logo="7" dir="-1" x="-1" y="15" scale="0.8">
+    <Motion name="意大利坦克2待机动画 " type="standby"/>
+    <Motion name="意大利坦克2行动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="意大利坦克2攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="意大利坦克2死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="轻型坦克 10" res="unit_panzer" strike="tank strike 2" logo="10" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="日本坦克2待机动画 " type="standby"/>
+    <Motion name="日本坦克2行动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="日本坦克2攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="日本坦克2死亡动画 " type="die"/>
+  </Unit>
+  
+  
+  <Unit name="中型坦克" res="unit_panzer" strike="tank strike 3" dir="-1" x="-1" y="15" scale="0.8">
+    <Motion name="通用坦克3待机动画" type="standby"/>
+    <Motion name="通用坦克3行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="通用坦克3攻击动画" type="attack" at="0.72" effect="panzer3"/>
+    <Motion name="通用坦克3死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="中型坦克 1" res="unit_panzer" strike="tank strike 3" logo="1" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="英国坦克3待机动画" type="standby"/>
+    <Motion name="英国坦克3行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="英国坦克3攻击动画" type="attack" at="0.72" effect="panzer3"/>
+    <Motion name="英国坦克3死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="中型坦克 2" res="unit_panzer" strike="tank strike 3" logo="2" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="法国坦克3待机动画" type="standby"/>
+    <Motion name="法国坦克3行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="法国坦克3攻击动画" type="attack" at="0.72" effect="panzer3"/>
+    <Motion name="法国坦克3死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="中型坦克 3" res="unit_panzer" strike="tank strike 3" logo="3" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="德国坦克3待机动画" type="standby"/>
+    <Motion name="德国坦克3行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="德国坦克3攻击动画" type="attack" at="0.72" effect="panzer3"/>
+    <Motion name="德国坦克3死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="中型坦克 5" res="unit_panzer" strike="tank strike 3" logo="5" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="苏联坦克3待机动画" type="standby"/>
+    <Motion name="苏联坦克3行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="苏联坦克3攻击动画" type="attack" at="0.72" effect="panzer3"/>
+    <Motion name="苏联坦克3死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="中型坦克 6" res="unit_panzer" strike="tank strike 3" logo="6" dir="-1" x="-1s" y="15" scale="0.8">
+    <Motion name="美国坦克3待机动画" type="standby"/>
+    <Motion name="美国坦克3行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="美国坦克3攻击动画" type="attack" at="0.72" effect="panzer3"/>
+    <Motion name="美国坦克3死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="中型坦克 7" res="unit_panzer" strike="tank strike 3" logo="7" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="意大利坦克3待机动画" type="standby"/>
+    <Motion name="意大利坦克3行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="意大利坦克3攻击动画" type="attack" at="0.72" effect="panzer3"/>
+    <Motion name="意大利坦克3死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="中型坦克 10" res="unit_panzer" strike="tank strike 3" logo="10" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="日本坦克3待机动画" type="standby"/>
+    <Motion name="日本坦克3行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="日本坦克3攻击动画" type="attack" at="0.72" effect="panzer3"/>
+    <Motion name="日本坦克3死亡动画 " type="die"/>
+  </Unit>
+  
+  <Unit name="重型坦克" res="unit_panzer" strike="tank strike 3" dir="-1" x="3" y="15" scale="0.8">
+    <Motion name="通用坦克4待机动画" type="standby"/>
+    <Motion name="通用坦克4行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="通用坦克4攻击动画 " type="attack" at="0.72" effect="panzer4"/>
+    <Motion name="通用坦克4死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="重型坦克 1" res="unit_panzer" strike="tank strike 3" logo="1" dir="-1" x="2" y="15" scale="0.8">
+    <Motion name="英国坦克4待机动画" type="standby"/>
+    <Motion name="英国坦克4行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="英国坦克4攻击动画 " type="attack" at="0.72" effect="panzer4"/>
+    <Motion name="英国坦克4死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="重型坦克 2" res="unit_panzer" strike="tank strike 3" logo="2" dir="-1" x="6" y="15" scale="0.8">
+    <Motion name="法国坦克4待机动画" type="standby"/>
+    <Motion name="法国坦克4行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="法国坦克4攻击动画 " type="attack" at="0.72" effect="panzer4"/>
+    <Motion name="法国坦克4死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="重型坦克 3" res="unit_panzer" strike="tank strike 3" logo="3" dir="-1" x="2" y="15" scale="0.8">
+    <Motion name="德国坦克4待机动画" type="standby"/>
+    <Motion name="德国坦克4行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="德国坦克4攻击动画 " type="attack" at="0.72" effect="panzer4"/>
+    <Motion name="德国坦克4死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="重型坦克 5" res="unit_panzer" strike="tank strike 3" logo="5" dir="-1" x="2" y="15" scale="0.8">
+    <Motion name="苏联坦克4待机动画" type="standby"/>
+    <Motion name="苏联坦克4行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="苏联坦克4攻击动画 " type="attack" at="0.72" effect="panzer4"/>
+    <Motion name="苏联坦克4死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="重型坦克 6" res="unit_panzer" strike="tank strike 3" logo="6" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="美国坦克4待机动画" type="standby"/>
+    <Motion name="美国坦克4行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="美国坦克4攻击动画 " type="attack" at="0.72" effect="panzer4"/>
+    <Motion name="美国坦克4死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="重型坦克 7" res="unit_panzer" strike="tank strike 3" logo="7" dir="-1" x="2" y="15" scale="0.8">
+    <Motion name="意大利坦克4待机动画" type="standby"/>
+    <Motion name="意大利坦克4行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="意大利坦克4攻击动画 " type="attack" at="0.72" effect="panzer4"/>
+    <Motion name="意大利坦克4死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="重型坦克 10" res="unit_panzer" strike="tank strike 3" logo="10" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="日本坦克4待机动画" type="standby"/>
+    <Motion name="日本坦克4行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="日本坦克4攻击动画 " type="attack" at="0.72" effect="panzer4"/>
+    <Motion name="日本坦克4死亡动画 " type="die"/>
+  </Unit>
+  
+  <Unit name="德国超级坦克" res="unit_panzer" strike="tank strike 4" dir="-1" x="-1" y="15" scale="0.8">
+    <Motion name="德国坦克5待机动画" type="standby"/>
+    <Motion name="德国坦克5行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="德国坦克5攻击动画 " type="attack" at="0.72" effect="panzer4"/>
+    <Motion name="德国坦克5死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="美国超级坦克" res="unit_panzer" strike="tank strike 4" dir="-1" x="-3" y="15" scale="0.8">
+    <Motion name="美国坦克5待机动画" type="standby"/>
+    <Motion name="美国坦克5行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="美国坦克5攻击动画 " type="attack" at="0.72" effect="panzer4"/>
+    <Motion name="美国坦克5死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="苏联超级坦克" res="unit_panzer" strike="tank strike 4" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="苏联坦克5待机动画" type="standby"/>
+    <Motion name="苏联坦克5行动动画 " type="move" effect="sfx_tank.wav"/>
+    <Motion name="苏联坦克5攻击动画 " type="attack" at="0.72" effect="panzer4"/>
+    <Motion name="苏联坦克5死亡动画 " type="die"/>
+  </Unit>
+
+  <Unit name="野战炮" res="unit_panzer" strike="tank strike 2" dir="-1" x="-3" y="15" scale="0.8">
+    <Motion name="通用炮1待机动画 " type="standby"/>
+    <Motion name="通用炮1移动动画  " type="move" effect="sfx_armour.wav"/>
+    <Motion name="通用炮1攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="通用炮1死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="野战炮 1" res="unit_panzer" strike="tank strike 2" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="英国炮1待机动画 " type="standby"/>
+    <Motion name="英国炮1移动动画  " type="move" effect="sfx_armour.wav"/>
+    <Motion name="英国炮1攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="英国炮1死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="野战炮 2" res="unit_panzer" strike="tank strike 2" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="法国炮1待机动画 " type="standby"/>
+    <Motion name="法国炮1移动动画  " type="move" effect="sfx_armour.wav"/>
+    <Motion name="法国炮1攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="法国炮1死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="野战炮 3" res="unit_panzer" strike="tank strike 2" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="德国炮1待机动画 " type="standby"/>
+    <Motion name="德国炮1移动动画  " type="move" effect="sfx_armour.wav"/>
+    <Motion name="德国炮1攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="德国炮1死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="野战炮 5" res="unit_panzer" strike="tank strike 2" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="苏联炮1待机动画 " type="standby"/>
+    <Motion name="苏联炮1移动动画  " type="move" effect="sfx_armour.wav"/>
+    <Motion name="苏联炮1攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="苏联炮1死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="野战炮 6" res="unit_panzer" strike="tank strike 2" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="美国炮1待机动画 " type="standby"/>
+    <Motion name="美国炮1移动动画  " type="move" effect="sfx_armour.wav"/>
+    <Motion name="美国炮1攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="美国炮1死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="野战炮 7" res="unit_panzer" strike="tank strike 2" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="意大利炮1待机动画 " type="standby"/>
+    <Motion name="意大利炮1移动动画  " type="move" effect="sfx_armour.wav"/>
+    <Motion name="意大利炮1攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="意大利炮1死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="野战炮 10" res="unit_panzer" strike="tank strike 2" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="日本炮1待机动画 " type="standby"/>
+    <Motion name="日本炮1移动动画  " type="move" effect="sfx_armour.wav"/>
+    <Motion name="日本炮1攻击动画" type="attack" at="0.72" effect="panzer2"/>
+    <Motion name="日本炮1死亡动画  " type="die"/>
+  </Unit>
+  
+  <Unit name="榴弹炮" res="unit_panzer" strike="tank strike 4" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="通用炮2待机动画 " type="standby"/>
+    <Motion name="通用炮2移动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="通用炮2攻击动画" type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="通用炮2死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="榴弹炮 1" res="unit_panzer" strike="tank strike 4" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="英国炮2待机动画 " type="standby"/>
+    <Motion name="英国炮2移动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="英国炮2攻击动画" type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="英国炮2死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="榴弹炮 2" res="unit_panzer" strike="tank strike 4" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="法国炮2待机动画 " type="standby"/>
+    <Motion name="法国炮2移动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="法国炮2攻击动画" type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="法国炮2死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="榴弹炮 3" res="unit_panzer" strike="tank strike 4" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="德国炮2待机动画 " type="standby"/>
+    <Motion name="德国炮2移动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="德国炮2攻击动画" type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="德国炮2死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="榴弹炮 5" res="unit_panzer" strike="tank strike 4" dir="-1" x="-3" y="15" scale="0.8">
+    <Motion name="苏联炮2待机动画 " type="standby"/>
+    <Motion name="苏联炮2移动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="苏联炮2攻击动画" type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="苏联炮2死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="榴弹炮 6" res="unit_panzer" strike="tank strike 4" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="美国炮2待机动画 " type="standby"/>
+    <Motion name="美国炮2移动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="美国炮2攻击动画" type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="美国炮2死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="榴弹炮 7" res="unit_panzer" strike="tank strike 4" dir="-1" x="0" y="15" scale="0.8">
+    <Motion name="意大利炮2待机动画 " type="standby"/>
+    <Motion name="意大利炮2移动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="意大利炮2攻击动画" type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="意大利炮2死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="榴弹炮 10" res="unit_panzer" strike="tank strike 4" dir="-1" x="-3" y="15" scale="0.8">
+    <Motion name="日本炮2待机动画 " type="standby"/>
+    <Motion name="日本炮2移动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="日本炮2攻击动画" type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="日本炮2死亡动画  " type="die"/>
+  </Unit>
+  
+  <Unit name="火箭炮" res="unit_panzer" strike="rocket strike" dir="-1" x="2" y="15" scale="0.8">
+    <Motion name="通用炮3待机动画 " type="standby"/>
+    <Motion name="通用炮3移动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="通用炮3攻击动画" type="attack" at="0.72" effect="Rocket"/>
+    <Motion name="通用炮3死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="火箭炮 1" res="unit_panzer" strike="rocket strike" logo="1" dir="-1" x="-2" y="15" scale="0.8">
+    <Motion name="英国炮3待机动画 " type="standby"/>
+    <Motion name="英国炮3移动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="英国炮3攻击动画" type="attack" at="0.72" effect="Rocket"/>
+    <Motion name="英国炮3死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="火箭炮 2" res="unit_panzer" strike="rocket strike" logo="2" dir="-1" x="-2" y="15" scale="0.8">
+    <Motion name="法国炮3待机动画 " type="standby"/>
+    <Motion name="法国炮3移动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="法国炮3攻击动画" type="attack" at="0.72" effect="Rocket"/>
+    <Motion name="法国炮3死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="火箭炮 3" res="unit_panzer" strike="rocket strike" logo="3" dir="-1" x="-4" y="12" scale="0.8">
+    <Motion name="德国炮3待机动画 " type="standby"/>
+    <Motion name="德国炮3移动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="德国炮3攻击动画" type="attack" at="0.72" effect="Rocket"/>
+    <Motion name="德国炮3死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="火箭炮 5" res="unit_panzer" strike="rocket strike" logo="5" dir="-1" x="-2" y="15" scale="0.8">
+    <Motion name="苏联炮3待机动画 " type="standby"/>
+    <Motion name="苏联炮3移动动画  " type="move" effect="sfx_armour.wav"/>
+    <Motion name="苏联炮3攻击动画" type="attack" at="0.72" effect="Rocket"/>
+    <Motion name="苏联炮3死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="火箭炮 6" res="unit_panzer" strike="rocket strike" logo="6" dir="-1" x="-2" y="15" scale="0.8">
+    <Motion name="美国炮3待机动画 " type="standby"/>
+    <Motion name="美国炮3移动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="美国炮3攻击动画" type="attack" at="0.72" effect="Rocket"/>
+    <Motion name="美国炮3死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="火箭炮 7" res="unit_panzer" strike="rocket strike" logo="7" dir="-1" x="-5" y="12" scale="0.8">
+    <Motion name="意大利炮3待机动画 " type="standby"/>
+    <Motion name="意大利炮3移动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="意大利炮3攻击动画" type="attack" at="0.72" effect="Rocket"/>
+    <Motion name="意大利炮3死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="火箭炮 10" res="unit_panzer" strike="rocket strike" logo="10" dir="-1" x="-5" y="12" scale="0.8">
+    <Motion name="日本炮3待机动画 " type="standby"/>
+    <Motion name="日本炮3移动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="日本炮3攻击动画" type="attack" at="0.72" effect="Rocket"/>
+    <Motion name="日本炮3死亡动画  " type="die"/>
+  </Unit>
+  
+  <Unit name="德国火炮" res="unit_panzer" strike="tank strike 4" dir="-1" x="2" y="15" scale="0.8">
+    <Motion name="德国炮4待机动画 " type="standby"/>
+    <Motion name="德国炮4移动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="德国炮4攻击动画" type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="德国炮4死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="苏联火箭炮" res="unit_panzer" strike="rocket strike" dir="-1" x="2" y="15" scale="0.8">
+    <Motion name="苏联炮4待机动画 " type="standby"/>
+    <Motion name="苏联炮4移动动画  " type="move" effect="sfx_armour.wav"/>
+    <Motion name="苏联炮4攻击动画" type="attack" at="0.72" effect="Rocket"/>
+    <Motion name="苏联炮4死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="英国火箭炮" res="unit_panzer" strike="rocket strike" dir="-1" x="2" y="15" scale="0.8">
+    <Motion name="英国炮4待机动画 " type="standby"/>
+    <Motion name="英国炮4移动动画  " type="move" effect="sfx_tank.wav"/>
+    <Motion name="英国炮4攻击动画" type="attack" at="0.72" effect="Rocket"/>
+    <Motion name="英国炮4死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="法国火炮" res="unit_panzer" strike="tank strike 4" dir="-1" x="3" y="15" scale="0.8">
+    <Motion name="法国炮4待机动画 " type="standby"/>
+    <Motion name="法国炮4移动动画  " type="move" effect="sfx_armour.wav"/>
+    <Motion name="法国炮4攻击动画" type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="法国炮4死亡动画  " type="die"/>
+  </Unit>
+  
+  <Unit name="潜艇" res="unit_ship" strike="navy strike 2" dir="-1" x="0" y="5" scale="0.8">
+    <Motion name="VIIC-41待机动画" type="standby"/>
+    <Motion name="VIIC-41被攻击动画  " type="hurt"/>
+    <Motion name="VIIC-41待机动画" type="move" effect="sfx_naval.wav"/>
+    <Motion name="VIIC-41攻击动画 " type="attack" at="0.72" effect="navy"/>
+    <Motion name="VIIC-41死亡动画   " type="die"/>
+  </Unit>
+  <Unit name="驱逐舰" res="unit_ship" strike="tank strike 2" dir="-1" x="0" y="3" scale="0.8">
+    <Motion name="驱逐舰待机动画" type="standby"/>
+    <Motion name="驱逐舰被攻击动画 " type="hurt"/>
+    <Motion name="驱逐舰待机动画" type="move" effect="sfx_naval.wav"/>
+    <Motion name="驱逐舰攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="驱逐舰死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="巡洋舰" res="unit_ship" strike="tank strike 4" dir="-1" x="0" y="3" scale="0.8">
+    <Motion name="巡洋舰待机动画" type="standby"/>
+    <Motion name="巡洋舰被攻击动画  " type="hurt"/>
+    <Motion name="巡洋舰待机动画" type="move" effect="sfx_naval.wav"/>
+    <Motion name="巡洋舰攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="巡洋舰死亡动画   " type="die"/>
+  </Unit>
+  <Unit name="航母 axis" res="unit_ship" strike="tank strike 2" dir="-1" x="0" y="5" scale="0.75">
+    <Motion name="日本重航母赤城号待机动画" type="standby"/>
+    <Motion name="日本重航母赤城号被攻击动画" type="hurt"/>
+    <Motion name="日本重航母赤城号待机动画" type="move" effect="sfx_naval.wav"/>
+    <Motion name="日本重航母赤城号攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="日本重航母赤城号起飞动画 2" type="attack"/>
+    <Motion name="日本重航母赤城号起飞动画 1" type="attack"/>
+    <Motion name="日本重航母赤城号死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="航母 allies" res="unit_ship" strike="tank strike 2" dir="-1" x="0" y="5" scale="0.75">
+    <Motion name="美国重型航母大黄蜂待机动画" type="standby"/>
+    <Motion name="美国重型航母大黄蜂被攻击动画 " type="hurt"/>
+    <Motion name="美国重型航母大黄蜂待机动画" type="move" effect="sfx_naval.wav"/>
+    <Motion name="美国重型航母大黄蜂攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="美国重型航母大黄蜂起飞动画 2" type="attack"/>
+    <Motion name="美国重型航母大黄蜂起飞动画 1" type="attack"/>
+    <Motion name="美国重型航母大黄蜂死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="航母 wto" res="unit_ship" strike="tank strike 2" dir="-1" x="0" y="5" scale="0.75">
+    <Motion name="苏联航母基辅号待机动画" type="standby"/>
+    <Motion name="苏联航母基辅号被攻击动画 " type="hurt"/>
+    <Motion name="苏联航母基辅号待机动画" type="move" effect="sfx_naval.wav"/>
+    <Motion name="苏联航母基辅号攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="苏联航母基辅号起飞动画1" type="attack"/>
+    <Motion name="苏联航母基辅号起飞动画2" type="attack"/>
+    <Motion name="苏联航母基辅号死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="航母 nato" res="unit_ship" strike="tank strike 2" dir="-1" x="0" y="5" scale="0.75">
+    <Motion name="美国航母小鹰号待机动画" type="standby"/>
+    <Motion name="美国航母小鹰号被攻击动画 " type="hurt"/>
+    <Motion name="美国航母小鹰号待机动画" type="move" effect="sfx_naval.wav"/>
+    <Motion name="美国航母小鹰号攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="美国航母小鹰号起飞动画2" type="attack"/>
+    <Motion name="美国航母小鹰号起飞动画 1" type="attack"/>
+    <Motion name="美国航母小鹰号死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="美国航母" res="unit_ship" strike="tank strike 2" dir="-1" x="0" y="0" scale="0.7">
+    <Motion name="福特级待机动画" type="standby"/>
+    <Motion name="福特级被攻击动画 " type="hurt"/>
+    <Motion name="福特级待机动画" type="move" effect="sfx_naval.wav"/>
+    <Motion name="福特级攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="福特级起飞动画1" type="attack"/>
+    <Motion name="福特级起飞动画2" type="attack"/>
+    <Motion name="福特级死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="意大利潜艇" res="unit_ship" strike="navy strike 2" dir="-1" x="0" y="0" scale="0.8">
+    <Motion name="Kilo submarine1待机动画 " type="standby"/>
+    <Motion name="Kilo submarine1被攻击动画  " type="hurt"/>
+    <Motion name="Kilo submarine1待机动画 " type="move" effect="sfx_naval.wav"/>
+    <Motion name="Kilo submarine1攻击动画" type="attack" at="0.72" effect="navy"/>
+    <Motion name="Kilo submarine1死亡动画   " type="die"/>
+  </Unit>
+  <Unit name="英国战列舰" res="unit_ship" strike="tank strike 4" dir="-1" x="0" y="3" scale="0.8">
+    <Motion name="威尔士亲王号1待机动画" type="standby"/>
+    <Motion name="威尔士亲王号1被攻击动画 " type="hurt"/>
+    <Motion name="威尔士亲王号1待机动画" type="move" effect="sfx_naval.wav"/>
+    <Motion name="威尔士亲王号1攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="威尔士亲王号1死亡动画  " type="die"/>
+  </Unit>
+  <Unit name="日本战列舰" res="unit_ship" strike="tank strike 4" dir="-1" x="0" y="3" scale="0.8">
+    <Motion name="大和号待机动画" type="standby"/>
+    <Motion name="大和号被攻击动画 " type="hurt"/>
+    <Motion name="大和号待机动画" type="move" effect="sfx_naval.wav"/>
+    <Motion name="大和号攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="大和号死亡动画  " type="die"/>
+  </Unit>
+
+  <Unit name="运输船" res="unit_ship" strike="panzer strike" dir="-1" x="0" y="3"  scale="0.8">
+    <Motion name="运输船待机动画 " type="standby"/>
+    <Motion name="运输船被攻击动画" type="hurt"/>
+    <Motion name="运输船待机动画 " type="move" effect="sfx_naval.wav"/>
+    <Motion name="运输船攻击动画" type="attack" at="0.72" effect="panzer1"/>
+    <Motion name="运输船死亡动画 " type="die"/>
+  </Unit>
+
+  <Unit name="战斗机 ww2" res="unit_ship" strike="airforce strike" dir="1" x="0" y="0" scale="0.8">
+    <Motion name="bf 109e待机动画2" type="standby"/>
+    <Motion name="bf 109e待机动画总" type="attack" at="0.5" speed="1.0"/>
+  </Unit>
+  <Unit name="战斗机 cw" res="unit_ship" strike="airforce strike" dir="1" x="0" y="0" scale="0.8">
+    <Motion name="Mig15待机动画2" type="standby"/>
+    <Motion name="Mig15待机动画总" type="attack" at="0.5" speed="1.0" effect="fly"/>
+  </Unit>
+  <Unit name="轰炸机 ww2" res="unit_ship" dir="1" x="0" y="0" scale="0.8">
+    <Motion name="HE111待机动画1" type="standby"/>
+    <Motion name="HE111待机动画总" type="attack" at="1.2" speed="1.0" effect="bomber"/>
+  </Unit>
+  <Unit name="轰炸机 cw" res="unit_ship" dir="1" x="0" y="0" scale="0.8">
+    <Motion name="Douglas A3机身" type="standby"/>
+    <Motion name="Douglas A3待机动画" type="attack" at="1.2" speed="1.0" effect="bomber cw"/>
+  </Unit>
+  <Unit name="战略轰炸机 ww2" res="unit_ship" dir="1" x="0" y="0" scale="0.8">
+    <Motion name="战略轰炸机待机动画1" type="standby"/>
+    <Motion name="战略轰炸机待机动画总" type="attack" at="1.2" speed="1.0" effect="bomber2"/>
+    <Motion name="战略轰炸机核弹动画" type="attack" at="1.2" speed="1.0"/>
+  </Unit>
+  <Unit name="战略轰炸机 cw" res="unit_ship" dir="1" x="0" y="0" scale="0.8">
+    <Motion name="B-52A机身" type="standby"/>
+    <Motion name="B-52A待机动画" type="attack" at="1.2" speed="1.0" effect="bomber2 cw"/>
+    <Motion name="B-52A核弹动画" type="attack" at="1.2" speed="1.0" effect="fly"/>
+  </Unit>
+  <Unit name="空降兵 ww2" res="unit_ship" dir="1" x="0" y="0" scale="0.8">
+    <Motion name="ME323待机动画1" type="standby"/>
+    <Motion name="ME323待机动画总" type="attack" at="1.2" speed="1.0"/>
+  </Unit>
+  <Unit name="空降兵 cw" res="unit_ship" dir="1" x="0" y="0">
+    <Motion name="C-5 Galaxy机身" type="standby"/>
+    <Motion name="C-5 Galaxy待机动画" type="attack" at="1.2" speed="1.0" effect="fly"/>
+  </Unit>
+  <Unit name="法国战斗机" res="unit_ship" strike="airforce strike" dir="1" x="0" y="0" scale="0.8">
+    <Motion name="幻影待机动画1" type="standby"/>
+    <Motion name="幻影待机动画总" type="attack" at="0.5" speed="1.0" effect="fly"/>
+  </Unit>
+  <Unit name="苏联轰炸机" res="unit_ship" dir="1" x="0" y="0" scale="0.8">
+    <Motion name="tu22M机身" type="standby"/>
+    <Motion name="tu22M待机动画" type="attack" at="1.2" speed="1.0" effect="bomber cw"/>
+  </Unit>
+  <Unit name="美国战略轰炸机" res="unit_ship" dir="1" x="0" y="0" scale="0.8">
+    <Motion name="B-2机身" type="standby"/>
+    <Motion name="B-2待机动画" type="attack" at="1.1" speed="1.0" effect="bomber2 cw"/>
+    <Motion name="B-2核弹动画" type="attack" at="1.1" speed="1.0" effect="fly"/>
+  </Unit>
+
+  <Unit name="机枪堡" res="unit_ship" strike="突击步兵" dir="1" x="1" y="10" scale="0.9">
+    <Motion name="建造动画" type="build"/>
+    <Motion name="地堡待机动画" type="standby"/>
+    <Motion name="地堡射击动画" type="attack" effect="Infantry fire2"/>
+  </Unit>
+  <Unit name="要塞炮" res="unit_ship" strike="tank strike 2" dir="1" x="5" y="10" scale="0.9">
+    <Motion name="建造动画" type="build"/>
+    <Motion name="海岸炮待机动画" type="standby"/>
+    <Motion name="海岸炮发射动画" type="attack" effect="Artillery"/>
+  </Unit>
+  <Unit name="海岸炮" res="unit_ship" strike="tank strike 2" dir="1" x="-3" y="10" scale="0.9">
+    <Motion name="建造动画" type="build"/>
+    <Motion name="要塞炮待机动画" type="standby"/>
+    <Motion name="要塞炮射击动画" type="attack" effect="Artillery"/>
+  </Unit>
+  <Unit name="火箭发射器" res="unit_ship" strike="rocket strike" dir="1" x="-2" y="0" scale="0.8">
+    <Motion name="建造动画" type="build"/>
+    <Motion name="火箭发射器待机动画" type="standby"/>
+    <Motion name="火箭发射器攻击动画" type="attack" at="0.8" effect="Rocket"/>
+  </Unit>
+
+  <Unit name="堡垒" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-7" scale="1.0">
+    <Motion name="陆地LV1_1待机" type="standby" dir="right"/>
+    <Motion name="陆地LV1_1攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="陆地LV1_1_反向待机" type="standby" dir="left"/>
+    <Motion name="陆地LV1_1_反向攻击" type="attack" dir="left" effect="Artillery"/>
+  </Unit>
+  <Unit name="堡垒d1" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-7" scale="1.0">
+    <Motion name="陆地LV1_2待机" type="standby" dir="right"/>
+    <Motion name="陆地LV1_2攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="陆地LV1_2_反向待机" type="standby" dir="left"/>
+    <Motion name="陆地LV1_2_反向攻击" type="attack" dir="left" effect="Artillery"/>
+    <Motion name="陆地LV1_2烟" type="front"/>
+  </Unit>
+  <Unit name="堡垒d2" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-7" scale="1.0">
+    <Motion name="陆地LV1_3待机" type="standby" dir="right"/>
+    <Motion name="陆地LV1_3攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="陆地LV1_3_反向待机" type="standby" dir="left"/>
+    <Motion name="陆地LV1_3_反向攻击" type="attack" dir="left" effect="Artillery"/>
+    <Motion name="陆地LV1_3烟" type="front"/>
+  </Unit>
+  
+  <Unit name="大型堡垒" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-7" scale="1.0">
+    <Motion name="陆地LV2_1待机" type="standby" dir="right"/>
+    <Motion name="陆地LV2_1攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="陆地LV2_1_反向待机" type="standby" dir="left"/>
+    <Motion name="陆地LV2_1_反向攻击" type="attack" dir="left" effect="Artillery"/>
+  </Unit>
+  <Unit name="大型堡垒d1" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-7" scale="1.0">
+    <Motion name="陆地LV2_2待机" type="standby" dir="right"/>
+    <Motion name="陆地LV2_2攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="陆地LV2_2_反向待机" type="standby" dir="left"/>
+    <Motion name="陆地LV2_2_反向攻击" type="attack" dir="left" effect="Artillery"/>
+    <Motion name="陆地LV2_2烟" type="front"/>
+  </Unit>
+  <Unit name="大型堡垒d2" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-7" scale="1.0">
+    <Motion name="陆地LV2_3待机" type="standby" dir="right"/>
+    <Motion name="陆地LV2_3攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="陆地LV2_3_反向待机" type="standby" dir="left"/>
+    <Motion name="陆地LV2_3_反向攻击" type="attack" dir="left" effect="Artillery"/>
+    <Motion name="陆地LV2_3烟" type="front"/>
+  </Unit>
+  
+  <Unit name="巨型堡垒" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-7" scale="1.0">
+    <Motion name="陆地LV3_1待机" type="standby" dir="right"/>
+    <Motion name="陆地LV3_1攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="陆地LV3_1_反向待机" type="standby" dir="left"/>
+    <Motion name="陆地LV3_1_反向攻击" type="attack" dir="left" effect="Artillery"/>
+  </Unit>
+  <Unit name="巨型堡垒d1" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-7" scale="1.0">
+    <Motion name="陆地LV3_2待机" type="standby" dir="right"/>
+    <Motion name="陆地LV3_2攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="陆地LV3_2_反向待机" type="standby" dir="left"/>
+    <Motion name="陆地LV3_2_反向攻击" type="attack" dir="left" effect="Artillery"/>
+    <Motion name="陆地LV3_2烟" type="front"/>
+  </Unit>
+  <Unit name="巨型堡垒d2" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-7" scale="1.0">
+    <Motion name="陆地LV3_3待机" type="standby" dir="right"/>
+    <Motion name="陆地LV3_3攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="陆地LV3_3_反向待机" type="standby" dir="left"/>
+    <Motion name="陆地LV3_3_反向攻击" type="attack" dir="left" effect="Artillery"/>
+    <Motion name="陆地LV3_3烟" type="front"/>
+  </Unit>
+  
+  <Unit name="海上堡垒" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-6" scale="1.0">
+    <Motion name="海洋LV1_1待机" type="standby" dir="right"/>
+    <Motion name="海洋LV1_1攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="海洋LV1_1_反向待机" type="standby" dir="left"/>
+    <Motion name="海洋LV1_1_反向攻击" type="attack" dir="left" effect="Artillery"/>
+  </Unit>
+  <Unit name="海上堡垒d1" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-6" scale="1.0">
+    <Motion name="海洋LV1_2待机" type="standby" dir="right"/>
+    <Motion name="海洋LV1_2攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="海洋LV1_2_反向待机" type="standby" dir="left"/>
+    <Motion name="海洋LV1_2_反向攻击" type="attack" dir="left" effect="Artillery"/>
+    <Motion name="海洋LV1_2烟" type="front"/>
+  </Unit>
+  <Unit name="海上堡垒d2" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-6" scale="1.0">
+    <Motion name="海洋LV1_3待机" type="standby" dir="right"/>
+    <Motion name="海洋LV1_3攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="海洋LV1_3_反向待机" type="standby" dir="left"/>
+    <Motion name="海洋LV1_3_反向攻击" type="attack" dir="left" effect="Artillery"/>
+    <Motion name="海洋LV1_3烟" type="front"/>
+  </Unit>
+  
+  <Unit name="海上大型堡垒" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-13" scale="1.0">
+    <Motion name="海洋LV2_1待机" type="standby" dir="right"/>
+    <Motion name="海洋LV2_1攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="海洋LV2_1_反向待机" type="standby" dir="left"/>
+    <Motion name="海洋LV2_1_反向攻击" type="attack" dir="left" effect="Artillery"/>
+  </Unit>
+  <Unit name="海上大型堡垒d1" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-13" scale="1.0">
+    <Motion name="海洋LV2_2待机" type="standby" dir="right"/>
+    <Motion name="海洋LV2_2攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="海洋LV2_2_反向待机" type="standby" dir="left"/>
+    <Motion name="海洋LV2_2_反向攻击" type="attack" dir="left" effect="Artillery"/>
+    <Motion name="海洋LV2_2烟" type="front"/>
+  </Unit>
+  <Unit name="海上大型堡垒d2" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-13" scale="1.0">
+    <Motion name="海洋LV2_3待机" type="standby" dir="right"/>
+    <Motion name="海洋LV2_3攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="海洋LV2_3_反向待机" type="standby" dir="left"/>
+    <Motion name="海洋LV2_3_反向攻击" type="attack" dir="left" effect="Artillery"/>
+    <Motion name="海洋LV2_3烟" type="front"/>
+  </Unit>
+  
+  <Unit name="海上巨型堡垒" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-13" scale="1.0">
+    <Motion name="海洋LV3_1待机" type="standby" dir="right"/>
+    <Motion name="海洋LV3_1攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="海洋LV3_1_反向待机" type="standby" dir="left"/>
+    <Motion name="海洋LV3_1_反向攻击" type="attack" dir="left" effect="Artillery"/>
+  </Unit>
+  <Unit name="海上巨型堡垒d1" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-13" scale="1.0">
+    <Motion name="海洋LV3_2待机" type="standby" dir="right"/>
+    <Motion name="海洋LV3_2攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="海洋LV3_2_反向待机" type="standby" dir="left"/>
+    <Motion name="海洋LV3_2_反向攻击" type="attack" dir="left" effect="Artillery"/>
+    <Motion name="海洋LV3_2烟" type="front"/>
+  </Unit>
+  <Unit name="海上巨型堡垒d2" res="unit_fort" strike="tank strike 2" dir="1" flip="false" x="0" y="-13" scale="1.0">
+    <Motion name="海洋LV3_3待机" type="standby" dir="right"/>
+    <Motion name="海洋LV3_3攻击" type="attack" dir="right" effect="Artillery"/>
+    <Motion name="海洋LV3_3_反向待机" type="standby" dir="left"/>
+    <Motion name="海洋LV3_3_反向攻击" type="attack" dir="left" effect="Artillery"/>
+    <Motion name="海洋LV3_3烟" type="front"/>
+  </Unit>
+  
+  <Unit name="近程导弹" res="anim_missile" strike="missile strike 1" dir="1" x="0" y="0">
+    <Motion name="导弹攻击01动画" type="ready" at="2.33"/>
+    <Motion name="导弹01爆炸动画- 无爆炸" type="attack" at="1.4" />
+  </Unit>
+  <Unit name="中程导弹" res="anim_missile" strike="missile strike 2" dir="1" x="0" y="0">
+    <Motion name="导弹攻击02动画" type="ready" at="2.33"/>
+    <Motion name="导弹02爆炸动画- 无爆炸" type="attack" at="1.4" />
+  </Unit>
+  <Unit name="远程导弹" res="anim_missile" strike="missile strike 3" dir="1" x="0" y="0">
+    <Motion name="导弹攻击03动画" type="ready" at="2.33"/>
+    <Motion name="导弹03爆炸动画- 无爆炸" type="attack" at="1.4" />
+  </Unit>
+  <Unit name="洲际导弹" res="anim_missile" strike="missile strike 4" dir="1" x="0" y="0">
+    <Motion name="导弹攻击04动画" type="ready" at="2.33"/>
+    <Motion name="导弹04爆炸动画- 无爆炸" type="attack" at="1.4" />
+  </Unit>
+  
+  <Unit name="Antiair Gun" res="unit_ship" dir="1" x="0" y="0">
+    <Motion name="防空机动画" type="attack" at="0.0" effect="Antiair Gun fire"/>
+  </Unit>
+  <Unit name="Antiair Artillery" res="unit_ship" dir="1" x="0" y="0">
+    <Motion name="防空炮发射动画" type="attack" at="0.0" effect="Antiair Artillery fire"/>
+  </Unit>
+  <Unit name="Antiair Missile" res="unit_ship" dir="-1" x="0" y="0">
+    <Motion name="防空导弹发射动画" type="attack" at="0.0" effect="Antiair Missile fire"/>
+  </Unit>
+
+  <Unit name="地雷1" res="unit_ship" dir="1" x="0" y="0" scale="0.75">
+    <Motion name="地雷待机动画" type="standby"/>
+    <Motion name="地雷爆炸特效" type="attack" at="0.0" effect="bomb"/>
+  </Unit>
+  <Unit name="地雷2" res="unit_ship" dir="1" x="0" y="0" scale="0.75">
+    <Motion name="地雷待机动画" type="standby"/>
+    <Motion name="地雷爆炸特效" type="attack" at="0.0" effect="bomb"/>
+  </Unit>
+  <Unit name="地雷3" res="unit_ship" dir="1" x="0" y="0" scale="0.75">
+    <Motion name="地雷待机动画" type="standby"/>
+    <Motion name="地雷爆炸特效" type="attack" at="0.0" effect="bomb"/>
+  </Unit>
+  <Unit name="地雷4" res="unit_ship" dir="1" x="0" y="0" scale="0.75">
+    <Motion name="地雷待机动画" type="standby"/>
+    <Motion name="地雷爆炸特效" type="attack" at="0.0" effect="bomb"/>
+  </Unit>
+  <Unit name="水雷1" res="unit_ship" dir="1" x="0" y="0" scale="0.5">
+    <Motion name="北约水雷待机动画" type="standby"/>
+    <Motion name="水雷爆炸动画特效" type="attack" at="0.0" effect="bomb"/>
+  </Unit>
+  <Unit name="水雷2" res="unit_ship" dir="1" x="0" y="0" scale="0.5">
+    <Motion name="北约水雷待机动画" type="standby"/>
+    <Motion name="水雷爆炸动画特效" type="attack" at="0.0" effect="bomb"/>
+  </Unit>
+  <Unit name="水雷3" res="unit_ship" dir="1" x="0" y="0" scale="0.5">
+    <Motion name="北约水雷待机动画" type="standby"/>
+    <Motion name="水雷爆炸动画特效" type="attack" at="0.0" effect="bomb"/>
+  </Unit>
+  <Unit name="水雷4" res="unit_ship" dir="1" x="0" y="0" scale="0.5">
+    <Motion name="北约水雷待机动画" type="standby"/>
+    <Motion name="水雷爆炸动画特效" type="attack" at="0.0" effect="bomb"/>
+  </Unit>
+
+  <Unit name="精英步兵" res="unit_infantry" strike="中国特种兵" dir="-1" x="8" y="-2">
+    <Motion name="精英步兵车待机组合动画" type="standby"/>
+    <Motion name="精英步兵点中组合动画 " type="ready"/>
+    <Motion name="精英步兵车待机组合动画" type="move" effect="sfx_leg.wav"/>
+    <Motion name="精英步兵射击组合动画  " type="attack" at="0.72" effect="Japan fire"/>
+    <Motion name="精英步兵死亡组合动画 " type="die"/>
+  </Unit>
+  <Unit name="泰坦坦克" res="unit_panzer" strike="tank strike 4" dir="-1" x="0" y="10" scale="0.7">
+    <Motion name="泰坦坦克待机动画" type="standby"/>
+    <Motion name="泰坦坦克行动动画" type="move" effect="sfx_tank.wav"/>
+    <Motion name="泰坦坦克攻击动画" type="attack" at="0.72" effect="panzer4"/>
+    <Motion name="泰坦坦克死亡动画" type="die"/>
+  </Unit>
+  <Unit name="自行榴弹炮" res="unit_panzer" strike="tank strike 4" dir="-1" x="-3" y="24" scale="0.7">
+    <Motion name="自行榴弹炮待机动画" type="standby"/>
+    <Motion name="自行榴弹炮行动动画 " type="move" effect="sfx_armour.wav"/>
+    <Motion name="自行榴弹炮攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+    <Motion name="自行榴弹炮死亡动画 " type="die"/>
+  </Unit>
+  <Unit name="导弹巡洋舰" res="unit_ship" strike="rocket strike" dir="-1" x="0" y="5" scale="0.7">
+    <Motion name="导弹巡洋舰待机动画" type="standby"/>
+    <Motion name="导弹巡洋舰被攻击动画" type="hurt"/>
+    <Motion name="导弹巡洋舰待机动画" type="move" effect="sfx_naval.wav"/>
+    <Motion name="导弹巡洋舰攻击动画" type="attack" at="0.72" effect="Rocket"/>
+    <Motion name="导弹巡洋舰死亡动画" type="die"/>
+  </Unit>
+  <Unit name="空降兵" res="unit_ship" dir="1" x="0" y="0">
+    <Motion name="现代运输机待机动画1" type="standby"/>
+    <Motion name="现代运输机待机动画总" type="attack" at="1.2" speed="1.0" effect="fly"/>
+  </Unit>
+  <Unit name="轰炸机" res="unit_ship" dir="1" x="0" y="0" scale="0.8">
+    <Motion name="现代战机待机动画" type="standby"/>
+    <Motion name="现代战机轰炸动画" type="attack" at="1.2" speed="1.0" effect="bomber cw"/>
+  </Unit>
+  <Unit name="战略轰炸机" res="unit_ship" dir="1" x="0" y="0" scale="0.8">
+    <Motion name="现代战机待机动画" type="standby"/>
+    <Motion name="现代战机战略轰炸动画" type="attack" at="1.2" speed="1.0" effect="bomber2 cw"/>
+    <Motion name="现代战机投掷核弹动画" type="attack" at="1.2" speed="1.0" effect="fly"/>
+  </Unit>
+
+	<Unit name="勃兰登堡特种兵" res="unit_elite1" strike="机动步兵" dir="-1" x="-8" y="14">
+		<Motion name="勃兰登堡特种部队待机组合动画" type="standby"/>
+		<Motion name="勃兰登堡特种部队点中组合动画 " type="ready"/>
+		<Motion name="勃兰登堡特种部队待机组合动画" type="move" effect="sfx_leg.wav"/>
+		<Motion name="勃兰登堡特种部队攻击组合动画  " type="attack" at="0.72" effect="Infantry fire2"/>
+		<Motion name="勃兰登堡特种部队死亡组合动画 " type="die"/>
+	</Unit>
+	<Unit name="鹰眼部队" res="unit_elite3" strike="中国特种兵" dir="-1" x="-8" y="14" scale="0.7">
+		<Motion name="狙击手待机组合动画" type="standby"/>
+		<Motion name="狙击手点中组合动画" type="ready"/>
+		<Motion name="狙击手待机组合动画" type="move" effect="sfx_leg.wav"/>
+		<Motion name="狙击手射击组合动画" type="attack" at="0.72" effect="Infantry fire"/>
+		<Motion name="狙击手死亡组合动画" type="die"/>
+	</Unit>
+	<Unit name="医疗兵" res="unit_elite2" strike="步兵" dir="-1" x="-5" y="15">
+		<Motion name="医疗兵待机组合动画" type="standby"/>
+		<Motion name="医疗兵预备加血组合动画" type="ready"/>
+		<Motion name="医疗兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+		<Motion name="医疗兵攻击组合动画" type="attack" at="0.72" effect="Infantry fire2"/>
+		<Motion name="医疗兵死亡组合动画" type="die"/>
+		<Motion name="医疗兵加血组合动画" type="heal"/>
+	</Unit>
+	<Unit name="M7牧师式自行火炮" res="unit_elitepanzer" logo="-1" strike="tank strike 4" dir="-1" x="0" y="15" scale="0.8">
+		<Motion name="M77待机动画" type="standby"/>
+		<Motion name="M77行动动画" type="move" effect="sfx_tank.wav"/>
+		<Motion name="M77攻击动画" type="attack" at="0.72" effect="Artillery"/>
+		<Motion name="M77死亡动画" type="die"/>
+	</Unit>
+	<Unit name="古斯塔夫巨炮" res="unit_elitepanzer" logo="-1" strike="tank strike 2" dir="-1" x="25" y="15" scale="0.8">
+		<Motion name="古斯塔夫待机" type="standby"/>
+		<Motion name="古斯塔夫选中" type="ready"/>
+		<Motion name="古斯塔夫待机" type="move" effect="sfx_armour.wav"/>
+		<Motion name="古斯塔夫攻击" type="attack" at="0.72" effect="Artillery"/>
+		<Motion name="古斯塔夫死亡" type="die"/>
+	</Unit>
+	<Unit name="BM-21火箭炮" res="unit_elitepanzer" logo="-1" strike="rocket strike" dir="-1" x="2" y="15" scale="0.8">
+		<Motion name="BM21待机动画 " type="standby"/>
+		<Motion name="BM21移动动画  " type="move" effect="sfx_armour.wav"/>
+		<Motion name="BM21攻击动画" type="attack" at="0.72" effect="Rocket"/>
+		<Motion name="BM21死亡动画  " type="die"/>
+	</Unit>
+	<Unit name="T-44坦克" res="unit_elitepanzer" logo="-1" strike="tank strike 3" dir="-1" x="-1" y="15" scale="0.8">
+		<Motion name="T-44待机动画" type="standby"/>
+		<Motion name="T-44行动动画 " type="move" effect="sfx_tank.wav"/>
+		<Motion name="T-44攻击动画" type="attack" at="0.72" effect="panzer2"/>
+		<Motion name="T-44死亡动画 " type="die"/>
+	</Unit>
+	<Unit name="虎王重型坦克" res="unit_elitepanzer" logo="-1" strike="tank strike 4" dir="-1" x="-1" y="15" scale="0.8">
+		<Motion name="虎王坦克待机动画" type="standby"/>
+		<Motion name="虎王坦克行动动画" type="move" effect="sfx_tank.wav"/>
+		<Motion name="虎王坦克攻击动画" type="attack" at="0.72" effect="panzer4"/>
+		<Motion name="虎王坦克死亡动画" type="die"/>
+	</Unit>
+	<Unit name="潘兴重型坦克" res="unit_elitepanzer" logo="-1" strike="tank strike 3" dir="-1" x="3" y="15" scale="0.8">
+		<Motion name="潘兴待机动画" type="standby"/>
+		<Motion name="潘兴行动动画 " type="move" effect="sfx_tank.wav"/>
+		<Motion name="潘兴攻击动画 " type="attack" at="0.72" effect="panzer4"/>
+		<Motion name="潘兴死亡动画 " type="die"/>
+	</Unit>
+	<Unit name="喷火战斗机" res="unit_elite1" strike="airforce strike" dir="1" x="0" y="0" scale="0.8">
+		<Motion name="喷火战斗机待机动画1" type="standby"/>
+		<Motion name="喷火战斗机待机动画总" type="attack" at="0.5" speed="1.0"/>
+	</Unit>
+	<Unit name="C-47运输机" res="unit_elite2" dir="1" x="0" y="0"  scale="0.8">
+		<Motion name="c-47待机动画1" type="standby"/>
+		<Motion name="c-47待机动画总" type="attack" at="1.2" speed="1.0" effect="fly"/>
+	</Unit>
+	<Unit name="斯图卡轰炸机" res="unit_elite3" dir="1" x="0" y="0" scale="0.8">
+		<Motion name="斯图卡战斗机待机" type="standby"/>
+		<Motion name="斯图卡战斗机攻击" type="attack" at="1.2" speed="1.0" effect="bomber stuka"/>
+	</Unit>
+	<Unit name="U VII型潜艇" res="unit_elite2" strike="navy strike 2" dir="-1" x="0" y="5" scale="0.7">
+		<Motion name="U XII型潜艇待机动画" type="standby"/>
+		<Motion name="U XII型潜艇被攻击动画" type="hurt"/>
+		<Motion name="U XII型潜艇待机动画" type="move" effect="sfx_naval.wav"/>
+		<Motion name="U XII型潜艇攻击动画" type="attack" at="0.72" effect="navy"/>
+		<Motion name="U XII型潜艇死亡动画" type="die"/>
+	</Unit>
+	<Unit name="威尔士亲王号" res="unit_elite3" strike="tank strike 4" dir="-1" x="0" y="3" scale="0.8">
+		<Motion name="威尔士亲王待机" type="standby"/>
+		<Motion name="威尔士亲王被攻击" type="hurt"/>
+		<Motion name="威尔士亲王待机" type="move" effect="sfx_naval.wav"/>
+		<Motion name="威尔士亲王攻击" type="attack" at="0.72" effect="Artillery"/>
+		<Motion name="威尔士亲王死亡" type="die"/>
+	</Unit>
+	<Unit name="感应水雷" res="unit_elite2" dir="1" x="0" y="0" scale="0.5">
+		<Motion name="感应水雷待机动画" type="standby"/>
+		<Motion name="船被攻击特效1" type="attack" at="0.0" effect="bomb"/>
+	</Unit>
+
+	<Unit name="阿尔卑斯山地部队" res="unit_elite4" strike="机动步兵" dir="1" x="4" y="10" scale="0.7">
+		<Motion name="阿尔卑斯山地步兵待机组合动画" type="standby"/>
+		<Motion name="阿尔卑斯山地步兵点中组合动画" type="ready"/>
+		<Motion name="阿尔卑斯山地步兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+		<Motion name="阿尔卑斯山地步兵射击组合动画" type="attack" at="0.72" effect="Infantry fire2"/>
+		<Motion name="阿尔卑斯山地步兵死亡组合动画" type="die"/>
+	</Unit>
+	<Unit name="B-4榴弹炮" res="unit_elitepanzer" logo="-1" strike="tank strike 2" dir="-1" x="3" y="6" scale="0.8">
+		<Motion name="B-4苏联榴弹炮待机动画" type="standby"/>
+		<Motion name="B-4苏联榴弹炮移动动画" type="move" effect="sfx_tank.wav"/>
+		<Motion name="B-4苏联榴弹炮攻击动画" type="attack" at="0.72" effect="Artillery"/>
+		<Motion name="B-4苏联榴弹炮死亡动画" type="die"/>
+	</Unit>
+
+	<Unit name="IS-3重型坦克" res="unit_elitepanzer" logo="-1" strike="tank strike 3" dir="-1" x="-4" y="15" scale="0.8">
+		<Motion name="Is-3待机动画" type="standby"/>
+		<Motion name="Is-3行动动画 " type="move" effect="sfx_tank.wav"/>
+		<Motion name="Is-3攻击动画 " type="attack" at="0.72" effect="panzer4"/>
+		<Motion name="Is-3死亡动画 " type="die"/>
+	</Unit>
+	<Unit name="陆地斯图卡火箭炮" res="unit_elitepanzer" logo="-1" strike="rocket strike" dir="-1" x="3" y="6" scale="0.8">
+		<Motion name="陆地斯图卡火箭炮待机动画" type="standby"/>
+		<Motion name="陆地斯图卡火箭炮行动动画" type="move" effect="sfx_tank.wav"/>
+		<Motion name="陆地斯图卡火箭炮攻击动画" type="attack" at="0.72" effect="Rocket"/>
+		<Motion name="陆地斯图卡火箭炮死亡动画" type="die"/>
+	</Unit>
+	<Unit name="黎塞留号战列舰" res="unit_elite4" strike="tank strike 4" dir="-1" x="0" y="3" scale="0.8">
+		<Motion name="黎胥留号战列舰待机动画" type="standby"/>
+		<Motion name="黎胥留号战列舰被攻击动画 " type="hurt"/>
+		<Motion name="黎胥留号战列舰待机动画" type="move" effect="sfx_naval.wav"/>
+		<Motion name="黎胥留号战列舰攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+		<Motion name="黎胥留号战列舰死亡动画  " type="die"/>
+	</Unit>
+	<Unit name="赤城号航空母舰" res="unit_elite5" strike="tank strike 2" dir="-1" x="0" y="5" scale="0.75">
+		<Motion name="日本赤城号被航母待机动画" type="standby"/>
+		<Motion name="日本赤城号被航母攻击动画" type="hurt"/>
+		<Motion name="日本赤城号被航母待机动画" type="move" effect="sfx_naval.wav"/>
+		<Motion name="日本赤城号被航母攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+		<Motion name="日本赤城号被航母起飞动画 1" type="attack"/>
+		<Motion name="日本赤城号被航母死亡动画 " type="die"/>
+	</Unit>
+	<Unit name="九九舰爆" res="unit_elite5" dir="1" x="0" y="0" scale="0.8">
+		<Motion name="九九舰爆攻击" type="standby"/>
+		<Motion name="九九舰爆攻击" type="attack" at="1.2" speed="1.0" effect="bomber stuka"/>
+	</Unit>
+	<Unit name="企业号航空母舰" res="unit_elite5" strike="tank strike 2" dir="-1" x="0" y="0" scale="0.7">
+		<Motion name="美国大黄蜂航母待机动画" type="standby"/>
+		<Motion name="美国大黄蜂航母攻击动画" type="hurt"/>
+		<Motion name="美国大黄蜂航母待机动画" type="move" effect="sfx_naval.wav"/>
+		<Motion name="美国大黄蜂航母攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+		<Motion name="美国大黄蜂航母起飞动画 2" type="attack"/>
+		<Motion name="美国大黄蜂航母死亡动画" type="die"/>
+	</Unit>
+	<Unit name="B25轰炸机" res="unit_elite5" dir="1" x="0" y="0" scale="0.8">
+		<Motion name="B25轰炸机动画1" type="standby"/>
+		<Motion name="B25轰炸机动画总" type="attack" at="1.2" speed="1.0" effect="bomber2 cw"/>
+	</Unit>
+	<Unit name="P-40战斗机" res="unit_elite6" strike="airforce strike" dir="1" x="10" y="-2" scale="0.8">
+		<Motion name="P-40战斗机待机动画0" type="standby"/>
+		<Motion name="P-40战斗机攻击动画" type="attack" at="0.5" speed="1.0"/>
+	</Unit>
+
+	<Unit name="RPG火箭兵" res="unit_rpg" strike="rocket strike" dir="-1" x="6" y="-3" scale="1.0">
+		<Motion name="反装甲步兵待机组合动画" type="standby"/>
+		<Motion name="反装甲步兵点中组合动画 " type="ready"/>
+		<Motion name="反装甲步兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+		<Motion name="反装甲步兵射击组合动画  " type="attack" at="0.72" effect="Rocket"/>
+		<Motion name="反装甲步兵死亡组合动画 " type="die"/>
+	</Unit>
+	<Unit name="百夫长坦克" res="unit_elitepanzer" logo="-1" strike="tank strike 3" dir="-1" x="-5" y="15" scale="0.8">
+		<Motion name="百夫长待机动画" type="standby"/>
+		<Motion name="百夫长行动动画 " type="move" effect="sfx_tank.wav"/>
+		<Motion name="百夫长攻击动画 " type="attack" at="0.72" effect="panzer4"/>
+		<Motion name="百夫长死亡动画 " type="die"/>
+	</Unit>
+	<Unit name="台风级核潜艇" res="unit_missilesub" strike="navy strike 2" dir="-1" x="0" y="5" scale="0.7">
+		<Motion name="台风核潜艇待机动画 " type="standby"/>
+		<Motion name="台风核潜艇选中动画" type="ready"/>
+		<Motion name="台风核潜艇被攻击动画  " type="hurt"/>
+		<Motion name="台风核潜艇待机动画 " type="move" effect="sfx_naval.wav"/>
+		<Motion name="台风核潜艇攻击动画1" type="attack" at="0.72" effect="Missile Sub fire"/>
+		<Motion name="台风核潜艇攻击动画2" type="attack" at="0.72" effect="Missile Sub fire"/>
+		<Motion name="台风核潜艇攻击动画3" type="attack" at="0.72" effect="Missile Sub fire"/>
+		<Motion name="台风核潜艇死亡动画   " type="die"/>
+	</Unit>
+	<Unit name="Mi-24雌鹿直升机" res="unit_mi24" strike="copter strike" dir="-1" x="0" y="15" scale="0.8">
+		<Motion name="雌鹿待机动画总" type="standby"/>
+		<Motion name="雌鹿移动动画总" type="move" effect="sfx_helicopter.wav"/>
+		<Motion name="雌鹿移动攻击动画总" type="move"/>
+		<Motion name="雌鹿攻击动画总" type="attack" at="0.5" speed="1.0"/>
+		<Motion name="雌鹿死亡动画总" type="die"/>
+	</Unit>
+
+	<Unit name="工程部队" res="unit_elite7" strike="步兵" dir="-1" x="-5" y="15">
+		<Motion name="工程兵待机组合动画" type="standby"/>
+		<Motion name="工程兵预备铲地组合动画" type="ready"/>
+		<Motion name="工程兵待机组合动画" type="move" effect="sfx_leg.wav"/>
+		<Motion name="工程兵攻击组合动画" type="attack" at="0.72" effect="Infantry fire2"/>
+		<Motion name="工程兵死亡组合动画" type="die"/>
+		<Motion name="工程兵埋雷组合动画" type="heal"/>
+		<Motion name="工程兵铲地组合动画" type="heal"/>
+	</Unit>
+	<Unit name="AuF1自行榴弹炮" res="unit_elitepanzer" logo="-1" strike="tank strike 4" dir="-1" x="25" y="15" scale="0.7">
+		<Motion name="AUF1待机" type="standby"/>
+		<Motion name="AUF1选中" type="ready"/>
+		<Motion name="AUF1行动2" type="move" effect="sfx_tank.wav"/>
+		<Motion name="AUF1攻击" type="attack" at="0.72" effect="Artillery"/>
+		<Motion name="AUF1死亡" type="die"/>
+	</Unit>
+	<Unit name="T-72主战坦克" res="unit_elitepanzer" logo="-1" strike="tank strike 3" dir="-1" x="-1" y="15" scale="0.79">
+		<Motion name="T72坦克待机动画" type="standby"/>
+		<Motion name="T72坦克行动动画" type="move" effect="sfx_tank.wav"/>
+		<Motion name="T72坦克攻击动画" type="attack" at="0.72" effect="panzer4"/>
+		<Motion name="T72坦克死亡动画" type="die"/>
+	</Unit>
+	<Unit name="雪风号驱逐舰" res="unit_elite7" strike="tank strike 4" dir="-1" x="0" y="3" scale="0.75">
+		<Motion name="雪风号驱逐舰待机动画" type="standby"/>
+		<Motion name="雪风号驱逐舰被攻击动画 " type="hurt"/>
+		<Motion name="雪风号驱逐舰待机动画" type="move" effect="sfx_naval.wav"/>
+		<Motion name="雪风号驱逐舰攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+		<Motion name="雪风号驱逐舰死亡动画  " type="die"/>
+	</Unit>
+	<Unit name="幽灵部队" res="unit_elite8" strike="中国特种兵" dir="-1" x="-8" y="14" scale="1.0">
+		<Motion name="幽灵部队待机组合动画 " type="standby"/>
+		<Motion name="幽灵部队点中组合动画  " type="ready"/>
+		<Motion name="幽灵部队待机组合动画 " type="move" effect="sfx_leg.wav"/>
+		<Motion name="幽灵部队射击组合动画   " type="attack" at="0.72" effect="silenced shot"/>
+		<Motion name="幽灵部队死亡组合动画  " type="die"/>
+	</Unit>
+	<Unit name="幽灵部队 Infiltration" res="unit_elite8" strike="中国特种兵" dir="-1" x="-8" y="14" scale="1.0">
+		<Motion name="幽灵部队(潜行)待机组合动画 " type="standby"/>
+		<Motion name="幽灵部队(潜行)点中组合动画  " type="ready"/>
+		<Motion name="幽灵部队(潜行)待机组合动画 " type="move" effect="sfx_leg.wav"/>
+		<Motion name="幽灵部队(潜行)射击组合动画   " type="attack" at="0.72" effect="silenced shot"/>
+		<Motion name="幽灵部队(潜行)死亡组合动画  " type="die"/>
+	</Unit>
+	<Unit name="M1A1主战坦克" res="unit_elitepanzer" logo="-1" strike="tank strike 3" dir="-1" x="-1" y="15" scale="0.73">
+		<Motion name="M1A1坦克待机动画" type="standby"/>
+		<Motion name="M1A1坦克行动动画" type="move" effect="sfx_tank.wav"/>
+		<Motion name="M1A1坦克攻击动画" type="attack" at="0.72" effect="panzer4"/>
+		<Motion name="M1A1坦克死亡动画" type="die"/>
+	</Unit>
+	<Unit name="B52轰炸机" res="unit_elite8" dir="1" x="0" y="0" scale="0.8">
+		<Motion name="B-52待机动画" type="standby"/>
+		<Motion name="B-52战略轰炸动画" type="attack" at="1.2" speed="1.0" effect="bomber2 cw"/>
+		<Motion name="B-52核弹动画" type="attack" at="1.2" speed="1.0" effect="fly"/>
+	</Unit>
+	<Unit name="AH-64阿帕奇直升机" res="unit_elite8" strike="rocket strike" dir="-1" x="0" y="15" scale="0.8">
+		<Motion name="阿帕奇待机动画总" type="standby"/>
+		<Motion name="阿帕奇移动动画总" type="move" effect="sfx_helicopter.wav"/>
+		<Motion name="阿帕奇攻击动画总" type="attack" at="0.5" speed="1.0" effect="hellfire"/>
+		<Motion name="阿帕奇死亡动画总" type="die"/>
+		<Motion name="阿帕奇EMP(小)动画" type="feature" speed="1.2"/>
+		<Motion name="阿帕奇EMP(大)动画" type="feature" speed="1.3"/>
+	</Unit>
+
+	<Unit name="Mi-24雌鹿直升机 airborne" res="unit_elite8" dir="-1" x="0" y="15" scale="0.8">
+		<Motion name="雌鹿待机动画总" type="standby"/>
+		<Motion name="雌鹿滑行动画" type="attack" at="0.9" speed="1.0"/>
+	</Unit>
+	<Unit name="AH-64阿帕奇直升机 airborne" res="unit_elite8" dir="-1" x="0" y="15" scale="0.8">
+		<Motion name="阿帕奇待机动画总" type="standby"/>
+		<Motion name="阿帕奇滑行动画" type="attack" at="0.9" speed="1.0"/>
+	</Unit>
+	<Unit name="白杨导弹车" res="unit_elite7" logo="-1" strike="tank strike 4" dir="-1" x="0" y="15" scale="0.7">
+		<Motion name="白杨洲际导弹车待机动画" type="standby"/>
+		<Motion name="白杨洲际导弹车待机动画" type="ready"/>
+		<Motion name="白杨洲际导弹车行动动画" type="move" effect="sfx_armour.wav"/>
+		<Motion name="白杨洲际导弹车攻击动画" type="attack" at="0.72" effect="Missile Vehicle fire"/>
+		<Motion name="白杨洲际导弹车攻击动画" type="attack" at="0.72" effect="Missile Vehicle fire"/>
+		<Motion name="白杨洲际导弹车攻击动画" type="attack" at="0.72" effect="Missile Vehicle fire"/>
+		<Motion name="白杨洲际导弹车死亡动画" type="die"/>
+	</Unit>
+	<Unit name="阿利伯克导弹驱逐舰" res="unit_elite7" strike="tank strike 4" dir="-1" x="0" y="3" scale="0.75">
+		<Motion name="阿利伯克驱逐舰待机动画" type="standby"/>
+		<Motion name="阿利伯克驱逐舰被攻击动画 " type="hurt"/>
+		<Motion name="阿利伯克驱逐舰待机动画" type="move" effect="sfx_naval.wav"/>
+		<Motion name="阿利伯克驱逐舰攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+		<Motion name="阿利伯克驱逐舰攻击2动画" type="attack" at="0.72" effect="Missile Burke fire"/>
+		<Motion name="阿利伯克驱逐舰死亡动画  " type="die"/>
+	</Unit>
+	<Unit name="E-775装甲车" res="unit_elite7" strike="tank strike 4" dir="-1" x="-10" y="10" scale="0.79">
+		<Motion name="E-775装甲车待机动画" type="standby"/>
+		<Motion name="E-775装甲车行动动画 " type="move" effect="sfx_armour.wav"/>
+		<Motion name="E-775装甲车攻击动画" type="attack" at="0.72" effect="laser strike"/>
+		<Motion name="E-775装甲车死亡动画" type="die"/>
+	</Unit>
+	<Unit name="KS-90轮式自走炮" res="unit_elite7" strike="tank strike 4" dir="-1" x="18" y="15" scale="0.7">
+		<Motion name="KS-90轮式自走炮待机" type="standby"/>
+		<Motion name="KS-90轮式自走炮选中" type="ready"/>
+		<Motion name="KS-90轮式自走炮行动" type="move" effect="sfx_armour.wav"/>
+		<Motion name="KS-90轮式自走炮攻击" type="attack" at="0.72" effect="Artillery"/>
+		<Motion name="KS-90轮式自走炮死亡" type="die"/>
+	</Unit>
+	<Unit name="SVA-23飞行器" res="unit_elite8" strike="copter strike" dir="-1" x="-10" y="15" scale="0.8">
+		<Motion name="SVA-23飞行器待机动画总" type="standby"/>
+		<Motion name="SVA-23飞行器移动动画总" type="move" effect="sfx_scout1.wav"/>
+		<Motion name="SVA-23飞行器攻击动画总" type="attack" at="0.5" speed="1.0"/>
+		<Motion name="SVA-23飞行器死亡动画总" type="die"/>
+	</Unit>
+	<Unit name="M142海马斯火箭炮" res="unit_elitepanzer" logo="-1" strike="rocket strike" dir="-1" x="0" y="15" scale="0.65">
+		<Motion name="海玛斯火箭炮待机动画 " type="standby"/>
+		<Motion name="海玛斯火箭炮选中动画" type="ready"/>
+		<Motion name="海玛斯火箭炮移动动画  " type="move" effect="sfx_armour.wav"/>
+		<Motion name="海玛斯火箭炮攻击动画" type="attack" at="1.2" time="2.0" effect="Rocket"/>
+		<Motion name="海玛斯火箭炮死亡动画  " type="die"/>
+	</Unit>
+	<Unit name="UPT-47主战坦克" res="unit_elite8" strike="tank strike 4" dir="-1" x="0" y="15" scale="0.78">
+		<Motion name="天罚坦克（黑蝎）坦克待机动画" type="standby"/>
+		<Motion name="天罚坦克（黑蝎）坦克行动动画" type="move" effect="sfx_tank.wav"/>
+		<Motion name="天罚坦克（黑蝎）坦克攻击动画" type="attack" at="0.72" effect="Punish"/>
+		<Motion name="天罚坦克（黑蝎）坦克死亡动画" type="die"/>
+	</Unit>
+	<Unit name="88毫米36式高射炮" res="unit_elitepanzer" logo="-1" strike="tank strike 4" dir="-1" x="0" y="15" scale="0.8">
+		<Motion name="88mm高炮待机动画 " type="standby"/>
+		<Motion name="88mm高炮移动动画 " type="move" effect="sfx_armour.wav"/>
+		<Motion name="88mm高炮攻击动画" type="attack" at="0.72" effect="Artillery"/>
+		<Motion name="88mm高炮死亡动画  " type="die"/>
+	</Unit>
+	<Unit name="蜂巢战术装甲车" res="unit_elitepanzer2" logo="-1" strike="panzer strike" dir="-1" x="0" y="4" scale="0.88">
+		<Motion name="装甲车待机动画" type="standby"/>
+		<Motion name="装甲车行动动画 " type="move" effect="sfx_armour.wav"/>
+		<Motion name="装甲车攻击动画" type="attack" at="0.72" effect="panzer1"/>
+		<Motion name="装甲车死亡动画" type="die"/>
+	</Unit>
+	<Unit name="蜂刺无人机" res="unit_elitepanzer2" strike="drone strike" dir="-1" x="0" y="10" scale="0.72">
+		<Motion name="无人机待机动画总" type="standby"/>
+		<Motion name="无人机移动动画总" type="move" effect="sfx_helicopter.wav"/>
+		<Motion name="无人机攻击动画总" type="attack" at="1.2" speed="1.0" effect="dronefire"/>
+		<Motion name="无人机死亡动画总" type="die"/>
+		<Motion name="无人机自爆攻击动画总2" type="feature"/>
+	</Unit>
+	<Unit name="豹2主战坦克" res="unit_elitepanzer2" logo="-1" strike="tank strike 3" dir="-1" x="0" y="15" scale="0.77">
+		<Motion name="豹2坦克待机动画" type="standby"/>
+		<Motion name="豹2坦克行动动画" type="move" effect="sfx_tank.wav"/>
+		<Motion name="豹2坦克攻击动画" type="attack" at="0.72" effect="panzer4"/>
+		<Motion name="豹2坦克死亡动画" type="die"/>
+	</Unit>
+	<Unit name="鹞式战斗机" res="unit_elitepanzer2" strike="hawk strike" dir="-1" x="0" y="15" scale="0.72">
+		<Motion name="鹞式战斗机待机动画总" type="standby"/>
+		<Motion name="鹞式战斗机移动动画总" type="move" effect="sfx_scout1.wav"/>
+		<Motion name="鹞式战斗机攻击动画总" type="attack" at="0.9" speed="1.0" effect="hawk_su30v"/>
+		<Motion name="鹞式战斗机死亡动画总" type="die"/>
+	</Unit>
+	<Unit name="Su-30V战斗机" res="unit_elitepanzer2" strike="su30v strike" dir="-1" x="-10" y="15" scale="0.98">
+		<Motion name="苏30战斗机待机动画总" type="standby"/>
+		<Motion name="苏30战斗机移动动画总" type="move" effect="sfx_scout1.wav"/>
+		<Motion name="苏30战斗机攻击动画总" type="attack" at="0.9" speed="1.0" effect="hawk_su30v"/>
+		<Motion name="苏30战斗机死亡动画总" type="die"/>
+	</Unit>
+
+	<Unit name="俾斯麦号战列舰" res="unit_elite9" strike="tank strike 4" dir="-1" x="0" y="3" scale="0.75">
+		<Motion name="俾斯麦战列舰待机动画" type="standby"/>
+		<Motion name="俾斯麦战列舰被攻击动画 " type="hurt"/>
+		<Motion name="俾斯麦战列舰待机动画" type="move" effect="sfx_naval.wav"/>
+		<Motion name="俾斯麦战列舰攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+		<Motion name="俾斯麦战列舰死亡动画  " type="die"/>
+	</Unit>
+	<Unit name="三角洲特种部队" res="unit_elite9" strike="中国特种兵" dir="-1" x="-8" y="14" scale="1.06">
+		<Motion name="三角洲特种部队待机组合动画 " type="standby"/>
+		<Motion name="三角洲特种部队点中组合动画  " type="ready"/>
+		<Motion name="三角洲特种部队待机组合动画 " type="move" effect="sfx_leg.wav"/>
+		<Motion name="三角洲特种部队射击组合动画   " type="attack" at="0.72" effect="silenced shot"/>
+		<Motion name="三角洲特种部队死亡组合动画  " type="die"/>
+	</Unit>
+	<Unit name="库兹涅佐夫号航空母舰" res="unit_missilesub" strike="tank strike 2" dir="-1" x="0" y="11" scale="0.78">
+		<Motion name="库兹涅佐夫号航母待机动画" type="standby"/>
+		<Motion name="库兹涅佐夫号航母攻击动画" type="hurt"/>
+		<Motion name="库兹涅佐夫号航母待机动画" type="move" effect="sfx_naval.wav"/>
+		<Motion name="库兹涅佐夫号航母攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+		<Motion name="库兹涅佐夫号航母起飞动画 1" type="attack"/>
+		<Motion name="库兹涅佐夫号航母攻击动画3" type="attack" at="0.72" effect="Missile Sub fire"/>
+		<Motion name="库兹涅佐夫号航母死亡动画" type="die"/>
+	</Unit>
+	<Unit name="Su-33舰载机" res="unit_missilesub" dir="1" x="0" y="0" scale="0.8">
+		<Motion name="苏30待机动画总" type="standby"/>
+		<Motion name="苏30待机动画总" type="attack" at="1.2" speed="1.0" effect="bomber2 cw"/>
+	</Unit>
+	<Unit name="花岗岩导弹" res="anim_missile" strike="missile strike 1" dir="1" x="0" y="0">
+		<Motion name="导弹攻击01动画" type="ready" at="2.33"/>
+		<Motion name="导弹01爆炸动画- 无爆炸" type="attack" at="1.4" />
+	</Unit>
+	<Unit name="虎王重型坦克 skin_1" res="unit_elitepanzer" logo="-1" strike="tank strike 4" dir="-1" x="-1" y="15" scale="0.8">
+		<Motion name="虎王重型坦克待机动画" type="standby"/>
+		<Motion name="虎王重型坦克行动动画" type="move" effect="sfx_tank.wav"/>
+		<Motion name="虎王重型坦克攻击动画" type="attack" at="0.72" effect="panzer4"/>
+		<Motion name="虎王重型坦克死亡动画" type="die"/>
+	</Unit>
+	<Unit name="鹰眼部队 skin_1" res="unit_elite10" strike="中国特种兵" dir="-1" x="-8" y="14" scale="0.7">
+		<Motion name="鹰眼部队待机组合动画" type="standby"/>
+		<Motion name="鹰眼部队点中组合动画" type="ready"/>
+		<Motion name="鹰眼部队待机组合动画" type="move" effect="sfx_leg.wav"/>
+		<Motion name="鹰眼部队射击组合动画" type="attack" at="0.72" effect="Infantry fire"/>
+		<Motion name="鹰眼部队死亡组合动画" type="die"/>
+	</Unit>
+	<Unit name="企业号航空母舰 skin_1" res="unit_elite10" strike="tank strike 2" dir="-1" x="0" y="8" scale="0.8">
+		<Motion name="企业号航母待机动画" type="standby"/>
+		<Motion name="企业号航母攻击动画" type="hurt"/>
+		<Motion name="企业号航母待机动画" type="move" effect="sfx_naval.wav"/>
+		<Motion name="企业号航母攻击动画 " type="attack" at="0.72" effect="Artillery"/>
+		<Motion name="企业号航母起飞动画 1" type="attack"/>
+		<Motion name="企业号航母死亡动画 " type="die"/>
+	</Unit>
+	<Unit name="B25轰炸机 skin_1" res="unit_elite10" dir="1" x="0" y="0" scale="0.8">
+		<Motion name="F-14待机动画总" type="standby"/>
+		<Motion name="F-14待机动画总" type="attack" at="1.2" speed="1.0" effect="bomber2 cw"/>
+	</Unit>
+	<Unit name="BM-21火箭炮 skin_1" res="unit_elitepanzer" logo="-1" strike="rocket strike" dir="-1" x="2" y="15" scale="0.8">
+		<Motion name="BM21_1待机动画 " type="standby"/>
+		<Motion name="BM21_1移动动画  " type="move" effect="sfx_armour.wav"/>
+		<Motion name="BM21_1攻击动画" type="attack" at="0.72" effect="Rocket"/>
+		<Motion name="BM21_1死亡动画  " type="die"/>
+	</Unit>
+	<Unit name="斯图卡轰炸机 skin_1" res="unit_elite10" dir="1" x="0" y="0" scale="0.8">
+		<Motion name="斯图卡轰炸机待机" type="standby"/>
+		<Motion name="斯图卡轰炸机攻击" type="attack" at="1.2" speed="1.0" effect="bomber stuka"/>
+	</Unit>
+</Units>

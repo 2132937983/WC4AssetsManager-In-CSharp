@@ -1,0 +1,179 @@
+<Portraits>
+<general name="Alexander" posx="-26" posy="40" scale="1.0"/>
+<general name="America" posx="-30" posy="40" scale="1.0"/>
+<general name="Arab" posx="-29" posy="40" scale="1.0"/>
+<general name="Arnold" posx="-30" posy="40" scale="1.0"/>
+<general name="Auchinleck" posx="-32" posy="40" scale="1.0"/>
+<general name="Badoglio" posx="-30" posy="40" scale="1.0"/>
+<general name="Bagramyan" posx="-30" posy="40" scale="1.0"/>
+<general name="Blamey" posx="-22" posy="40" scale="1.0"/>
+<general name="Bock" posx="-30" posy="40" scale="1.0"/>
+<general name="Bradley" posx="-30" posy="40" scale="1.0"/>
+<general name="China" posx="-30" posy="40" scale="1.0"/>
+<general name="Chuikov" posx="-30" posy="40" scale="1.0"/>
+<general name="Common" posx="-30" posy="40" scale="1.0"/>
+<general name="Crerar" posx="-32" posy="40" scale="1.0"/>
+<general name="de Gaulle" posx="-35" posy="40" scale="1.0"/>
+<general name="Donitz" posx="-45" posy="40" scale="1.0"/>
+<general name="Dowding" posx="-30" posy="40" scale="1.0"/>
+<general name="Eisenhower" posx="-30" posy="40" scale="1.0"/>
+<general name="Emperor" posx="-30" posy="40" scale="1.0"/>
+<general name="empty" posx="-30" posy="40" scale="1.0"/>
+<general name="Europe" posx="-30" posy="40" scale="1.0"/>
+<general name="Fletcher" posx="-30" posy="40" scale="1.0"/>
+<general name="French" posx="-30" posy="40" scale="1.0"/>
+<general name="General" posx="-30" posy="40" scale="1.0"/>
+<general name="Germany" posx="-30" posy="40" scale="1.0"/>
+<general name="Govorov" posx="-30" posy="40" scale="1.0"/>
+<general name="Graziani" posx="-15" posy="40" scale="1.0"/>
+<general name="Guderian" posx="-28" posy="40" scale="1.0"/>
+<general name="Halsey" posx="-25" posy="40" scale="1.0"/>
+<general name="Heinrici" posx="-30" posy="40" scale="1.0"/>
+<general name="Italy" posx="-30" posy="40" scale="1.0"/>
+<general name="Japan" posx="-33" posy="40" scale="1.0"/>
+<general name="Kesselring" posx="-30" posy="40" scale="1.0"/>
+<general name="Konev" posx="-30" posy="40" scale="1.0"/>
+<general name="Kuribayashi" posx="-32" posy="40" scale="1.0"/>
+<general name="Kuznetsov" posx="-30" posy="40" scale="1.0"/>
+<general name="Leclerc" posx="-30" posy="40" scale="1.0"/>
+<general name="Leeb" posx="-30" posy="40" scale="1.0"/>
+<general name="MacArthur" posx="-30" posy="40" scale="1.0"/>
+<general name="Mannerheim" posx="-30" posy="40" scale="1.0"/>
+<general name="Manstein" posx="-30" posy="40" scale="1.0"/>
+<general name="Messe" posx="-30" posy="40" scale="1.0"/>
+<general name="Minister" posx="-30" posy="40" scale="1.0"/>
+<general name="Model" posx="-27" posy="40" scale="1.0"/>
+<general name="Montgomery" posx="-30" posy="40" scale="1.0"/>
+<general name="Mountbatten" posx="-30" posy="40" scale="1.0"/>
+<general name="Nagumo" posx="-34" posy="40" scale="1.0"/>
+<general name="Nasser" posx="-30" posy="40" scale="1.0"/>
+<general name="Nimitz" posx="-33" posy="40" scale="1.0"/>
+<general name="Patton" posx="-45" posy="40" scale="1.0"/>
+<general name="Peng.D.H" posx="-32" posy="40" scale="1.0"/>
+<general name="Rokossovsky" posx="-35" posy="40" scale="1.0"/>
+<general name="Rommel" posx="-33" posy="40" scale="1.0"/>
+<general name="Rundstedt" posx="-30" posy="40" scale="1.0"/>
+<general name="Slim" posx="-30" posy="40" scale="1.0"/>
+<general name="Smigly" posx="-30" posy="40" scale="1.0"/>
+<general name="Soviet Union" posx="-30" posy="40" scale="1.0"/>
+<general name="Sun.L.R" posx="-33" posy="40" scale="1.0"/>
+<general name="Tassigny" posx="-30" posy="40" scale="1.0"/>
+<general name="Terauchi" posx="-30" posy="40" scale="1.0"/>
+<general name="Timoshenko" posx="-30" posy="40" scale="1.0"/>
+<general name="Tito" posx="-30" posy="40" scale="1.0"/>
+<general name="UK" posx="-30" posy="40" scale="1.0"/>
+<general name="Vasilevsky" posx="-28" posy="40" scale="1.0"/>
+<general name="Vatutin" posx="-30" posy="40" scale="1.0"/>
+<general name="Yamamoto" posx="-30" posy="40" scale="1.0"/>
+<general name="Yamashita" posx="-32" posy="40" scale="1.0"/>
+<general name="Zhang.Z.Z" posx="-30" posy="40" scale="1.0"/>
+<general name="Zhu.D" posx="-30" posy="40" scale="1.0"/>
+<general name="Zhukov" posx="-30" posy="40" scale="1.0"/>
+<general name="Wittmann" posx="-30" posy="40" scale="1.0"/>
+<general name="McCampbell" posx="-20" posy="40" scale="1.0"/>
+<general name="Simo Hayha" posx="-20" posy="40" scale="1.0"/>
+<general name="Kluge" posx="-20" posy="40" scale="1.0"/>
+<general name="Marshall" posx="-20" posy="40" scale="1.0"/>
+<general name="Katukov" posx="-20" posy="40" scale="1.0"/>
+<general name="Nenonen" posx="-26" posy="40" scale="1.0"/>
+<general name="Anders" posx="-20" posy="40" scale="1.0"/>
+<general name="Juliusz" posx="-26" posy="40" scale="1.0"/>
+<general name="Clark" posx="-20" posy="40" scale="1.0"/>
+<general name="List" posx="-20" posy="40" scale="1.0"/>
+<general name="Simonds" posx="-20" posy="40" scale="1.0"/>
+<general name="Brauchitsch" posx="-20" posy="40" scale="1.0"/>
+<general name="Raeder" posx="-20" posy="40" scale="1.0"/>
+<general name="Horton" posx="-20" posy="40" scale="1.0"/>
+<general name="Spaatz" posx="-20" posy="40" scale="1.0"/>
+<general name="Eichelberger" posx="-20" posy="40" scale="1.0"/>
+<general name="Tolbukhin" posx="-20" posy="40" scale="1.0"/>
+<general name="Yeryomenko" posx="-20" posy="40" scale="1.0"/>
+<general name="Arnim" posx="-30" posy="40" scale="1.0"/>
+<general name="Bitrich" posx="-20" posy="40" scale="1.0"/>
+<general name="Chennault" posx="-26" posy="40" scale="1.0"/>
+<general name="Doolittle" posx="-20" posy="40" scale="1.0"/>
+<general name="Falkenhorst" posx="-20" posy="40" scale="1.0"/>
+<general name="Hartmann" posx="-20" posy="40" scale="1.0"/>
+<general name="Hermann Balck" posx="-20" posy="40" scale="1.0"/>
+<general name="Hermann Hoth" posx="-20" posy="40" scale="1.0"/>
+<general name="Higuchi" posx="-30" posy="40" scale="1.0"/>
+<general name="Kimmel" posx="-20" posy="40" scale="1.0"/>
+<general name="Kretschmer" posx="-32" posy="40" scale="1.0"/>
+<general name="Luigi" posx="-20" posy="40" scale="1.0"/>
+<general name="Mikawa" posx="-20" posy="40" scale="1.0"/>
+<general name="Ozawa" posx="-20" posy="40" scale="1.0"/>
+<general name="Pavlov" posx="-26" posy="40" scale="1.0"/>
+<general name="Richthofen" posx="-30" posy="40" scale="1.0"/>
+<general name="Schmidhuber" posx="-20" posy="40" scale="1.0"/>
+<general name="Sikorski" posx="-20" posy="40" scale="1.0"/>
+<general name="Vasily" posx="-20" posy="40" scale="1.0"/>
+<general name="Weidling" posx="-20" posy="40" scale="1.0"/>
+<general name="Weygand" posx="-20" posy="40" scale="1.0"/>
+<general name="Yamaguchi" posx="-30" posy="40" scale="1.0"/>
+<general name="Abrams" posx="-24" posy="40" scale="1.0"/>
+<general name="Spruance" posx="-24" posy="40" scale="1.0"/>
+<general name="Sokolovsky" posx="-28" posy="40" scale="1.0"/>
+<general name="Bastico" posx="-28" posy="40" scale="1.0"/>
+<general name="Darlan" posx="-32" posy="40" scale="1.0"/>
+<general name="Leslie" posx="-28" posy="40" scale="1.0"/>
+<general name="Helfrich" posx="-20" posy="40" scale="1.0"/>
+<general name="Takagi" posx="-20" posy="40" scale="1.0"/>
+<general name="Wainwright" posx="-20" posy="40" scale="1.0"/>
+<general name="Horii" posx="-20" posy="40" scale="1.0"/>
+<general name="Gariboldi" posx="-20" posy="40" scale="1.0"/>
+<general name="Percival" posx="-20" posy="40" scale="1.0"/>
+<general name="Malinovsky" posx="-24" posy="40" scale="1.0"/>
+<general name="Chernyakhovsky" posx="-25" posy="40" scale="1.0"/>
+<general name="Cunningham" posx="-40" posy="40" scale="1.0"/>
+<general name="Koenig" posx="-20" posy="40" scale="1.0"/>
+<general name="Alberto Bayo" posx="-20" posy="40" scale="1.0"/>
+<general name="Alan Brooke" posx="-20" posy="40" scale="1.0"/>
+<general name="Lhagvasuren" posx="-20" posy="40" scale="1.0"/>
+<general name="Wavell" posx="-38" posy="40" scale="1.0"/>
+<general name="Meretskov" posx="-20" posy="40" scale="1.0"/>
+<general name="de Gaulle2" posx="-30" posy="40" scale="1.0"/>
+<general name="Rundstedt2" posx="-45" posy="33" scale="1.02"/>
+<general name="Voronov" posx="-20" posy="40" scale="1.0"/>
+<general name="Bock2" posx="-28" posy="35" scale="1.02"/>
+<general name="Halsey2" posx="-30" posy="35" scale="1.01"/>
+<general name="Paulus" posx="-20" posy="40" scale="1.0"/>
+<general name="Kuznetsov2" posx="-30" posy="35" scale="1.01"/>
+<general name="Model2" posx="-38" posy="30" scale="1.03"/>
+<general name="Osborn1" posx="-35" posy="35" scale="1.01"/>
+<general name="Osborn2" posx="-28" posy="34" scale="1.02"/>
+<general name="Patton2" posx="-40" posy="28" scale="1.04"/>
+<general name="Govorov2" posx="-32" posy="34" scale="1.02"/>
+<general name="Auchinleck2" posx="-28" posy="34" scale="1.02"/>
+<general name="Tito2" posx="-28" posy="39" scale="1.0"/>
+<general name="Novikov" posx="-32" posy="34" scale="1.02"/>
+<general name="Bradley2" posx="-50" posy="23" scale="1.08"/>
+<general name="Rokossovsky2" posx="-39" posy="30" scale="1.03"/>
+<general name="Inonu" posx="-39" posy="32" scale="1.02"/>
+<general name="Nimitz2" posx="-34" posy="40" scale="1.0"/>
+<general name="Vasilevsky2" posx="-34" posy="40" scale="1.0"/>
+<general name="Eisenhower2" posx="-30" posy="40" scale="1.0"/>
+<general name="Zhukov2" posx="-30" posy="40" scale="1.0"/>
+<general name="British CO" posx="-30" posy="40" scale="1.0"/>
+<general name="German CO" posx="-30" posy="40" scale="1.0"/>
+<general name="Manstein2" posx="-30" posy="34" scale="1.02"/>
+<general name="Marshall2" posx="-30" posy="40" scale="1.0"/>
+<general name="Messe2" posx="-30" posy="40" scale="1.0"/>
+<general name="Wu" posx="-30" posy="40" scale="1.0"/>
+<general name="Dowding2" posx="-30" posy="40" scale="1.0"/>
+<general name="Soviet CO" posx="-30" posy="40" scale="1.0"/>
+<general name="US CO" posx="-30" posy="40" scale="1.0"/>
+<general name="MacArthur2" posx="-20" posy="40" scale="1.0"/>
+<general name="Qasim" posx="-80" posy="40" scale="1.08"/>
+<general name="Pahlevi" posx="-60" posy="40" scale="1.08"/>
+<general name="Paulus" posx="-40" posy="34" scale="1.08"/>
+<general name="Hermann Balck" posx="-40" posy="40" scale="1.0"/>
+<general name="Vasily" posx="-45" posy="40" scale="1.04"/>
+<general name="Kimmel" posx="-30" posy="40" scale="1.0"/>
+<general name="Alberto Bayo" posx="-60" posy="40" scale="1.08"/>
+<general name="Lhagvasuren" posx="-60" posy="40" scale="1.08"/>
+<general name="Gariboldi" posx="-60" posy="40" scale="1.08"/>
+<general name="Luigi" posx="-35" posy="40" scale="1.0"/>
+<general name="Percival" posx="-45" posy="40" scale="1.0"/>
+<general name="Alan Brooke" posx="-45" posy="40" scale="1.0"/>
+<general name="Koenig" posx="-45" posy="40" scale="1.0"/>
+</Portraits>

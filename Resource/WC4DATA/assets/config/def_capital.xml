@@ -1,0 +1,23 @@
+﻿<capitals>
+	<capital id="1" name="帝国大厦" image="capital_01.png"/>
+	<capital id="4" name="国会大厦" image="capital_04.png"/>
+	<capital id="5" name="艺术宫" image="capital_05.png"/>
+	<capital id="7" name="清水寺舞台" image="capital_07.png"/>
+	<capital id="8" name="崇礼门" image="capital_08.png"/>
+	<capital id="9" name="天安门" image="capital_09.png"/>
+	<capital id="10" name="总统府" image="capital_10.png"/>
+	<capital id="11" name="德里红堡" image="capital_11.png"/>
+	<capital id="12" name="玉佛寺" image="capital_12.png"/>
+	<capital id="15" name="赫尔辛基大教堂" image="capital_15.png"/>
+	<capital id="16" name="腓特列教堂" image="capital_16.png"/>
+	<capital id="18" name="柏拉仁诺教堂" image="capital_18.png"/>
+	<capital id="19" name="皇家城堡" image="capital_19.png"/>
+	<capital id="20" name="勃兰登堡门" image="capital_20.png"/>
+	<capital id="21" name="埃菲尔铁塔" image="capital_21.png"/>
+	<capital id="22" name="大笨钟" image="capital_22.png"/>
+	<capital id="24" name="罗马斗兽场" image="capital_24.png"/>
+	<capital id="26" name="阿尔卡拉门" image="capital_26.png"/>
+	<capital id="27" name="帕特农神庙" image="capital_27.png"/>
+	<capital id="28" name="金字塔" image="capital_28.png"/>
+  <capital id="29" name="救世基督像" image="capital_29.png"/>
+</capitals>

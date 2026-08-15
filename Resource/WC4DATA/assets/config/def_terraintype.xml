@@ -1,0 +1,13 @@
+﻿<terraintypes>
+	<terraintype name="平原" type="0" movementcost="3"/>
+	<terraintype name="海洋" type="1" movementcost="3"/>
+  <terraintype name="沙漠" type="2" movementcost="4" penalty_infantry="0" penalty_armor="10" penalty_artillery="10"/>
+  <terraintype name="丘陵" type="3" movementcost="4" penalty_infantry="0" penalty_armor="10" penalty_artillery="5"/>
+  <terraintype name="山"   type="4" movementcost="5" penalty_infantry="0" penalty_armor="20" penalty_artillery="10"/>
+  <terraintype name="高山" type="5" movementcost="5" penalty_infantry="0" penalty_armor="20" penalty_artillery="10"/>
+	<terraintype name="树林" type="6" movementcost="4" penalty_infantry="0" penalty_armor="5" penalty_artillery="10"/>
+	<terraintype name="森林" type="7" movementcost="5" penalty_infantry="0" penalty_armor="10" penalty_artillery="20"/>
+  <terraintype name="农田" type="8" movementcost="3"/>
+  <terraintype name="河流" type="9" movementcost="6"/>
+	<terraintype name="装饰" type="10" movementcost="0"/>
+</terraintypes>

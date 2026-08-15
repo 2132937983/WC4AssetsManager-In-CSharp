@@ -1,0 +1,348 @@
+[主场景编辑]
+TitleBarText = "ZsEditor"
+CampaignButtonText = "战役"
+NewCampaignButtonText = "新战役"
+ConquestButtonText = "征服"
+NewConquestButtonText = "新征服"
+TerrainsMapButtonText = "征服地图"
+NewTerrainsMapButtonText = "新地图"
+SettingsButtonText = "设置"
+RecommendButtonText = "推荐"
+TestMapButtonText = "测试场景"
+WindowTitleText = "祝的编辑器"
+VersionText = "v5.0 开发版"
+
+[渲染场景编辑]
+Open = "打开"
+View = "视图"
+NewFile = "新建"
+Save = "保存"
+Undo = "撤销"
+Redo = "重做"
+
+[加载场景编辑]
+Loading = "Loading..."
+Status = "准备中..."
+LoadingMapFile = "加载地图文件..."
+PreparingRender = "准备渲染资源..."
+FinalCleanup = "完成最后准备..."
+LoadingFile = "正在加载："
+LoadFailed = "加载失败，创建测试地图"
+NoFileSelected = "未选择文件，创建测试地图"
+LoadError = "加载异常："
+
+[全局编辑]
+#主题颜色
+ThemeColor = 0x002fa7
+#截图的倍率参数
+screenshot_resolution = 4x
+#自动保存时间设置 单位：秒
+autosave_time_gap = 120
+#选择开屏动画:Token / Logo / None
+OpeningAnimation = None
+#设置窗口标题
+SettingTitle = "新设置"
+
+[词云一言]
+Main_Token = "事业前途未卜，努力还要无数，成功非你莫属，请你义无反顾"
+#单位：秒
+animation_keep = 5
+tokens_num = 30
+token_1 = 国家到了如此地步，除我等为其死，毫无其他办法。更相信只要我等能本此决心，我们的国家及我五千年历史之民族，决不致亡于区区三岛倭奴之手。—— 张自忠 (中)
+token_2 = 我们中国人都投降了，还有中国吗？—— 杨靖宇 (中)
+token_3 = 恨不抗日死，留作今日羞。国破尚如此，我何惜此头！—— 吉鸿昌 (中)
+token_4 = 为国战死，事极光荣。—— 戴安澜 (中)
+token_5 = 生为军人，死为军魂。今贼来犯，决予痛歼，力尽，以身殉之。—— 胡琏 (中)
+token_6 = 战死者光荣，偷生者耻辱；荣辱系于一人者轻，而系于国家民族者重。—— 佟麟阁 (中)
+token_7 = 宁为战死鬼，不作亡国奴。—— 宋哲元 (中)
+token_8 = 士兵打完了你就自己上前填进去。你填过了，我就来填进去。有谁敢退过河，杀无赦！—— 孙连仲 (中)
+token_9 = 决心殉国，誓不轻易撤退，亦不作片刻偷生之计。—— 谢晋元 (中)
+token_10 = 我们中华民族有同自己的敌人血战到底的气概，有在自力更生的基础上光复旧物的决心。—— 毛泽东 (中)
+token_11 = 假如我知道前进的路上有雷区，我也会让部队直接开过去。—— 朱可夫 (苏)
+token_12 = 胜利是不会自己走来的，它需要我们去争取。—— 斯大林 (苏)
+token_13 = 从没有人成功守住任何东西，只有进攻，进攻再进攻。—— 巴顿 (美)
+token_14 = 我们的目标是胜利，不惜一切代价的胜利。—— 艾森豪威尔 (美)
+token_15 = 老兵不死，只是逐渐凋零。—— 麦克阿瑟 (美)
+token_16 = 我们将在海滩上战斗，我们将在田野和街道上战斗，我们将在山丘上战斗；我们决不投降。—— 丘吉尔 (英)
+token_17 = 战争的第一法则，就是保持冷静。—— 蒙哥马利 (英)
+token_18 = 法国输了一场战役，但法国没有输掉战争。—— 戴高乐 (法)
+token_19 = 我们必须成为民主制度的伟大兵工厂。—— 罗斯福 (美)
+token_20 = 战争是简单、干脆、无情的，因此需要一个既简单又无情的人把战争进行到底。—— 布莱德雷 (美)
+token_21 = 谁先开火，并能进行最猛烈的集火射击，谁就能取得胜利。—— 隆美尔 (德)
+token_22 = 不要去管我们的侧翼，让敌人去担心他们的侧翼，我们唯一要做的就是前进，前进，再前进。—— 古德里安 (德)
+token_23 = 闪电战的精髓，就是集中优势兵力，快速突破。—— 曼施坦因 (德)
+token_24 = 潜艇战的关键，在于隐蔽和突然。—— 邓尼茨 (德)
+token_25 = 元帅是不会投降的。—— 莫德尔 (德)
+token_26 = 我们的斗争只可能有两种结果：要么敌人踏着我们的尸体过去，要么我们踏着敌人的尸体过去。—— 希特勒 (德)
+token_27 = 战争一旦爆发，初期必须取得压倒性优势。—— 山本五十六 (日)
+token_28 = 速战速决，是帝国唯一的出路。—— 冈村宁次 (日)
+token_29 = 中国，是帝国的生命线。—— 板垣征四郎 (日)
+token_30 = 为了帝国的荣耀，不惜一切代价。—— 东条英机 (日)
+
+[地形修改]
+#规定哪些颜色囊括了哪些第一层地形 [ 陆地噪点概率, [16进制颜色代码, 对应地形] ]
+ColorToTerrain = [0,[0x0000ff,0],[0xff00ff,1],[0xffff00,2,15],[0xffffff,3,4,5],[0xff0000,6,7,8],[0x00aa00,9,10,11],[0xaa7700,12,13,14],[0x00ff00,16,20,22],[0xaaaaaa,18,21,31]]
+# 0x0000ff 陆地
+# 0xff00ff 海洋
+# 0xffff00 沙漠地形
+# 0xffffff 雪山地形
+# 0xff0000 土山地形
+# 0x00aa00 青山地形
+# 0xaa7700 沙山地形
+# 0x00ff00 森林地形
+# 0xaaaaaa 雪地地形
+
+[建筑修改]
+#规定哪些类型的建筑的工厂等其他的等级可以被随机
+BuildingRandomCharacter = [11,12,13,14,15]
+
+#规定对应类型的建筑的随机参数（重要程度,建筑的机场与其他的等级）
+BuildingRandomCharacter[0] = [(0,20),(1,2),(0,0),(1,1),(0,0),(0,0),(0,0)]
+BuildingRandomCharacter[1] = [(25,50),(2,2),(1,1),(2,3),(1,2),(0,0),(0,0)]
+BuildingRandomCharacter[2] = [(50,70),(2,3),(2,2),(3,3),(1,2),(0,0),(0,0)]
+BuildingRandomCharacter[3] = [(70,100),(3,4),(3,4),(3,4),(3,4),(0,0),(0,0)]
+BuildingRandomCharacter[4] = [(100,127),(4,4),(4,4),(3,4),(3,4),(0,0),(0,0)]
+
+#规定拥有名称的建筑数据应该被随机为什么建筑(在几格范围内拥有最多几个建筑数据为某建筑,否则为[0]建筑)
+OwnNameBuildingRandomConfig = [(13,14),[(5,6),11],[(4,8),12],[(4,12),13],[(3,8),14],[(2,5),15]]
+
+#规定没有名称的建筑数据应该被随机为什么建筑
+NotOwnNameBuildingRandomConfig = [(11,12),[(5,6),11],[(4,8),12],[(4,12),13],[(3,8),14],[(2,5),15]]
+
+#规定建筑的强弱之分
+LowStrengthBuilding = [11,12]
+MediumStrengthBuilding = [13,32]
+HighStrengthBuilding = [14,15,33,34,23]
+
+#规定强弱国都有的建筑
+CommonBuilding = [2,3,21,22,31]
+
+#规定哪些建筑是海上的
+BuidingOnSea = [31,32,33,34]
+
+#规定哪些建筑需要方向
+BuildingNeedDirection = [31,32,33,34]
+
+[编辑军团]
+#根据国家强度确定交往的礼物
+LowStrengthGift = [(300,600),(200,500),(40,60)]
+MediumStrengthGift = [(600,800),(400,600),(60,70)]
+HighStrengthGift = [(800,1200),(500,800),(90,120)]
+
+#规定国家的强弱之分
+LowStrengthCountry = [13,14,15,16,17,18,19,20,22,23,24,25,26,27,29,30,33,34,35,36,37,38,39,41,42,43,44,45,49,50,52,53,54,55,56,57,58,60,61,63,64,65,66,67,68,70,71,72,73,74,76,77,79,80,81,82,87,88,89,90,91,94,95,97,98,99,100,101,102,103,104,105,106,108,109,110,111,112,113,114,115,118,121,122,123,124,125,126,127,128,129,132,133,134,135,136,137,144,145,146,147,148,149,150,151,152,153,154,155,156,157,159,160,167,168,169,170,171,172,173,174,175,176,177,179,180,181,182,183,187,190,191]
+MediumStrengthCountry = [7,8,11,12,21,28,31,32,40,46,59,62,69,75,78,83,84,85,86,93,107,116,117,130,131,138,158,161,162,163,164,165,178,186,188,193,195,196,197,198,199,200,204]
+HighStrengthCountry = [1,2,3,4,5,6,9,10,48,51,92,96,119,120,139,140,141,142,143,166,184,185,189,192,194,201,202,203,205]
+
+[编辑单位]
+#规定单位等级的强弱之分
+LowStrengthArmy = [1,2]
+MediumStrengthArmy = [2,3]
+HighStrengthArmy = [4,5]
+
+#规定哪些种类单位在海上或者陆地上
+ArmyOnLand = [1,2,3,4,6,7,8,9,11,12,13,35,36,37,38]
+ArmyOnSea = [15,16,17,18]
+
+#规定各个技能将对应的兵种
+Infantry = [1,2,3,4,5]
+Armor = [6,7,8,9,10]
+Artillery = [11,12,13,14]
+Navy = [15,16,17,19]
+AirForce = [18]
+
+[事件修改]
+#事件列表[(值,"事件名称"),...]
+EventList = [(0, "士气上升"), (1, "士气下降"), (2, "士气大降"), (3, "混乱"), (4, "调用对话"), (6, "军团部队行动方针转变"), (7, "阵营变换"), (8, "军团向一个方向进攻"), (10, "给予经济"), (11, "给予工业"), (12, "给予科技")]
+#触发列表[(值,"触发名称"),...]
+TriggerList=[(0, "占地触发"), (1, "部队触发"), (2, "回合触发"), (4, "连带触发"),(5,"测试")]
+
+[空袭修改]
+#空袭类型列表[(值,"名称"),...]
+AirForceList = [(20, "战斗机"), (21, "轰炸机"), (22, "空降伞兵"), (23, "战略轰炸机"), (24, "特色轰炸机"), (25, "近程导弹"), (26, "中程导弹"), (27, "远程导弹"), (30, "洲际导弹")]
+#弹药类型列表[(值,"名称"),...]
+AirForcePowerList = [(0, "默认弹药"), (29, "原子弹"), (30, "氢弹"), (31, "三相弹"), (32, "反物质弹")]
+
+[方针修改]
+#方针类型列表[(值,"名称"),...]
+CaseList = [(0,"改变类型值为目标值"),(2,"使单位走向目标值序号地块"),(5,"改变类型值为目标值"),(6,"使该单位开始行动的距离值为目标值")]
+
+[天气修改]
+#天气类型列表[(值,"名称"),...]
+WeatherList = [(0,"无"),(1,"下雨"),(2,"暴雨"),(3,"下雪")]
+
+[AI识别]
+AIApiProvider = "DeepSeek"
+AIApiBaseUrl = ""
+AIApiKey = "sk-ecc2df3c3222429ab8433bc1b656794f"
+AIApiModel = "deepseek-chat"
+AIApiTimeout = 60
+
+[国家颜色定义]
+#国家默认颜色定义
+country_color_1 = 0xfafa96
+country_color_2 = 0x96e6ff
+country_color_3 = 0xa0a0a0
+country_color_4 = 0xa0a0a0
+country_color_5 = 0xf0aaaa
+country_color_6 = 0xB4FFDC
+country_color_7 = 0xdcbee6
+country_color_8 = 0x64c8fa
+country_color_9 = 0xff8787
+country_color_10 = 0xE6C85A
+country_color_11 = 0xBEDCC8
+country_color_12 = 0xfadcc8
+country_color_13 = 0xd2bea0
+country_color_14 = 0x96B48C
+country_color_15 = 0x8296ff
+country_color_16 = 0xe1a0e1
+country_color_17 = 0x87A5D2
+country_color_18 = 0x9682b4
+country_color_19 = 0xe6aa8c
+country_color_20 = 0xa0c896
+country_color_21 = 0xe696dc
+country_color_22 = 0xfadc96
+country_color_23 = 0xFACD8C
+country_color_24 = 0xffeba5
+country_color_25 = 0x649678
+country_color_26 = 0xff6984
+country_color_27 = 0xcdffff
+country_color_28 = 0xa59678
+country_color_29 = 0x009a00
+country_color_30 = 0xb49696
+country_color_31 = 0x78b4c8
+country_color_32 = 0x82b4fa
+country_color_33 = 0xb4e664
+country_color_34 = 0xE19664
+country_color_35 = 0xffa082
+country_color_36 = 0xf5ebd7
+country_color_37 = 0xb48750
+country_color_38 = 0xdca5be
+country_color_39 = 0x00d69a
+country_color_40 = 0x46be64
+country_color_41 = 0x00F833
+country_color_42 = 0x00A1FF
+country_color_43 = 0xff3000
+country_color_44 = 0xFF0045
+country_color_45 = 0xBD71FF
+country_color_46 = 0xd2b45a
+country_color_47 = 0x1d2739
+country_color_48 = 0x7878b4
+
+
+
+country_color_120 = 0x3A3838
+country_color_121 = 0xD9D9D9
+country_color_122 = 0x575555
+country_color_123 = 0x575555
+country_color_124 = 0x575555
+country_color_125 = 0x575555
+country_color_126 = 0x575555
+country_color_127 = 0x575555
+country_color_128 = 0xEECE58
+country_color_129 = 0xD1C811
+country_color_130 = 0xEECE58
+country_color_131 = 0x2A2A2A
+country_color_132 = 0x575555
+country_color_133 = 0x548235
+country_color_134 = 0xCAF0FE
+country_color_135 = 0x99E3FD
+country_color_136 = 0x6CF86C
+country_color_137 = 0x65C9DD
+country_color_138 = 0xFD5F5F
+country_color_139 = 0x6A6868
+country_color_140 = 0x767474
+country_color_141 = 0x706E6E
+country_color_142 = 0x3C3A3A
+country_color_143 = 0xFF5757
+country_color_144 = 0x1697EE
+country_color_145 = 0xBEBEBE
+country_color_146 = 0x85D9F7
+country_color_147 = 0xFBF7AB
+country_color_148 = 0xD3A573
+country_color_149 = 0x37D952
+country_color_150 = 0xAFA121
+country_color_151 = 0x94FAC0
+country_color_152 = 0x737373
+country_color_153 = 0x0D8AB7
+country_color_154 = 0xB73A0D
+country_color_155 = 0x6A4EE0
+country_color_156 = 0x47ED2B
+country_color_157 = 0xD7D7D7
+country_color_158 = 0xFF8181
+country_color_159 = 0xD6EF91
+country_color_160 = 0xD9E818
+country_color_161 = 0xB052F0
+country_color_162 = 0x0624A2
+country_color_163 = 0x258332
+country_color_164 = 0x9D9D0B
+country_color_165 = 0x185F90
+country_color_166 = 0x04A43D
+country_color_167 = 0x218087
+country_color_168 = 0xA59678
+country_color_169 = 0xA59678
+country_color_170 = 0x04A43D
+country_color_171 = 0x05C349
+country_color_172 = 0xF1D777
+country_color_173 = 0x347AD8
+country_color_174 = 0xBD1515
+country_color_175 = 0xF2F2F2
+country_color_176 = 0x00B050
+country_color_177 = 0x1397A5
+country_color_178 = 0x48DBEA
+country_color_179 = 0x8ED6B0
+country_color_180 = 0xD86956
+country_color_181 = 0xB2AE7C
+country_color_182 = 0x4C9913
+country_color_183 = 0xE2E2E2
+country_color_184 = 0xFF7C80
+country_color_185 = 0x767D53
+country_color_186 = 0xB6A030
+country_color_187 = 0x575555
+country_color_188 = 0xEBE2B3
+country_color_189 = 0xEBE2B3
+country_color_190 = 0xEBE2B3
+country_color_191 = 0xEBE2B3
+country_color_192 = 0xE6A81E
+country_color_193 = 0xEBE2B3
+country_color_194 = 0x1F4383
+country_color_195 = 0x46BE64
+country_color_196 = 0xBA1818
+country_color_197 = 0xA3664B
+country_color_198 = 0xD7F9D8
+country_color_199 = 0xEBE2B3
+country_color_200 = 0x575555
+country_color_201 = 0xD4E1FC
+country_color_10 = 0xE6C85A
+country_color_34 = 0xE19664
+country_color_87 = 0x3F73D3
+country_color_86 = 0xC48213
+country_color_23 = 0xFACD8C
+country_color_41 = 0x00F833
+country_color_42 = 0x00A1FF
+country_color_44 = 0xFF0045
+country_color_45 = 0xBD71FF
+country_color_11 = 0xBEDCC8
+country_color_17 = 0x87A5D2
+country_color_203 = 0xF2F2F2
+country_color_6 = 0xB4FFDC
+country_color_14 = 0x96B48C
+country_color_206 = 0xA0EFCE
+country_color_207 = 0xF2CA5E
+country_color_208 = 0xE4765A
+country_color_209 = 0xE2E2E2
+country_color_210 = 0x738FC4
+country_color_211 = 0xDAC9B6
+country_color_212 = 0xC07EE4
+country_color_213 = 0xFAAF96
+country_color_214 = 0x696969
+country_color_215 = 0xB7D9BE
+country_color_216 = 0xFDACC0
+country_color_217 = 0xBE6161
+country_color_218 = 0x3DAD92
+country_color_219 = 0xE0F997
+country_color_220 = 0xEE8A8A
+country_color_221 = 0x96EBFA
+country_color_222 = 0x79E884
+country_color_223 = 0xD89696
+country_color_224 = 0x8C9AEA

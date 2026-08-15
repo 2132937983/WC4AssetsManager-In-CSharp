@@ -1,0 +1,25 @@
+﻿<units>
+	<unit id="101001" x="0" y="5" scale="0.9"/>
+	<unit id="101011" x="0" y="5" scale="0.9"/>
+	<unit id="101021" x="0" y="10" scale="0.9"/>
+	<unit id="101031" x="0" y="10" scale="0.9"/>
+	<unit id="101041" x="0" y="7" scale="0.9"/>
+	<unit id="101051" x="0" y="7" scale="0.9"/>
+	<unit id="101061" x="0" y="7" scale="0.9"/>
+	<unit id="101071" x="0" y="7" scale="0.9"/>
+	<unit id="101081" x="0" y="7" scale="0.9"/>
+	<unit id="101091" x="0" y="7" scale="0.9"/>
+	<unit id="103021" x="0" y="10" scale="1"/>
+	<unit id="103061" x="0" y="-10" scale="1"/>
+	<unit id="105001" x="0" y="-15" scale="1"/>
+	<unit id="105011" x="0" y="-15" scale="1"/>
+	<unit id="105021" x="0" y="10" scale="0.9"/>
+	<unit id="105031" x="0" y="0" scale="1"/>
+	<unit id="105041" x="0" y="-20" scale="1"/>
+	<unit id="105051" x="0" y="-15" scale="0.9"/>
+	<unit id="105061" x="0" y="0" scale="0.8"/>
+	<unit id="108001" x="0" y="10" scale="0.9"/>
+	<unit id="108002" x="0" y="10" scale="0.9"/>
+	<unit id="108003" x="0" y="10" scale="0.9"/>
+	<unit id="108004" x="0" y="10" scale="0.9"/>
+</units>

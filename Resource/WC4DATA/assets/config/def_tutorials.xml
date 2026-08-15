@@ -1,0 +1,9 @@
+<tutorials>
+  <tutorial id="10001" name="script10001.xml" scene="SceneBattle" stageid="10001"/>
+  <tutorial id="10002" name="script10002.xml" scene="SceneBattle" stageid="10002"/> 
+  <tutorial id="10003" name="script10003.xml" scene="SceneBattle" stageid="10003"/>
+	<tutorial id="10004" name="script10004.xml" scene="SceneBattle" stageid="10004"/>
+	<tutorial id="20001" name="script20001.xml" scene="SceneBattle" battlemode="3"/>
+	<tutorial id="30001" name="script30001.xml" scene="SceneBattle" stageid="10101" battlemode="11"/>
+</tutorials>
+

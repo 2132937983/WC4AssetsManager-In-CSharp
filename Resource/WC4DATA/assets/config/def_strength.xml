@@ -1,0 +1,50 @@
+﻿<Defs>
+  <Army name="Infantry">
+    <Strength percent="50" attack="100" defense="100" count="1"/>
+    <Strength percent="0" attack="50" defense="100" count="1"/>
+  </Army>
+  <Army name="Armor">
+    <Strength percent="50" attack="100" defense="100" count="1"/>
+    <Strength percent="0" attack="50" defense="100" count="1"/>
+  </Army>
+  <Army name="Artillery">
+    <Strength percent="50" attack="100" defense="100" count="1"/>
+    <Strength percent="0" attack="50" defense="100" count="1"/>
+  </Army>
+  <Army name="Navy">
+    <Strength percent="50" attack="100" defense="100" count="1"/>
+    <Strength percent="0" attack="50" defense="100" count="1"/>
+  </Army>
+  <Army name="Defense">
+    <Strength percent="0" attack="100" defense="100" count="1"/>
+  </Army>
+  <Army name="Mine 1">
+    <Strength percent="99" attack="100" defense="100" count="3"/>
+    <Strength percent="50" attack="100" defense="100" count="2"/>
+    <Strength percent="0" attack="100" defense="100" count="1"/>
+  </Army>
+  <Army name="Mine 2">
+    <Strength percent="99" attack="100" defense="100" count="4"/>
+    <Strength percent="66" attack="100" defense="100" count="3"/>
+    <Strength percent="33" attack="100" defense="100" count="2"/>
+    <Strength percent="0" attack="100" defense="100" count="1"/>
+  </Army>
+  <Army name="Mine 3">
+    <Strength percent="99" attack="100" defense="100" count="5"/>
+    <Strength percent="75" attack="100" defense="100" count="4"/>
+    <Strength percent="50" attack="100" defense="100" count="3"/>
+    <Strength percent="25" attack="100" defense="100" count="2"/>
+    <Strength percent="0" attack="100" defense="100" count="1"/>
+  </Army>
+  <Army name="Mine 4">
+    <Strength percent="99" attack="100" defense="100" count="6"/>
+    <Strength percent="80" attack="100" defense="100" count="5"/>
+    <Strength percent="60" attack="100" defense="100" count="4"/>
+    <Strength percent="40" attack="100" defense="100" count="3"/>
+    <Strength percent="20" attack="100" defense="100" count="2"/>
+    <Strength percent="0" attack="100" defense="100" count="1"/>
+  </Army>
+  <Army name="Default">
+    <Strength percent="0" attack="100" defense="100" count="1"/>
+  </Army>
+</Defs>

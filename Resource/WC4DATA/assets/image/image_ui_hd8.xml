@@ -1,0 +1,20 @@
+<Texture name="image_ui_hd8.png" />
+<Images>
+    <Image name="bg_sign.png" x="2" y="2" w="679" h="42" refx="0" refy="0" />
+    <Image name="img_scenario_title_4.png" x="2" y="46" w="285" h="31" refx="0" refy="0" />
+    <Image name="img_scenario_title_5.png" x="289" y="46" w="285" h="31" refx="0" refy="0" />
+    <Image name="legion_name_back.png" x="2" y="79" w="317" h="37" refx="0" refy="0" />
+    <Image name="recruit_tab.png" x="321" y="79" w="329" h="68" refx="0" refy="0" />
+    <Image name="label_bg_chanl.png" x="2" y="149" w="402" h="44" refx="0" refy="0" />
+    <Image name="Item_row_bg.png" x="2" y="195" w="403" h="30" refx="0" refy="0" />
+    <Image name="bg_result.png" x="2" y="227" w="809" h="18" refx="0" refy="0" />
+    <Image name="prog_blue.png" x="2" y="247" w="605" h="12" refx="0" refy="0" />
+    <Image name="bg_line_alpha.png" x="2" y="261" w="465" h="8" refx="0" refy="0" />
+    <Image name="bg_line_h.png" x="2" y="271" w="562" h="16" refx="0" refy="0" />
+    <Image name="conquest_1939.png" x="2" y="289" w="289" h="120" refx="0" refy="0" />
+    <Image name="conquest_1943.png" x="293" y="289" w="289" h="120" refx="0" refy="0" />
+    <Image name="conquest_1950.png" x="2" y="411" w="289" h="120" refx="0" refy="0" />
+    <Image name="conquest_1960.png" x="2" y="533" w="289" h="120" refx="0" refy="0" />
+    <Image name="conquest_1980.png" x="2" y="655" w="289" h="120" refx="0" refy="0" />
+    <Image name="cp_challenge.png" x="683" y="2" w="120" h="164" refx="0" refy="0" />
+</Images>

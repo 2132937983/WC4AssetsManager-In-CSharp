@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>WC4MapEditor</RootNamespace>
+    <AssemblyName>WC4MapEditor</AssemblyName>
+    <EnableHWAcceleration>true</EnableHWAcceleration>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <NoWarn>NU1701</NoWarn>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationIcon>Resource\Texture\ZSEditor_Icon\name.ico</ApplicationIcon>
+    <SelfContained>false</SelfContained>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="WC4MapEditor.Core\**\*.cs" />
+    <Compile Remove="WC4MapEditor.Rendering\**\*.cs" />
+    <Compile Remove="WC4MapEditor.Cli\**\*.cs" />
+    <Page Remove="WC4MapEditor.Core\**\*.xaml" />
+    <Page Remove="WC4MapEditor.Rendering\**\*.xaml" />
+    <Page Remove="WC4MapEditor.Cli\**\*.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="SkiaSharp.Views.WPF" Version="3.116.1" />
+    <PackageReference Include="SkiaSharp.Views.Desktop.Common" Version="3.116.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="WC4MapEditor.Core\WC4MapEditor.Core.csproj" />
+    <ProjectReference Include="WC4MapEditor.Rendering\WC4MapEditor.Rendering.csproj" />
+  </ItemGroup>
+
+</Project>

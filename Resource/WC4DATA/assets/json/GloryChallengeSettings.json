@@ -1,0 +1,442 @@
+[
+  {
+    "Id": 10101,
+    "Type": 1,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 1,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10102,
+    "Type": 1,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 6,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10103,
+    "Type": 1,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 3,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10104,
+    "Type": 1,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 2,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10201,
+    "Type": 2,
+    "Category": 2,
+    "BattleId": 6,
+    "Parameter": 6,
+    "Parameters": [
+      0,
+      5060
+    ],
+    "Num": 1
+  },
+  {
+    "Id": 10202,
+    "Type": 2,
+    "Category": 2,
+    "BattleId": 5,
+    "Parameter": 7,
+    "Parameters": [
+      0,
+      634
+    ],
+    "Num": 1
+  },
+  {
+    "Id": 10203,
+    "Type": 2,
+    "Category": 2,
+    "BattleId": 6,
+    "Parameter": 8,
+    "Parameters": [
+      0,
+      1652
+    ],
+    "Num": 1
+  },
+  {
+    "Id": 10204,
+    "Type": 2,
+    "Category": 2,
+    "BattleId": 7,
+    "Parameter": 9,
+    "Parameters": [
+      0,
+      3040
+    ],
+    "Num": 1
+  },
+  {
+    "Id": 10205,
+    "Type": 2,
+    "Category": 2,
+    "BattleId": 7,
+    "Parameter": 2,
+    "Parameters": [
+      0,
+      4631
+    ],
+    "Num": 1
+  },
+  {
+    "Id": 10206,
+    "Type": 2,
+    "Category": 2,
+    "BattleId": 6,
+    "Parameter": 5,
+    "Parameters": [
+      0,
+      4459
+    ],
+    "Num": 1
+  },
+  {
+    "Id": 10301,
+    "Type": 3,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 0,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10401,
+    "Type": 4,
+    "Category": 4,
+    "BattleId": 0,
+    "Parameter": 7,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10501,
+    "Type": 5,
+    "Category": 4,
+    "BattleId": 0,
+    "Parameter": 4,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10601,
+    "Type": 6,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 301,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10602,
+    "Type": 6,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 302,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10603,
+    "Type": 6,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 303,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10604,
+    "Type": 6,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 304,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10605,
+    "Type": 6,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 305,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10606,
+    "Type": 6,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 306,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10607,
+    "Type": 6,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 307,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10608,
+    "Type": 6,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 308,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10701,
+    "Type": 7,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 0,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 10801,
+    "Type": 8,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 1056,
+    "Parameters": [],
+    "Num": 20
+  },
+  {
+    "Id": 10901,
+    "Type": 9,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 1056,
+    "Parameters": [],
+    "Num": 5
+  },
+  {
+    "Id": 11001,
+    "Type": 10,
+    "Category": 3,
+    "BattleId": 0,
+    "Parameter": 1056,
+    "Parameters": [
+      55,
+      2
+    ],
+    "Num": 50
+  },
+  {
+    "Id": 11101,
+    "Type": 11,
+    "Category": 2,
+    "BattleId": 6,
+    "Parameter": 1056,
+    "Parameters": [
+      3,
+      1670,
+      55,
+      5
+    ],
+    "Num": 1
+  },
+  {
+    "Id": 11201,
+    "Type": 12,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 55,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 11202,
+    "Type": 12,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 49,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 11203,
+    "Type": 12,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 70,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 11204,
+    "Type": 12,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 53,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 11205,
+    "Type": 12,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 58,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 11301,
+    "Type": 13,
+    "Category": 5,
+    "BattleId": 0,
+    "Parameter": 55,
+    "Parameters": [
+      1049
+    ],
+    "Num": 100
+  },
+  {
+    "Id": 11302,
+    "Type": 13,
+    "Category": 5,
+    "BattleId": 0,
+    "Parameter": 49,
+    "Parameters": [
+      1039
+    ],
+    "Num": 100
+  },
+  {
+    "Id": 11303,
+    "Type": 13,
+    "Category": 5,
+    "BattleId": 0,
+    "Parameter": 70,
+    "Parameters": [
+      1033
+    ],
+    "Num": 100
+  },
+  {
+    "Id": 11304,
+    "Type": 13,
+    "Category": 5,
+    "BattleId": 0,
+    "Parameter": 53,
+    "Parameters": [
+      1019
+    ],
+    "Num": 100
+  },
+  {
+    "Id": 11305,
+    "Type": 13,
+    "Category": 5,
+    "BattleId": 0,
+    "Parameter": 58,
+    "Parameters": [
+      1047
+    ],
+    "Num": 100
+  },
+  {
+    "Id": 11401,
+    "Type": 14,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 1072,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 11402,
+    "Type": 14,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 1086,
+    "Parameters": [],
+    "Num": 1
+  },
+  {
+    "Id": 11501,
+    "Type": 15,
+    "Category": 1,
+    "BattleId": 0,
+    "Parameter": 2,
+    "Parameters": [],
+    "Num": 4
+  },
+  {
+    "Id": 11601,
+    "Type": 16,
+    "Category": 2,
+    "BattleId": 6,
+    "Parameter": 55,
+    "Parameters": [
+      3,
+      634,
+      6
+    ],
+    "Num": 1
+  },
+  {
+    "Id": 11701,
+    "Type": 17,
+    "Category": 3,
+    "BattleId": 5,
+    "Parameter": 49,
+    "Parameters": [
+      11,
+      29082,
+      3
+    ],
+    "Num": 1
+  },
+  {
+    "Id": 11801,
+    "Type": 18,
+    "Category": 3,
+    "BattleId": 30403,
+    "Parameter": 70,
+    "Parameters": [],
+    "Num": 3
+  },
+  {
+    "Id": 11901,
+    "Type": 19,
+    "Category": 3,
+    "BattleId": 30505,
+    "Parameter": 53,
+    "Parameters": [],
+    "Num": 20
+  },
+  {
+    "Id": 12001,
+    "Type": 20,
+    "Category": 3,
+    "BattleId": 30103,
+    "Parameter": 58,
+    "Parameters": [],
+    "Num": 12
+  }
+]

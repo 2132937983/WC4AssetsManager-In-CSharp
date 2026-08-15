@@ -1,0 +1,74 @@
+﻿<Animations>
+
+  <Animation name="change morale 1">
+    <Element res="anim_status" name="士气上升动画" loop="false" x="0" y="20" hscale="1.0" vscale="1.0"/>
+  </Animation>
+  <Animation name="morale 1">
+    <Element res="anim_status" name="士气上升持续动画" x="0" y="20" hscale="1.0" vscale="1.0"/>
+  </Animation>
+
+  <Animation name="change morale -1">
+    <Element res="anim_status" name="1次士气下降动画" loop="false" x="0" y="0" hscale="1.0" vscale="1.0"/>
+  </Animation>
+  <Animation name="morale -1">
+    <Element res="anim_status" name="1次士气下降持续动画" x="0" y="0" hscale="1.0" vscale="1.0"/>
+  </Animation>
+
+  <Animation name="change morale -2">
+    <Element res="anim_status" name="2次士气下降动画" loop="false" x="0" y="0" hscale="1.0" vscale="1.0"/>
+  </Animation>  
+  <Animation name="morale -2">
+    <Element res="anim_status" name="2次士气下降持续动画" x="0" y="0" hscale="1.0" vscale="1.0"/>
+  </Animation>
+
+  <Animation name="change confusion">
+    <Element res="anim_status" name="混乱出现动画" loop="false" x="0" y="5" hscale="1.0" vscale="1.0"/>
+  </Animation>
+  
+  <Animation name="confusion">
+    <Element res="anim_status" name="混乱待机动画" x="0" y="5" hscale="1.0" vscale="1.0"/>
+  </Animation>
+
+  <Animation name="building_21">
+    <Element res="anim_smoke" name="建筑烟囱冒烟动画01" x="1.75" y="-9.6" hscale="1.0" vscale="1.0"/>
+  </Animation>
+  <Animation name="building_22">
+    <Element res="anim_smoke" name="建筑烟囱冒烟动画02" x="-1.75" y="-11.6" hscale="1.0" vscale="1.0"/>
+  </Animation>
+  <Animation name="building_23">
+    <Element res="anim_smoke" name="建筑烟囱冒烟动画03" x="-1.75" y="-6.6" hscale="1.0" vscale="1.0"/>
+  </Animation>
+	<Animation name="insmoke">
+		<Element res="anim_insmoke" name="烟幕特效" x="0" y="10" hscale="0.75" vscale="0.75"/>
+	</Animation>
+
+	<Animation name="buff 33 fadein">
+		<Element res="anim_buff" name="保护装置淡入动画（坦克）" loop="false" x="0" y="0" hscale="0.75" vscale="0.75"/>
+	</Animation>
+	<Animation name="buff 33 loop">
+		<Element res="anim_buff" name="保护装置待机动画（坦克）" x="0" y="0" hscale="0.75" vscale="0.75"/>
+	</Animation>
+	<Animation name="buff 33 fadeout">
+		<Element res="anim_buff" name="保护装置结束动画（坦克）" loop="false" x="0" y="0" hscale="0.75" vscale="0.75"/>
+	</Animation>
+	
+	<Animation name="buff 29 fadein">
+		<Element res="anim_buff" name="挑衅淡入动画" loop="false" x="-3.5" y="-4" hscale="1.35" vscale="1.35"/>
+	</Animation>
+	<Animation name="buff 29 loop">
+		<Element res="anim_buff" name="挑衅待机动画" x="-3.5" y="-4" hscale="1.35" vscale="1.35"/>
+	</Animation>
+	<Animation name="buff 29 fadeout">
+		<Element res="anim_buff" name="挑衅结束动画" loop="false" x="-3.5" y="-4" hscale="1.35" vscale="1.35"/>
+	</Animation>
+	
+	<Animation name="buff 39 fadein">
+		<Element res="anim_buff" name="火控干扰淡入动画" loop="false" x="0" y="0" hscale="1" vscale="1"/>
+	</Animation>
+	<Animation name="buff 39 loop">
+		<Element res="anim_buff" name="火控干扰待机动画" x="0" y="0" hscale="1" vscale="1"/>
+	</Animation>
+	<Animation name="buff 39 fadeout">
+		<Element res="anim_buff" name="火控干扰结束动画" loop="false" x="0" y="0" hscale="1" vscale="1"/>
+	</Animation>
+</Animations>

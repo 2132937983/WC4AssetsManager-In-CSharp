@@ -1,0 +1,54 @@
+{
+  "startCheckoutjs": {
+    "from": "checkoutjsMerchant",
+    "to": "nativexoSDK"
+  },
+  "startCheckout": {
+    "from": "checkoutMerchant",
+    "to": "nativexoSDK"
+  },
+  "startprogress": {
+    "from": "PROGRESSBAR",
+    "to": "prepare_progress_bar"
+  },
+  "ryi": {
+    "to": "prepare_review",
+    "from": "REVIEW"
+  },
+  "profile": {
+    "to": "prepare_view_profile",
+    "from": "VIEW_PROFILE"
+  },
+  "legal": {
+    "to": "prepare_view_legal",
+    "from": "VIEW_LEGAL"
+  },
+  "addresses": {
+    "to": "process_select_shipping_address",
+    "from": "SELECT_SHIPPING_ADDRESS"
+  },
+  "selectaddress": {
+    "to": "SELECT_SHIPPING_ADDRESS",
+    "from": "REVIEW"
+  },
+  "selectShippingMethod": {
+    "to": "SELECT_SHIPPING_METHOD",
+    "from": "REVIEW"
+  },
+  "wallet": {
+    "to": "prepare_manage_wallet",
+    "from": "MANAGE_WALLET"
+  },
+  "currencyconversion": {
+    "to": "process_select_conversion_rate",
+    "from": "SELECT_CONVERSION_RATE"
+  },
+  "ordersummary": {
+    "to": "review_cart_items",
+    "from": "MANAGE_CART"
+  },
+  "logout": {
+    "to": "logout_state",
+    "from": "VIEW_PROFILE"
+  }
+}

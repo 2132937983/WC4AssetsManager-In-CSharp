@@ -1,0 +1,52 @@
+{
+  "codes": {
+    "GIFT": {
+      "once": false,
+      "message": "兑换成功：获得勋章x500、金币x10000、工业x5000、能源x5000、科技x100。",
+      "rewards": [
+        {
+          "type": "medal",
+          "amount": 500
+        },
+        {
+          "type": "gold",
+          "amount": 10000
+        },
+        {
+          "type": "industry",
+          "amount": 5000
+        },
+        {
+          "type": "energy",
+          "amount": 5000
+        },
+        {
+          "type": "tech",
+          "amount": 100
+        }
+      ]
+    },
+    "ITEM": {
+      "once": false,
+      "message": "兑换成功：获得道具 101 x1。",
+      "rewards": [
+        {
+          "type": "item",
+          "id": 101,
+          "amount": 1
+        }
+      ]
+    },
+    "GMEDAL": {
+      "once": false,
+      "message": "兑换成功：获得将领勋章 1001 x1。",
+      "rewards": [
+        {
+          "type": "general_medal",
+          "id": 1001,
+          "amount": 1
+        }
+      ]
+    }
+  }
+}

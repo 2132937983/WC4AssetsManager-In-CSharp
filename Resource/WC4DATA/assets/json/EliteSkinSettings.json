@@ -1,0 +1,32 @@
+[
+  {
+    "Id": 5501,
+    "Army": 55,
+    "Index": 1,
+    "Effect": 5
+  },
+  {
+    "Id": 4901,
+    "Army": 49,
+    "Index": 1,
+    "Effect": 5
+  },
+  {
+    "Id": 7001,
+    "Army": 70,
+    "Index": 1,
+    "Effect": 2
+  },
+  {
+    "Id": 5301,
+    "Army": 53,
+    "Index": 1,
+    "Effect": 5
+  },
+  {
+    "Id": 5801,
+    "Army": 58,
+    "Index": 1,
+    "Effect": 2
+  }
+]

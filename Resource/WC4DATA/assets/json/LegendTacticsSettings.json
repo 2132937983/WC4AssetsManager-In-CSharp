@@ -1,0 +1,407 @@
+[
+  {
+    "Id": 10101,
+    "Type": 1,
+    "Effect": 3,
+    "SecondEffect": 0,
+    "Distance": 0,
+    "LimitedArmyType": 0,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10102,
+    "Type": 11,
+    "Effect": 2,
+    "SecondEffect": 0,
+    "Distance": 2,
+    "LimitedArmyType": 2,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10103,
+    "Type": 13,
+    "Effect": 0,
+    "SecondEffect": 0,
+    "Distance": 1,
+    "LimitedArmyType": 0,
+    "SynergyArmyType": 1
+  },
+  {
+    "Id": 10104,
+    "Type": 4,
+    "Effect": 10,
+    "SecondEffect": 0,
+    "Distance": 1,
+    "LimitedArmyType": 3,
+    "SynergyArmyType": 1
+  },
+  {
+    "Id": 10105,
+    "Type": 12,
+    "Effect": 1,
+    "SecondEffect": 0,
+    "Distance": 1,
+    "LimitedArmyType": 3,
+    "SynergyArmyType": 1
+  },
+  {
+    "Id": 10201,
+    "Type": 3,
+    "Effect": 10,
+    "SecondEffect": 0,
+    "Distance": 0,
+    "LimitedArmyType": 0,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10202,
+    "Type": 22,
+    "Effect": 20,
+    "SecondEffect": 0,
+    "Distance": 1,
+    "LimitedArmyType": 2,
+    "SynergyArmyType": 1
+  },
+  {
+    "Id": 10203,
+    "Type": 10,
+    "Effect": 2,
+    "SecondEffect": 0,
+    "Distance": 1,
+    "LimitedArmyType": 2,
+    "SynergyArmyType": 1
+  },
+  {
+    "Id": 10204,
+    "Type": 18,
+    "Effect": 2,
+    "SecondEffect": 0,
+    "Distance": 2,
+    "LimitedArmyType": 1,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10205,
+    "Type": 7,
+    "Effect": 15,
+    "SecondEffect": 0,
+    "Distance": 1,
+    "LimitedArmyType": 3,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10301,
+    "Type": 17,
+    "Effect": 10,
+    "SecondEffect": 0,
+    "Distance": 0,
+    "LimitedArmyType": 0,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10302,
+    "Type": 8,
+    "Effect": 0,
+    "SecondEffect": 0,
+    "Distance": 2,
+    "LimitedArmyType": 101,
+    "SynergyArmyType": 102
+  },
+  {
+    "Id": 10303,
+    "Type": 1,
+    "Effect": 2,
+    "SecondEffect": 0,
+    "Distance": 2,
+    "LimitedArmyType": 101,
+    "SynergyArmyType": 102
+  },
+  {
+    "Id": 10304,
+    "Type": 20,
+    "Effect": 4,
+    "SecondEffect": 0,
+    "Distance": 2,
+    "LimitedArmyType": 3,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10305,
+    "Type": 6,
+    "Effect": 1,
+    "SecondEffect": 0,
+    "Distance": 1,
+    "LimitedArmyType": 1,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10306,
+    "Type": 21,
+    "Effect": 15,
+    "SecondEffect": 0,
+    "Distance": 1,
+    "LimitedArmyType": 1,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10401,
+    "Type": 23,
+    "Effect": 2,
+    "SecondEffect": 0,
+    "Distance": 0,
+    "LimitedArmyType": 0,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10402,
+    "Type": 24,
+    "Effect": 2,
+    "SecondEffect": 1581,
+    "Distance": 0,
+    "LimitedArmyType": 3,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10403,
+    "Type": 25,
+    "Effect": 2,
+    "SecondEffect": 58,
+    "Distance": 0,
+    "LimitedArmyType": 2,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10404,
+    "Type": 26,
+    "Effect": 50,
+    "SecondEffect": 0,
+    "Distance": 1,
+    "LimitedArmyType": 2,
+    "SynergyArmyType": 1
+  },
+  {
+    "Id": 10405,
+    "Type": 26,
+    "Effect": 50,
+    "SecondEffect": 0,
+    "Distance": 1,
+    "LimitedArmyType": 3,
+    "SynergyArmyType": 1
+  },
+  {
+    "Id": 10501,
+    "Type": 27,
+    "Effect": 2,
+    "SecondEffect": 1601,
+    "Distance": 2,
+    "LimitedArmyType": 0,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10502,
+    "Type": 28,
+    "Effect": 0,
+    "SecondEffect": 0,
+    "Distance": 2,
+    "LimitedArmyType": 2,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10503,
+    "Type": 29,
+    "Effect": 10,
+    "SecondEffect": 0,
+    "Distance": 0,
+    "LimitedArmyType": 3,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10504,
+    "Type": 30,
+    "Effect": 5,
+    "SecondEffect": 0,
+    "Distance": 2,
+    "LimitedArmyType": 1,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10601,
+    "Type": 31,
+    "Effect": 0,
+    "SecondEffect": 1651,
+    "Distance": 0,
+    "LimitedArmyType": 0,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10602,
+    "Type": 32,
+    "Effect": 20,
+    "SecondEffect": 0,
+    "Distance": 3,
+    "LimitedArmyType": 0,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10603,
+    "Type": 33,
+    "Effect": 6,
+    "SecondEffect": 0,
+    "Distance": 2,
+    "LimitedArmyType": 1,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10604,
+    "Type": 34,
+    "Effect": 30,
+    "SecondEffect": 0,
+    "Distance": 2,
+    "LimitedArmyType": 3,
+    "SynergyArmyType": 1
+  },
+  {
+    "Id": 10701,
+    "Type": 35,
+    "Effect": 2,
+    "SecondEffect": 20,
+    "Distance": 2,
+    "LimitedArmyType": 0,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10702,
+    "Type": 36,
+    "Effect": 1,
+    "SecondEffect": 1691,
+    "Distance": 1,
+    "LimitedArmyType": 1,
+    "SynergyArmyType": 103
+  },
+  {
+    "Id": 10703,
+    "Type": 37,
+    "Effect": 5,
+    "SecondEffect": 2,
+    "Distance": 1,
+    "LimitedArmyType": 2,
+    "SynergyArmyType": 1
+  },
+  {
+    "Id": 10704,
+    "Type": 38,
+    "Effect": 3,
+    "SecondEffect": 1701,
+    "Distance": 2,
+    "LimitedArmyType": 3,
+    "SynergyArmyType": 2
+  },
+  {
+    "Id": 10801,
+    "Type": 39,
+    "Effect": 2,
+    "SecondEffect": 6,
+    "Distance": 1,
+    "LimitedArmyType": 0,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10802,
+    "Type": 40,
+    "Effect": 2,
+    "SecondEffect": 1711,
+    "Distance": 0,
+    "LimitedArmyType": 1,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10803,
+    "Type": 41,
+    "Effect": 2,
+    "SecondEffect": 1721,
+    "Distance": 0,
+    "LimitedArmyType": 2,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10804,
+    "Type": 42,
+    "Effect": 1,
+    "SecondEffect": 1731,
+    "Distance": 0,
+    "LimitedArmyType": 3,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10901,
+    "Type": 43,
+    "Effect": 0,
+    "SecondEffect": 0,
+    "Distance": 0,
+    "LimitedArmyType": 0,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10902,
+    "Type": 27,
+    "Effect": 0,
+    "SecondEffect": 1751,
+    "Distance": 2,
+    "LimitedArmyType": 1,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10903,
+    "Type": 27,
+    "Effect": 0,
+    "SecondEffect": 1761,
+    "Distance": 2,
+    "LimitedArmyType": 3,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 10904,
+    "Type": 9,
+    "Effect": 100,
+    "SecondEffect": 0,
+    "Distance": 2,
+    "LimitedArmyType": 2,
+    "SynergyArmyType": 1
+  },
+  {
+    "Id": 11001,
+    "Type": 44,
+    "Effect": 25,
+    "SecondEffect": 0,
+    "Distance": 0,
+    "LimitedArmyType": 0,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 11002,
+    "Type": 45,
+    "Effect": 15,
+    "SecondEffect": 0,
+    "Distance": 0,
+    "LimitedArmyType": 0,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 11003,
+    "Type": 46,
+    "Effect": 0,
+    "SecondEffect": 1771,
+    "Distance": 2,
+    "LimitedArmyType": 1,
+    "SynergyArmyType": 0
+  },
+  {
+    "Id": 11004,
+    "Type": 27,
+    "Effect": 0,
+    "SecondEffect": 1781,
+    "Distance": 2,
+    "LimitedArmyType": 3,
+    "SynergyArmyType": 0
+  }
+]

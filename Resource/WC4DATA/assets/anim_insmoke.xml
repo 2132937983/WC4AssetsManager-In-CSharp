@@ -1,0 +1,4 @@
+<Texture name="anim_insmoke.png" w="148" h="144" />
+<Images>
+    <Image name="1.png" x="1" y="1" w="146" h="141" refx="0" refy="0" />
+</Images>

@@ -1,0 +1,16 @@
+<Texture name="anim_decapitation.png" w="328" h="344" />
+<Images>
+    <Image name="13.png" x="1" y="1" w="132" h="130" refx="0" refy="0" />
+    <Image name="5.png" x="1" y="132" w="161" h="20" refx="0" refy="0" />
+    <Image name="2.png" x="1" y="153" w="191" h="129" refx="0" refy="0" />
+    <Image name="1.png" x="134" y="1" w="120" h="120" refx="0" refy="0" />
+    <Image name="3.png" x="193" y="122" w="52" h="32" refx="0" refy="0" />
+    <Image name="12.png" x="193" y="155" w="73" h="8" refx="0" refy="0" />
+    <Image name="4.png" x="193" y="164" w="84" h="38" refx="0" refy="0" />
+    <Image name="11.png" x="1" y="283" w="107" h="8" refx="0" refy="0" />
+    <Image name="10.png" x="109" y="283" w="132" h="8" refx="0" refy="0" />
+    <Image name="6.png" x="1" y="292" w="191" h="16" refx="0" refy="0" />
+    <Image name="9.png" x="1" y="309" w="205" h="10" refx="0" refy="0" />
+    <Image name="7.png" x="1" y="320" w="222" h="13" refx="0" refy="0" />
+    <Image name="8.png" x="1" y="334" w="253" h="9" refx="0" refy="0" />
+</Images>
