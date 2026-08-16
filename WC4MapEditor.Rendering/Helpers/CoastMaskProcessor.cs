@@ -95,7 +95,6 @@ public sealed class CoastMaskProcessor
         string spriteName, SKRect dstRect, SKPaint paint, double zoomLevel = 1.0)
     {
         if (canvas == null || coastAtlasImage == null || string.IsNullOrEmpty(spriteName)) return;
-        if (zoomLevel < 0.25) return;
 
         SKBitmap? coastMask = null, landMask = null;
         lock (_cacheLock)
@@ -120,10 +119,11 @@ public sealed class CoastMaskProcessor
     {
         if (canvas == null || string.IsNullOrEmpty(spriteName)) return;
         if (!_finalAtlasBuilt || _finalCoastAtlas == null) return;
-        if (zoomLevel < 0.25) return;
 
         if (!_finalAtlasSpriteRects.TryGetValue(spriteName, out var srcRect)) return;
-        canvas.DrawImage(_finalCoastAtlas, srcRect, dstRect, paint);
+        
+        var sampling = new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Nearest);
+        canvas.DrawImage(_finalCoastAtlas, srcRect, dstRect, sampling, paint);
     }
 
     private void RenderWithMasks(SKCanvas canvas, SKImage coastAtlasImage, SKRect coastSrcRect,
@@ -149,6 +149,9 @@ public sealed class CoastMaskProcessor
         var tempCanvas = tempSurface.Canvas;
         tempCanvas.Clear(SKColors.Transparent);
 
+        var nearestSampling = new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None);
+        var linearSampling = new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Nearest);
+
         var landTextureToUse = _hexagonLandTexture ?? _landTexture;
         if (landMask != null && landTextureToUse != null)
         {
@@ -160,17 +163,17 @@ public sealed class CoastMaskProcessor
                     var landTempCanvas = landTempSurface.Canvas;
                     landTempCanvas.Clear(SKColors.Transparent);
 
-                    using (var maskPaint = new SKPaint { IsAntialias = true })
+                    using (var maskPaint = new SKPaint { IsAntialias = false })
                         landTempCanvas.DrawBitmap(landMask, new SKRect(0, 0, width, height), maskPaint);
 
-                    using (var srcInPaint = new SKPaint { IsAntialias = true, BlendMode = SKBlendMode.SrcIn })
+                    using (var srcInPaint = new SKPaint { IsAntialias = false, BlendMode = SKBlendMode.SrcIn })
                         landTempCanvas.DrawImage(landTextureToUse, new SKRect(0, 0, landTextureToUse.Width, landTextureToUse.Height),
-                            new SKRect(0, 0, width, height), srcInPaint);
+                            new SKRect(0, 0, width, height), linearSampling, srcInPaint);
 
                     using var landSnapshot = landTempSurface.Snapshot();
                     if (landSnapshot != null)
-                        using (var resultPaint = new SKPaint { IsAntialias = true })
-                            tempCanvas.DrawImage(landSnapshot, 0, 0, resultPaint);
+                        using (var resultPaint = new SKPaint { IsAntialias = false })
+                            tempCanvas.DrawImage(landSnapshot, 0, 0, linearSampling, resultPaint);
                 }
             }
             catch (Exception ex)
@@ -187,16 +190,16 @@ public sealed class CoastMaskProcessor
                 var coastTempCanvas = coastTempSurface.Canvas;
                 coastTempCanvas.Clear(SKColors.Transparent);
 
-                using (var maskPaint = new SKPaint { IsAntialias = true })
+                using (var maskPaint = new SKPaint { IsAntialias = false })
                     coastTempCanvas.DrawBitmap(coastMask, new SKRect(0, 0, width, height), maskPaint);
 
-                using (var srcInPaint = new SKPaint { IsAntialias = true, BlendMode = SKBlendMode.SrcIn })
-                    coastTempCanvas.DrawImage(coastAtlasImage, coastSrcRect, new SKRect(0, 0, width, height), srcInPaint);
+                using (var srcInPaint = new SKPaint { IsAntialias = false, BlendMode = SKBlendMode.SrcIn })
+                    coastTempCanvas.DrawImage(coastAtlasImage, coastSrcRect, new SKRect(0, 0, width, height), linearSampling, srcInPaint);
 
                 using var coastSnapshot = coastTempSurface.Snapshot();
                 if (coastSnapshot != null)
-                    using (var plusPaint = new SKPaint { IsAntialias = true, BlendMode = SKBlendMode.Plus })
-                        tempCanvas.DrawImage(coastSnapshot, 0, 0, plusPaint);
+                    using (var plusPaint = new SKPaint { IsAntialias = false, BlendMode = SKBlendMode.Plus })
+                        tempCanvas.DrawImage(coastSnapshot, 0, 0, linearSampling, plusPaint);
             }
         }
         catch (Exception ex)
@@ -210,8 +213,8 @@ public sealed class CoastMaskProcessor
         {
             using var snapshot = tempSurface.Snapshot();
             if (snapshot != null)
-                using (var finalPaint = new SKPaint { IsAntialias = true })
-                    canvas.DrawImage(snapshot, dstRect, finalPaint);
+                using (var finalPaint = new SKPaint { IsAntialias = false })
+                    canvas.DrawImage(snapshot, dstRect, linearSampling, finalPaint);
         }
         catch
         {
@@ -426,15 +429,16 @@ public sealed class CoastMaskProcessor
                         {
                             var landTempCanvas = landTempSurface.Canvas;
                             landTempCanvas.Clear(SKColors.Transparent);
-                            using (var maskPaint = new SKPaint { IsAntialias = true })
+                            var linearSampling = new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Nearest);
+                            using (var maskPaint = new SKPaint { IsAntialias = false })
                                 landTempCanvas.DrawBitmap(masks.LandMask, new SKRect(0, 0, width, height), maskPaint);
-                            using (var srcInPaint = new SKPaint { IsAntialias = true, BlendMode = SKBlendMode.SrcIn })
+                            using (var srcInPaint = new SKPaint { IsAntialias = false, BlendMode = SKBlendMode.SrcIn })
                                 landTempCanvas.DrawImage(landTextureToUse, new SKRect(0, 0, landTextureToUse.Width, landTextureToUse.Height),
-                                    new SKRect(0, 0, width, height), srcInPaint);
+                                    new SKRect(0, 0, width, height), linearSampling, srcInPaint);
                             using var landSnapshot = landTempSurface.Snapshot();
                             if (landSnapshot != null)
-                                using (var resultPaint = new SKPaint { IsAntialias = true })
-                                    tempCanvas.DrawImage(landSnapshot, 0, 0, resultPaint);
+                                using (var resultPaint = new SKPaint { IsAntialias = false })
+                                    tempCanvas.DrawImage(landSnapshot, 0, 0, linearSampling, resultPaint);
                         }
                     }
                     catch { }
@@ -449,14 +453,15 @@ public sealed class CoastMaskProcessor
                         {
                             var coastTempCanvas = coastTempSurface.Canvas;
                             coastTempCanvas.Clear(SKColors.Transparent);
-                            using (var maskPaint = new SKPaint { IsAntialias = true })
+                            var linearSampling = new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Nearest);
+                            using (var maskPaint = new SKPaint { IsAntialias = false })
                                 coastTempCanvas.DrawBitmap(masks.CoastMask, new SKRect(0, 0, width, height), maskPaint);
-                            using (var srcInPaint = new SKPaint { IsAntialias = true, BlendMode = SKBlendMode.SrcIn })
-                                coastTempCanvas.DrawImage(hexCoastImage, new SKRect(0, 0, width, height), srcInPaint);
+                            using (var srcInPaint = new SKPaint { IsAntialias = false, BlendMode = SKBlendMode.SrcIn })
+                                coastTempCanvas.DrawImage(hexCoastImage, new SKRect(0, 0, width, height), linearSampling, srcInPaint);
                             using var coastSnapshot = coastTempSurface.Snapshot();
                             if (coastSnapshot != null)
-                                using (var plusPaint = new SKPaint { IsAntialias = true, BlendMode = SKBlendMode.Plus })
-                                    tempCanvas.DrawImage(coastSnapshot, 0, 0, plusPaint);
+                                using (var plusPaint = new SKPaint { IsAntialias = false, BlendMode = SKBlendMode.Plus })
+                                    tempCanvas.DrawImage(coastSnapshot, 0, 0, linearSampling, plusPaint);
                         }
                     }
                     catch { }

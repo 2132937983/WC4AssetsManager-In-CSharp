@@ -13,12 +13,29 @@ public interface IRenderEngine : IDisposable
     void Render(MapData mapData, Camera camera);
     void Render(SKCanvas canvas, MapData mapData, Camera camera);
     void Invalidate();
+    void InvalidateTerrainCache();
+    void InvalidateCoastCache(MapData mapData);
+    void InvalidateCoastCacheRegion(MapData mapData, int centerCol, int centerRow, int radius);
+    void InvalidateCoastCacheFull(MapData mapData);
     bool EnableTerrainsRender { get; set; }
     bool EnableBackgroundRender { get; set; }
     bool EnableProvinceRender { get; set; }
     bool EnableBuildingRender { get; set; }
     bool EnableArmyRender { get; set; }
     bool EnableTrapRender { get; set; }
+    bool EnableSelectionRender { get; set; }
+    string HelpText { get; set; }
+    string ModeName { get; set; }
+    bool ShowHelp { get; set; }
+    bool ShowModeName { get; set; }
     (int col, int row) ScreenToHex(double screenX, double screenY);
     (double x, double y) HexToScreen(int col, int row);
+    bool LoadViewLayerImage(string imagePath);
+    void ClearViewLayerImage();
+    bool ViewLayerVisible { get; set; }
+    float ViewLayerOpacity { get; set; }
+    void InvalidateViewLayerCache();
+    bool ShowLayer2 { get; set; }
+    bool ShowHexBorders { get; set; }
+    void CycleLabelMode();
 }

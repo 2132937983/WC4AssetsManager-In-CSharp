@@ -14,6 +14,7 @@ public class StageRenderScene : RenderSceneBase
     }
 
     protected override string SceneTitle => "战役地图";
+    protected override string SceneType => "stage";
 
     protected override MapData? LoadMapData()
     {
@@ -51,6 +52,30 @@ public class StageRenderScene : RenderSceneBase
                 mapData.SetTerrain(i, terrainData[i].ToTerrainData());
             }
         }
+
+        var provinceData = parser.GetProvinceData();
+        if (provinceData.Count > 0)
+        {
+            for (int i = 0; i < Math.Min(provinceData.Count, mapData.TerrainCount); i++)
+            {
+                mapData.SetProvince(i, provinceData[i]);
+            }
+        }
+
+        foreach (var building in parser.GetBuildingData())
+            mapData.Buildings.Add(building);
+
+        foreach (var army in parser.GetArmyData())
+            mapData.Armies.Add(army);
+
+        foreach (var legion in parser.GetLegionData())
+            mapData.Legions.Add(legion);
+
+        foreach (var trap in parser.GetTrapData())
+            mapData.Traps.Add(trap);
+
+        foreach (var reinforcement in parser.GetReinforcementData())
+            mapData.Reinforcements.Add(reinforcement);
 
         return mapData;
     }

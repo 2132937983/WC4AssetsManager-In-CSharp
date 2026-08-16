@@ -9,6 +9,7 @@ using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using WC4MapEditor.Core.Input;
 using WC4MapEditor.Views;
 
 namespace WC4MapEditor.Views;
@@ -74,6 +75,7 @@ public partial class MainWindow : Window
 
         Content = _mainGrid;
         PreviewKeyDown += MainWindow_PreviewKeyDown;
+        PreviewKeyUp += MainWindow_PreviewKeyUp;
     }
 
     private void MainWindow_Loaded(object? sender, RoutedEventArgs e)
@@ -355,7 +357,30 @@ public partial class MainWindow : Window
 
     private void MainWindow_PreviewKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.F3) { e.Handled = true; }
+        if (e.Key == Key.F3)
+        {
+            KeyboardManager.Instance.ProcessKeyDown((int)Key.F3);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Tab)
+        {
+            KeyboardManager.Instance.ProcessKeyDown((int)Key.Tab);
+            e.Handled = true;
+        }
+    }
+
+    private void MainWindow_PreviewKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F3)
+        {
+            KeyboardManager.Instance.ProcessKeyUp((int)Key.F3);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Tab)
+        {
+            KeyboardManager.Instance.ProcessKeyUp((int)Key.Tab);
+            e.Handled = true;
+        }
     }
 
     public void SetCurrentScene(UserControl scene)

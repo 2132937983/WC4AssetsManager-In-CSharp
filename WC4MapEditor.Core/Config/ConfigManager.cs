@@ -42,6 +42,8 @@ public sealed class ConfigManager
     private WeatherEditConfig? _weatherEditConfig;
     private Dictionary<int, int> _countryColors = new();
     private Dictionary<int, string> _terrainTypes = new();
+    private Dictionary<string, string> _terrainMapping = new();
+    private Dictionary<string, int> _terrainImageCounts = new();
 
     private ConfigManager() { }
 
@@ -344,21 +346,65 @@ public sealed class ConfigManager
     {
         try
         {
-            string path = IOPath.Combine(_resourcePath, "Data", "manager.json");
+            string path = IOPath.Combine(_resourcePath, "Texture", "MapTerrian", "manager.json");
             if (File.Exists(path))
             {
                 var doc = JsonDocument.Parse(File.ReadAllText(path));
+
                 if (doc.RootElement.TryGetProperty("terrain_types", out var types))
                 {
-                    foreach (var prop in doc.RootElement.EnumerateObject())
+                    foreach (var prop in types.EnumerateObject())
                     {
                         if (int.TryParse(prop.Name, out int id))
                             _terrainTypes[id] = prop.Value.GetString() ?? "";
                     }
                 }
+
+                if (doc.RootElement.TryGetProperty("terrain_mapping", out var mapping))
+                {
+                    foreach (var prop in mapping.EnumerateObject())
+                        _terrainMapping[prop.Name] = prop.Value.GetString() ?? "";
+                }
+
+                if (doc.RootElement.TryGetProperty("terrain_image_counts", out var counts))
+                {
+                    foreach (var prop in counts.EnumerateObject())
+                    {
+                        if (prop.Value.ValueKind == JsonValueKind.Number)
+                            _terrainImageCounts[prop.Name] = prop.Value.GetInt32();
+                    }
+                }
             }
         }
         catch { }
+    }
+
+    public string GetTerrainTypeName(int terrainId)
+    {
+        if (!_isInitialized) Initialize();
+        return _terrainTypes.TryGetValue(terrainId, out var name) ? name : $"未知({terrainId})";
+    }
+
+    public Dictionary<int, string> GetTerrainTypes()
+    {
+        if (!_isInitialized) Initialize();
+        return new Dictionary<int, string>(_terrainTypes);
+    }
+
+    public int GetTerrainVariantCount(int terrainId)
+    {
+        if (!_isInitialized) Initialize();
+
+        if (!_terrainTypes.TryGetValue(terrainId, out var name))
+            return 1;
+
+        if (!_terrainMapping.TryGetValue(name, out var mappingKey))
+            return 1;
+
+        if (!_terrainImageCounts.TryGetValue(mappingKey, out int count))
+            return 1;
+
+        return Math.Max(1, count);
     }
 
     public string ResourcePath => _resourcePath;

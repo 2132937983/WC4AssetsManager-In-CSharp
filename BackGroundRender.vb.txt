@@ -1,0 +1,2327 @@
+'
+' WC4MapEditor - 三国志 4 地图编辑器
+' 背景网格渲染器 - 负责渲染六边形网格背景和陆地地形
+' 作为主渲染器的附属，由主渲染器控制渲染流程
+'
+
+Imports System.Diagnostics
+Imports System.Threading
+Imports SkiaSharp
+Imports WC4MapEditor.Models
+Imports WC4MapEditor.Builder
+Imports WC4MapEditor.Assist
+Imports WC4MapEditor.Helpers
+
+Namespace FPSRendering
+    ''' <summary>
+    ''' 背景网格渲染器 - 负责渲染六边形网格背景和陆地地形
+    ''' 设计目标：作为主渲染器的附属组件，在同一渲染流程中执行
+    ''' </summary>
+    Public Class BackGroundRender
+        Implements IDisposable
+
+#Region "常量配置"
+
+        Private _frameCount As Long = 0
+
+        ''' <summary>
+        ''' 基础六边形大小（半径）
+        ''' </summary>
+        Private Const BASE_HEX_SIZE As Double = 20.0
+
+        ''' <summary>
+        ''' 六边形宽度（平顶六边形）
+        ''' </summary>
+        Private ReadOnly HEX_WIDTH As Double = BASE_HEX_SIZE * 2
+
+        ''' <summary>
+        ''' 六边形高度（平顶六边形）
+        ''' </summary>
+        Private ReadOnly HEX_HEIGHT As Double = BASE_HEX_SIZE * Math.Sqrt(3)
+
+        ''' <summary>
+        ''' 六边形水平间距系数（平顶六边形，交错布局）
+        ''' </summary>
+        Private ReadOnly HEX_HORIZONTAL_SPACING As Double = BASE_HEX_SIZE * 1.5
+
+        ''' <summary>
+        ''' 六边形垂直间距系数（平顶六边形）
+        ''' </summary>
+        Private ReadOnly HEX_VERTICAL_SPACING As Double = BASE_HEX_SIZE * Math.Sqrt(3)
+
+        ''' <summary>
+        ''' 默认海洋颜色
+        ''' </summary>
+        Private ReadOnly DEFAULT_SEA_COLOR As SKColor = New SKColor(0, 100, 150)
+
+        ''' <summary>
+        ''' 默认陆地颜色
+        ''' </summary>
+        Private ReadOnly DEFAULT_LAND_COLOR As SKColor = New SKColor(139, 119, 101)
+
+        ''' <summary>
+        ''' 网格线颜色（红色）
+        ''' </summary>
+        Private ReadOnly GRID_LINE_COLOR As SKColor = New SKColor(255, 50, 50, 180)
+
+#End Region
+
+#Region "字段"
+
+        ''' <summary>
+        ''' 地图生成器引用
+        ''' </summary>
+        Private _mapBuilder As MapBuilder
+
+        ''' <summary>
+        ''' 渲染状态锁
+        ''' </summary>
+        Private _stateLock As New ReaderWriterLockSlim()
+
+        ''' <summary>
+        ''' 视图状态
+        ''' </summary>
+        Private _offsetX As Double = 50.0
+        Private _offsetY As Double = 50.0
+        Private _zoomLevel As Double = 1.0
+        Private _viewportWidth As Integer = 800
+        Private _viewportHeight As Integer = 600
+
+        ''' <summary>
+        ''' 是否显示网格线
+        ''' </summary>
+        Private _showGridLines As Boolean = False
+
+        ''' <summary>
+        ''' 格子标签显示模式
+        ''' </summary>
+        Public Enum HexLabelMode
+            Hidden = 0      ' 隐藏
+            Index = 1       ' 显示序号
+            Coordinate = 2  ' 显示坐标
+        End Enum
+
+        ''' <summary>
+        ''' 当前格子标签显示模式
+        ''' </summary>
+        Private _hexLabelMode As HexLabelMode = HexLabelMode.Hidden
+
+        ''' <summary>
+        ''' 是否显示第二层地形
+        ''' </summary>
+        Private _showLayer2 As Boolean = False
+
+        ''' <summary>
+        ''' 是否启用背景渲染
+        ''' </summary>
+        Private _enableBackgroundRender As Boolean = True
+
+        ''' <summary>
+        ''' 是否启用陆地地形渲染
+        ''' </summary>
+        Private _enableTerrainsRender As Boolean = True
+
+        ''' <summary>
+        ''' Paint 对象缓存
+        ''' </summary>
+        Private _seaPaint As SKPaint
+        Private _landPaint As SKPaint
+        Private _gridPaint As SKPaint
+        Private _textPaint As SKPaint
+        Private _riverPaint As SKPaint
+
+        ''' <summary>
+        ''' 文字字体
+        ''' </summary>
+        Private _textFont As SKFont
+
+        ''' <summary>
+        ''' 纹理图片
+        ''' </summary>
+        Private _seaTexture As SKBitmap
+        Private _landTexture As SKBitmap
+        Private _landImage As SKImage
+
+        ''' <summary>
+        ''' 纹理着色器
+        ''' </summary>
+        Private _seaShader As SKShader
+        Private _landShader As SKShader
+
+        ''' <summary>
+        ''' 六边形路径缓存
+        ''' </summary>
+        Private _hexPathCache As New Dictionary(Of Single, SKPath)()
+
+        ''' <summary>
+        ''' 网格线缓存 - 缓存绘制的网格线Picture
+        ''' </summary>
+        Private _gridLinesPicture As SKPicture
+        Private _cachedGridOffsetX As Double = Double.MaxValue
+        Private _cachedGridOffsetY As Double = Double.MaxValue
+        Private _cachedGridZoomLevel As Double = Double.MaxValue
+        Private _cachedGridViewportWidth As Integer = -1
+        Private _cachedGridViewportHeight As Integer = -1
+
+        ''' <summary>
+        ''' 格子序号标签缓存
+        ''' </summary>
+        Private _hexLabelsPicture As SKPicture
+        Private _cachedLabelsOffsetX As Double = Double.MaxValue
+        Private _cachedLabelsOffsetY As Double = Double.MaxValue
+        Private _cachedLabelsZoomLevel As Double = Double.MaxValue
+        Private _cachedLabelsViewportWidth As Integer = -1
+        Private _cachedLabelsViewportHeight As Integer = -1
+        Private _cachedLabelMode As HexLabelMode = HexLabelMode.Hidden
+
+        ''' <summary>
+        ''' 陆地地形渲染器
+        ''' </summary>
+        Private _landTerrainsRender As LandTerrainsRender
+
+        ''' <summary>
+        ''' 背景组合缓存：Grid + Terrain 合并到一个大离屏画面
+        ''' 尺寸为 2x 视口，记录时 center_offset = current_offset - vp/2
+        ''' 拖动在 [-vp/2, +vp/2] 范围内无需重建
+        ''' </summary>
+        Private _bgCacheImage As SKImage = Nothing
+        Private _cachedBgCenterX As Double = Double.NaN
+        Private _cachedBgCenterY As Double = Double.NaN
+        Private _cachedBgZoomLevel As Double = 0
+        Private _cachedBgWidth As Integer = 0
+        Private _cachedBgHeight As Integer = 0
+        Private _cachedBgShowLayer2 As Boolean = False
+        Private _cachedBgShowGridLines As Boolean = False
+
+        ''' <summary>
+        ''' 海岸线助手
+        ''' </summary>
+        Private _coastHelper As CoastHelper
+
+        ''' <summary>
+        ''' 海岸线遮罩处理器
+        ''' </summary>
+        Private _coastMaskProcessor As CoastMaskProcessor
+
+        ''' <summary>
+        ''' 是否启用海岸线渲染
+        ''' </summary>
+        Private _enableCoastRender As Boolean = True
+
+        ''' <summary>
+        ''' 海洋地形类型值
+        ''' </summary>
+        Private Const OCEAN_TILE_TYPE As Byte = 1
+
+        ''' <summary>
+        ''' 海岸线地形类型值
+        ''' </summary>
+        Private Const COAST_TILE_TYPE As Byte = 31
+
+        ''' <summary>
+        ''' 海岸线装饰类型缓存 - 二维数组，预计算整张地图
+        ''' 0 = 未计算, 10-73 = 海岸线类型
+        ''' </summary>
+        Private _coastDecorationArray As Byte(,) = Nothing
+
+        ''' <summary>
+        ''' 海岸线数组访问锁
+        ''' </summary>
+        Private _coastArrayLock As New ReaderWriterLockSlim()
+
+        ''' <summary>
+        ''' 双缓冲：后台计算用的新数组
+        ''' </summary>
+        Private _coastDecorationArrayNew As Byte(,) = Nothing
+
+        ''' <summary>
+        ''' 数组交换锁 - 只用于交换引用
+        ''' </summary>
+        Private _arraySwapLock As New Object()
+
+        ''' <summary>
+        ''' 缓存版本号 - 当地图数据变化时递增
+        ''' </summary>
+        Private _coastCacheVersion As Integer = 0
+
+        ''' <summary>
+        ''' 上次缓存时的地图数据版本
+        ''' </summary>
+        Private _cachedMapVersion As Integer = -1
+
+        ''' <summary>
+        ''' 海岸线绘制调用缓冲区 - 复用避免GC
+        ''' </summary>
+        Private _coastDrawCallBuffer As CoastDrawCall() = New CoastDrawCall(9999) {}
+        Private _coastDrawCallCount As Integer = 0
+
+        ''' <summary>
+        ''' 精灵分组缓冲区 - 复用避免GC
+        ''' </summary>
+        Private _spriteGroupBuffer As New Dictionary(Of String, List(Of Integer))()
+
+        ''' <summary>
+        ''' 相机停止移动后的延迟计时器
+        ''' </summary>
+        Private _coastUpdateDelayMs As Integer = 100
+
+        ''' <summary>
+        ''' 上次相机移动时间
+        ''' </summary>
+        Private _lastCameraMoveTime As DateTime = DateTime.Now
+
+        ''' <summary>
+        ''' 是否处于相机移动状态
+        ''' </summary>
+        Private _isCameraMoving As Boolean = False
+
+        ''' <summary>
+        ''' 上次相机位置（用于检测移动）
+        ''' </summary>
+        Private _lastCameraX As Double = Double.NaN
+        Private _lastCameraY As Double = Double.NaN
+
+        ''' <summary>
+        ''' 是否正在后台计算海岸线
+        ''' </summary>
+        Private _isCalculatingCoast As Boolean = False
+
+        ''' <summary>
+        ''' 预计算取消令牌源 - 用于取消之前的计算任务
+        ''' </summary>
+        Private _coastCalculationCts As CancellationTokenSource = Nothing
+
+        ''' <summary>
+        ''' 预计算任务锁
+        ''' </summary>
+        Private _coastTaskLock As New Object()
+
+#End Region
+
+#Region "属性"
+
+        ''' <summary>
+        ''' 获取或设置 X 偏移
+        ''' </summary>
+        Public Property OffsetX As Double
+            Get
+                _stateLock.EnterReadLock()
+                Try
+                    Return _offsetX
+                Finally
+                    _stateLock.ExitReadLock()
+                End Try
+            End Get
+            Set(value As Double)
+                _stateLock.EnterWriteLock()
+                Try
+                    If Math.Abs(_offsetX - value) > 0.001 Then
+                        _offsetX = value
+                    End If
+                Finally
+                    _stateLock.ExitWriteLock()
+                End Try
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' 获取或设置 Y 偏移
+        ''' </summary>
+        Public Property OffsetY As Double
+            Get
+                _stateLock.EnterReadLock()
+                Try
+                    Return _offsetY
+                Finally
+                    _stateLock.ExitReadLock()
+                End Try
+            End Get
+            Set(value As Double)
+                _stateLock.EnterWriteLock()
+                Try
+                    If Math.Abs(_offsetY - value) > 0.001 Then
+                        _offsetY = value
+                    End If
+                Finally
+                    _stateLock.ExitWriteLock()
+                End Try
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' 获取或设置缩放级别
+        ''' </summary>
+        Public Property ZoomLevel As Double
+            Get
+                _stateLock.EnterReadLock()
+                Try
+                    Return _zoomLevel
+                Finally
+                    _stateLock.ExitReadLock()
+                End Try
+            End Get
+            Set(value As Double)
+                _stateLock.EnterWriteLock()
+                Try
+                    ' 限制缩放范围
+                    Dim clampedValue As Double = Math.Max(0.1, Math.Min(5.0, value))
+                    If Math.Abs(_zoomLevel - clampedValue) > 0.001 Then
+                        _zoomLevel = clampedValue
+                    End If
+                Finally
+                    _stateLock.ExitWriteLock()
+                End Try
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' 获取或设置视口宽度
+        ''' </summary>
+        Public Property ViewportWidth As Integer
+            Get
+                _stateLock.EnterReadLock()
+                Try
+                    Return _viewportWidth
+                Finally
+                    _stateLock.ExitReadLock()
+                End Try
+            End Get
+            Set(value As Integer)
+                _stateLock.EnterWriteLock()
+                Try
+                    If _viewportWidth <> value Then
+                        _viewportWidth = Math.Max(1, value)
+                    End If
+                Finally
+                    _stateLock.ExitWriteLock()
+                End Try
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' 获取或设置视口高度
+        ''' </summary>
+        Public Property ViewportHeight As Integer
+            Get
+                _stateLock.EnterReadLock()
+                Try
+                    Return _viewportHeight
+                Finally
+                    _stateLock.ExitReadLock()
+                End Try
+            End Get
+            Set(value As Integer)
+                _stateLock.EnterWriteLock()
+                Try
+                    If _viewportHeight <> value Then
+                        _viewportHeight = Math.Max(1, value)
+                    End If
+                Finally
+                    _stateLock.ExitWriteLock()
+                End Try
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' 获取或设置是否显示网格线
+        ''' </summary>
+        Public Property ShowGridLines As Boolean
+            Get
+                _stateLock.EnterReadLock()
+                Try
+                    Return _showGridLines
+                Finally
+                    _stateLock.ExitReadLock()
+                End Try
+            End Get
+            Set(value As Boolean)
+                _stateLock.EnterWriteLock()
+                Try
+                    If _showGridLines <> value Then
+                        _showGridLines = value
+                    End If
+                Finally
+                    _stateLock.ExitWriteLock()
+                End Try
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' 获取或设置格子标签显示模式
+        ''' </summary>
+        Public Property LabelMode As HexLabelMode
+            Get
+                _stateLock.EnterReadLock()
+                Try
+                    Return _hexLabelMode
+                Finally
+                    _stateLock.ExitReadLock()
+                End Try
+            End Get
+            Set(value As HexLabelMode)
+                _stateLock.EnterWriteLock()
+                Try
+                    If _hexLabelMode <> value Then
+                        _hexLabelMode = value
+                    End If
+                Finally
+                    _stateLock.ExitWriteLock()
+                End Try
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' 获取或设置是否显示格子序号标签（向后兼容）
+        ''' </summary>
+        Public Property ShowHexLabels As Boolean
+            Get
+                Return LabelMode <> HexLabelMode.Hidden
+            End Get
+            Set(value As Boolean)
+                LabelMode = If(value, HexLabelMode.Index, HexLabelMode.Hidden)
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' 获取或设置是否显示第二层地形
+        ''' </summary>
+        Public Property ShowLayer2 As Boolean
+            Get
+                _stateLock.EnterReadLock()
+                Try
+                    Return _showLayer2
+                Finally
+                    _stateLock.ExitReadLock()
+                End Try
+            End Get
+            Set(value As Boolean)
+                _stateLock.EnterWriteLock()
+                Try
+                    If _showLayer2 <> value Then
+                        _showLayer2 = value
+                    End If
+                Finally
+                    _stateLock.ExitWriteLock()
+                End Try
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' 获取或设置是否启用背景渲染
+        ''' </summary>
+        Public Property EnableBackgroundRender As Boolean
+            Get
+                _stateLock.EnterReadLock()
+                Try
+                    Return _enableBackgroundRender
+                Finally
+                    _stateLock.ExitReadLock()
+                End Try
+            End Get
+            Set(value As Boolean)
+                _stateLock.EnterWriteLock()
+                Try
+                    _enableBackgroundRender = value
+                Finally
+                    _stateLock.ExitWriteLock()
+                End Try
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' 获取或设置是否启用陆地地形渲染
+        ''' </summary>
+        Public Property EnableTerrainsRender As Boolean
+            Get
+                _stateLock.EnterReadLock()
+                Try
+                    Return _enableTerrainsRender
+                Finally
+                    _stateLock.ExitReadLock()
+                End Try
+            End Get
+            Set(value As Boolean)
+                _stateLock.EnterWriteLock()
+                Try
+                    _enableTerrainsRender = value
+                Finally
+                    _stateLock.ExitWriteLock()
+                End Try
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' 获取地图宽度
+        ''' </summary>
+        Public ReadOnly Property MapWidth As Integer
+            Get
+                If _mapBuilder IsNot Nothing AndAlso _mapBuilder.MapData IsNot Nothing Then
+                    Return _mapBuilder.MapData.MapWidth
+                End If
+                Return 0
+            End Get
+        End Property
+
+        ''' <summary>
+        ''' 获取地图高度
+        ''' </summary>
+        Public ReadOnly Property MapHeight As Integer
+            Get
+                If _mapBuilder IsNot Nothing AndAlso _mapBuilder.MapData IsNot Nothing Then
+                    Return _mapBuilder.MapData.MapHeight
+                End If
+                Return 0
+            End Get
+        End Property
+
+        ''' <summary>
+        ''' 获取地图像素宽度
+        ''' </summary>
+        Public ReadOnly Property MapPixelWidth As Double
+            Get
+                Return MapWidth * HEX_HORIZONTAL_SPACING + HEX_HORIZONTAL_SPACING / 2
+            End Get
+        End Property
+
+        ''' <summary>
+        ''' 获取地图像素高度
+        ''' </summary>
+        Public ReadOnly Property MapPixelHeight As Double
+            Get
+                Return MapHeight * HEX_VERTICAL_SPACING + HEX_VERTICAL_SPACING / 2
+            End Get
+        End Property
+
+#End Region
+
+#Region "构造函数"
+
+        ''' <summary>
+        ''' 构造函数
+        ''' </summary>
+        ''' <param name="mapBuilder">地图生成器</param>
+        Public Sub New(mapBuilder As MapBuilder)
+            _mapBuilder = mapBuilder
+            InitializePaintObjects()
+            InitializeLandTerrainsRender()
+            ' 海岸线渲染已启用，遮罩加工在LoadingScene中完成
+            InitializeCoastRender()
+        End Sub
+
+        ''' <summary>
+        ''' 初始化陆地地形渲染器
+        ''' </summary>
+        Private Sub InitializeLandTerrainsRender()
+            _landTerrainsRender = New LandTerrainsRender(_mapBuilder)
+        End Sub
+
+        ''' <summary>
+        ''' 初始化海岸线渲染组件
+        ''' </summary>
+        Private Sub InitializeCoastRender()
+            Try
+                _coastHelper = CoastHelper.Instance
+                ' 使用单例实例，避免重复加工海岸线遮罩
+                _coastMaskProcessor = CoastMaskProcessor.Instance
+
+                ' 确保遮罩处理器已初始化（如果之前被Dispose过，需要重新初始化）
+                If Not _coastMaskProcessor.IsInitialized Then
+                    System.Diagnostics.Debug.WriteLine("[BackGroundRender] 遮罩处理器未初始化，正在重新初始化...")
+                    _coastMaskProcessor.Initialize(_coastHelper)
+                End If
+
+                ' 预生成所有六边形海岸线图块（避免渲染时卡顿）
+                Task.Run(Sub() _coastHelper.PreGenerateAllHexagonCoasts(Nothing))
+
+                ' 初始化海岸线缓存数组
+                InitializeCoastCacheArray()
+
+                System.Diagnostics.Debug.WriteLine("[BackGroundRender] 海岸线渲染组件初始化完成")
+            Catch ex As Exception
+                System.Diagnostics.Debug.WriteLine($"[BackGroundRender] 海岸线组件初始化失败: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' 初始化海岸线缓存数组
+        ''' </summary>
+        Private Sub InitializeCoastCacheArray()
+            If _mapBuilder?.MapData Is Nothing Then Return
+
+            Dim mapWidth = _mapBuilder.MapData.MapWidth
+            Dim mapHeight = _mapBuilder.MapData.MapHeight
+
+            ' 创建二维数组
+            _coastDecorationArray = New Byte(mapWidth - 1, mapHeight - 1) {}
+
+            ' 取消之前的计算任务
+            StartCoastPrecomputation()
+        End Sub
+
+        ''' <summary>
+        ''' 启动海岸线预计算（带取消机制）
+        ''' </summary>
+        Private Sub StartCoastPrecomputation()
+            SyncLock _coastTaskLock
+                ' 取消之前的任务
+                _coastCalculationCts?.Cancel()
+                _coastCalculationCts = New CancellationTokenSource()
+                Dim token = _coastCalculationCts.Token
+
+                ' 在后台线程预计算所有海岸线
+                Task.Run(Sub() PreCalculateAllCoastlines(token), token)
+            End SyncLock
+        End Sub
+
+        ''' <summary>
+        ''' 预计算整张地图的海岸线类型（使用双缓冲避免锁竞争）
+        ''' </summary>
+        Private Sub PreCalculateAllCoastlines(token As CancellationToken)
+            If _mapBuilder?.MapData Is Nothing Then Return
+
+            Dim mapData = _mapBuilder.MapData
+            Dim mapWidth = mapData.MapWidth
+            Dim mapHeight = mapData.MapHeight
+
+            ' 创建新数组用于后台计算
+            Dim newArray = New Byte(mapWidth - 1, mapHeight - 1) {}
+
+            _isCalculatingCoast = True
+            Dim sw = Stopwatch.StartNew()
+            Dim calculatedCount As Integer = 0
+
+            Assist.DebugConsoleWinForms.Instance?.WriteLine($"[Coast] 开始预计算整张地图海岸线...")
+
+            For row As Integer = 0 To mapHeight - 1
+                ' 检查是否被取消
+                If token.IsCancellationRequested Then
+                    Assist.DebugConsoleWinForms.Instance?.WriteLine($"[Coast] 预计算被取消")
+                    _isCalculatingCoast = False
+                    Return
+                End If
+
+                ' 每处理 100 行让出时间片，避免占用太多 CPU
+                If row Mod 100 = 0 Then
+                    Thread.Sleep(1)
+                End If
+
+                For col As Integer = 0 To mapWidth - 1
+                    ' 检查是否被取消
+                    If token.IsCancellationRequested Then
+                        Assist.DebugConsoleWinForms.Instance?.WriteLine($"[Coast] 预计算被取消")
+                        _isCalculatingCoast = False
+                        Return
+                    End If
+
+                    Dim terrain = mapData.GetTerrainAt(col, row)
+                    If terrain Is Nothing Then Continue For
+
+                    ' 只计算海洋格子的海岸线
+                    If terrain.TileType1 = OCEAN_TILE_TYPE Then
+                        Dim decorationType = CalculateCoastDecorationType(mapData, col, row)
+                        newArray(col, row) = decorationType
+                        If decorationType >= 11 AndAlso decorationType <= 73 Then
+                            calculatedCount += 1
+                        End If
+                    Else
+                        ' 非海洋格子标记为 255（表示不需要渲染海岸线）
+                        newArray(col, row) = 255
+                    End If
+                Next
+            Next
+
+            ' 完成后交换数组引用（只需要极短的锁）
+            SyncLock _arraySwapLock
+                _coastDecorationArray = newArray
+            End SyncLock
+
+            sw.Stop()
+            _isCalculatingCoast = False
+            _cachedMapVersion = GetMapDataVersion(mapData)
+
+            Assist.DebugConsoleWinForms.Instance?.WriteLine($"[Coast] 预计算完成！耗时 {sw.ElapsedMilliseconds}ms，海岸线格子 {calculatedCount}")
+        End Sub
+
+#End Region
+
+#Region "初始化"
+
+        ''' <summary>
+        ''' 初始化 Paint 对象
+        ''' </summary>
+        Private Sub InitializePaintObjects()
+            ' 加载纹理图片
+            LoadTextures()
+
+            ' 海洋画笔
+            _seaPaint = New SKPaint()
+            _seaPaint.IsAntialias = True
+            _seaPaint.Style = SKPaintStyle.Fill
+            If _seaShader IsNot Nothing Then
+                _seaPaint.Shader = _seaShader
+            Else
+                _seaPaint.Color = DEFAULT_SEA_COLOR
+            End If
+
+            ' 陆地画笔
+            _landPaint = New SKPaint()
+            _landPaint.IsAntialias = True
+            _landPaint.Style = SKPaintStyle.Fill
+            If _landShader IsNot Nothing Then
+                _landPaint.Shader = _landShader
+            Else
+                _landPaint.Color = DEFAULT_LAND_COLOR
+            End If
+
+            ' 网格线画笔
+            _gridPaint = New SKPaint()
+            _gridPaint.IsAntialias = False
+            _gridPaint.Style = SKPaintStyle.Stroke
+            _gridPaint.Color = GRID_LINE_COLOR
+            _gridPaint.StrokeWidth = 1
+
+            ' 文字画笔
+            _textPaint = New SKPaint()
+            _textPaint.IsAntialias = True
+            _textPaint.Color = SKColors.White
+
+            ' 文字字体
+            _textFont = New SKFont(SKTypeface.Default, 10)
+
+            ' 河流画笔（蓝色）
+            _riverPaint = New SKPaint()
+            _riverPaint.IsAntialias = True
+            _riverPaint.Style = SKPaintStyle.Stroke
+            _riverPaint.Color = New SKColor(0, 0, 255, 255)
+            _riverPaint.StrokeWidth = 1
+        End Sub
+
+        ''' <summary>
+        ''' 加载纹理图片
+        ''' </summary>
+        Private Sub LoadTextures()
+            Try
+                ' 使用 ConfigManager 获取正确的资源路径
+                Dim configManager As Helpers.ConfigManager = Helpers.ConfigManager.Instance
+                Dim texturePath As String = configManager.GetTexturePath("MapTerrian")
+                
+                Dim seaTexturePath As String = System.IO.Path.Combine(texturePath, "MapSea.png")
+                Dim landTexturePath As String = System.IO.Path.Combine(texturePath, "MapLand.png")
+
+                System.Diagnostics.Debug.WriteLine($"[BackGroundRender] 纹理文件夹路径: {texturePath}")
+                System.Diagnostics.Debug.WriteLine($"[BackGroundRender] 海洋纹理路径: {seaTexturePath}")
+                System.Diagnostics.Debug.WriteLine($"[BackGroundRender] 陆地纹理路径: {landTexturePath}")
+
+                ' 加载海洋纹理
+                If System.IO.File.Exists(seaTexturePath) Then
+                    _seaTexture = SKBitmap.Decode(seaTexturePath)
+                    If _seaTexture IsNot Nothing Then
+                        ' 创建平铺着色器
+                        _seaShader = SKShader.CreateBitmap(_seaTexture, SKShaderTileMode.Repeat, SKShaderTileMode.Repeat)
+                        System.Diagnostics.Debug.WriteLine($"[BackGroundRender] 海洋纹理加载成功: {_seaTexture.Width}x{_seaTexture.Height}")
+                    End If
+                Else
+                    System.Diagnostics.Debug.WriteLine($"[BackGroundRender] 海洋纹理文件不存在: {seaTexturePath}")
+                End If
+
+                ' 加载陆地纹理
+                If System.IO.File.Exists(landTexturePath) Then
+                    ' 为SKImage单独加载一份（避免与SKBitmap共享内存）
+                    Try
+                        Using fileStream = System.IO.File.OpenRead(landTexturePath)
+                            _landImage = SKImage.FromEncodedData(fileStream)
+                        End Using
+                        System.Diagnostics.Debug.WriteLine($"[BackGroundRender] 陆地SKImage加载成功: {_landImage.Width}x{_landImage.Height}")
+                    Catch ex As Exception
+                        System.Diagnostics.Debug.WriteLine($"[BackGroundRender] 陆地SKImage加载失败: {ex.Message}")
+                        _landImage = Nothing
+                    End Try
+                    
+                    ' 为SKBitmap和Shader单独加载一份
+                    _landTexture = SKBitmap.Decode(landTexturePath)
+                    If _landTexture IsNot Nothing Then
+                        ' 创建平铺着色器
+                        _landShader = SKShader.CreateBitmap(_landTexture, SKShaderTileMode.Repeat, SKShaderTileMode.Repeat)
+                        System.Diagnostics.Debug.WriteLine($"[BackGroundRender] 陆地SKBitmap加载成功: {_landTexture.Width}x{_landTexture.Height}")
+                    End If
+                Else
+                    System.Diagnostics.Debug.WriteLine($"[BackGroundRender] 陆地纹理文件不存在: {landTexturePath}")
+                End If
+
+                System.Diagnostics.Debug.WriteLine($"[BackGroundRender] 纹理加载完成 - 海洋: {_seaTexture IsNot Nothing}, 陆地: {_landTexture IsNot Nothing}")
+            Catch ex As Exception
+                System.Diagnostics.Debug.WriteLine($"[BackGroundRender] 纹理加载失败: {ex.Message}")
+            End Try
+        End Sub
+
+#End Region
+
+#Region "渲染逻辑"
+
+        ''' <summary>
+        ''' 渲染到指定画布 - 由主渲染器调用
+        ''' </summary>
+        ''' <param name="canvas">目标画布</param>
+        Public Sub Render(canvas As SKCanvas)
+            If canvas Is Nothing OrElse _mapBuilder Is Nothing Then Return
+
+            ' 渲染背景层（六边形网格 + 陆地地形）
+            RenderBackground(canvas)
+        End Sub
+
+        ''' <summary>
+        ''' 渲染背景层（六边形网格和陆地地形）- 使用大离屏缓存
+        ''' </summary>
+        Private Sub RenderBackground(canvas As SKCanvas)
+            Dim offsetX As Double
+            Dim offsetY As Double
+            Dim zoomLevel As Double
+            Dim showGridLines As Boolean
+            Dim viewportWidth As Integer
+            Dim viewportHeight As Integer
+            Dim enableBackgroundRender As Boolean
+            Dim enableTerrainsRender As Boolean
+
+            _stateLock.EnterReadLock()
+            Try
+                offsetX = _offsetX
+                offsetY = _offsetY
+                zoomLevel = _zoomLevel
+                showGridLines = _showGridLines
+                viewportWidth = _viewportWidth
+                viewportHeight = _viewportHeight
+                enableBackgroundRender = _enableBackgroundRender
+                enableTerrainsRender = _enableTerrainsRender
+            Finally
+                _stateLock.ExitReadLock()
+            End Try
+
+            _frameCount += 1
+
+            If viewportWidth <= 0 OrElse viewportHeight <= 0 Then Return
+
+            ' 检查组合缓存是否有效
+            Dim cacheInvalid As Boolean =
+                _bgCacheImage Is Nothing OrElse
+                Math.Abs(_cachedBgZoomLevel - zoomLevel) > 0.001 OrElse
+                _cachedBgWidth <> viewportWidth OrElse
+                _cachedBgHeight <> viewportHeight OrElse
+                _cachedBgShowLayer2 <> _showLayer2 OrElse
+                _cachedBgShowGridLines <> showGridLines OrElse
+                Math.Abs(offsetX - _cachedBgCenterX) > viewportWidth * 0.5 OrElse
+                Math.Abs(offsetY - _cachedBgCenterY) > viewportHeight * 0.5
+
+            If Not cacheInvalid Then
+                ' 缓存命中：从大画面中取出视口区域
+                ' srcX = vpW/2 - (offsetX_current - offsetX_build)
+                Dim srcX As Single = CSng(viewportWidth * 0.5 - (offsetX - _cachedBgCenterX))
+                Dim srcY As Single = CSng(viewportHeight * 0.5 - (offsetY - _cachedBgCenterY))
+                canvas.DrawImage(_bgCacheImage,
+                    New SKRect(srcX, srcY, srcX + viewportWidth, srcY + viewportHeight),
+                    New SKRect(0, 0, viewportWidth, viewportHeight))
+                Return
+            End If
+
+            ' 缓存失效：重建 2x 视口大小的离屏画面
+            Dim sw = Stopwatch.StartNew()
+            _bgCacheImage?.Dispose()
+            _bgCacheImage = Nothing
+
+            Dim cacheW As Integer = viewportWidth * 2
+            Dim cacheH As Integer = viewportHeight * 2
+
+            ' 计算缓存记录时的偏移：让当前视口位于缓存画面的正中央
+            Dim cacheOffsetX As Double = offsetX + viewportWidth * 0.5
+            Dim cacheOffsetY As Double = offsetY + viewportHeight * 0.5
+
+            Dim hexSize As Single = CSng(BASE_HEX_SIZE * zoomLevel)
+            Dim hexSpacingX As Double = HEX_HORIZONTAL_SPACING * zoomLevel
+            Dim hexSpacingY As Double = HEX_VERTICAL_SPACING * zoomLevel
+
+            Using surface = SKSurface.Create(New SKImageInfo(cacheW, cacheH))
+                Dim cacheCanvas = surface.Canvas
+
+                ' 渲染六边形网格
+                If enableBackgroundRender AndAlso _seaPaint IsNot Nothing AndAlso _landPaint IsNot Nothing Then
+                    RenderHexGridToCanvas(cacheCanvas, cacheOffsetX, cacheOffsetY, hexSize,
+                        hexSpacingX, hexSpacingY, showGridLines, cacheW, cacheH, zoomLevel)
+                End If
+
+                ' 渲染陆地地形
+                If enableTerrainsRender AndAlso _landTerrainsRender IsNot Nothing Then
+                    _landTerrainsRender.OffsetX = cacheOffsetX
+                    _landTerrainsRender.OffsetY = cacheOffsetY
+                    _landTerrainsRender.ZoomLevel = zoomLevel
+                    _landTerrainsRender.ViewportWidth = cacheW
+                    _landTerrainsRender.ViewportHeight = cacheH
+                    _landTerrainsRender.ShowLayer2 = _showLayer2
+                    _landTerrainsRender.Render(cacheCanvas)
+                End If
+
+                _bgCacheImage = surface.Snapshot()
+            End Using
+
+            _cachedBgCenterX = offsetX
+            _cachedBgCenterY = offsetY
+            _cachedBgZoomLevel = zoomLevel
+            _cachedBgWidth = viewportWidth
+            _cachedBgHeight = viewportHeight
+            _cachedBgShowLayer2 = _showLayer2
+            _cachedBgShowGridLines = showGridLines
+
+            sw.Stop()
+            If _frameCount Mod 30 = 0 Then
+                Assist.DebugConsoleWinForms.Instance.WriteLine(
+                    $"[BGRender] Frame={_frameCount} CacheRebuild={sw.ElapsedMilliseconds}ms")
+            End If
+
+            ' 绘制视口区域（刚重建，offsetX == _cachedBgCenterX，映射到中心）
+            Dim srcX2 As Single = CSng(viewportWidth * 0.5 - (offsetX - _cachedBgCenterX))
+            Dim srcY2 As Single = CSng(viewportHeight * 0.5 - (offsetY - _cachedBgCenterY))
+            canvas.DrawImage(_bgCacheImage,
+                New SKRect(srcX2, srcY2, srcX2 + viewportWidth, srcY2 + viewportHeight),
+                New SKRect(0, 0, viewportWidth, viewportHeight))
+        End Sub
+
+        ''' <summary>
+        ''' 渲染陆地地形
+        ''' </summary>
+        Private Sub RenderLandTerrains(canvas As SKCanvas, offsetX As Double, offsetY As Double,
+                                        zoomLevel As Double, viewportWidth As Integer, viewportHeight As Integer)
+            If _landTerrainsRender Is Nothing Then Return
+
+            ' 同步陆地地形渲染器状态（与当前渲染线程状态一致）
+            _landTerrainsRender.OffsetX = offsetX
+            _landTerrainsRender.OffsetY = offsetY
+            _landTerrainsRender.ZoomLevel = zoomLevel
+            _landTerrainsRender.ViewportWidth = viewportWidth
+            _landTerrainsRender.ViewportHeight = viewportHeight
+            _landTerrainsRender.ShowLayer2 = _showLayer2
+
+            ' 渲染陆地地形
+            _landTerrainsRender.Render(canvas)
+        End Sub
+
+        ''' <summary>
+        ''' 渲染六边形网格到指定画布（不缓存，由调用方负责缓存）
+        ''' </summary>
+        Private Sub RenderHexGridToCanvas(canvas As SKCanvas, offsetX As Double, offsetY As Double,
+                                   hexSize As Single, hexSpacingX As Double, hexSpacingY As Double,
+                                   showGridLines As Boolean, viewportWidth As Integer, viewportHeight As Integer,
+                                   zoomLevel As Double)
+
+            Dim mapWidth As Integer = Me.MapWidth
+            Dim mapHeight As Integer = Me.MapHeight
+
+            If mapWidth <= 0 OrElse mapHeight <= 0 Then Return
+
+            ' 计算可见范围（海岸线不需要边距，只渲染屏幕内的）
+            Dim padding As Integer = 0
+            Dim visibleCols As Integer = CInt(viewportWidth / hexSpacingX) + 1
+            Dim visibleRows As Integer = CInt(viewportHeight / hexSpacingY) + 1
+
+            Dim startCol As Integer = Math.Max(0, CInt((-offsetX) / hexSpacingX))
+            Dim startRow As Integer = Math.Max(0, CInt((-offsetY) / hexSpacingY))
+            Dim endCol As Integer = Math.Min(mapWidth - 1, startCol + visibleCols)
+            Dim endRow As Integer = Math.Min(mapHeight - 1, startRow + visibleRows)
+
+            ' 获取六边形路径
+            Dim hexPath As SKPath = GetHexPath(hexSize)
+
+            ' 创建海洋和陆地的路径集合
+            Dim seaPath As New SKPath()
+            Dim landPath As New SKPath()
+
+            ' 收集所有可见六边形的路径
+            For col As Integer = startCol To endCol
+                Dim centerX As Double = offsetX + col * hexSpacingX
+                Dim rowOffsetY As Double = offsetY + (col Mod 2) * (hexSpacingY / 2)
+
+                For row As Integer = startRow To endRow
+                    Dim centerY As Double = rowOffsetY + row * hexSpacingY
+
+                    ' 检查是否在视口内
+                    If centerX + hexSize < 0 OrElse centerX - hexSize > viewportWidth OrElse
+                       centerY + hexSize < 0 OrElse centerY - hexSize > viewportHeight Then
+                        Continue For
+                    End If
+
+                    ' 获取地形类型并添加到对应路径
+                    Dim isLand As Boolean = IsLandAt(col, row)
+                    Dim targetPath As SKPath = If(isLand, landPath, seaPath)
+
+                    ' 将六边形路径添加到目标路径
+                    Dim matrix As SKMatrix = SKMatrix.CreateTranslation(CSng(centerX), CSng(centerY))
+                    targetPath.AddPath(hexPath, matrix)
+                Next
+            Next
+
+            ' 绘制海洋（使用全局纹理平铺）
+            If Not seaPath.IsEmpty Then
+                DrawTexturedRegion(canvas, seaPath, False, offsetX, offsetY, viewportWidth, viewportHeight, zoomLevel)
+            End If
+
+            ' 绘制陆地（使用全局纹理平铺）
+            If Not landPath.IsEmpty Then
+                DrawTexturedRegion(canvas, landPath, True, offsetX, offsetY, viewportWidth, viewportHeight, zoomLevel)
+            End If
+
+            ' 绘制网格线（如果需要）
+            If showGridLines AndAlso _gridPaint IsNot Nothing Then
+                ' 动态调整边框粗细：基于缩放级别，最小 0.5，最大 3.0
+                Dim dynamicStrokeWidth As Single = Math.Max(0.5F, Math.Min(3.0F, CSng(zoomLevel * 0.8)))
+                _gridPaint.StrokeWidth = dynamicStrokeWidth
+                canvas.DrawPath(seaPath, _gridPaint)
+                canvas.DrawPath(landPath, _gridPaint)
+            End If
+
+            ' 渲染海岸线（在海洋/陆地背景之上）
+            If _enableCoastRender Then
+                ' 设置平地纹理用于海岸线遮罩蓝色区域覆盖海洋恢复为平地
+                If _coastMaskProcessor IsNot Nothing AndAlso _landImage IsNot Nothing Then
+                     _coastMaskProcessor.SetLandTexture(_landImage)
+                End If
+                RenderCoastlines(canvas, offsetX, offsetY, hexSpacingX, hexSpacingY, 
+                                 startCol, endCol, startRow, endRow, zoomLevel)
+            End If
+
+            ' 绘制河流
+            RenderRivers(canvas, offsetX, offsetY, hexSize, hexSpacingX, hexSpacingY, startRow, endRow, startCol, endCol, zoomLevel)
+
+            ' 释放路径
+            seaPath.Dispose()
+            landPath.Dispose()
+        End Sub
+
+        ''' <summary>
+        ''' 渲染河流
+        ''' </summary>
+        ''' <param name="canvas">目标画布</param>
+        ''' <param name="offsetX">X 偏移</param>
+        ''' <param name="offsetY">Y 偏移</param>
+        ''' <param name="hexSize">六边形大小</param>
+        ''' <param name="hexSpacingX">六边形水平间距</param>
+        ''' <param name="hexSpacingY">六边形垂直间距</param>
+        ''' <param name="startRow">起始行</param>
+        ''' <param name="endRow">结束行</param>
+        ''' <param name="startCol">起始列</param>
+        ''' <param name="endCol">结束列</param>
+        ''' <param name="zoomLevel">缩放级别</param>
+        Private Sub RenderRivers(canvas As SKCanvas, offsetX As Double, offsetY As Double,
+                                 hexSize As Single, hexSpacingX As Double, hexSpacingY As Double,
+                                 startRow As Integer, endRow As Integer,
+                                 startCol As Integer, endCol As Integer,
+                                 zoomLevel As Double)
+            If _riverPaint Is Nothing OrElse _mapBuilder?.MapData Is Nothing Then Return
+
+            ' 动态调整河流线宽度：基于缩放级别，最小 1，最大 5
+            Dim dynamicLineWidth As Single = Math.Max(1.0F, Math.Min(5.0F, CSng(hexSize / 15)))
+            _riverPaint.StrokeWidth = dynamicLineWidth
+
+            ' 计算六边形顶点（平顶六边形）
+            Dim sqrt3 As Double = Math.Sqrt(3)
+            Dim halfSize As Double = hexSize / 2
+            Dim height As Double = hexSize * sqrt3 / 2
+
+            ' 遍历可见范围内的所有格子
+            For col As Integer = startCol To endCol
+                Dim centerX As Double = offsetX + col * hexSpacingX
+                Dim rowOffsetY As Double = offsetY + (col Mod 2) * (hexSpacingY / 2)
+
+                For row As Integer = startRow To endRow
+                    Dim centerY As Double = rowOffsetY + row * hexSpacingY
+
+                    ' 获取地形数据
+                    Dim terrain = _mapBuilder.MapData.GetTerrainAt(col, row)
+                    If terrain Is Nothing Then Continue For
+
+                    ' 检查是否有河流值
+                    If terrain.RiverValue > 0 Then
+                        ' 计算六边形的六个顶点（平顶六边形）
+                        ' 顶点 0：左上，顶点 1：右上，顶点 2：右，顶点 3：右下，顶点 4：左下，顶点 5：左
+                        Dim vertices(5) As SKPoint
+                        vertices(0) = New SKPoint(CSng(centerX - halfSize), CSng(centerY - height))  ' 左上
+                        vertices(1) = New SKPoint(CSng(centerX + halfSize), CSng(centerY - height))  ' 右上
+                        vertices(2) = New SKPoint(CSng(centerX + hexSize), CSng(centerY))             ' 右
+                        vertices(3) = New SKPoint(CSng(centerX + halfSize), CSng(centerY + height))  ' 右下
+                        vertices(4) = New SKPoint(CSng(centerX - halfSize), CSng(centerY + height))  ' 左下
+                        vertices(5) = New SKPoint(CSng(centerX - hexSize), CSng(centerY))             ' 左
+
+                        ' 根据河流值的位定义绘制对应的边（平顶六边形）：
+                        ' 位 0 (0x01): 上边 (顶点 0 到顶点 1)
+                        If (terrain.RiverValue And &H01) > 0 Then
+                            canvas.DrawLine(vertices(0), vertices(1), _riverPaint)
+                        End If
+
+                        ' 位 1 (0x02): 右上边 (顶点 1 到顶点 2)
+                        If (terrain.RiverValue And &H02) > 0 Then
+                            canvas.DrawLine(vertices(1), vertices(2), _riverPaint)
+                        End If
+
+                        ' 位 2 (0x04): 右下边 (顶点 2 到顶点 3)
+                        If (terrain.RiverValue And &H04) > 0 Then
+                            canvas.DrawLine(vertices(2), vertices(3), _riverPaint)
+                        End If
+
+                        ' 位 3 (0x08): 下边 (顶点 3 到顶点 4)
+                        If (terrain.RiverValue And &H08) > 0 Then
+                            canvas.DrawLine(vertices(3), vertices(4), _riverPaint)
+                        End If
+
+                        ' 位 4 (0x10): 左下边 (顶点 4 到顶点 5)
+                        If (terrain.RiverValue And &H10) > 0 Then
+                            canvas.DrawLine(vertices(4), vertices(5), _riverPaint)
+                        End If
+
+                        ' 位 5 (0x20): 左上边 (顶点 5 到顶点 0)
+                        If (terrain.RiverValue And &H20) > 0 Then
+                            canvas.DrawLine(vertices(5), vertices(0), _riverPaint)
+                        End If
+                    End If
+                Next
+            Next
+        End Sub
+
+        #Region "海岸线渲染"
+
+        ''' <summary>
+        ''' 渲染海岸线 - 在海洋/陆地背景之上渲染海岸线精灵
+        ''' 对于海洋格子，根据周围陆地邻居的分布自动计算海岸线类型
+        ''' </summary>
+        Private Sub RenderCoastlines(canvas As SKCanvas,
+                                     offsetX As Double, offsetY As Double,
+                                     hexSpacingX As Double, hexSpacingY As Double,
+                                     startCol As Integer, endCol As Integer,
+                                     startRow As Integer, endRow As Integer,
+                                     zoomLevel As Double)
+            If _mapBuilder?.MapData Is Nothing Then Return
+            If _coastHelper Is Nothing Then Return
+
+            Dim sw = Stopwatch.StartNew()
+            Dim mapData = _mapBuilder.MapData
+            Dim canUseMask = _coastHelper.IsAtlasLoaded AndAlso _coastHelper.IsGrayLevelAtlasLoaded
+
+            ' 检测相机移动
+            Dim cameraMoved As Boolean = Math.Abs(offsetX - _lastCameraX) > 1 OrElse Math.Abs(offsetY - _lastCameraY) > 1
+            If cameraMoved Then
+                _isCameraMoving = True
+                _lastCameraMoveTime = DateTime.Now
+                _lastCameraX = offsetX
+                _lastCameraY = offsetY
+            Else
+                ' 检查相机是否停止移动超过延迟时间
+                If _isCameraMoving AndAlso (DateTime.Now - _lastCameraMoveTime).TotalMilliseconds > _coastUpdateDelayMs Then
+                    _isCameraMoving = False
+                End If
+            End If
+
+            ' 相机移动时降低渲染质量（跳过海岸线）或只渲染部分
+            If _isCameraMoving AndAlso zoomLevel > 0.5 Then
+                ' 快速移动时跳过海岸线渲染，提高响应性
+                Return
+            End If
+
+            ' 如果数组还没准备好，跳过渲染
+            If _coastDecorationArray Is Nothing Then
+                Return
+            End If
+
+            Dim renderSw = Stopwatch.StartNew()
+            Dim renderSuccess As Boolean = False
+
+            Try
+                Using paint As New SKPaint()
+                    paint.IsAntialias = True
+#Disable Warning BC40000
+                    paint.FilterQuality = SKFilterQuality.Low
+#Enable Warning BC40000
+
+                    ' 优先使用图集渲染
+                    If _coastHelper.IsAtlasLoaded Then
+                        Dim atlasImage = _coastHelper.GetCoastAtlasImage()
+                        If atlasImage IsNot Nothing Then
+                            RenderCoastFromAtlasCached(canvas, mapData, atlasImage, offsetX, offsetY,
+                                                hexSpacingX, hexSpacingY, startCol, endCol,
+                                                startRow, endRow, zoomLevel, canUseMask, paint)
+                            renderSuccess = True
+                        End If
+                    End If
+
+                    ' 回退：使用单独图片渲染
+                    If Not renderSuccess Then
+                        RenderCoastFromImagesCached(canvas, mapData, offsetX, offsetY,
+                                             hexSpacingX, hexSpacingY, startCol, endCol,
+                                             startRow, endRow, zoomLevel, canUseMask, paint)
+                    End If
+                End Using
+            Catch ex As Exception
+                Assist.DebugConsoleWinForms.Instance?.WriteLine($"[Coast] 渲染异常: {ex.Message}")
+            End Try
+            
+            renderSw.Stop()
+            sw.Stop()
+            
+            Dim console = Assist.DebugConsoleWinForms.Instance
+            If console IsNot Nothing Then
+                Dim visibleCells = (endCol - startCol + 1) * (endRow - startRow + 1)
+                Dim arraySize = If(_coastDecorationArray IsNot Nothing, $"{_coastDecorationArray.GetLength(0)}x{_coastDecorationArray.GetLength(1)}", "未初始化")
+                console.WriteLine($"[Coast] 总耗时 {sw.ElapsedMilliseconds}ms | 渲染 {renderSw.ElapsedMilliseconds}ms | 可见格子 {visibleCells} | 数组 {arraySize}")
+            End If
+        End Sub
+
+        ''' <summary>
+        ''' 获取地图数据版本（用于检测变化）
+        ''' </summary>
+        Private Function GetMapDataVersion(mapData As MapData) As Integer
+            ' 简单的版本检测：基于地图尺寸和第一个/最后一个格子的地形类型
+            If mapData?.Terrains Is Nothing OrElse mapData.Terrains.Count = 0 Then Return 0
+            Dim first = mapData.Terrains(0)
+            Dim last = mapData.Terrains(mapData.Terrains.Count - 1)
+            Return mapData.MapWidth * 10000 + mapData.MapHeight * 100 + 
+                   first.TileType1 + last.TileType1 + _coastCacheVersion
+        End Function
+
+        ''' <summary>
+        ''' 使海岸线缓存失效 - 当地形被修改时调用
+        ''' </summary>
+        Public Sub InvalidateCoastCache()
+            _coastCacheVersion += 1
+            ' 重新预计算（带取消机制）
+            StartCoastPrecomputation()
+        End Sub
+
+        ''' <summary>
+        ''' 使指定区域的海岸线缓存失效
+        ''' </summary>
+        Public Sub InvalidateCoastCacheRegion(centerCol As Integer, centerRow As Integer, radius As Integer)
+            If _coastDecorationArray Is Nothing Then Return
+            If _mapBuilder?.MapData Is Nothing Then Return
+
+            Dim mapData = _mapBuilder.MapData
+            Dim mapWidth = mapData.MapWidth
+            Dim mapHeight = mapData.MapHeight
+
+            Assist.DebugConsoleWinForms.Instance?.WriteLine(
+                $"[BackGroundRender] InvalidateCoastCacheRegion ({centerCol},{centerRow}) radius={radius}")
+
+            ' 重新计算指定半径范围内的海岸线
+            For row As Integer = Math.Max(0, centerRow - radius) To Math.Min(mapHeight - 1, centerRow + radius)
+                For col As Integer = Math.Max(0, centerCol - radius) To Math.Min(mapWidth - 1, centerCol + radius)
+                    Dim dist = Math.Abs(col - centerCol) + Math.Abs(row - centerRow)
+                    If dist > radius Then Continue For
+
+                    Dim terrain = mapData.GetTerrainAt(col, row)
+                    If terrain Is Nothing Then Continue For
+
+                    If terrain.TileType1 = OCEAN_TILE_TYPE Then
+                        Dim oldDecoration = _coastDecorationArray(col, row)
+                        Dim newDecoration = CalculateCoastDecorationType(mapData, col, row)
+                        _coastDecorationArray(col, row) = newDecoration
+                        If oldDecoration <> newDecoration Then
+                            Assist.DebugConsoleWinForms.Instance?.WriteLine(
+                                $"[BackGroundRender] 海洋格 ({col},{row}) 装饰类型: {oldDecoration} -> {newDecoration}")
+                        End If
+                    Else
+                        If _coastDecorationArray(col, row) <> 255 Then
+                            _coastDecorationArray(col, row) = 255
+                            Assist.DebugConsoleWinForms.Instance?.WriteLine(
+                                $"[BackGroundRender] 平地格 ({col},{row}) 清除海岸线缓存")
+                        End If
+                    End If
+                Next
+            Next
+        End Sub
+
+        ''' <summary>
+        ''' 海岸线绘制调用结构
+        ''' </summary>
+        Private Structure CoastDrawCall
+            Public CenterX As Single
+            Public CenterY As Single
+            Public SpriteName As String
+            Public DecorationType As Byte
+        End Structure
+
+        ''' <summary>
+        ''' 从图集渲染海岸线（使用缓冲区避免GC）
+        ''' </summary>
+        Private Sub RenderCoastFromAtlasCached(canvas As SKCanvas, mapData As MapData,
+                                         atlasImage As SKImage, offsetX As Double, offsetY As Double,
+                                         hexSpacingX As Double, hexSpacingY As Double,
+                                         startCol As Integer, endCol As Integer,
+                                         startRow As Integer, endRow As Integer,
+                                         zoomLevel As Double, canUseMask As Boolean, paint As SKPaint)
+            Dim hexSize As Single = CSng(BASE_HEX_SIZE * zoomLevel)
+
+            ' 缩放值小于 25% 时跳过海岸线纹理渲染
+            If zoomLevel < 0.25 Then Return
+
+            ' 重置缓冲区计数
+            _coastDrawCallCount = 0
+            _spriteGroupBuffer.Clear()
+
+            ' 第一步：批量收集所有需要绘制的海岸线
+            For row As Integer = startRow To endRow
+                For col As Integer = startCol To endCol
+                    Try
+                        ' 获取当前数组引用（双缓冲，无锁读取）
+                        Dim currentArray As Byte(,) = _coastDecorationArray
+                        If currentArray Is Nothing Then Continue For
+
+                        ' 检查数组边界
+                        If col < 0 OrElse col >= currentArray.GetLength(0) OrElse
+                           row < 0 OrElse row >= currentArray.GetLength(1) Then
+                            Continue For
+                        End If
+
+                        ' 从预计算数组获取海岸线类型（无锁读取）
+                        Dim decorationType = currentArray(col, row)
+                        If decorationType < 11 OrElse decorationType > 73 Then Continue For
+
+                        ' 计算六边形中心位置（与背景网格一致）
+                        Dim centerX = CSng(offsetX + col * hexSpacingX)
+                        Dim rowOffsetY = CSng(offsetY + (col Mod 2) * (hexSpacingY / 2))
+                        Dim centerY = CSng(rowOffsetY + row * hexSpacingY)
+
+                        ' 获取精灵名称
+                        Dim spriteName = _coastHelper.GetCoastSpriteName(COAST_TILE_TYPE, decorationType)
+                        If spriteName Is Nothing Then Continue For
+
+                        ' 扩展缓冲区如果需要
+                        If _coastDrawCallCount >= _coastDrawCallBuffer.Length Then
+                            Array.Resize(_coastDrawCallBuffer, _coastDrawCallBuffer.Length * 2)
+                        End If
+
+                        ' 使用缓冲区而不是创建新对象
+                        _coastDrawCallBuffer(_coastDrawCallCount) = New CoastDrawCall With {
+                            .CenterX = centerX,
+                            .CenterY = centerY,
+                            .SpriteName = spriteName,
+                            .DecorationType = decorationType
+                        }
+
+                        ' 添加到分组
+                        If Not _spriteGroupBuffer.ContainsKey(spriteName) Then
+                            _spriteGroupBuffer(spriteName) = New List(Of Integer)()
+                        End If
+                        _spriteGroupBuffer(spriteName).Add(_coastDrawCallCount)
+
+                        _coastDrawCallCount += 1
+                    Catch ex As Exception
+                        Continue For
+                    End Try
+                Next
+            Next
+
+            ' 第二步：批量绘制
+            DrawCoastBatchFromBuffer(canvas, hexSize, canUseMask, paint, zoomLevel)
+        End Sub
+
+        ''' <summary>
+        ''' 从缓冲区批量绘制海岸线
+        ''' </summary>
+        Private Sub DrawCoastBatchFromBuffer(canvas As SKCanvas, hexSize As Single,
+                                    canUseMask As Boolean, paint As SKPaint, zoomLevel As Double)
+            If _coastDrawCallCount = 0 Then Return
+
+            ' 批量绘制每组
+            For Each kvp In _spriteGroupBuffer
+                Dim spriteName = kvp.Key
+                Dim indices = kvp.Value
+
+                ' 获取预裁剪的六边形图块
+                Dim hexCoastImage = _coastHelper.GetHexagonCoastImage(spriteName)
+                If hexCoastImage Is Nothing Then Continue For
+
+                ' 获取图集中的源矩形用于计算绘制尺寸
+                Dim srcRect = _coastHelper.GetCoastAtlasSpriteRect(spriteName)
+                If Not srcRect.HasValue Then Continue For
+
+                ' 计算绘制尺寸和位置
+                Dim origin = _coastHelper.GetCoastAtlasSpriteOrigin(spriteName)
+                Dim refOffsetX As Single = 0
+                Dim refOffsetY As Single = 0
+                If origin.HasValue Then
+                    refOffsetX = CSng(origin.Value.X - srcRect.Value.Width / 2)
+                    refOffsetY = CSng(origin.Value.Y - srcRect.Value.Height / 2)
+                End If
+
+                Dim baseScale As Single = Math.Max(
+                    CSng(hexSize * 2 / srcRect.Value.Width),
+                    CSng(hexSize * 2 / srcRect.Value.Height))
+
+                ' 批量绘制该组的所有海岸线
+                For Each index In indices
+                    Dim drawCall = _coastDrawCallBuffer(index)
+                    Dim drawWidth As Single = srcRect.Value.Width * baseScale
+                    Dim drawHeight As Single = srcRect.Value.Height * baseScale
+
+                    Dim dstRect As New SKRect(
+                        drawCall.CenterX - drawWidth / 2 + refOffsetX * baseScale,
+                        drawCall.CenterY - drawHeight / 2 + refOffsetY * baseScale,
+                        drawCall.CenterX + drawWidth / 2 + refOffsetX * baseScale,
+                        drawCall.CenterY + drawHeight / 2 + refOffsetY * baseScale
+                    )
+
+                    ' 使用预裁剪的六边形图块进行渲染
+                    ' 优先使用最终合成图集（高性能，无需任何遮罩操作）
+                    If _coastMaskProcessor IsNot Nothing AndAlso _coastMaskProcessor.HasFinalAtlas Then
+                        _coastMaskProcessor.DrawFinalCoast(canvas, spriteName, dstRect, paint, zoomLevel)
+                    ElseIf canUseMask AndAlso _coastMaskProcessor IsNot Nothing AndAlso _coastMaskProcessor.HasMask(spriteName) Then
+                        _coastMaskProcessor.DrawMaskedCoastWithHexImage(canvas, hexCoastImage, spriteName, dstRect, paint, zoomLevel)
+                    Else
+                        canvas.DrawImage(hexCoastImage, dstRect, paint)
+                    End If
+                Next
+
+                ' 清空列表以便复用
+                indices.Clear()
+            Next
+        End Sub
+
+        ''' <summary>
+        ''' 回退渲染：当六边形图块未生成时使用原始图集渲染
+        ''' </summary>
+        Private Sub FallbackRenderCoastFromAtlas(canvas As SKCanvas, atlasImage As SKImage,
+                                                  spriteName As String, centerX As Double, centerY As Double,
+                                                  hexSize As Double, paint As SKPaint)
+            Try
+                Dim srcRect = _coastHelper.GetCoastAtlasSpriteRect(spriteName)
+                If Not srcRect.HasValue Then Return
+
+                Dim origin = _coastHelper.GetCoastAtlasSpriteOrigin(spriteName)
+                Dim refOffsetX As Single = 0
+                Dim refOffsetY As Single = 0
+                If origin.HasValue Then
+                    refOffsetX = CSng(origin.Value.X - srcRect.Value.Width / 2)
+                    refOffsetY = CSng(origin.Value.Y - srcRect.Value.Height / 2)
+                End If
+
+                Dim scale As Single = Math.Max(
+                    CSng(hexSize * 2 / srcRect.Value.Width),
+                    CSng(hexSize * 2 / srcRect.Value.Height))
+                Dim drawWidth As Single = srcRect.Value.Width * scale
+                Dim drawHeight As Single = srcRect.Value.Height * scale
+
+                Dim dstRect As New SKRect(
+                    CSng(centerX - drawWidth / 2 + refOffsetX * scale),
+                    CSng(centerY - drawHeight / 2 + refOffsetY * scale),
+                    CSng(centerX + drawWidth / 2 + refOffsetX * scale),
+                    CSng(centerY + drawHeight / 2 + refOffsetY * scale)
+                )
+
+                canvas.DrawImage(atlasImage, srcRect.Value, dstRect, paint)
+            Catch ex As Exception
+                System.Diagnostics.Debug.WriteLine($"[FallbackRenderCoastFromAtlas] 回退渲染失败 [{spriteName}]: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' 从单独图片渲染海岸线（简化版本，不使用裁剪避免性能问题）
+        ''' </summary>
+        Private Sub RenderCoastFromImagesCached(canvas As SKCanvas, mapData As MapData,
+                                          offsetX As Double, offsetY As Double,
+                                          hexSpacingX As Double, hexSpacingY As Double,
+                                          startCol As Integer, endCol As Integer,
+                                          startRow As Integer, endRow As Integer,
+                                          zoomLevel As Double, canUseMask As Boolean, paint As SKPaint)
+            Dim hexSize = BASE_HEX_SIZE * zoomLevel
+
+            ' 缩放值小于 25% 时跳过海岸线纹理渲染
+            If zoomLevel < 0.25 Then Return
+
+            For row As Integer = startRow To endRow
+                For col As Integer = startCol To endCol
+                    Try
+                        ' 获取当前数组引用（双缓冲，无锁读取）
+                        Dim currentArray As Byte(,) = _coastDecorationArray
+                        If currentArray Is Nothing Then Continue For
+
+                        ' 检查数组边界
+                        If col < 0 OrElse col >= currentArray.GetLength(0) OrElse
+                           row < 0 OrElse row >= currentArray.GetLength(1) Then
+                            Continue For
+                        End If
+
+                        ' 从预计算数组获取海岸线类型（无锁读取）
+                        Dim decorationType = currentArray(col, row)
+                        If decorationType < 11 OrElse decorationType > 73 Then Continue For
+
+                        Dim centerX = offsetX + col * hexSpacingX
+                        Dim rowOffsetY = offsetY + (col Mod 2) * (hexSpacingY / 2)
+                        Dim centerY = rowOffsetY + row * hexSpacingY
+
+                        Dim coastImage = _coastHelper.GetCoastImageByDoodad(COAST_TILE_TYPE, decorationType)
+                        If coastImage Is Nothing Then Continue For
+
+                        Dim spriteName = _coastHelper.GetCoastSpriteName(COAST_TILE_TYPE, decorationType)
+
+                        Dim scale As Single = Math.Max(
+                            CSng(hexSize * 2 / coastImage.Width),
+                            CSng(hexSize * 2 / coastImage.Height))
+                        Dim drawWidth As Single = coastImage.Width * scale
+                        Dim drawHeight As Single = coastImage.Height * scale
+
+                        Dim dstRect As New SKRect(
+                            CSng(centerX - drawWidth / 2),
+                            CSng(centerY - drawHeight / 2),
+                            CSng(centerX + drawWidth / 2),
+                            CSng(centerY + drawHeight / 2)
+                        )
+
+                        ' 直接绘制，不使用Save/Restore/ClipPath避免性能问题
+                        If canUseMask AndAlso _coastMaskProcessor IsNot Nothing AndAlso _coastMaskProcessor.HasMask(spriteName) Then
+                            _coastMaskProcessor.DrawMaskedCoast(canvas, coastImage,
+                                New SKRect(0, 0, coastImage.Width, coastImage.Height), spriteName, dstRect, paint, zoomLevel)
+                        Else
+                            canvas.DrawImage(coastImage, dstRect, paint)
+                        End If
+                    Catch ex As Exception
+                        ' 单个格子渲染失败，继续渲染其他格子
+                        System.Diagnostics.Debug.WriteLine($"[RenderCoastFromImages] 渲染格子 ({col},{row}) 失败: {ex.Message}")
+                        Continue For
+                    End Try
+                Next
+            Next
+        End Sub
+
+        ''' <summary>
+        ''' 根据周围陆地邻居计算海岸线装饰类型
+        ''' </summary>
+        Private Function CalculateCoastDecorationType(mapData As MapData, col As Integer, row As Integer) As Byte
+            Dim nonOceanNeighbors = GetNonOceanNeighbors(mapData, col, row)
+
+            Select Case nonOceanNeighbors.Count
+                Case 0 : Return 10
+                Case 1 : Return GetDecorationForSingleNeighbor(nonOceanNeighbors(0).Direction)
+                Case 2 : Return GetDecorationForTwoNeighbors(nonOceanNeighbors(0).Direction, nonOceanNeighbors(1).Direction)
+                Case 3 : Return GetDecorationForThreeNeighbors(nonOceanNeighbors(0).Direction, nonOceanNeighbors(1).Direction, nonOceanNeighbors(2).Direction)
+                Case 4 : Return GetDecorationForFourNeighbors(nonOceanNeighbors(0).Direction, nonOceanNeighbors(1).Direction, nonOceanNeighbors(2).Direction, nonOceanNeighbors(3).Direction)
+                Case 5 : Return GetDecorationForFiveNeighbors(nonOceanNeighbors(0).Direction, nonOceanNeighbors(1).Direction, nonOceanNeighbors(2).Direction, nonOceanNeighbors(3).Direction, nonOceanNeighbors(4).Direction)
+                Case 6 : Return 11
+                Case Else : Return 10
+            End Select
+        End Function
+
+        ''' <summary>
+        ''' 邻居信息结构
+        ''' </summary>
+        Private Structure NeighborInfo
+            Public Col As Integer
+            Public Row As Integer
+            Public Direction As String
+        End Structure
+
+        ''' <summary>
+        ''' 获取非海洋邻居格子
+        ''' </summary>
+        Private Function GetNonOceanNeighbors(mapData As MapData, col As Integer, row As Integer) As List(Of NeighborInfo)
+            Dim result As New List(Of NeighborInfo)()
+            Dim isEven As Boolean = (col Mod 2 = 0)
+
+            Dim evenOffsets As Integer(,) = New Integer(,) {{0, -1}, {1, -1}, {1, 0}, {0, 1}, {-1, 0}, {-1, -1}}
+            Dim oddOffsets As Integer(,) = New Integer(,) {{0, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}}
+            Dim offsets As Integer(,) = If(isEven, evenOffsets, oddOffsets)
+            Dim directions As String() = New String() {"上方", "右上方", "右下方", "下方", "左下方", "左上方"}
+
+            For i As Integer = 0 To 5
+                Dim neighborCol As Integer = col + offsets(i, 0)
+                Dim neighborRow As Integer = row + offsets(i, 1)
+
+                ' 处理环形地图（左右边界）
+                If neighborCol < 0 Then
+                    neighborCol = mapData.MapWidth - 1
+                ElseIf neighborCol >= mapData.MapWidth Then
+                    neighborCol = 0
+                End If
+
+                If neighborRow < 0 OrElse neighborRow >= mapData.MapHeight Then Continue For
+
+                Dim neighborTerrain = mapData.GetTerrainAt(neighborCol, neighborRow)
+                If neighborTerrain IsNot Nothing AndAlso neighborTerrain.TileType1 <> OCEAN_TILE_TYPE Then
+                    result.Add(New NeighborInfo With {
+                        .Col = neighborCol,
+                        .Row = neighborRow,
+                        .Direction = directions(i)
+                    })
+                End If
+            Next
+
+            Return result
+        End Function
+
+        ''' <summary>
+        ''' 获取单个邻居的装饰值
+        ''' </summary>
+        Private Function GetDecorationForSingleNeighbor(direction As String) As Byte
+            Select Case direction
+                Case "上方" : Return 73
+                Case "右上方" : Return 72
+                Case "右下方" : Return 70
+                Case "下方" : Return 66
+                Case "左下方" : Return 58
+                Case "左上方" : Return 42
+                Case Else : Return 10
+            End Select
+        End Function
+
+        ''' <summary>
+        ''' 获取两个邻居的装饰值
+        ''' </summary>
+        Private Function GetDecorationForTwoNeighbors(dir1 As String, dir2 As String) As Byte
+            Dim dirs As New HashSet(Of String)(New String() {dir1, dir2})
+            If dirs.Contains("上方") AndAlso dirs.Contains("右上方") Then Return 71
+            If dirs.Contains("上方") AndAlso dirs.Contains("右下方") Then Return 69
+            If dirs.Contains("上方") AndAlso dirs.Contains("下方") Then Return 65
+            If dirs.Contains("上方") AndAlso dirs.Contains("左下方") Then Return 57
+            If dirs.Contains("上方") AndAlso dirs.Contains("左上方") Then Return 41
+            If dirs.Contains("右上方") AndAlso dirs.Contains("左上方") Then Return 40
+            If dirs.Contains("右上方") AndAlso dirs.Contains("右下方") Then Return 68
+            If dirs.Contains("右上方") AndAlso dirs.Contains("下方") Then Return 64
+            If dirs.Contains("右上方") AndAlso dirs.Contains("左下方") Then Return 56
+            If dirs.Contains("右下方") AndAlso dirs.Contains("下方") Then Return 62
+            If dirs.Contains("右下方") AndAlso dirs.Contains("左下方") Then Return 54
+            If dirs.Contains("右下方") AndAlso dirs.Contains("左上方") Then Return 38
+            If dirs.Contains("下方") AndAlso dirs.Contains("左下方") Then Return 50
+            If dirs.Contains("下方") AndAlso dirs.Contains("左上方") Then Return 34
+            If dirs.Contains("左下方") AndAlso dirs.Contains("左上方") Then Return 26
+            Return 10
+        End Function
+
+        ''' <summary>
+        ''' 获取三个邻居的装饰值
+        ''' </summary>
+        Private Function GetDecorationForThreeNeighbors(dir1 As String, dir2 As String, dir3 As String) As Byte
+            Dim dirs As New HashSet(Of String)(New String() {dir1, dir2, dir3})
+            If dirs.Contains("上方") AndAlso dirs.Contains("右上方") AndAlso dirs.Contains("右下方") Then Return 67
+            If dirs.Contains("上方") AndAlso dirs.Contains("右上方") AndAlso dirs.Contains("下方") Then Return 63
+            If dirs.Contains("上方") AndAlso dirs.Contains("右上方") AndAlso dirs.Contains("左下方") Then Return 55
+            If dirs.Contains("上方") AndAlso dirs.Contains("右上方") AndAlso dirs.Contains("左上方") Then Return 39
+            If dirs.Contains("上方") AndAlso dirs.Contains("右下方") AndAlso dirs.Contains("下方") Then Return 61
+            If dirs.Contains("上方") AndAlso dirs.Contains("右下方") AndAlso dirs.Contains("左下方") Then Return 53
+            If dirs.Contains("上方") AndAlso dirs.Contains("右下方") AndAlso dirs.Contains("左上方") Then Return 37
+            If dirs.Contains("上方") AndAlso dirs.Contains("下方") AndAlso dirs.Contains("左下方") Then Return 49
+            If dirs.Contains("上方") AndAlso dirs.Contains("下方") AndAlso dirs.Contains("左上方") Then Return 33
+            If dirs.Contains("上方") AndAlso dirs.Contains("左下方") AndAlso dirs.Contains("左上方") Then Return 25
+            If dirs.Contains("右上方") AndAlso dirs.Contains("右下方") AndAlso dirs.Contains("下方") Then Return 60
+            If dirs.Contains("右上方") AndAlso dirs.Contains("右下方") AndAlso dirs.Contains("左下方") Then Return 52
+            If dirs.Contains("右上方") AndAlso dirs.Contains("右下方") AndAlso dirs.Contains("左上方") Then Return 36
+            If dirs.Contains("右上方") AndAlso dirs.Contains("下方") AndAlso dirs.Contains("左下方") Then Return 48
+            If dirs.Contains("右上方") AndAlso dirs.Contains("下方") AndAlso dirs.Contains("左上方") Then Return 32
+            If dirs.Contains("右上方") AndAlso dirs.Contains("左下方") AndAlso dirs.Contains("左上方") Then Return 24
+            If dirs.Contains("右下方") AndAlso dirs.Contains("下方") AndAlso dirs.Contains("左下方") Then Return 46
+            If dirs.Contains("右下方") AndAlso dirs.Contains("下方") AndAlso dirs.Contains("左上方") Then Return 30
+            If dirs.Contains("右下方") AndAlso dirs.Contains("左下方") AndAlso dirs.Contains("左上方") Then Return 22
+            If dirs.Contains("下方") AndAlso dirs.Contains("左下方") AndAlso dirs.Contains("左上方") Then Return 18
+            Return 10
+        End Function
+
+        ''' <summary>
+        ''' 获取四个邻居的装饰值
+        ''' </summary>
+        Private Function GetDecorationForFourNeighbors(dir1 As String, dir2 As String, dir3 As String, dir4 As String) As Byte
+            Dim dirs As New HashSet(Of String)(New String() {dir1, dir2, dir3, dir4})
+            If dirs.Contains("上方") AndAlso dirs.Contains("右上方") AndAlso dirs.Contains("右下方") AndAlso dirs.Contains("下方") Then Return 59
+            If dirs.Contains("上方") AndAlso dirs.Contains("右上方") AndAlso dirs.Contains("右下方") AndAlso dirs.Contains("左下方") Then Return 51
+            If dirs.Contains("上方") AndAlso dirs.Contains("右上方") AndAlso dirs.Contains("右下方") AndAlso dirs.Contains("左上方") Then Return 35
+            If dirs.Contains("上方") AndAlso dirs.Contains("右上方") AndAlso dirs.Contains("下方") AndAlso dirs.Contains("左下方") Then Return 47
+            If dirs.Contains("上方") AndAlso dirs.Contains("右上方") AndAlso dirs.Contains("下方") AndAlso dirs.Contains("左上方") Then Return 31
+            If dirs.Contains("上方") AndAlso dirs.Contains("右上方") AndAlso dirs.Contains("左下方") AndAlso dirs.Contains("左上方") Then Return 23
+            If dirs.Contains("上方") AndAlso dirs.Contains("右下方") AndAlso dirs.Contains("下方") AndAlso dirs.Contains("左下方") Then Return 45
+            If dirs.Contains("上方") AndAlso dirs.Contains("右下方") AndAlso dirs.Contains("下方") AndAlso dirs.Contains("左上方") Then Return 29
+            If dirs.Contains("上方") AndAlso dirs.Contains("右下方") AndAlso dirs.Contains("左下方") AndAlso dirs.Contains("左上方") Then Return 21
+            If dirs.Contains("上方") AndAlso dirs.Contains("下方") AndAlso dirs.Contains("左下方") AndAlso dirs.Contains("左上方") Then Return 17
+            If dirs.Contains("右上方") AndAlso dirs.Contains("右下方") AndAlso dirs.Contains("下方") AndAlso dirs.Contains("左下方") Then Return 44
+            If dirs.Contains("右上方") AndAlso dirs.Contains("右下方") AndAlso dirs.Contains("下方") AndAlso dirs.Contains("左上方") Then Return 28
+            If dirs.Contains("右上方") AndAlso dirs.Contains("右下方") AndAlso dirs.Contains("左下方") AndAlso dirs.Contains("左上方") Then Return 20
+            If dirs.Contains("右上方") AndAlso dirs.Contains("下方") AndAlso dirs.Contains("左下方") AndAlso dirs.Contains("左上方") Then Return 16
+            If dirs.Contains("右下方") AndAlso dirs.Contains("下方") AndAlso dirs.Contains("左下方") AndAlso dirs.Contains("左上方") Then Return 14
+            Return 10
+        End Function
+
+        ''' <summary>
+        ''' 获取五个邻居的装饰值
+        ''' </summary>
+        Private Function GetDecorationForFiveNeighbors(dir1 As String, dir2 As String, dir3 As String, dir4 As String, dir5 As String) As Byte
+            Dim dirs As New HashSet(Of String)(New String() {dir1, dir2, dir3, dir4, dir5})
+            If Not dirs.Contains("上方") Then Return 12
+            If Not dirs.Contains("右上方") Then Return 13
+            If Not dirs.Contains("右下方") Then Return 15
+            If Not dirs.Contains("下方") Then Return 19
+            If Not dirs.Contains("左下方") Then Return 27
+            If Not dirs.Contains("左上方") Then Return 43
+            Return 10
+        End Function
+
+#End Region
+
+        ''' <summary>
+        ''' 渲染格子序号标签（公开方法，供 MainRender 在最顶层调用）
+        ''' </summary>
+        Public Sub RenderHexLabels(canvas As SKCanvas)
+            If _hexLabelMode = HexLabelMode.Hidden OrElse _textPaint Is Nothing Then Return
+
+            Dim offsetX As Double, offsetY As Double, zoomLevel As Double
+            Dim viewportWidth As Integer, viewportHeight As Integer, showGridLines As Boolean
+
+            _stateLock.EnterReadLock()
+            Try
+                offsetX = _offsetX
+                offsetY = _offsetY
+                zoomLevel = _zoomLevel
+                viewportWidth = _viewportWidth
+                viewportHeight = _viewportHeight
+                showGridLines = _showGridLines
+            Finally
+                _stateLock.ExitReadLock()
+            End Try
+
+            RenderHexLabelsCached(canvas, offsetX, offsetY, zoomLevel, viewportWidth, viewportHeight)
+        End Sub
+
+        ''' <summary>
+        ''' 渲染格子序号标签（使用缓存机制）
+        ''' </summary>
+        Private Sub RenderHexLabelsCached(canvas As SKCanvas, offsetX As Double, offsetY As Double,
+                                           zoomLevel As Double, viewportWidth As Integer, viewportHeight As Integer)
+            ' 检查缓存是否有效（包含标签模式）
+            Dim cacheValid As Boolean =
+                _hexLabelsPicture IsNot Nothing AndAlso
+                Math.Abs(_cachedLabelsOffsetX - offsetX) < 0.5 AndAlso
+                Math.Abs(_cachedLabelsOffsetY - offsetY) < 0.5 AndAlso
+                Math.Abs(_cachedLabelsZoomLevel - zoomLevel) < 0.001 AndAlso
+                _cachedLabelsViewportWidth = viewportWidth AndAlso
+                _cachedLabelsViewportHeight = viewportHeight AndAlso
+                _cachedLabelMode = _hexLabelMode
+
+            If Not cacheValid Then
+                ' 缓存无效，重新渲染标签到Picture
+                If _hexLabelsPicture IsNot Nothing Then
+                    _hexLabelsPicture.Dispose()
+                End If
+
+                Using recorder As New SKPictureRecorder()
+                    Dim rect As New SKRect(0, 0, viewportWidth, viewportHeight)
+                    Using pictureCanvas As SKCanvas = recorder.BeginRecording(rect)
+                        ' 计算六边形尺寸
+                        Dim hexSize As Single = CSng(BASE_HEX_SIZE * zoomLevel)
+                        Dim hexSpacingX As Double = HEX_HORIZONTAL_SPACING * zoomLevel
+                        Dim hexSpacingY As Double = HEX_VERTICAL_SPACING * zoomLevel
+
+                        ' 计算可见范围
+                        Dim padding As Integer = 2
+                        Dim visibleCols As Integer = CInt(viewportWidth / hexSpacingX) + padding * 2
+                        Dim visibleRows As Integer = CInt(viewportHeight / hexSpacingY) + padding * 2
+
+                        Dim startCol As Integer = Math.Max(0, CInt((-offsetX) / hexSpacingX) - padding)
+                        Dim startRow As Integer = Math.Max(0, CInt((-offsetY) / hexSpacingY) - padding)
+                        Dim endCol As Integer = Math.Min(MapWidth - 1, startCol + visibleCols)
+                        Dim endRow As Integer = Math.Min(MapHeight - 1, startRow + visibleRows)
+
+                        ' 创建标签画笔（绿色文字）
+                        Using labelPaint As New SKPaint()
+                            labelPaint.IsAntialias = True
+                            labelPaint.Color = SKColors.LimeGreen
+
+                            ' 创建字体对象（根据缩放调整字体大小）
+                            Dim labelFontSize As Single = Math.Max(8.0F, CSng(12 * zoomLevel * 0.5))
+                            Using labelFont As New SKFont(SKTypeface.Default, labelFontSize)
+
+                                ' 创建阴影画笔（黑色半透明）
+                                Using shadowPaint As New SKPaint()
+                                    shadowPaint.IsAntialias = True
+                                    shadowPaint.Color = New SKColor(0, 0, 0, 180) ' 黑色半透明
+                                    Using shadowFont As New SKFont(SKTypeface.Default, labelFontSize)
+
+                                    ' 绘制每个可见格子的标签
+                                    For col As Integer = startCol To endCol
+                                        Dim centerX As Double = offsetX + col * hexSpacingX
+                                        Dim rowOffsetY As Double = offsetY + (col Mod 2) * (hexSpacingY / 2)
+
+                                        For row As Integer = startRow To endRow
+                                            Dim centerY As Double = rowOffsetY + row * hexSpacingY
+
+                                            ' 检查是否在视口内
+                                            If centerX + hexSize < 0 OrElse centerX - hexSize > viewportWidth OrElse
+                                               centerY + hexSize < 0 OrElse centerY - hexSize > viewportHeight Then
+                                                Continue For
+                                            End If
+
+                                            ' 根据模式确定显示内容
+                                            Dim text As String
+                                            Select Case _hexLabelMode
+                                                Case HexLabelMode.Index
+                                                    ' 显示格子序号（从0开始）
+                                                    Dim index As Integer = row * MapWidth + col
+                                                    text = index.ToString()
+                                                Case HexLabelMode.Coordinate
+                                                    ' 显示格子坐标
+                                                    text = $"({col},{row})"
+                                                Case Else
+                                                    Continue For
+                                            End Select
+
+                                            ' 绘制文字在格子中心
+                                            Dim textWidth As Single = labelFont.MeasureText(text)
+                                            Dim textX As Single = CSng(centerX - textWidth / 2)
+                                            Dim textY As Single = CSng(centerY + labelFont.Size / 3) ' 垂直居中微调
+
+                                            ' 先绘制阴影（偏移1像素）
+                                            pictureCanvas.DrawText(text, textX + 1, textY + 1, SKTextAlign.Left, shadowFont, shadowPaint)
+                                            ' 再绘制文字
+                                            pictureCanvas.DrawText(text, textX, textY, SKTextAlign.Left, labelFont, labelPaint)
+                                        Next
+                                    Next
+                                End Using ' shadowFont
+                            End Using ' shadowPaint
+                        End Using ' labelFont
+                    End Using ' labelPaint
+                    _hexLabelsPicture = recorder.EndRecording()
+                End Using ' pictureCanvas
+            End Using ' recorder
+
+                ' 更新缓存参数
+                _cachedLabelsOffsetX = offsetX
+                _cachedLabelsOffsetY = offsetY
+                _cachedLabelsZoomLevel = zoomLevel
+                _cachedLabelsViewportWidth = viewportWidth
+                _cachedLabelsViewportHeight = viewportHeight
+                _cachedLabelMode = _hexLabelMode
+            End If
+
+            ' 绘制缓存的标签
+            If _hexLabelsPicture IsNot Nothing Then
+                canvas.DrawPicture(_hexLabelsPicture)
+            End If
+        End Sub
+
+        ''' <summary>
+        ''' 绘制带纹理的区域（全局平铺）
+        ''' </summary>
+        Private Sub DrawTexturedRegion(canvas As SKCanvas, regionPath As SKPath, isLand As Boolean,
+                                        offsetX As Double, offsetY As Double,
+                                        viewportWidth As Integer, viewportHeight As Integer,
+                                        zoomLevel As Double)
+            ' 创建画笔
+            Using paint As New SKPaint()
+                paint.IsAntialias = True
+                paint.Style = SKPaintStyle.Fill
+
+                ' 设置纹理着色器（全局平铺）
+                ' 纹理坐标需要基于世界坐标，确保纹理在世界坐标系中连续
+                ' 世界坐标 = (屏幕坐标 - 偏移) / 缩放
+                If isLand Then
+                    If _landShader IsNot Nothing Then
+                        ' 先将屏幕坐标除以缩放级别，再减去偏移对应的世界坐标
+                        Dim matrix As SKMatrix = SKMatrix.CreateScale(1.0F / CSng(zoomLevel), 1.0F / CSng(zoomLevel))
+                        matrix = matrix.PostConcat(SKMatrix.CreateTranslation(CSng(-offsetX / zoomLevel), CSng(-offsetY / zoomLevel)))
+                        paint.Shader = _landShader.WithLocalMatrix(matrix)
+                    Else
+                        paint.Color = DEFAULT_LAND_COLOR
+                    End If
+                Else
+                    If _seaShader IsNot Nothing Then
+                        ' 先将屏幕坐标除以缩放级别，再减去偏移对应的世界坐标
+                        Dim matrix As SKMatrix = SKMatrix.CreateScale(1.0F / CSng(zoomLevel), 1.0F / CSng(zoomLevel))
+                        matrix = matrix.PostConcat(SKMatrix.CreateTranslation(CSng(-offsetX / zoomLevel), CSng(-offsetY / zoomLevel)))
+                        paint.Shader = _seaShader.WithLocalMatrix(matrix)
+                    Else
+                        paint.Color = DEFAULT_SEA_COLOR
+                    End If
+                End If
+
+                ' 使用 ClipPath 限制绘制区域，然后绘制覆盖整个画布的矩形
+                ' 注意：绘制整个画布确保所有可见区域都被填充
+                canvas.Save()
+                canvas.ClipPath(regionPath)
+                canvas.DrawRect(0, 0, CSng(viewportWidth), CSng(viewportHeight), paint)
+                canvas.Restore()
+            End Using
+        End Sub
+
+        ''' <summary>
+        ''' 绘制单个六边形
+        ''' </summary>
+        Private Sub DrawHexagon(canvas As SKCanvas, cx As Single, cy As Single,
+                                 hexPath As SKPath, isLand As Boolean, showGridLines As Boolean)
+            canvas.Save()
+            canvas.Translate(cx, cy)
+
+            ' 填充六边形
+            Dim fillPaint As SKPaint = If(isLand, _landPaint, _seaPaint)
+            canvas.DrawPath(hexPath, fillPaint)
+
+            ' 绘制网格线
+            If showGridLines Then
+                canvas.DrawPath(hexPath, _gridPaint)
+            End If
+
+            canvas.Restore()
+        End Sub
+
+        ''' <summary>
+        ''' 快速绘制六边形（无 Save/Restore 开销）
+        ''' </summary>
+        Private Sub DrawHexagonFast(canvas As SKCanvas, cx As Single, cy As Single,
+                                     hexPath As SKPath, fillPaint As SKPaint, gridPaint As SKPaint)
+            ' 使用 Translate 代替 Save/Restore，性能更好
+            canvas.Translate(cx, cy)
+
+            ' 填充六边形
+            canvas.DrawPath(hexPath, fillPaint)
+
+            ' 绘制网格线
+            If gridPaint IsNot Nothing Then
+                canvas.DrawPath(hexPath, gridPaint)
+            End If
+
+            ' 恢复位置
+            canvas.Translate(-cx, -cy)
+        End Sub
+
+        ''' <summary>
+        ''' 获取六边形路径（带缓存）
+        ''' </summary>
+        Private Function GetHexPath(size As Single) As SKPath
+            ' 检查缓存
+            If _hexPathCache.ContainsKey(size) Then
+                Return _hexPathCache(size)
+            End If
+
+            ' 创建新的六边形路径（稍微放大以消除缝隙）
+            Dim path As New SKPath()
+            ' 增加 0.5 像素重叠以消除抗锯齿造成的缝隙
+            Dim overlapSize As Single = size + 0.5F
+
+            For i As Integer = 0 To 5
+                Dim angle As Double = Math.PI / 3 * i 
+                Dim x As Single = CSng(overlapSize * Math.Cos(angle))
+                Dim y As Single = CSng(overlapSize * Math.Sin(angle))
+
+                If i = 0 Then
+                    path.MoveTo(x, y)
+                Else
+                    path.LineTo(x, y)
+                End If
+            Next
+
+            path.Close()
+
+            ' 添加到缓存
+            _hexPathCache(size) = path
+
+            Return path
+        End Function
+
+        ''' <summary>
+        ''' 检查指定坐标是否为陆地
+        ''' </summary>
+        Private Function IsLandAt(col As Integer, row As Integer) As Boolean
+            If _mapBuilder Is Nothing OrElse _mapBuilder.MapData Is Nothing Then
+                Return False
+            End If
+
+            Dim terrain As Terrain = _mapBuilder.MapData.GetTerrainAt(col, row)
+            If terrain Is Nothing Then
+                Return False
+            End If
+
+            ' TileType1 = 1 表示海洋，其他为陆地
+            Return terrain.TileType1 <> 1
+        End Function
+
+#End Region
+
+#Region "公共方法"
+
+        ''' <summary>
+        ''' 将屏幕坐标转换为六边形网格坐标
+        ''' </summary>
+        ''' <param name="screenX">屏幕 X 坐标</param>
+        ''' <param name="screenY">屏幕 Y 坐标</param>
+        ''' <returns>元组 (列, 行)，如果无效返回 (-1, -1)</returns>
+        Public Function ScreenToHexagon(screenX As Double, screenY As Double) As (Integer, Integer)
+            ' 检查地图尺寸是否有效
+            If MapWidth <= 0 OrElse MapHeight <= 0 Then
+                Return (-1, -1)
+            End If
+
+            Dim zoomLevel As Double = Me.ZoomLevel
+            Dim offsetX As Double = Me.OffsetX
+            Dim offsetY As Double = Me.OffsetY
+
+            ' 检查缩放级别是否有效
+            If zoomLevel <= 0 Then
+                Return (-1, -1)
+            End If
+
+            Dim hexSpacingX As Double = HEX_HORIZONTAL_SPACING * zoomLevel
+            Dim hexSpacingY As Double = HEX_VERTICAL_SPACING * zoomLevel
+            Dim hexSize As Double = BASE_HEX_SIZE * zoomLevel
+
+            ' 检查间距是否有效
+            If hexSpacingX <= 0 OrElse hexSpacingY <= 0 Then
+                Return (-1, -1)
+            End If
+
+            ' 估算列
+            Dim approxCol As Integer = CInt((screenX - offsetX) / hexSpacingX)
+
+            ' 在估算列附近搜索
+            Dim bestCol As Integer = -1
+            Dim bestRow As Integer = -1
+            Dim bestDistance As Double = Double.MaxValue
+
+            ' 确保搜索范围在有效地图范围内
+            Dim startCol As Integer = Math.Max(0, Math.Min(MapWidth - 1, approxCol - 2))
+            Dim endCol As Integer = Math.Max(0, Math.Min(MapWidth - 1, approxCol + 2))
+
+            For col As Integer = startCol To endCol
+                Dim centerX As Double = offsetX + col * hexSpacingX
+                Dim rowOffsetY As Double = offsetY + (col Mod 2) * (hexSpacingY / 2)
+
+                ' 估算行
+                Dim approxRow As Integer = CInt((screenY - rowOffsetY) / hexSpacingY)
+
+                ' 确保搜索范围在有效地图范围内
+                Dim startRow As Integer = Math.Max(0, Math.Min(MapHeight - 1, approxRow - 2))
+                Dim endRow As Integer = Math.Max(0, Math.Min(MapHeight - 1, approxRow + 2))
+
+                For row As Integer = startRow To endRow
+                    Dim centerY As Double = rowOffsetY + row * hexSpacingY
+
+                    ' 计算到六边形中心的距离
+                    Dim dx As Double = screenX - centerX
+                    Dim dy As Double = screenY - centerY
+                    Dim distance As Double = Math.Sqrt(dx * dx + dy * dy)
+
+                    ' 检查是否在六边形内（使用近似）
+                    If distance <= hexSize * 0.9 AndAlso distance < bestDistance Then
+                        bestDistance = distance
+                        bestCol = col
+                        bestRow = row
+                    End If
+                Next
+            Next
+
+            Return (bestCol, bestRow)
+        End Function
+
+        ''' <summary>
+        ''' 将六边形网格坐标转换为屏幕坐标
+        ''' </summary>
+        ''' <param name="col">列</param>
+        ''' <param name="row">行</param>
+        ''' <returns>元组 (屏幕 X, 屏幕 Y)</returns>
+        Public Function HexagonToScreen(col As Integer, row As Integer) As (Double, Double)
+            Dim zoomLevel As Double = Me.ZoomLevel
+            Dim offsetX As Double = Me.OffsetX
+            Dim offsetY As Double = Me.OffsetY
+
+            Dim hexSpacingX As Double = HEX_HORIZONTAL_SPACING * zoomLevel
+            Dim hexSpacingY As Double = HEX_VERTICAL_SPACING * zoomLevel
+
+            Dim screenX As Double = offsetX + col * hexSpacingX
+            Dim screenY As Double = offsetY + (col Mod 2) * (hexSpacingY / 2) + row * hexSpacingY
+
+            Return (screenX, screenY)
+        End Function
+
+        ''' <summary>
+        ''' 移动视图
+        ''' </summary>
+        ''' <param name="deltaX">X 方向移动量</param>
+        ''' <param name="deltaY">Y 方向移动量</param>
+        Public Sub Pan(deltaX As Double, deltaY As Double)
+            OffsetX += deltaX
+            OffsetY += deltaY
+        End Sub
+
+        ''' <summary>
+        ''' 以指定点为中心缩放
+        ''' </summary>
+        ''' <param name="newZoomLevel">新的缩放级别</param>
+        ''' <param name="centerX">缩放中心 X（屏幕坐标）</param>
+        ''' <param name="centerY">缩放中心 Y（屏幕坐标）</param>
+        Public Sub ZoomAt(newZoomLevel As Double, centerX As Double, centerY As Double)
+            Dim oldZoom As Double = Me.ZoomLevel
+
+            ' 计算缩放前中心点对应的世界坐标
+            Dim worldX As Double = (centerX - OffsetX) / oldZoom
+            Dim worldY As Double = (centerY - OffsetY) / oldZoom
+
+            ' 设置新的缩放级别
+            Me.ZoomLevel = newZoomLevel
+
+            ' 调整偏移量，使世界坐标仍然对应屏幕中心点
+            OffsetX = centerX - worldX * newZoomLevel
+            OffsetY = centerY - worldY * newZoomLevel
+        End Sub
+
+        ''' <summary>
+        ''' 使背景组合缓存失效（在地图数据修改后调用）
+        ''' </summary>
+        Public Sub InvalidateBackgroundCache()
+            _bgCacheImage?.Dispose()
+            _bgCacheImage = Nothing
+        End Sub
+
+        ''' <summary>
+        ''' 释放陆地地形渲染资源
+        ''' </summary>
+        Public Sub ReleaseLandTerrainsResources()
+            If _landTerrainsRender IsNot Nothing Then
+                _landTerrainsRender.Dispose()
+                _landTerrainsRender = Nothing
+
+                ' 强制垃圾回收
+                GC.Collect()
+                GC.WaitForPendingFinalizers()
+                GC.Collect()
+
+                System.Diagnostics.Debug.WriteLine("[BackGroundRender] 陆地地形渲染资源已释放")
+            End If
+        End Sub
+
+        ''' <summary>
+        ''' 重新加载陆地地形渲染资源
+        ''' </summary>
+        Public Sub ReloadLandTerrainsResources()
+            ' 如果已经存在，先释放
+            ReleaseLandTerrainsResources()
+
+            ' 重新初始化
+            InitializeLandTerrainsRender()
+
+            ' 使组合背景缓存失效
+            _bgCacheImage?.Dispose()
+            _bgCacheImage = Nothing
+
+            System.Diagnostics.Debug.WriteLine("[BackGroundRender] 陆地地形渲染资源已重新加载")
+        End Sub
+
+        ''' <summary>
+        ''' 释放背景渲染资源（纹理、画笔等）
+        ''' </summary>
+        Public Sub ReleaseBackgroundResources()
+            ' 先释放陆地地形渲染器（这是内存大户！）
+            ReleaseLandTerrainsResources()
+
+            ' 注意：不要Dispose CoastMaskProcessor，因为它是单例，应该在程序生命周期内保持缓存
+            ' 只需要释放本地引用，不调用Dispose
+            _coastMaskProcessor = Nothing
+
+            ' 释放纹理资源
+            _seaShader?.Dispose()
+            _seaShader = Nothing
+
+            _landShader?.Dispose()
+            _landShader = Nothing
+
+            _seaTexture?.Dispose()
+            _seaTexture = Nothing
+
+            _landTexture?.Dispose()
+            _landTexture = Nothing
+
+            _landImage?.Dispose()
+            _landImage = Nothing
+
+            ' 释放画笔资源
+            _seaPaint?.Dispose()
+            _seaPaint = Nothing
+
+            _landPaint?.Dispose()
+            _landPaint = Nothing
+
+            _gridPaint?.Dispose()
+            _gridPaint = Nothing
+
+            _textPaint?.Dispose()
+            _textPaint = Nothing
+
+            _textFont?.Dispose()
+            _textFont = Nothing
+
+            ' 释放缓存
+            For Each path In _hexPathCache.Values
+                path.Dispose()
+            Next
+            _hexPathCache.Clear()
+
+            _gridLinesPicture?.Dispose()
+            _gridLinesPicture = Nothing
+
+            _hexLabelsPicture?.Dispose()
+            _hexLabelsPicture = Nothing
+
+            ' 释放组合背景缓存
+            _bgCacheImage?.Dispose()
+            _bgCacheImage = Nothing
+
+            ' 强制垃圾回收
+            GC.Collect()
+            GC.WaitForPendingFinalizers()
+            GC.Collect()
+
+            System.Diagnostics.Debug.WriteLine("[BackGroundRender] 背景渲染资源已释放（包括地形渲染器）")
+        End Sub
+
+        ''' <summary>
+        ''' 重新加载背景渲染资源
+        ''' </summary>
+        Public Sub ReloadBackgroundResources()
+            ' 如果已经存在，先释放
+            ReleaseBackgroundResources()
+
+            ' 重新初始化
+            InitializePaintObjects()
+            System.Diagnostics.Debug.WriteLine("[BackGroundRender] 背景渲染资源已重新加载")
+        End Sub
+
+#End Region
+
+#Region "IDisposable"
+
+        ''' <summary>
+        ''' 释放资源
+        ''' </summary>
+        Public Sub Dispose() Implements IDisposable.Dispose
+            _seaPaint?.Dispose()
+            _seaPaint = Nothing
+
+            _landPaint?.Dispose()
+            _landPaint = Nothing
+
+            _gridPaint?.Dispose()
+            _gridPaint = Nothing
+
+            _textPaint?.Dispose()
+            _textPaint = Nothing
+
+            ' 释放陆地地形渲染器
+            _landTerrainsRender?.Dispose()
+            _landTerrainsRender = Nothing
+
+            For Each path In _hexPathCache.Values
+                path.Dispose()
+            Next
+            _hexPathCache.Clear()
+
+            ' 释放网格线缓存
+            _gridLinesPicture?.Dispose()
+            _gridLinesPicture = Nothing
+
+            ' 释放标签缓存
+            _hexLabelsPicture?.Dispose()
+            _hexLabelsPicture = Nothing
+
+            _stateLock.Dispose()
+
+            System.Diagnostics.Debug.WriteLine("[BackGroundRender] 资源已释放")
+        End Sub
+
+#End Region
+
+    End Class
+End Namespace

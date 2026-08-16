@@ -141,8 +141,7 @@ public class TerrainHelper
         {
             var oldestKey = _skImageAccessOrder[0];
             _skImageAccessOrder.RemoveAt(0);
-            if (_skImageCache.Remove(oldestKey, out var oldest))
-                oldest.Dispose();
+            _skImageCache.Remove(oldestKey, out _);
         }
 
         _skImageCache[imageKey] = skImage;
@@ -197,11 +196,9 @@ public class TerrainHelper
     public void ClearAllCaches()
     {
         var count = _skImageCache.Count;
-        foreach (var image in _skImageCache.Values)
-            image.Dispose();
         _skImageCache.Clear();
         _skImageAccessOrder.Clear();
-        Debug.WriteLine($"[TerrainHelper] 内存缓存已清空，释放了 {count} 个纹理");
+        Debug.WriteLine($"[TerrainHelper] 内存缓存已清空，释放了 {count} 个纹理引用");
     }
 
     private static SKImage GetDefaultSkImage()

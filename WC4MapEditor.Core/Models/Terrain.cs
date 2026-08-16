@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using WC4MapEditor.Core.Config;
 
 namespace WC4MapEditor.Models;
 
@@ -83,20 +84,9 @@ public struct Terrain
     };
 
     /// <summary>
-    /// 获取地形类型名称
+    /// 获取地形类型名称（从ConfigManager的manager.json配置读取）
     /// </summary>
-    public static string GetTerrainName(int terrainId) => terrainId switch
-    {
-        0 => "海洋",
-        1 => "平原",
-        2 => "森林",
-        3 => "山地",
-        4 => "丘陵",
-        5 => "沙漠",
-        6 => "沼泽",
-        7 => "雪地",
-        _ => $"未知({terrainId})"
-    };
+    public static string GetTerrainName(int terrainId) => ConfigManager.Instance.GetTerrainTypeName(terrainId);
 
     /// <summary>
     /// 获取第一层地形类型名称

@@ -14,6 +14,7 @@ public class MapRenderScene : RenderSceneBase
     }
 
     protected override string SceneTitle => "地形地图";
+    protected override string SceneType => "world";
 
     protected override MapData? LoadMapData()
     {

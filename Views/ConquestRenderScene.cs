@@ -14,6 +14,7 @@ public class ConquestRenderScene : RenderSceneBase
     }
 
     protected override string SceneTitle => "征服地图";
+    protected override string SceneType => "conquest";
 
     protected override MapData? LoadMapData()
     {
@@ -42,6 +43,30 @@ public class ConquestRenderScene : RenderSceneBase
         mapData.MapHeight = parser.Header.MapLength;
 
         mapData.InitializeTerrain(parser.Header.MapWidth, parser.Header.MapLength);
+
+        var provinceData = parser.GetProvinceData();
+        if (provinceData.Count > 0)
+        {
+            for (int i = 0; i < Math.Min(provinceData.Count, mapData.TerrainCount); i++)
+            {
+                mapData.SetProvince(i, provinceData[i]);
+            }
+        }
+
+        foreach (var building in parser.GetBuildingData())
+            mapData.Buildings.Add(building);
+
+        foreach (var army in parser.GetTroopData())
+            mapData.Armies.Add(army);
+
+        foreach (var legion in parser.GetLegionData())
+            mapData.Legions.Add(legion);
+
+        foreach (var trap in parser.GetTrapData())
+            mapData.Traps.Add(trap);
+
+        foreach (var reinforcement in parser.GetReinforcementData())
+            mapData.Reinforcements.Add(reinforcement);
 
         return mapData;
     }

@@ -48,6 +48,36 @@ public class MainRender : IRenderEngine
         set => _activeEngine.EnableTrapRender = value;
     }
 
+    public bool EnableSelectionRender
+    {
+        get => _activeEngine.EnableSelectionRender;
+        set => _activeEngine.EnableSelectionRender = value;
+    }
+
+    public string HelpText
+    {
+        get => _activeEngine.HelpText;
+        set => _activeEngine.HelpText = value;
+    }
+
+    public string ModeName
+    {
+        get => _activeEngine.ModeName;
+        set => _activeEngine.ModeName = value;
+    }
+
+    public bool ShowHelp
+    {
+        get => _activeEngine.ShowHelp;
+        set => _activeEngine.ShowHelp = value;
+    }
+
+    public bool ShowModeName
+    {
+        get => _activeEngine.ShowModeName;
+        set => _activeEngine.ShowModeName = value;
+    }
+
     public MainRender(IRenderEngine activeEngine)
     {
         _activeEngine = activeEngine;
@@ -78,6 +108,26 @@ public class MainRender : IRenderEngine
         _activeEngine.Invalidate();
     }
 
+    public void InvalidateTerrainCache()
+    {
+        _activeEngine.InvalidateTerrainCache();
+    }
+
+    public void InvalidateCoastCache(MapData mapData)
+    {
+        _activeEngine.InvalidateCoastCache(mapData);
+    }
+
+    public void InvalidateCoastCacheRegion(MapData mapData, int centerCol, int centerRow, int radius)
+    {
+        _activeEngine.InvalidateCoastCacheRegion(mapData, centerCol, centerRow, radius);
+    }
+
+    public void InvalidateCoastCacheFull(MapData mapData)
+    {
+        _activeEngine.InvalidateCoastCacheFull(mapData);
+    }
+
     public (int col, int row) ScreenToHex(double screenX, double screenY)
     {
         return _activeEngine.ScreenToHex(screenX, screenY);
@@ -87,6 +137,47 @@ public class MainRender : IRenderEngine
     {
         return _activeEngine.HexToScreen(col, row);
     }
+
+    public bool LoadViewLayerImage(string imagePath)
+    {
+        return _activeEngine.LoadViewLayerImage(imagePath);
+    }
+
+    public void ClearViewLayerImage()
+    {
+        _activeEngine.ClearViewLayerImage();
+    }
+
+    public bool ViewLayerVisible
+    {
+        get => _activeEngine.ViewLayerVisible;
+        set => _activeEngine.ViewLayerVisible = value;
+    }
+
+    public float ViewLayerOpacity
+    {
+        get => _activeEngine.ViewLayerOpacity;
+        set => _activeEngine.ViewLayerOpacity = value;
+    }
+
+    public void InvalidateViewLayerCache()
+    {
+        _activeEngine.InvalidateViewLayerCache();
+    }
+
+    public bool ShowLayer2
+    {
+        get => _activeEngine.ShowLayer2;
+        set => _activeEngine.ShowLayer2 = value;
+    }
+
+    public bool ShowHexBorders
+    {
+        get => _activeEngine.ShowHexBorders;
+        set => _activeEngine.ShowHexBorders = value;
+    }
+
+    public void CycleLabelMode() => _activeEngine.CycleLabelMode();
 
     public void Dispose()
     {

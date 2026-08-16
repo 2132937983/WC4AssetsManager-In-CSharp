@@ -53,7 +53,13 @@ public class BackGroundRender : IDisposable
     private CoastHelper? _coastHelper;
     private CoastMaskProcessor? _coastMaskProcessor;
 
+    // Ping-pong cache surfaces. While the camera pans, the previous frame's
+    // surface still holds valid content for the overlapping region, so only
+    // the newly exposed strip needs to be rendered instead of everything.
+    private SKSurface? _bgCacheSurfaceA;
+    private SKSurface? _bgCacheSurfaceB;
     private SKImage? _bgCacheImage;
+    // World-space center (camera offset) that the cache was rendered for.
     private double _cachedBgCenterX = double.NaN;
     private double _cachedBgCenterY = double.NaN;
     private double _cachedBgZoomLevel;
@@ -61,19 +67,35 @@ public class BackGroundRender : IDisposable
     private int _cachedBgHeight;
     private bool _cachedBgShowLayer2;
     private bool _cachedBgShowGridLines;
+    private int _cacheW;
+    private int _cacheH;
 
     private byte[,]? _coastDecorationArray;
     private readonly object _arraySwapLock = new();
     private readonly object _coastTaskLock = new();
 
-    private DateTime _lastCameraMoveTime = DateTime.Now;
-    private bool _isCameraMoving;
-    private double _lastCameraX = double.NaN;
-    private double _lastCameraY = double.NaN;
-
     public enum HexLabelMode { Hidden = 0, Index = 1, Coordinate = 2 }
 
     private HexLabelMode _hexLabelMode = HexLabelMode.Hidden;
+
+    // Batch camera/state update: one write lock instead of ten.
+    public void SetCameraState(double offsetX, double offsetY, double zoomLevel, int viewportWidth, int viewportHeight,
+        bool enableBackgroundRender, bool enableTerrainsRender)
+    {
+        _stateLock.EnterWriteLock();
+        try
+        {
+            _offsetX = offsetX;
+            _offsetY = offsetY;
+            double z = Math.Max(0.1, Math.Min(5.0, zoomLevel));
+            _zoomLevel = z;
+            _viewportWidth = Math.Max(1, viewportWidth);
+            _viewportHeight = Math.Max(1, viewportHeight);
+            _enableBackgroundRender = enableBackgroundRender;
+            _enableTerrainsRender = enableTerrainsRender;
+        }
+        finally { _stateLock.ExitWriteLock(); }
+    }
 
     public double OffsetX
     {
@@ -297,7 +319,7 @@ public class BackGroundRender : IDisposable
     private void RenderBackground(SKCanvas canvas, MapData mapData)
     {
         double offsetX, offsetY, zoomLevel;
-        bool showGridLines;
+        bool showGridLines, showLayer2;
         int vpW, vpH;
         bool enableBackgroundRender, enableTerrainsRender;
 
@@ -305,87 +327,184 @@ public class BackGroundRender : IDisposable
         try
         {
             offsetX = _offsetX; offsetY = _offsetY; zoomLevel = _zoomLevel;
-            showGridLines = _showGridLines; vpW = _viewportWidth; vpH = _viewportHeight;
+            showGridLines = _showGridLines; showLayer2 = _showLayer2; vpW = _viewportWidth; vpH = _viewportHeight;
             enableBackgroundRender = _enableBackgroundRender; enableTerrainsRender = _enableTerrainsRender;
         }
         finally { _stateLock.ExitReadLock(); }
 
         if (vpW <= 0 || vpH <= 0) return;
 
-        bool cacheInvalid = _bgCacheImage == null ||
-            Math.Abs(_cachedBgZoomLevel - zoomLevel) > 0.001 ||
-            _cachedBgWidth != vpW || _cachedBgHeight != vpH ||
-            _cachedBgShowLayer2 != _showLayer2 ||
-            _cachedBgShowGridLines != showGridLines ||
-            Math.Abs(offsetX - _cachedBgCenterX) > vpW * 0.5 ||
-            Math.Abs(offsetY - _cachedBgCenterY) > vpH * 0.5;
-
-        if (!cacheInvalid)
-        {
-            float srcX = (float)(vpW * 0.5 - (offsetX - _cachedBgCenterX));
-            float srcY = (float)(vpH * 0.5 - (offsetY - _cachedBgCenterY));
-            canvas.DrawImage(_bgCacheImage, new SKRect(srcX, srcY, srcX + vpW, srcY + vpH), new SKRect(0, 0, vpW, vpH));
-            return;
-        }
-
-        _bgCacheImage?.Dispose();
-        _bgCacheImage = null;
-
+        // Cache covers a 2x viewport area centered on the camera. The camera
+        // can pan half a viewport in any direction before a rebuild is needed.
         int cacheW = vpW * 2;
         int cacheH = vpH * 2;
-        double cacheOffsetX = offsetX + vpW * 0.5;
-        double cacheOffsetY = offsetY + vpH * 0.5;
 
+        bool haveCache = _bgCacheSurfaceA != null && _cacheW == cacheW && _cacheH == cacheH;
+        bool stateMatches = _cachedBgWidth == vpW && _cachedBgHeight == vpH &&
+            Math.Abs(_cachedBgZoomLevel - zoomLevel) <= 0.001 &&
+            _cachedBgShowLayer2 == showLayer2 &&
+            _cachedBgShowGridLines == showGridLines;
+
+        if (haveCache && stateMatches)
+        {
+            // Camera offset bounds still inside the cached area: incremental
+            // strip rendering reuses the previous frame's valid pixels.
+            double cacheOriginX = _cachedBgCenterX - vpW * 0.5;
+            double cacheOriginY = _cachedBgCenterY - vpH * 0.5;
+            bool insideX = offsetX >= cacheOriginX && offsetX <= cacheOriginX + vpW;
+            bool insideY = offsetY >= cacheOriginY && offsetY <= cacheOriginY + vpH;
+
+            if (insideX && insideY)
+            {
+                bool panOnly = Math.Abs(offsetX - _cachedBgCenterX) > 0.001 || Math.Abs(offsetY - _cachedBgCenterY) > 0.001;
+                if (panOnly)
+                    RenderPanStrips(mapData, offsetX, offsetY, zoomLevel, showGridLines, showLayer2,
+                        enableBackgroundRender, enableTerrainsRender, vpW, vpH);
+                // Blit from cache to screen. Cache center sits at (cacheW/2,
+                // cacheH/2); the camera pan delta shifts the source rect.
+                float srcX = (float)(cacheW * 0.5 - vpW * 0.5 - (offsetX - _cachedBgCenterX));
+                float srcY = (float)(cacheH * 0.5 - vpH * 0.5 - (offsetY - _cachedBgCenterY));
+                canvas.DrawImage(_bgCacheImage!, new SKRect(srcX, srcY, srcX + vpW, srcY + vpH), new SKRect(0, 0, vpW, vpH));
+                return;
+            }
+        }
+
+        // Full rebuild needed (first frame, zoom/toggle change, size change,
+        // or the camera left the cached area).
+        if (!haveCache)
+            RecreateCacheSurfaces(cacheW, cacheH);
+        else
+            (_bgCacheSurfaceA, _bgCacheSurfaceB) = (_bgCacheSurfaceB, _bgCacheSurfaceA);
+
+        _cachedBgCenterX = offsetX;
+        _cachedBgCenterY = offsetY;
+        _cachedBgWidth = vpW;
+        _cachedBgHeight = vpH;
+        _cachedBgZoomLevel = zoomLevel;
+        _cachedBgShowLayer2 = showLayer2;
+        _cachedBgShowGridLines = showGridLines;
+
+        var cacheCanvas = _bgCacheSurfaceA!.Canvas;
+        cacheCanvas.Clear(SKColors.Transparent);
+        RenderCacheContent(cacheCanvas, mapData, offsetX + vpW * 0.5, offsetY + vpH * 0.5,
+            zoomLevel, showGridLines, showLayer2, enableBackgroundRender, enableTerrainsRender);
+        RefreshCacheSnapshot();
+
+        float srcX2 = (float)(cacheW * 0.5 - vpW * 0.5);
+        float srcY2 = (float)(cacheH * 0.5 - vpH * 0.5);
+        canvas.DrawImage(_bgCacheImage!, new SKRect(srcX2, srcY2, srcX2 + vpW, srcY2 + vpH), new SKRect(0, 0, vpW, vpH));
+    }
+
+    private void RefreshCacheSnapshot()
+    {
+        _bgCacheImage?.Dispose();
+        _bgCacheImage = _bgCacheSurfaceA!.Snapshot();
+    }
+
+    private void RecreateCacheSurfaces(int cacheW, int cacheH)
+    {
+        _bgCacheSurfaceA?.Dispose();
+        _bgCacheSurfaceB?.Dispose();
+        _bgCacheSurfaceA = SKSurface.Create(new SKImageInfo(cacheW, cacheH));
+        _bgCacheSurfaceB = SKSurface.Create(new SKImageInfo(cacheW, cacheH));
+        _cacheW = cacheW;
+        _cacheH = cacheH;
+    }
+
+    // Renders only the newly exposed strips after a camera pan by copying the
+    // still-valid region of the front surface into the back surface shifted,
+    // then filling the exposed strips.
+    private void RenderPanStrips(MapData mapData, double offsetX, double offsetY, double zoomLevel, bool showGridLines,
+        bool showLayer2, bool enableBackgroundRender, bool enableTerrainsRender, int vpW, int vpH)
+    {
+        var back = _bgCacheSurfaceB!;
+        var backCanvas = back.Canvas;
+
+        int shiftX = (int)Math.Round(offsetX - _cachedBgCenterX);
+        int shiftY = (int)Math.Round(offsetY - _cachedBgCenterY);
+        if (shiftX == 0 && shiftY == 0) return;
+
+        // New cache content = old content shifted by (+shiftX, +shiftY): a map
+        // point at cache pixel x moves to x + D when the camera pans by D.
+        backCanvas.Clear(SKColors.Transparent);
+        backCanvas.Save();
+        backCanvas.Translate(shiftX, shiftY);
+        _bgCacheSurfaceA!.Draw(backCanvas, 0, 0, _panCopyPaint);
+        backCanvas.Restore();
+
+        // Newly exposed regions in back-surface coordinates (opposite edge of
+        // the pan direction).
+        var strips = new List<SKRect>(4);
+        if (shiftX > 0) strips.Add(new SKRect(0, 0, shiftX, _cacheH));
+        else if (shiftX < 0) strips.Add(new SKRect(_cacheW + shiftX, 0, _cacheW, _cacheH));
+        if (shiftY > 0) strips.Add(new SKRect(0, 0, _cacheW, shiftY));
+        else if (shiftY < 0) strips.Add(new SKRect(0, _cacheH + shiftY, _cacheW, _cacheH));
+
+        double newCacheOffsetX = offsetX + vpW * 0.5;
+        double newCacheOffsetY = offsetY + vpH * 0.5;
+
+        foreach (var strip in strips)
+        {
+            backCanvas.Save();
+            backCanvas.ClipRect(strip);
+            RenderCacheContent(backCanvas, mapData, newCacheOffsetX, newCacheOffsetY,
+                zoomLevel, showGridLines, showLayer2, enableBackgroundRender, enableTerrainsRender,
+                (int)strip.Left, (int)strip.Top, (int)strip.Width, (int)strip.Height);
+            backCanvas.Restore();
+        }
+
+        (_bgCacheSurfaceA, _bgCacheSurfaceB) = (_bgCacheSurfaceB, _bgCacheSurfaceA);
+        // Keep the cached center pixel-aligned with what was actually drawn
+        // (integer shift); the sub-pixel remainder is applied in the blit.
+        _cachedBgCenterX += shiftX;
+        _cachedBgCenterY += shiftY;
+        _cachedBgZoomLevel = zoomLevel;
+        RefreshCacheSnapshot();
+    }
+
+    private readonly SKPaint _panCopyPaint = new() { BlendMode = SKBlendMode.Src };
+
+    private void RenderCacheContent(SKCanvas canvas, MapData mapData, double cacheOffsetX, double cacheOffsetY,
+        double zoomLevel, bool showGridLines, bool showLayer2, bool enableBackgroundRender, bool enableTerrainsRender,
+        int clipX = 0, int clipY = 0, int clipW = 0, int clipH = 0)
+    {
         float hexSize = (float)(BASE_HEX_SIZE * zoomLevel);
         double hexSpacingX = HEX_HORIZONTAL_SPACING * zoomLevel;
         double hexSpacingY = HEX_VERTICAL_SPACING * zoomLevel;
 
-        using var surface = SKSurface.Create(new SKImageInfo(cacheW, cacheH));
-        var cacheCanvas = surface.Canvas;
+        if (clipW <= 0 || clipH <= 0) { clipX = 0; clipY = 0; clipW = _cacheW; clipH = _cacheH; }
 
         if (enableBackgroundRender && _seaPaint != null && _landPaint != null)
-            RenderHexGridToCanvas(cacheCanvas, mapData, cacheOffsetX, cacheOffsetY, hexSize, hexSpacingX, hexSpacingY, showGridLines, cacheW, cacheH, zoomLevel);
+            RenderHexGridToCanvas(canvas, mapData, cacheOffsetX, cacheOffsetY, hexSize, hexSpacingX, hexSpacingY,
+                showGridLines, _cacheW, _cacheH, zoomLevel, clipX, clipY, clipW, clipH);
 
         if (enableTerrainsRender && _landTerrainsRender != null)
         {
             _landTerrainsRender.MapWidth = mapData.MapWidth;
             _landTerrainsRender.MapHeight = mapData.MapHeight;
-            _landTerrainsRender.OffsetX = cacheOffsetX;
-            _landTerrainsRender.OffsetY = cacheOffsetY;
-            _landTerrainsRender.ZoomLevel = zoomLevel;
-            _landTerrainsRender.ViewportWidth = cacheW;
-            _landTerrainsRender.ViewportHeight = cacheH;
-            _landTerrainsRender.ShowLayer2 = _showLayer2;
-            _landTerrainsRender.Render(cacheCanvas, mapData);
+            _landTerrainsRender.SetCameraState(cacheOffsetX, cacheOffsetY, zoomLevel, _cacheW, _cacheH, showLayer2);
+            _landTerrainsRender.SetClipRect(clipX, clipY, clipW, clipH);
+            _landTerrainsRender.Render(canvas, mapData);
+            _landTerrainsRender.ClearClipRect();
         }
-
-        _bgCacheImage = surface.Snapshot();
-        _cachedBgCenterX = offsetX;
-        _cachedBgCenterY = offsetY;
-        _cachedBgZoomLevel = zoomLevel;
-        _cachedBgWidth = vpW;
-        _cachedBgHeight = vpH;
-        _cachedBgShowLayer2 = _showLayer2;
-        _cachedBgShowGridLines = showGridLines;
-
-        float srcX2 = (float)(vpW * 0.5 - (offsetX - _cachedBgCenterX));
-        float srcY2 = (float)(vpH * 0.5 - (offsetY - _cachedBgCenterY));
-        canvas.DrawImage(_bgCacheImage, new SKRect(srcX2, srcY2, srcX2 + vpW, srcY2 + vpH), new SKRect(0, 0, vpW, vpH));
     }
 
     private void RenderHexGridToCanvas(SKCanvas canvas, MapData mapData, double offsetX, double offsetY,
-        float hexSize, double hexSpacingX, double hexSpacingY, bool showGridLines, int vpW, int vpH, double zoomLevel)
+        float hexSize, double hexSpacingX, double hexSpacingY, bool showGridLines, int vpW, int vpH, double zoomLevel,
+        int clipX = 0, int clipY = 0, int clipW = 0, int clipH = 0)
     {
         int mapWidth = mapData.MapWidth;
         int mapHeight = mapData.MapHeight;
         if (mapWidth <= 0 || mapHeight <= 0) return;
 
-        int visibleCols = (int)(vpW / hexSpacingX) + 1;
-        int visibleRows = (int)(vpH / hexSpacingY) + 1;
-        int startCol = Math.Max(0, (int)((-offsetX) / hexSpacingX));
-        int startRow = Math.Max(0, (int)((-offsetY) / hexSpacingY));
-        int endCol = Math.Min(mapWidth - 1, startCol + visibleCols);
-        int endRow = Math.Min(mapHeight - 1, startRow + visibleRows);
+        if (clipW <= 0 || clipH <= 0) { clipX = 0; clipY = 0; clipW = vpW; clipH = vpH; }
+
+        // Visible range derived from the clip rect (strip) instead of always
+        // iterating the whole cache area.
+        int startCol = Math.Max(0, (int)((clipX - offsetX) / hexSpacingX) - 1);
+        int startRow = Math.Max(0, (int)((clipY - offsetY - hexSpacingY) / hexSpacingY) - 1);
+        int endCol = Math.Min(mapWidth - 1, (int)((clipX + clipW - offsetX) / hexSpacingX) + 1);
+        int endRow = Math.Min(mapHeight - 1, (int)((clipY + clipH - offsetY + hexSpacingY) / hexSpacingY) + 1);
 
         SKPath hexPath = GetHexPath(hexSize);
         using var seaPath = new SKPath();
@@ -398,7 +517,8 @@ public class BackGroundRender : IDisposable
             for (int row = startRow; row <= endRow; row++)
             {
                 double centerY = rowOffsetY + row * hexSpacingY;
-                if (centerX + hexSize < 0 || centerX - hexSize > vpW || centerY + hexSize < 0 || centerY - hexSize > vpH) continue;
+                if (centerX + hexSize < clipX || centerX - hexSize > clipX + clipW ||
+                    centerY + hexSize < clipY || centerY - hexSize > clipY + clipH) continue;
 
                 bool isLand = IsLandAt(mapData, col, row);
                 SKPath targetPath = isLand ? landPath : seaPath;
@@ -429,8 +549,27 @@ public class BackGroundRender : IDisposable
 
     private void DrawTexturedRegion(SKCanvas canvas, SKPath path, bool isLand, double offsetX, double offsetY, int vpW, int vpH, double zoomLevel)
     {
-        if (isLand && _landPaint != null) canvas.DrawPath(path, _landPaint);
-        else if (!isLand && _seaPaint != null) canvas.DrawPath(path, _seaPaint);
+        SKBitmap? bitmap = isLand ? _landTexture : _seaTexture;
+        SKPaint? fallbackPaint = isLand ? _landPaint : _seaPaint;
+
+        if (bitmap != null)
+        {
+            // World-anchored texture that scales with zoom, so it expands/
+            // contracts around the cursor during zoom-to-cursor (the sampled
+            // point under the cursor stays fixed). Tile screen size = texSize*zoom,
+            // so it stays crisp when zoomed out to the full map.
+            // 采样: 纹理坐标 = (屏幕坐标 - 偏移) / 缩放；着色器局部矩阵是其逆变换:
+            // 屏幕坐标 = 纹理坐标 * 缩放 + 偏移
+            var matrix = SKMatrix.CreateScale((float)zoomLevel, (float)zoomLevel);
+            matrix.PostConcat(SKMatrix.CreateTranslation((float)offsetX, (float)offsetY));
+            using var shader = SKShader.CreateBitmap(bitmap, SKShaderTileMode.Repeat, SKShaderTileMode.Repeat, matrix);
+            using var paint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill, Shader = shader };
+            canvas.DrawPath(path, paint);
+        }
+        else if (fallbackPaint != null)
+        {
+            canvas.DrawPath(path, fallbackPaint);
+        }
     }
 
     private void RenderRivers(SKCanvas canvas, MapData mapData, double offsetX, double offsetY,
@@ -476,21 +615,6 @@ public class BackGroundRender : IDisposable
         if (mapData == null || _coastHelper == null) return;
         if (_coastDecorationArray == null) return;
 
-        var cameraMoved = Math.Abs(offsetX - _lastCameraX) > 1 || Math.Abs(offsetY - _lastCameraY) > 1;
-        if (cameraMoved)
-        {
-            _isCameraMoving = true;
-            _lastCameraMoveTime = DateTime.Now;
-            _lastCameraX = offsetX;
-            _lastCameraY = offsetY;
-        }
-        else if (_isCameraMoving && (DateTime.Now - _lastCameraMoveTime).TotalMilliseconds > 100)
-        {
-            _isCameraMoving = false;
-        }
-
-        if (_isCameraMoving && zoomLevel > 0.5) return;
-
         var canUseMask = _coastHelper.IsAtlasLoaded && _coastHelper.IsGrayLevelAtlasLoaded;
 
         using var paint = new SKPaint { IsAntialias = true };
@@ -533,10 +657,10 @@ public class BackGroundRender : IDisposable
                 var spriteName = _coastHelper?.GetCoastSpriteName(COAST_TILE_TYPE, decorationType);
                 if (spriteName == null) continue;
 
-                var srcRect = _coastHelper.GetCoastAtlasSpriteRect(spriteName);
+                var srcRect = _coastHelper?.GetCoastAtlasSpriteRect(spriteName);
                 if (!srcRect.HasValue) continue;
 
-                var origin = _coastHelper.GetCoastAtlasSpriteOrigin(spriteName);
+                var origin = _coastHelper?.GetCoastAtlasSpriteOrigin(spriteName);
                 float refOffsetX = 0, refOffsetY = 0;
                 if (origin.HasValue)
                 {
@@ -550,19 +674,16 @@ public class BackGroundRender : IDisposable
 
                 var dstRect = new SKRect(
                     (float)(centerX - drawWidth / 2 + refOffsetX * scale),
-                    (float)(centerY - drawHeight / 2 + refOffsetY * scale),
+                    (float)(centerY - drawHeight / 2 + refOffsetY * scale - 0.5),
                     (float)(centerX + drawWidth / 2 + refOffsetX * scale),
-                    (float)(centerY + drawHeight / 2 + refOffsetY * scale));
+                    (float)(centerY + drawHeight / 2 + refOffsetY * scale + 0.5));
 
-                if (zoomLevel >= 0.25)
-                {
-                    if (_coastMaskProcessor != null && _coastMaskProcessor.HasFinalAtlas)
-                        _coastMaskProcessor.DrawFinalCoast(canvas, spriteName, dstRect, paint, zoomLevel);
-                    else if (canUseMask && _coastMaskProcessor != null && _coastMaskProcessor.HasMask(spriteName))
-                        _coastMaskProcessor.DrawMaskedCoast(canvas, atlasImage, srcRect.Value, spriteName, dstRect, paint, zoomLevel);
-                    else
-                        canvas.DrawImage(atlasImage, srcRect.Value, dstRect, paint);
-                }
+                if (_coastMaskProcessor != null && _coastMaskProcessor.HasFinalAtlas)
+                    _coastMaskProcessor.DrawFinalCoast(canvas, spriteName, dstRect, paint, zoomLevel);
+                else if (canUseMask && _coastMaskProcessor != null && _coastMaskProcessor.HasMask(spriteName))
+                    _coastMaskProcessor.DrawMaskedCoast(canvas, atlasImage, srcRect.Value, spriteName, dstRect, paint, zoomLevel);
+                else
+                    canvas.DrawImage(atlasImage, srcRect.Value, dstRect, paint);
             }
         }
     }
@@ -587,7 +708,7 @@ public class BackGroundRender : IDisposable
                 double rowOffsetY = offsetY + (col % 2) * (hexSpacingY / 2);
                 double centerY = rowOffsetY + row * hexSpacingY;
 
-                var coastImage = _coastHelper!.GetCoastImageByDoodad(COAST_TILE_TYPE, decorationType);
+                var coastImage = _coastHelper?.GetCoastImageByDoodad(COAST_TILE_TYPE, decorationType);
                 if (coastImage == null) continue;
 
                 var spriteName = _coastHelper?.GetCoastSpriteName(COAST_TILE_TYPE, decorationType);
@@ -597,17 +718,14 @@ public class BackGroundRender : IDisposable
                 float drawHeight = coastImage.Height * scale;
 
                 var dstRect = new SKRect(
-                    (float)(centerX - drawWidth / 2), (float)(centerY - drawHeight / 2),
-                    (float)(centerX + drawWidth / 2), (float)(centerY + drawHeight / 2));
+                    (float)(centerX - drawWidth / 2), (float)(centerY - drawHeight / 2 - 0.5),
+                    (float)(centerX + drawWidth / 2), (float)(centerY + drawHeight / 2 + 0.5));
 
-                if (zoomLevel >= 0.25)
-                {
-                    if (canUseMask && _coastMaskProcessor != null && spriteName != null && _coastMaskProcessor.HasMask(spriteName))
-                        _coastMaskProcessor.DrawMaskedCoast(canvas, coastImage,
-                            new SKRect(0, 0, coastImage.Width, coastImage.Height), spriteName, dstRect, paint, zoomLevel);
-                    else
-                        canvas.DrawImage(coastImage, dstRect, paint);
-                }
+                if (canUseMask && _coastMaskProcessor != null && spriteName != null && _coastMaskProcessor.HasMask(spriteName))
+                    _coastMaskProcessor.DrawMaskedCoast(canvas, coastImage,
+                        new SKRect(0, 0, coastImage.Width, coastImage.Height), spriteName, dstRect, paint, zoomLevel);
+                else
+                    canvas.DrawImage(coastImage, dstRect, paint);
             }
         }
     }
@@ -690,6 +808,7 @@ public class BackGroundRender : IDisposable
             _coastDecorationArray = newArray;
 
         Debug.WriteLine($"[Coast] 预计算完成！海岸线格子 {calculatedCount}");
+        CoastCacheUpdated?.Invoke();
     }
 
     private SKPath GetHexPath(float hexSize)
@@ -712,12 +831,98 @@ public class BackGroundRender : IDisposable
 
     public void SetLandTerrainsRender(LandTerrainsRender render) => _landTerrainsRender = render;
 
+    public void InvalidateCache()
+    {
+        _cachedBgCenterX = double.NaN;
+        _cachedBgCenterY = double.NaN;
+        _cachedBgZoomLevel = double.NaN;
+        _cachedBgWidth = -1;
+        _cachedBgHeight = -1;
+    }
+
+    public event Action? CoastCacheUpdated;
+
+    public void InvalidateCoastCache(MapData mapData)
+    {
+        InitializeCoastCacheArray(mapData);
+    }
+
+    public void InvalidateCoastCacheRegion(MapData mapData, int centerCol, int centerRow, int radius)
+    {
+        lock (_coastTaskLock)
+        {
+            _coastCalculationCts?.Cancel();
+        }
+
+        if (_coastDecorationArray == null) return;
+        var mapWidth = mapData.MapWidth;
+        var mapHeight = mapData.MapHeight;
+
+        for (int row = Math.Max(0, centerRow - radius); row <= Math.Min(mapHeight - 1, centerRow + radius); row++)
+        {
+            for (int col = Math.Max(0, centerCol - radius); col <= Math.Min(mapWidth - 1, centerCol + radius); col++)
+            {
+                var terrain = mapData.GetTerrainAt(col, row);
+                if (terrain.TileType1 == OCEAN_TILE_TYPE)
+                {
+                    byte newDecoration = CoastMaskProcessor.CalculateCoastDecorationType(mapData, col, row);
+                    _coastDecorationArray[col, row] = newDecoration;
+                }
+                else
+                {
+                    _coastDecorationArray[col, row] = 255;
+                }
+            }
+        }
+    }
+
+    public void InvalidateCoastCacheFull(MapData mapData)
+    {
+        lock (_coastTaskLock)
+        {
+            _coastCalculationCts?.Cancel();
+        }
+
+        var mapWidth = mapData.MapWidth;
+        var mapHeight = mapData.MapHeight;
+
+        lock (_arraySwapLock)
+        {
+            if (_coastDecorationArray == null ||
+                _coastDecorationArray.GetLength(0) != mapWidth ||
+                _coastDecorationArray.GetLength(1) != mapHeight)
+            {
+                _coastDecorationArray = new byte[mapWidth, mapHeight];
+            }
+        }
+
+        for (int row = 0; row < mapHeight; row++)
+        {
+            for (int col = 0; col < mapWidth; col++)
+            {
+                var terrain = mapData.GetTerrainAt(col, row);
+                if (terrain.TileType1 == OCEAN_TILE_TYPE)
+                {
+                    byte newDecoration = CoastMaskProcessor.CalculateCoastDecorationType(mapData, col, row);
+                    _coastDecorationArray[col, row] = newDecoration;
+                }
+                else
+                {
+                    _coastDecorationArray[col, row] = 255;
+                }
+            }
+        }
+    }
+
     public void Dispose()
     {
         _seaPaint?.Dispose(); _landPaint?.Dispose(); _gridPaint?.Dispose();
         _textPaint?.Dispose(); _riverPaint?.Dispose(); _seaTexture?.Dispose();
         _landTexture?.Dispose(); _seaShader?.Dispose(); _landShader?.Dispose();
         _bgCacheImage?.Dispose();
+        _bgCacheSurfaceA?.Dispose();
+        _bgCacheSurfaceB?.Dispose();
+        _panCopyPaint.Dispose();
         foreach (var p in _hexPathCache.Values) p.Dispose();
         _stateLock.Dispose();
     }

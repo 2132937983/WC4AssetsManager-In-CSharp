@@ -13,6 +13,8 @@ public class MapData : INotifyPropertyChanged
     private ObservableCollection<Building> _buildings;
     private ObservableCollection<Army> _armies;
     private ObservableCollection<Legion> _legions;
+    private ObservableCollection<Trap> _traps;
+    private ObservableCollection<Reinforcement> _reinforcements;
     private int _mapWidth;
     private int _mapHeight;
     private string _filePath;
@@ -43,6 +45,18 @@ public class MapData : INotifyPropertyChanged
     {
         get => _legions;
         set { _legions = value; OnPropertyChanged(); }
+    }
+
+    public ObservableCollection<Trap> Traps
+    {
+        get => _traps;
+        set { _traps = value; OnPropertyChanged(); }
+    }
+
+    public ObservableCollection<Reinforcement> Reinforcements
+    {
+        get => _reinforcements;
+        set { _reinforcements = value; OnPropertyChanged(); }
     }
 
     public int MapWidth
@@ -86,8 +100,31 @@ public class MapData : INotifyPropertyChanged
         _buildings = new ObservableCollection<Building>();
         _armies = new ObservableCollection<Army>();
         _legions = new ObservableCollection<Legion>();
+        _traps = new ObservableCollection<Trap>();
+        _reinforcements = new ObservableCollection<Reinforcement>();
         _mapWidth = 0;
         _mapHeight = 0;
+        _filePath = string.Empty;
+        _isModified = false;
+
+        for (int i = 1; i <= 8; i++)
+            Legions.Add(Legion.CreateDefault(i));
+    }
+
+    public MapData(int width, int height)
+    {
+        _header = BTLHeader.CreateDefault();
+        _mapWidth = width;
+        _mapHeight = height;
+        _terrains = new TerrainData[width * height];
+        _provinces = new Province[width * height];
+        for (int i = 0; i < _provinces.Length; i++)
+            _provinces[i] = new Province();
+        _buildings = new ObservableCollection<Building>();
+        _armies = new ObservableCollection<Army>();
+        _legions = new ObservableCollection<Legion>();
+        _traps = new ObservableCollection<Trap>();
+        _reinforcements = new ObservableCollection<Reinforcement>();
         _filePath = string.Empty;
         _isModified = false;
 
@@ -328,37 +365,41 @@ public class MapData : INotifyPropertyChanged
     public void AddBuilding(Building building)
     {
         HexCoord coord = HexCoord.FromIndex(building.Coordinate, MapWidth);
-        Building? existing = GetBuildingAt(coord.Col, coord.Row);
-        if (existing.HasValue) Buildings.Remove(existing.Value);
-        Buildings.Add(building);
+        int idx = FindBuildingIndex(coord.Col, coord.Row);
+        if (idx >= 0)
+            _buildings[idx] = building;
+        else
+            _buildings.Add(building);
         IsModified = true;
     }
 
     public void AddArmy(Army army)
     {
         HexCoord coord = HexCoord.FromIndex(army.Coordinate, MapWidth);
-        Army? existing = GetArmyAt(coord.Col, coord.Row);
-        if (existing.HasValue) Armies.Remove(existing.Value);
-        Armies.Add(army);
+        int idx = FindArmyIndex(coord.Col, coord.Row);
+        if (idx >= 0)
+            _armies[idx] = army;
+        else
+            _armies.Add(army);
         IsModified = true;
     }
 
     public void RemoveBuildingAt(int col, int row)
     {
-        Building? building = GetBuildingAt(col, row);
-        if (building.HasValue)
+        int idx = FindBuildingIndex(col, row);
+        if (idx >= 0)
         {
-            Buildings.Remove(building.Value);
+            _buildings.RemoveAt(idx);
             IsModified = true;
         }
     }
 
     public void RemoveArmyAt(int col, int row)
     {
-        Army? army = GetArmyAt(col, row);
-        if (army.HasValue)
+        int idx = FindArmyIndex(col, row);
+        if (idx >= 0)
         {
-            Armies.Remove(army.Value);
+            _armies.RemoveAt(idx);
             IsModified = true;
         }
     }
@@ -433,4 +474,148 @@ public class MapData : INotifyPropertyChanged
 
         Debug.WriteLine("[MapData] 地图数据已清空");
     }
+
+    #region 高效索引访问 - ref返回零拷贝
+
+    public ref TerrainData GetTerrainRef(int col, int row)
+    {
+        return ref _terrains[row * _mapWidth + col];
+    }
+
+    public ref TerrainData GetTerrainRef(int index)
+    {
+        return ref _terrains[index];
+    }
+
+    public ref Province GetProvinceRef(int col, int row)
+    {
+        return ref _provinces[row * _mapWidth + col];
+    }
+
+    public ref Province GetProvinceRef(int index)
+    {
+        return ref _provinces[index];
+    }
+
+    #endregion
+
+    #region 高效集合操作 - 索引查找/替换/删除
+
+    public int FindBuildingIndex(int col, int row)
+    {
+        int coordIndex = row * _mapWidth + col;
+        for (int i = 0; i < _buildings.Count; i++)
+        {
+            if (_buildings[i].Coordinate == coordIndex) return i;
+        }
+        return -1;
+    }
+
+    public int FindArmyIndex(int col, int row)
+    {
+        int coordIndex = row * _mapWidth + col;
+        for (int i = 0; i < _armies.Count; i++)
+        {
+            if (_armies[i].Coordinate == coordIndex) return i;
+        }
+        return -1;
+    }
+
+    public int FindTrapIndex(int col, int row)
+    {
+        int coordIndex = row * _mapWidth + col;
+        for (int i = 0; i < _traps.Count; i++)
+        {
+            if (_traps[i].Coordinate == coordIndex) return i;
+        }
+        return -1;
+    }
+
+    public int FindReinforcementIndex(int col, int row)
+    {
+        int coordIndex = row * _mapWidth + col;
+        for (int i = 0; i < _reinforcements.Count; i++)
+        {
+            if (_reinforcements[i].Coordinate == coordIndex) return i;
+        }
+        return -1;
+    }
+
+    public int FindLegionIndex(int countryId)
+    {
+        for (int i = 0; i < _legions.Count; i++)
+        {
+            if (_legions[i].CountryId == countryId) return i;
+        }
+        return -1;
+    }
+
+    public void ReplaceBuilding(int index, Building building)
+    {
+        if ((uint)index < (uint)_buildings.Count) _buildings[index] = building;
+    }
+
+    public void ReplaceArmy(int index, Army army)
+    {
+        if ((uint)index < (uint)_armies.Count) _armies[index] = army;
+    }
+
+    public void ReplaceTrap(int index, Trap trap)
+    {
+        if ((uint)index < (uint)_traps.Count) _traps[index] = trap;
+    }
+
+    public void ReplaceReinforcement(int index, Reinforcement reinforcement)
+    {
+        if ((uint)index < (uint)_reinforcements.Count) _reinforcements[index] = reinforcement;
+    }
+
+    public void ReplaceLegion(int index, Legion legion)
+    {
+        if ((uint)index < (uint)_legions.Count) _legions[index] = legion;
+    }
+
+    public void RemoveBuildingAt(int index)
+    {
+        if ((uint)index < (uint)_buildings.Count) _buildings.RemoveAt(index);
+    }
+
+    public void RemoveArmyAt(int index)
+    {
+        if ((uint)index < (uint)_armies.Count) _armies.RemoveAt(index);
+    }
+
+    public void RemoveTrapAt(int index)
+    {
+        if ((uint)index < (uint)_traps.Count) _traps.RemoveAt(index);
+    }
+
+    public void RemoveReinforcementAt(int index)
+    {
+        if ((uint)index < (uint)_reinforcements.Count) _reinforcements.RemoveAt(index);
+    }
+
+    #endregion
+
+    #region 兼容性查询接口 (保留旧方法供渲染层使用)
+
+    public Legion? GetLegionByCountryId(int countryId)
+    {
+        int idx = FindLegionIndex(countryId);
+        return idx >= 0 ? _legions[idx] : null;
+    }
+
+    public Trap? GetTrapAt(int col, int row)
+    {
+        int idx = FindTrapIndex(col, row);
+        return idx >= 0 ? _traps[idx] : null;
+    }
+
+    public Reinforcement? GetReinforcementAt(int col, int row)
+    {
+        int idx = FindReinforcementIndex(col, row);
+        return idx >= 0 ? _reinforcements[idx] : null;
+    }
+
+    #endregion
 }
