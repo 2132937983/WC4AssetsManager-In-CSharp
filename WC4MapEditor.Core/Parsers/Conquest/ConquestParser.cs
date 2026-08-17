@@ -600,4 +600,71 @@ public class ConquestParser
             return false;
         }
     }
+
+    public bool CreateNew(int mapWidth, int mapHeight, int numLegions, int mapNumber = 0)
+    {
+        try
+        {
+            int totalTiles = mapWidth * mapHeight;
+            Header = new BTLHeader
+            {
+                BtlVersion = 1,
+                MapNumber = mapNumber,
+                MapClipX = 0,
+                MapClipY = 2,
+                MapLength = mapHeight,
+                MapWidth = mapWidth,
+                ArmyCount = numLegions,
+                BuildingCount = 0,
+                TroopCount = 0,
+                PlanCount = 0,
+                EventCount = 0,
+                WeatherCount = 0,
+                VictoryCondition = 1,
+                MinTurns = 999,
+                MaxTurns = 999,
+                ReinforcementCount = 0,
+                AirRaidCount = 0,
+                TrapCount = 0,
+                StrategyCount = 0,
+                AirSupportCount = 0,
+                PlacementA = 0,
+                PlacementB = 0,
+                ConqueredFlagPosition = 0,
+                Unknown4 = 1,
+                SelectableTileCount = totalTiles,
+                AccumulatedEconomy = 0,
+                AccumulatedIndustry = 0,
+                AccumulatedTech = 0
+            };
+            Legions.Clear(); Provinces.Clear(); Belongs.Clear(); Buildings.Clear();
+            Armies.Clear(); ArmiesV3.Clear(); Traps.Clear(); Cases.Clear();
+            Weathers.Clear(); Events.Clear();
+            Reinforcements.Clear(); ReinforcementsV3.Clear(); AirForces.Clear();
+            UnitPlaces.Clear(); Capitals.Clear(); StrategyConstructions.Clear(); AirSupports.Clear();
+
+            for (int i = 0; i < numLegions; i++)
+                Legions.Add(Legion.CreateDefault(i + 1));
+            for (int i = 0; i < totalTiles; i++)
+                Provinces.Add(new Province());
+            for (int i = 0; i < totalTiles; i++)
+                Belongs.Add("FF");
+
+            ResetLoadFlags();
+            _legionsLoaded = _provincesLoaded = _belongsLoaded = _buildingsLoaded = true;
+            _armiesLoaded = _trapsLoaded = _casesLoaded = _weathersLoaded = _eventsLoaded = true;
+            _reinforcementsLoaded = _airForcesLoaded = _unitPlacesLoaded = _capitalsLoaded = true;
+            _strategyLoaded = _airSupportsLoaded = true;
+            HexData = Array.Empty<byte>();
+            HexFilePath = "";
+            BelongOffset = false;
+            Debug.WriteLine($"[ConquestParser] 成功创建新征服: {mapWidth}x{mapHeight}, {numLegions}个军团, 地图编号{mapNumber}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ConquestParser] 创建新征服失败: {ex.Message}");
+            return false;
+        }
+    }
 }

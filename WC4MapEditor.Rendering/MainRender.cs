@@ -1,5 +1,6 @@
 using SkiaSharp;
 using WC4MapEditor.Core.Helpers;
+using WC4MapEditor.Core.Services;
 using WC4MapEditor.Models;
 
 namespace WC4MapEditor.Rendering;
@@ -76,6 +77,28 @@ public class MainRender : IRenderEngine
     {
         get => _activeEngine.ShowModeName;
         set => _activeEngine.ShowModeName = value;
+    }
+
+    public float HelpOpacity
+    {
+        get => _activeEngine.HelpOpacity;
+        set => _activeEngine.HelpOpacity = value;
+    }
+
+    public void UpdateHelpFadeAnimation()
+    {
+        _activeEngine.UpdateHelpFadeAnimation();
+    }
+
+    public void SetBrushPreview(int centerCol, int centerRow, int brushSize, string brushShape,
+        double zoomLevel, double offsetX, double offsetY, bool visible)
+    {
+        _activeEngine.SetBrushPreview(centerCol, centerRow, brushSize, brushShape, zoomLevel, offsetX, offsetY, visible);
+    }
+
+    public void HideBrushPreview()
+    {
+        _activeEngine.HideBrushPreview();
     }
 
     public MainRender(IRenderEngine activeEngine)
@@ -178,6 +201,12 @@ public class MainRender : IRenderEngine
     }
 
     public void CycleLabelMode() => _activeEngine.CycleLabelMode();
+
+    public Skia.GeoRulerRender? GeoRuler =>
+        (_activeEngine as Skia.SkiaRenderEngine)?.GeoRuler;
+
+    public IViewLayerImageProvider? ViewLayerImageProvider =>
+        (_activeEngine as Skia.SkiaRenderEngine)?.ViewLayerImageProvider;
 
     public void Dispose()
     {

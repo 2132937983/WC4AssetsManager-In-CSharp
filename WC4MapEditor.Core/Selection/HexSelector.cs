@@ -74,6 +74,11 @@ public sealed class HexSelector
     private double _selectionRectEndX;
     private double _selectionRectEndY;
 
+    private bool _isMovingSelection;
+    private int _moveOffsetCol;
+    private int _moveOffsetRow;
+    private HashSet<(int, int)>? _originalSelectedHexes;
+
     public event EventHandler<HexSelectionChangedEventArgs>? SelectionChanged;
     public event EventHandler<SelectionRectChangedEventArgs>? SelectionRectChanged;
 
@@ -104,6 +109,22 @@ public sealed class HexSelector
     public bool IsSelectionRectActive => _selectionRectActive;
     public (double StartX, double StartY, double EndX, double EndY) SelectionRect =>
         (_selectionRectStartX, _selectionRectStartY, _selectionRectEndX, _selectionRectEndY);
+
+    public bool IsMovingSelection => _isMovingSelection;
+    public int MoveOffsetCol => _moveOffsetCol;
+    public int MoveOffsetRow => _moveOffsetRow;
+    public IReadOnlySet<(int, int)>? OriginalSelectedHexes => _originalSelectedHexes;
+
+    public void SetSelectionMoving(bool isMoving, int offsetCol = 0, int offsetRow = 0, IEnumerable<(int, int)>? originalHexes = null)
+    {
+        _isMovingSelection = isMoving;
+        _moveOffsetCol = offsetCol;
+        _moveOffsetRow = offsetRow;
+        if (originalHexes == null)
+            _originalSelectedHexes = null;
+        else
+            _originalSelectedHexes = new HashSet<(int, int)>(originalHexes);
+    }
 
     public void Select(int col, int row, int mapWidth, int mapHeight)
     {
@@ -157,10 +178,14 @@ public sealed class HexSelector
 
     public void ClearSelection()
     {
-        if (_selectedHexes.Count == 0) return;
+        if (_selectedHexes.Count == 0 && !_isMovingSelection) return;
         var previousPrimary = _primarySelected;
         _selectedHexes.Clear();
         _primarySelected = null;
+        _isMovingSelection = false;
+        _moveOffsetCol = 0;
+        _moveOffsetRow = 0;
+        _originalSelectedHexes = null;
         OnSelectionChanged(previousPrimary, null);
     }
 
@@ -211,7 +236,11 @@ public sealed class HexSelector
         OnSelectionRectChanged();
     }
 
-    public List<HexCoord> EndSelectionRect(Func<double, double, (int col, int row)> screenToHex, int mapWidth, int mapHeight, Func<HexCoord, bool>? filter = null)
+    public List<HexCoord> EndSelectionRect(
+        Func<double, double, (int col, int row)> screenToHex,
+        Func<int, int, (double x, double y)> hexToScreen,
+        int mapWidth, int mapHeight,
+        Func<HexCoord, bool>? filter = null)
     {
         if (!_selectionRectActive) return [];
 
@@ -239,10 +268,10 @@ public sealed class HexSelector
             maxRow = Math.Max(maxRow, r);
         }
 
-        minCol = Math.Max(0, minCol - 1);
-        maxCol = Math.Min(mapWidth - 1, maxCol + 1);
-        minRow = Math.Max(0, minRow - 1);
-        maxRow = Math.Min(mapHeight - 1, maxRow + 1);
+        minCol = Math.Max(0, minCol);
+        maxCol = Math.Min(mapWidth - 1, maxCol);
+        minRow = Math.Max(0, minRow);
+        maxRow = Math.Min(mapHeight - 1, maxRow);
 
         var effectiveFilter = filter ?? GetFilterForCurrentMode();
         var matched = new List<HexCoord>();
@@ -251,6 +280,10 @@ public sealed class HexSelector
         {
             for (int r = minRow; r <= maxRow; r++)
             {
+                var (hexScreenX, hexScreenY) = hexToScreen(c, r);
+                if (hexScreenX < minX || hexScreenX > maxX || hexScreenY < minY || hexScreenY > maxY)
+                    continue;
+
                 var coord = new HexCoord(c, r);
                 if (effectiveFilter != null && !effectiveFilter(coord)) continue;
                 matched.Add(coord);

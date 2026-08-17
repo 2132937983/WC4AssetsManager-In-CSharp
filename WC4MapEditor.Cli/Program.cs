@@ -11,6 +11,7 @@ using WC4MapEditor.Parsers.Conquest;
 using WC4MapEditor.Parsers.Stage;
 using WC4MapEditor.Parsers.World;
 using WC4MapEditor.Rendering;
+using WC4MapEditor.Rendering.Helpers;
 
 namespace WC4MapEditor.Cli;
 
@@ -1632,9 +1633,30 @@ public class Program
 
     private static void Screenshot(string input, string output, int zoom)
     {
-        Console.WriteLine($"截图功能尚未实现");
-        Console.WriteLine($"输入: {input}");
-        Console.WriteLine($"输出: {output}");
-        Console.WriteLine($"缩放: {zoom}x");
+        try
+        {
+            var mapData = WorldParser.LoadFromFile(input);
+            if (mapData == null)
+            {
+                Console.Error.WriteLine($"无法加载地图文件: {input}");
+                Environment.ExitCode = 1;
+                return;
+            }
+
+            using var helper = new ScreenshotHelper();
+            bool success = helper.CaptureMap(mapData, output, zoom);
+            if (success)
+                Console.WriteLine($"截图已保存: {output}");
+            else
+            {
+                Console.Error.WriteLine("截图生成失败");
+                Environment.ExitCode = 1;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"错误: {ex.Message}");
+            Environment.ExitCode = 1;
+        }
     }
 }

@@ -7,10 +7,12 @@ namespace WC4MapEditor.Views;
 public class MapRenderScene : RenderSceneBase
 {
     private readonly string? _filePath;
+    private readonly bool _isNew;
 
-    public MapRenderScene(MainWindow window, string? filePath = null) : base(window)
+    public MapRenderScene(MainWindow window, string? filePath = null, bool isNew = false) : base(window)
     {
         _filePath = filePath;
+        _isNew = isNew;
     }
 
     protected override string SceneTitle => "地形地图";
@@ -18,6 +20,12 @@ public class MapRenderScene : RenderSceneBase
 
     protected override MapData? LoadMapData()
     {
+        if (_isNew)
+        {
+            var mapData = WorldParser.CreateNew(40, 30);
+            return mapData;
+        }
+
         string? path = _filePath;
         if (string.IsNullOrEmpty(path))
         {
@@ -30,11 +38,11 @@ public class MapRenderScene : RenderSceneBase
             path = dlg.FileName;
         }
 
-        var mapData = WorldParser.LoadFromFile(path);
-        if (mapData == null) return null;
+        var loadedData = WorldParser.LoadFromFile(path);
+        if (loadedData == null) return null;
 
-        mapData.FilePath = path;
-        return mapData;
+        loadedData.FilePath = path;
+        return loadedData;
     }
 
     protected override void InitializeRenderers()

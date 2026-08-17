@@ -74,6 +74,14 @@ public class BackGroundRender : IDisposable
     private readonly object _arraySwapLock = new();
     private readonly object _coastTaskLock = new();
 
+    private SKPicture? _hexLabelsPicture;
+    private double _cachedLabelsOffsetX = double.NaN;
+    private double _cachedLabelsOffsetY = double.NaN;
+    private double _cachedLabelsZoomLevel;
+    private int _cachedLabelsViewportWidth;
+    private int _cachedLabelsViewportHeight;
+    private HexLabelMode _cachedLabelMode = HexLabelMode.Hidden;
+
     public enum HexLabelMode { Hidden = 0, Index = 1, Coordinate = 2 }
 
     private HexLabelMode _hexLabelMode = HexLabelMode.Hidden;
@@ -271,6 +279,7 @@ public class BackGroundRender : IDisposable
         }
 
         RenderBackground(canvas, mapData);
+        RenderHexLabels(canvas);
     }
 
     private void RenderFallbackBackground(SKCanvas canvas)
@@ -914,12 +923,127 @@ public class BackGroundRender : IDisposable
         }
     }
 
+    public void RenderHexLabels(SKCanvas canvas)
+    {
+        if (_hexLabelMode == HexLabelMode.Hidden) return;
+
+        double offsetX, offsetY, zoomLevel;
+        int viewportWidth, viewportHeight;
+
+        _stateLock.EnterReadLock();
+        try
+        {
+            offsetX = _offsetX;
+            offsetY = _offsetY;
+            zoomLevel = _zoomLevel;
+            viewportWidth = _viewportWidth;
+            viewportHeight = _viewportHeight;
+        }
+        finally
+        {
+            _stateLock.ExitReadLock();
+        }
+
+        RenderHexLabelsCached(canvas, offsetX, offsetY, zoomLevel, viewportWidth, viewportHeight);
+    }
+
+    private void RenderHexLabelsCached(SKCanvas canvas, double offsetX, double offsetY,
+        double zoomLevel, int viewportWidth, int viewportHeight)
+    {
+        bool cacheValid =
+            _hexLabelsPicture != null &&
+            Math.Abs(_cachedLabelsOffsetX - offsetX) < 0.5 &&
+            Math.Abs(_cachedLabelsOffsetY - offsetY) < 0.5 &&
+            Math.Abs(_cachedLabelsZoomLevel - zoomLevel) < 0.001 &&
+            _cachedLabelsViewportWidth == viewportWidth &&
+            _cachedLabelsViewportHeight == viewportHeight &&
+            _cachedLabelMode == _hexLabelMode;
+
+        if (!cacheValid)
+        {
+            _hexLabelsPicture?.Dispose();
+            _hexLabelsPicture = null;
+
+            using var recorder = new SKPictureRecorder();
+            var rect = new SKRect(0, 0, viewportWidth, viewportHeight);
+            using var pictureCanvas = recorder.BeginRecording(rect);
+
+            double hexSpacingX = HEX_HORIZONTAL_SPACING * zoomLevel;
+            double hexSpacingY = HEX_VERTICAL_SPACING * zoomLevel;
+
+            int padding = 2;
+            int visibleCols = (int)(viewportWidth / hexSpacingX) + padding * 2;
+            int visibleRows = (int)(viewportHeight / hexSpacingY) + padding * 2;
+
+            int startCol = Math.Max(0, (int)((-offsetX) / hexSpacingX) - padding);
+            int startRow = Math.Max(0, (int)((-offsetY) / hexSpacingY) - padding);
+            int endCol = Math.Min(MapWidth - 1, startCol + visibleCols);
+            int endRow = Math.Min(MapHeight - 1, startRow + visibleRows);
+
+            float labelFontSize = Math.Max(8.0f, (float)(12 * zoomLevel * 0.5));
+            using var labelFont = new SKFont(SKTypeface.Default, labelFontSize);
+            using var labelPaint = new SKPaint { IsAntialias = true, Color = SKColors.LimeGreen };
+            using var shadowFont = new SKFont(SKTypeface.Default, labelFontSize);
+            using var shadowPaint = new SKPaint { IsAntialias = true, Color = new SKColor(0, 0, 0, 180) };
+
+            float hexSize = (float)(BASE_HEX_SIZE * zoomLevel);
+
+            for (int col = startCol; col <= endCol; col++)
+            {
+                double centerX = offsetX + col * hexSpacingX;
+                double rowOffsetY = offsetY + (col % 2) * (hexSpacingY / 2);
+
+                for (int row = startRow; row <= endRow; row++)
+                {
+                    double centerY = rowOffsetY + row * hexSpacingY;
+
+                    if (centerX + hexSize < 0 || centerX - hexSize > viewportWidth ||
+                        centerY + hexSize < 0 || centerY - hexSize > viewportHeight)
+                        continue;
+
+                    string text;
+                    switch (_hexLabelMode)
+                    {
+                        case HexLabelMode.Index:
+                            text = (row * MapWidth + col).ToString();
+                            break;
+                        case HexLabelMode.Coordinate:
+                            text = $"({col},{row})";
+                            break;
+                        default:
+                            continue;
+                    }
+
+                    float textWidth = labelFont.MeasureText(text);
+                    float textX = (float)(centerX - textWidth / 2);
+                    float textY = (float)(centerY + labelFont.Size / 3);
+
+                    pictureCanvas.DrawText(text, textX + 1, textY + 1, SKTextAlign.Left, shadowFont, shadowPaint);
+                    pictureCanvas.DrawText(text, textX, textY, SKTextAlign.Left, labelFont, labelPaint);
+                }
+            }
+
+            _hexLabelsPicture = recorder.EndRecording();
+
+            _cachedLabelsOffsetX = offsetX;
+            _cachedLabelsOffsetY = offsetY;
+            _cachedLabelsZoomLevel = zoomLevel;
+            _cachedLabelsViewportWidth = viewportWidth;
+            _cachedLabelsViewportHeight = viewportHeight;
+            _cachedLabelMode = _hexLabelMode;
+        }
+
+        if (_hexLabelsPicture != null)
+            canvas.DrawPicture(_hexLabelsPicture);
+    }
+
     public void Dispose()
     {
         _seaPaint?.Dispose(); _landPaint?.Dispose(); _gridPaint?.Dispose();
         _textPaint?.Dispose(); _riverPaint?.Dispose(); _seaTexture?.Dispose();
         _landTexture?.Dispose(); _seaShader?.Dispose(); _landShader?.Dispose();
         _bgCacheImage?.Dispose();
+        _hexLabelsPicture?.Dispose();
         _bgCacheSurfaceA?.Dispose();
         _bgCacheSurfaceB?.Dispose();
         _panCopyPaint.Dispose();

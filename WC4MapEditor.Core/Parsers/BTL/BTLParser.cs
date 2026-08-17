@@ -36,8 +36,9 @@ public static class BTLParser
         var header = BTLHeaderModule.Parse(data);
 
         mapData.Header = header;
-        mapData.MapWidth = header.MapWidth;
-        mapData.MapHeight = header.MapLength;
+        // 注意：与VB版本保持一致，MapLength存宽度，MapWidth存高度
+        mapData.MapWidth = header.MapLength;
+        mapData.MapHeight = header.MapWidth;
         mapData.FilePath = filePath;
 
         mapData.InitializeTerrain(mapData.MapWidth, mapData.MapHeight);
@@ -121,8 +122,9 @@ public static class BTLParser
     /// </summary>
     public static byte[] SaveToBytes(MapData mapData)
     {
-        mapData.Header.MapWidth = mapData.MapWidth;
-        mapData.Header.MapLength = mapData.MapHeight;
+        // 注意：与VB版本保持一致，MapLength存宽度，MapWidth存高度
+        mapData.Header.MapLength = mapData.MapWidth;
+        mapData.Header.MapWidth = mapData.MapHeight;
         mapData.Header.ArmyCount = mapData.Legions.Count;
         mapData.Header.BuildingCount = mapData.Buildings.Count;
         mapData.Header.TroopCount = mapData.Armies.Count;
@@ -188,8 +190,9 @@ public static class BTLParser
         var mapData = new MapData();
         mapData.MapWidth = width;
         mapData.MapHeight = height;
-        mapData.Header.MapWidth = width;
-        mapData.Header.MapLength = height;
+        // 注意：与VB版本保持一致，MapLength存宽度，MapWidth存高度
+        mapData.Header.MapLength = width;
+        mapData.Header.MapWidth = height;
         mapData.FilePath = string.Empty;
         mapData.IsModified = true;
         return mapData;

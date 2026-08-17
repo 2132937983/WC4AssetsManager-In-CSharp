@@ -65,6 +65,7 @@ public sealed class MouseActionEventArgs : EventArgs
     public double WheelDelta { get; }
     public int ClickCount { get; }
     public MouseButtons PressedButtons { get; }
+    public KeyModifiers Modifiers { get; set; }
     public bool Handled { get; set; }
 
     public MouseActionEventArgs(
@@ -341,7 +342,7 @@ public sealed class MouseManager
         return new MouseActionEventArgs(
             args.Action, args.Button, args.Position, args.DeltaPosition,
             args.WheelDelta, args.ClickCount, args.PressedButtons)
-        { Handled = args.Handled };
+        { Handled = args.Handled, Modifiers = _currentModifiers };
     }
 
     private void InvokeMatchingBindings(MouseActionEventArgs args)

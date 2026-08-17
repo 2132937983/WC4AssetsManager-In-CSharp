@@ -154,8 +154,7 @@ public sealed class BrushSettingsWindow : Window
             Margin = new Thickness(15)
         };
 
-        CreateSizeSection(contentPanel);
-        CreateShapeSection(contentPanel);
+        CreateSizeAndShapeSection(contentPanel);
         CreateTerrainAndVariantSection(contentPanel);
         CreateMaskTerrainSection(contentPanel);
 
@@ -173,9 +172,20 @@ public sealed class BrushSettingsWindow : Window
             DragMove();
     }
 
-    private void CreateSizeSection(StackPanel parent)
+    private void CreateSizeAndShapeSection(StackPanel parent)
     {
-        var titleLabel = new TextBlock
+        var rowPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 10)
+        };
+
+        var leftPanel = new StackPanel
+        {
+            Margin = new Thickness(0, 0, 15, 0)
+        };
+
+        var sizeLabel = new TextBlock
         {
             Text = "画笔大小",
             FontSize = 12,
@@ -183,7 +193,7 @@ public sealed class BrushSettingsWindow : Window
             Foreground = _textBrush,
             Margin = new Thickness(0, 0, 0, 4)
         };
-        parent.Children.Add(titleLabel);
+        leftPanel.Children.Add(sizeLabel);
 
         _sizeInput = new TextBox
         {
@@ -192,17 +202,15 @@ public sealed class BrushSettingsWindow : Window
             FontSize = 12,
             Foreground = Brushes.White,
             Background = new SolidColorBrush(Color.FromRgb(50, 50, 54)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 80)),
-            Margin = new Thickness(0, 0, 0, 10)
+            BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 80))
         };
         _sizeInput.TextChanged += SizeInput_TextChanged;
         _sizeInput.LostFocus += SizeInput_LostFocus;
-        parent.Children.Add(_sizeInput);
-    }
+        leftPanel.Children.Add(_sizeInput);
 
-    private void CreateShapeSection(StackPanel parent)
-    {
-        var titleLabel = new TextBlock
+        var rightPanel = new StackPanel();
+
+        var shapeLabel = new TextBlock
         {
             Text = "画笔形状",
             FontSize = 12,
@@ -210,21 +218,24 @@ public sealed class BrushSettingsWindow : Window
             Foreground = _textBrush,
             Margin = new Thickness(0, 0, 0, 4)
         };
-        parent.Children.Add(titleLabel);
+        rightPanel.Children.Add(shapeLabel);
 
         _shapeCombo = new ComboBox
         {
-            Width = 100,
+            Width = 80,
             FontSize = 12,
             Foreground = Brushes.White,
             Background = new SolidColorBrush(Color.FromRgb(50, 50, 54)),
-            Margin = new Thickness(0, 0, 0, 10),
             SelectedIndex = 0
         };
         _shapeCombo.Items.Add("圆形");
         _shapeCombo.Items.Add("方形");
         _shapeCombo.SelectionChanged += ShapeCombo_SelectionChanged;
-        parent.Children.Add(_shapeCombo);
+        rightPanel.Children.Add(_shapeCombo);
+
+        rowPanel.Children.Add(leftPanel);
+        rowPanel.Children.Add(rightPanel);
+        parent.Children.Add(rowPanel);
     }
 
     private void CreateTerrainAndVariantSection(StackPanel parent)

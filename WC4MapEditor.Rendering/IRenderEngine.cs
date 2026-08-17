@@ -28,6 +28,11 @@ public interface IRenderEngine : IDisposable
     string ModeName { get; set; }
     bool ShowHelp { get; set; }
     bool ShowModeName { get; set; }
+    float HelpOpacity { get; set; }
+    void UpdateHelpFadeAnimation();
+    void SetBrushPreview(int centerCol, int centerRow, int brushSize, string brushShape,
+        double zoomLevel, double offsetX, double offsetY, bool visible);
+    void HideBrushPreview();
     (int col, int row) ScreenToHex(double screenX, double screenY);
     (double x, double y) HexToScreen(int col, int row);
     bool LoadViewLayerImage(string imagePath);

@@ -1,4 +1,6 @@
+using System.IO;
 using WC4MapEditor.Core.Config;
+using WC4MapEditor.Core.Services;
 using WC4MapEditor.Models;
 
 namespace WC4MapEditor.Core.Modifiers;
@@ -19,6 +21,10 @@ public sealed class TerrainModifier : ModifierBase
     private int _brushSize;
     private bool _brushActive;
     private string _brushShape = "圆形";
+
+    private readonly TerrainRecognizer _terrainRecognizer = new();
+
+    public TerrainRecognizer TerrainRecognizer => _terrainRecognizer;
 
     public int EditLayer
     {
@@ -59,6 +65,17 @@ public sealed class TerrainModifier : ModifierBase
     public TerrainData? GetCopiedTerrainData() => _hasCopiedTerrain ? _copiedTerrain : null;
     public Dictionary<(int col, int row), TerrainData>? GetCopiedTerrainGroup() => _copiedTerrainGroup;
     public (int col, int row) GetCopyAnchor() => _copyAnchor;
+
+    public override void Initialize(MapData mapData)
+    {
+        base.Initialize(mapData);
+        _terrainRecognizer.UpdateMapData(mapData);
+    }
+
+    public override void Deinitialize()
+    {
+        base.Deinitialize();
+    }
 
     public void SetCopiedTerrainData(TerrainData data, int anchorCol, int anchorRow)
     {
@@ -422,9 +439,130 @@ public sealed class TerrainModifier : ModifierBase
         if (!IsValidCoord(col, row)) return ModifierResult.Fail("坐标超出范围");
         if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
 
+        byte oldValue = _mapData.GetTerrainRef(col, row).RiverValue;
         _mapData.GetTerrainRef(col, row).RiverValue = value;
+
+        // 同步河流值到邻居格子
+        SyncRiverValueToNeighbors(col, row, value, oldValue);
+
         MarkModified();
         return ModifierResult.Ok($"河流值设为 {value}");
+    }
+
+    /// <summary>
+    /// 同步河流值到邻居格子 - 当某条边有河流时，邻居格子的对边也应该有河流
+    /// </summary>
+    private void SyncRiverValueToNeighbors(int col, int row, byte newRiverValue, byte oldRiverValue)
+    {
+        if (_mapData == null) return;
+
+        // 检查每条边的河流状态是否有变化
+        for (int edgeIndex = 0; edgeIndex < 6; edgeIndex++)
+        {
+            bool oldHasRiver = (oldRiverValue & (1 << edgeIndex)) != 0;
+            bool newHasRiver = (newRiverValue & (1 << edgeIndex)) != 0;
+
+            // 如果状态没有变化，跳过
+            if (oldHasRiver == newHasRiver) continue;
+
+            // 状态有变化，需要同步到邻居格子
+            SyncSingleRiverEdgeToNeighbor(col, row, edgeIndex, newHasRiver);
+        }
+    }
+
+    /// <summary>
+    /// 同步单个河流边到相邻格子
+    /// </summary>
+    private void SyncSingleRiverEdgeToNeighbor(int col, int row, int edgeIndex, bool hasRiver)
+    {
+        if (_mapData == null) return;
+
+        // 获取邻居格子坐标
+        GetNeighborPosition(col, row, edgeIndex, out int neighborCol, out int neighborRow);
+
+        // 如果邻居格子不存在（边界），返回
+        if (neighborCol < 0 || neighborCol >= _mapData.MapWidth ||
+            neighborRow < 0 || neighborRow >= _mapData.MapHeight)
+            return;
+
+        // 获取邻居格子的地形
+        ref var neighborTerrain = ref _mapData.GetTerrainRef(neighborCol, neighborRow);
+
+        // 获取对边的索引（当前边的对边在邻居格子中的索引）
+        int oppositeEdge = GetOppositeEdge(edgeIndex);
+
+        // 获取邻居格子当前的河流值
+        byte neighborRiverValue = neighborTerrain.RiverValue;
+
+        // 检查邻居格子的对边状态是否与当前边状态一致
+        bool neighborHasRiver = (neighborRiverValue & (1 << oppositeEdge)) != 0;
+
+        if (neighborHasRiver != hasRiver)
+        {
+            // 更新邻居格子的对边状态
+            if (hasRiver)
+                neighborTerrain.RiverValue = (byte)(neighborRiverValue | (1 << oppositeEdge));
+            else
+                neighborTerrain.RiverValue = (byte)(neighborRiverValue & ~(1 << oppositeEdge));
+        }
+    }
+
+    /// <summary>
+    /// 获取指定边的邻居格子位置
+    /// </summary>
+    private void GetNeighborPosition(int col, int row, int edgeIndex, out int neighborCol, out int neighborRow)
+    {
+        // 根据格子编号的奇偶性计算邻居坐标（基于索引的奇偶性）
+        int index = row * _mapData!.MapWidth + col;
+        bool isEven = (index % 2 == 0);
+
+        neighborCol = col;
+        neighborRow = row;
+
+        if (isEven)
+        {
+            // 偶数编号格子
+            switch (edgeIndex)
+            {
+                case 0: neighborRow = row - 1; break;           // 上边
+                case 1: neighborCol = col + 1; neighborRow = row - 1; break; // 右上边
+                case 2: neighborCol = col + 1; break;           // 右下边
+                case 3: neighborRow = row + 1; break;           // 下边
+                case 4: neighborCol = col - 1; break;           // 左下边
+                case 5: neighborCol = col - 1; neighborRow = row - 1; break; // 左上边
+            }
+        }
+        else
+        {
+            // 奇数编号格子
+            switch (edgeIndex)
+            {
+                case 0: neighborRow = row - 1; break;           // 上边
+                case 1: neighborCol = col + 1; break;           // 右上边
+                case 2: neighborCol = col + 1; neighborRow = row + 1; break; // 右下边
+                case 3: neighborRow = row + 1; break;           // 下边
+                case 4: neighborCol = col - 1; neighborRow = row + 1; break; // 左下边
+                case 5: neighborCol = col - 1; break;           // 左上边
+            }
+        }
+    }
+
+    /// <summary>
+    /// 获取对边的索引
+    /// </summary>
+    private static int GetOppositeEdge(int edgeIndex)
+    {
+        // 对边关系：0<->3, 1<->4, 2<->5
+        return edgeIndex switch
+        {
+            0 => 3,
+            1 => 4,
+            2 => 5,
+            3 => 0,
+            4 => 1,
+            5 => 2,
+            _ => edgeIndex
+        };
     }
 
     public ModifierResult ApplyGreening(int greeningValue, IEnumerable<(int col, int row)>? targetHexes = null)
@@ -663,6 +801,518 @@ public sealed class TerrainModifier : ModifierBase
         };
         bool inMask = maskedTerrainIds.Contains(currentType);
         return maskIncludeMode ? inMask : !inMask;
+    }
+
+    #region F4 - 创建海岸线
+
+    public ModifierResult CreateCoast(IEnumerable<(int col, int row)>? targetHexes = null)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+
+        int modifiedCount = 0;
+        int oceanModifiedCount = 0;
+        var modifiedHexes = new List<(int, int)>();
+
+        var targets = GetTargetHexes(targetHexes);
+
+        foreach (var (col, row) in targets)
+        {
+            if (!IsValidCoord(col, row)) continue;
+
+            ref var terrain = ref _mapData.GetTerrainRef(col, row);
+            bool isModified = false;
+
+            if (terrain.TileType1 != 1 && terrain.TileType2 == 0)
+            {
+                terrain.TileType2 = 63;
+                terrain.DecorationType2 = 255;
+                modifiedCount++;
+                isModified = true;
+            }
+
+            if (terrain.TileType1 == 1)
+            {
+                var nonOceanNeighbors = GetNonOceanNeighbors(col, row);
+
+                switch (nonOceanNeighbors.Count)
+                {
+                    case 0:
+                        terrain.TileType2 = 31;
+                        terrain.DecorationType2 = 10;
+                        oceanModifiedCount++;
+                        isModified = true;
+                        break;
+                    case 1:
+                        terrain.TileType2 = 31;
+                        terrain.DecorationType2 = GetDecorationForSingleNeighbor(nonOceanNeighbors[0].Direction);
+                        oceanModifiedCount++;
+                        isModified = true;
+                        break;
+                    case 2:
+                        terrain.TileType2 = 31;
+                        terrain.DecorationType2 = GetDecorationForTwoNeighbors(nonOceanNeighbors[0].Direction, nonOceanNeighbors[1].Direction);
+                        oceanModifiedCount++;
+                        isModified = true;
+                        break;
+                    case 3:
+                        terrain.TileType2 = 31;
+                        terrain.DecorationType2 = GetDecorationForThreeNeighbors(nonOceanNeighbors[0].Direction, nonOceanNeighbors[1].Direction, nonOceanNeighbors[2].Direction);
+                        oceanModifiedCount++;
+                        isModified = true;
+                        break;
+                    case 4:
+                        terrain.TileType2 = 31;
+                        terrain.DecorationType2 = GetDecorationForFourNeighbors(nonOceanNeighbors[0].Direction, nonOceanNeighbors[1].Direction, nonOceanNeighbors[2].Direction, nonOceanNeighbors[3].Direction);
+                        oceanModifiedCount++;
+                        isModified = true;
+                        break;
+                    case 5:
+                        terrain.TileType2 = 31;
+                        terrain.DecorationType2 = GetDecorationForFiveNeighbors(nonOceanNeighbors[0].Direction, nonOceanNeighbors[1].Direction, nonOceanNeighbors[2].Direction, nonOceanNeighbors[3].Direction, nonOceanNeighbors[4].Direction);
+                        oceanModifiedCount++;
+                        isModified = true;
+                        break;
+                    case 6:
+                        terrain.TileType2 = 31;
+                        terrain.DecorationType2 = 11;
+                        oceanModifiedCount++;
+                        isModified = true;
+                        break;
+                }
+            }
+
+            if (isModified)
+                modifiedHexes.Add((col, row));
+        }
+
+        if (modifiedHexes.Count > 0) MarkModified();
+        string scopeInfo = targetHexes != null ? "（选中区域）" : "（全图）";
+        return ModifierResult.Ok($"创建海岸线完成{scopeInfo}：修改了 {modifiedCount} 个陆地格子和 {oceanModifiedCount} 个海洋格子", modifiedHexes.Count);
+    }
+
+    private readonly struct NeighborInfo
+    {
+        public readonly int Col;
+        public readonly int Row;
+        public readonly string Direction;
+
+        public NeighborInfo(int col, int row, string direction)
+        {
+            Col = col;
+            Row = row;
+            Direction = direction;
+        }
+    }
+
+    private List<NeighborInfo> GetNonOceanNeighbors(int col, int row)
+    {
+        var result = new List<NeighborInfo>();
+        bool isEven = (col % 2 == 0);
+
+        int[,] offsets = isEven
+            ? new int[,] { { 0, -1 }, { 1, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 }, { -1, -1 } }
+            : new int[,] { { 0, -1 }, { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 } };
+
+        string[] directions = ["上方", "右上方", "右下方", "下方", "左下方", "左上方"];
+
+        for (int i = 0; i < 6; i++)
+        {
+            int neighborCol = col + offsets[i, 0];
+            int neighborRow = row + offsets[i, 1];
+
+            if (neighborCol < 0)
+                neighborCol = _mapData!.MapWidth - 1;
+            else if (neighborCol >= _mapData!.MapWidth)
+                neighborCol = 0;
+
+            if (neighborRow < 0 || neighborRow >= _mapData.MapHeight)
+                continue;
+
+            ref var neighborTerrain = ref _mapData.GetTerrainRef(neighborCol, neighborRow);
+            if (neighborTerrain.TileType1 != 1)
+                result.Add(new NeighborInfo(neighborCol, neighborRow, directions[i]));
+        }
+
+        return result;
+    }
+
+    private static byte GetDecorationForSingleNeighbor(string direction) => direction switch
+    {
+        "上方" => 73,
+        "右上方" => 72,
+        "右下方" => 70,
+        "下方" => 66,
+        "左下方" => 58,
+        "左上方" => 42,
+        _ => 10
+    };
+
+    private static byte GetDecorationForTwoNeighbors(string dir1, string dir2)
+    {
+        var dirs = new HashSet<string> { dir1, dir2 };
+        if (dirs.Contains("上方") && dirs.Contains("右上方")) return 71;
+        if (dirs.Contains("上方") && dirs.Contains("右下方")) return 69;
+        if (dirs.Contains("上方") && dirs.Contains("下方")) return 65;
+        if (dirs.Contains("上方") && dirs.Contains("左下方")) return 57;
+        if (dirs.Contains("上方") && dirs.Contains("左上方")) return 41;
+        if (dirs.Contains("右上方") && dirs.Contains("左上方")) return 40;
+        if (dirs.Contains("右上方") && dirs.Contains("右下方")) return 68;
+        if (dirs.Contains("右上方") && dirs.Contains("下方")) return 64;
+        if (dirs.Contains("右上方") && dirs.Contains("左下方")) return 56;
+        if (dirs.Contains("右下方") && dirs.Contains("下方")) return 62;
+        if (dirs.Contains("右下方") && dirs.Contains("左下方")) return 54;
+        if (dirs.Contains("右下方") && dirs.Contains("左上方")) return 38;
+        if (dirs.Contains("下方") && dirs.Contains("左下方")) return 50;
+        if (dirs.Contains("下方") && dirs.Contains("左上方")) return 34;
+        if (dirs.Contains("左下方") && dirs.Contains("左上方")) return 26;
+        return 10;
+    }
+
+    private static byte GetDecorationForThreeNeighbors(string dir1, string dir2, string dir3)
+    {
+        var dirs = new HashSet<string> { dir1, dir2, dir3 };
+        if (dirs.Contains("上方") && dirs.Contains("右上方") && dirs.Contains("右下方")) return 67;
+        if (dirs.Contains("上方") && dirs.Contains("右上方") && dirs.Contains("下方")) return 63;
+        if (dirs.Contains("上方") && dirs.Contains("右上方") && dirs.Contains("左下方")) return 55;
+        if (dirs.Contains("上方") && dirs.Contains("右上方") && dirs.Contains("左上方")) return 39;
+        if (dirs.Contains("上方") && dirs.Contains("右下方") && dirs.Contains("下方")) return 61;
+        if (dirs.Contains("上方") && dirs.Contains("右下方") && dirs.Contains("左下方")) return 53;
+        if (dirs.Contains("上方") && dirs.Contains("右下方") && dirs.Contains("左上方")) return 37;
+        if (dirs.Contains("上方") && dirs.Contains("下方") && dirs.Contains("左下方")) return 49;
+        if (dirs.Contains("上方") && dirs.Contains("下方") && dirs.Contains("左上方")) return 33;
+        if (dirs.Contains("上方") && dirs.Contains("左下方") && dirs.Contains("左上方")) return 25;
+        if (dirs.Contains("右上方") && dirs.Contains("右下方") && dirs.Contains("下方")) return 60;
+        if (dirs.Contains("右上方") && dirs.Contains("右下方") && dirs.Contains("左下方")) return 52;
+        if (dirs.Contains("右上方") && dirs.Contains("右下方") && dirs.Contains("左上方")) return 36;
+        if (dirs.Contains("右上方") && dirs.Contains("下方") && dirs.Contains("左下方")) return 48;
+        if (dirs.Contains("右上方") && dirs.Contains("下方") && dirs.Contains("左上方")) return 32;
+        if (dirs.Contains("右上方") && dirs.Contains("左下方") && dirs.Contains("左上方")) return 24;
+        if (dirs.Contains("右下方") && dirs.Contains("下方") && dirs.Contains("左下方")) return 46;
+        if (dirs.Contains("右下方") && dirs.Contains("下方") && dirs.Contains("左上方")) return 30;
+        if (dirs.Contains("右下方") && dirs.Contains("左下方") && dirs.Contains("左上方")) return 22;
+        if (dirs.Contains("下方") && dirs.Contains("左下方") && dirs.Contains("左上方")) return 18;
+        return 10;
+    }
+
+    private static byte GetDecorationForFourNeighbors(string dir1, string dir2, string dir3, string dir4)
+    {
+        var dirs = new HashSet<string> { dir1, dir2, dir3, dir4 };
+        if (dirs.Contains("上方") && dirs.Contains("右上方") && dirs.Contains("右下方") && dirs.Contains("下方")) return 59;
+        if (dirs.Contains("上方") && dirs.Contains("右上方") && dirs.Contains("右下方") && dirs.Contains("左下方")) return 51;
+        if (dirs.Contains("上方") && dirs.Contains("右上方") && dirs.Contains("右下方") && dirs.Contains("左上方")) return 35;
+        if (dirs.Contains("上方") && dirs.Contains("右上方") && dirs.Contains("下方") && dirs.Contains("左下方")) return 47;
+        if (dirs.Contains("上方") && dirs.Contains("右上方") && dirs.Contains("下方") && dirs.Contains("左上方")) return 31;
+        if (dirs.Contains("上方") && dirs.Contains("右上方") && dirs.Contains("左下方") && dirs.Contains("左上方")) return 23;
+        if (dirs.Contains("上方") && dirs.Contains("右下方") && dirs.Contains("下方") && dirs.Contains("左下方")) return 45;
+        if (dirs.Contains("上方") && dirs.Contains("右下方") && dirs.Contains("下方") && dirs.Contains("左上方")) return 29;
+        if (dirs.Contains("上方") && dirs.Contains("右下方") && dirs.Contains("左下方") && dirs.Contains("左上方")) return 21;
+        if (dirs.Contains("上方") && dirs.Contains("下方") && dirs.Contains("左下方") && dirs.Contains("左上方")) return 17;
+        if (dirs.Contains("右上方") && dirs.Contains("右下方") && dirs.Contains("下方") && dirs.Contains("左下方")) return 44;
+        if (dirs.Contains("右上方") && dirs.Contains("右下方") && dirs.Contains("下方") && dirs.Contains("左上方")) return 28;
+        if (dirs.Contains("右上方") && dirs.Contains("右下方") && dirs.Contains("左下方") && dirs.Contains("左上方")) return 20;
+        if (dirs.Contains("右上方") && dirs.Contains("下方") && dirs.Contains("左下方") && dirs.Contains("左上方")) return 16;
+        if (dirs.Contains("右下方") && dirs.Contains("下方") && dirs.Contains("左下方") && dirs.Contains("左上方")) return 14;
+        return 10;
+    }
+
+    private static byte GetDecorationForFiveNeighbors(string dir1, string dir2, string dir3, string dir4, string dir5)
+    {
+        var dirs = new HashSet<string> { dir1, dir2, dir3, dir4, dir5 };
+        if (!dirs.Contains("上方")) return 12;
+        if (!dirs.Contains("右上方")) return 13;
+        if (!dirs.Contains("右下方")) return 15;
+        if (!dirs.Contains("下方")) return 19;
+        if (!dirs.Contains("左下方")) return 27;
+        if (!dirs.Contains("左上方")) return 43;
+        return 10;
+    }
+
+    #endregion
+
+    #region F5 - 处理海洋第二层
+
+    public ModifierResult ProcessOceanSecondLayer(IEnumerable<(int col, int row)>? targetHexes = null)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+
+        int modifiedCount = 0;
+        var modifiedHexes = new List<(int, int)>();
+
+        var targets = GetTargetHexes(targetHexes);
+
+        foreach (var (col, row) in targets)
+        {
+            if (!IsValidCoord(col, row)) continue;
+
+            ref var terrain = ref _mapData.GetTerrainRef(col, row);
+
+            if (terrain.TileType1 == 1 && terrain.TileType2 != 0)
+            {
+                terrain.TileType2 = 63;
+                terrain.DecorationType2 = 255;
+                modifiedCount++;
+                modifiedHexes.Add((col, row));
+            }
+        }
+
+        if (modifiedCount > 0) MarkModified();
+        string scopeInfo = targetHexes != null ? "（选中区域）" : "（全图）";
+        return ModifierResult.Ok($"处理完成{scopeInfo}：共修改了 {modifiedCount} 个海洋格子的第二层地形", modifiedCount);
+    }
+
+    #endregion
+
+    #region F6 - 导出HD文件
+
+    public ModifierResult ExportHdFile()
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+
+        try
+        {
+            string currentFilePath = _mapData.FilePath;
+            if (string.IsNullOrEmpty(currentFilePath))
+                return ModifierResult.Fail("当前文件路径为空，请先保存地图");
+
+            int mapWidth = _mapData.MapWidth;
+            int mapHeight = _mapData.MapHeight;
+
+            string fileDir = Path.GetDirectoryName(currentFilePath)!;
+            string fileName = Path.GetFileNameWithoutExtension(currentFilePath);
+            string hdFilePath = Path.Combine(fileDir, $"{fileName}_map_hd.bin");
+
+            int value1 = mapWidth * 108;
+            int value2 = (int)(mapHeight * 62.5 * 2.0683076);
+
+            int count1 = value1 / 125 + 1;
+            int count2 = value2 / 125 + 1;
+            int repeatCount = count1 * count2;
+
+            using var fs = new FileStream(hdFilePath, FileMode.Create, FileAccess.Write);
+            using var writer = new BinaryWriter(fs);
+
+            writer.Write((uint)value1);
+            writer.Write((uint)value2);
+
+            uint pattern = 0xFFFFFFFE;
+            for (int i = 0; i < repeatCount; i++)
+                writer.Write(pattern);
+
+            long fileSize = 8 + repeatCount * 4;
+
+            string detailMessage = $"HD文件导出成功！\n\n" +
+                                   $"文件名: {fileName}_map_hd.bin\n" +
+                                   $"文件大小: {fileSize} 字节\n" +
+                                   $"地图尺寸: {mapWidth}x{mapHeight}\n" +
+                                   $"Value1: {value1} (0x{value1:X8})\n" +
+                                   $"Value2: {value2} (0x{value2:X8})\n" +
+                                   $"重复次数: {repeatCount}";
+
+            return ModifierResult.Ok(detailMessage, (int)fileSize);
+        }
+        catch (Exception ex)
+        {
+            return ModifierResult.Fail($"导出HD文件时出错：{ex.Message}");
+        }
+    }
+
+    #endregion
+
+    #region G键 - 按比例缩放地图
+
+    public ModifierResult ScaleMap(double scale)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+
+        scale = Math.Clamp(scale, 0.1, 10.0);
+        if (Math.Abs(scale - 1.0) < 0.001) return ModifierResult.Ok("缩放比例为1.0，无需调整");
+
+        int oldWidth = _mapData.MapWidth;
+        int oldHeight = _mapData.MapHeight;
+
+        int newWidth = Math.Max(1, (int)(oldWidth * scale));
+        int newHeight = Math.Max(1, (int)(oldHeight * scale));
+
+        double stepX = (double)oldWidth / newWidth;
+        double stepY = (double)oldHeight / newHeight;
+
+        var tempTerrains = new Dictionary<(int, int), TerrainData>();
+        var tempProvinces = new Dictionary<(int, int), Province>();
+
+        for (int newRow = 0; newRow < newHeight; newRow++)
+        {
+            for (int newCol = 0; newCol < newWidth; newCol++)
+            {
+                int oldCol = Math.Min((int)(newCol * stepX), oldWidth - 1);
+                int oldRow = Math.Min((int)(newRow * stepY), oldHeight - 1);
+
+                tempTerrains[(newCol, newRow)] = _mapData.GetTerrainRef(oldCol, oldRow);
+                tempProvinces[(newCol, newRow)] = _mapData.GetProvinceRef(oldCol, oldRow);
+            }
+        }
+
+        _mapData.Resize(newWidth, newHeight);
+
+        for (int row = 0; row < newHeight; row++)
+        {
+            for (int col = 0; col < newWidth; col++)
+            {
+                ref var terrain = ref _mapData.GetTerrainRef(col, row);
+                terrain = TerrainData.CreateDefault();
+                terrain.TileType1 = 0;
+                terrain.DecorationType1 = 0;
+                _mapData.GetProvinceRef(col, row) = Province.CreateDefault();
+            }
+        }
+
+        foreach (var kvp in tempTerrains)
+            _mapData.GetTerrainRef(kvp.Key.Item1, kvp.Key.Item2) = kvp.Value;
+        foreach (var kvp in tempProvinces)
+            _mapData.GetProvinceRef(kvp.Key.Item1, kvp.Key.Item2) = kvp.Value;
+
+        _mapData.Header.MapWidth = newWidth;
+        _mapData.Header.MapLength = newHeight;
+
+        MarkModified();
+        return ModifierResult.Ok($"地图已缩放：{oldWidth}x{oldHeight} -> {newWidth}x{newHeight} (比例 {scale:F2})");
+    }
+
+    #endregion
+
+    #region I/J/K/L键 - 调整地图大小
+
+    public ModifierResult ResizeMap(string direction, int amount, bool useOcean)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+
+        int oldWidth = _mapData.MapWidth;
+        int oldHeight = _mapData.MapHeight;
+        int newWidth = oldWidth;
+        int newHeight = oldHeight;
+        int offsetCol = 0;
+        int offsetRow = 0;
+
+        switch (direction)
+        {
+            case "up":
+                newHeight = oldHeight + amount;
+                offsetRow = amount;
+                break;
+            case "down":
+                newHeight = oldHeight + amount;
+                break;
+            case "left":
+                newWidth = oldWidth + amount;
+                offsetCol = amount;
+                break;
+            case "right":
+                newWidth = oldWidth + amount;
+                break;
+        }
+
+        if (newWidth <= 0 || newHeight <= 0)
+            return ModifierResult.Fail("地图尺寸不能小于等于0");
+
+        var tempTerrains = new Dictionary<(int, int), TerrainData>();
+        var tempProvinces = new Dictionary<(int, int), Province>();
+
+        for (int oldRow = 0; oldRow < oldHeight; oldRow++)
+        {
+            for (int oldCol = 0; oldCol < oldWidth; oldCol++)
+            {
+                int newCol = oldCol + offsetCol;
+                int newRow = oldRow + offsetRow;
+
+                if (newCol >= 0 && newCol < newWidth && newRow >= 0 && newRow < newHeight)
+                {
+                    tempTerrains[(newCol, newRow)] = _mapData.GetTerrainRef(oldCol, oldRow);
+                    tempProvinces[(newCol, newRow)] = _mapData.GetProvinceRef(oldCol, oldRow);
+                }
+            }
+        }
+
+        _mapData.Resize(newWidth, newHeight);
+
+        for (int row = 0; row < newHeight; row++)
+        {
+            for (int col = 0; col < newWidth; col++)
+            {
+                ref var terrain = ref _mapData.GetTerrainRef(col, row);
+                terrain = TerrainData.CreateDefault();
+                terrain.TileType1 = useOcean ? (byte)1 : (byte)0;
+                terrain.DecorationType1 = 0;
+                _mapData.GetProvinceRef(col, row) = Province.CreateDefault();
+            }
+        }
+
+        foreach (var kvp in tempTerrains)
+            _mapData.GetTerrainRef(kvp.Key.Item1, kvp.Key.Item2) = kvp.Value;
+        foreach (var kvp in tempProvinces)
+            _mapData.GetProvinceRef(kvp.Key.Item1, kvp.Key.Item2) = kvp.Value;
+
+        _mapData.Header.MapWidth = newWidth;
+        _mapData.Header.MapLength = newHeight;
+
+        MarkModified();
+        string dirText = direction switch { "up" => "向上", "down" => "向下", "left" => "向左", "right" => "向右", _ => direction };
+        string actionText = amount > 0 ? "扩展" : "收缩";
+        return ModifierResult.Ok($"地图已调整：{dirText} 方向 {actionText} {Math.Abs(amount)} 格，新尺寸 {newWidth}x{newHeight}");
+    }
+
+    #endregion
+
+    #region 选区移动
+
+    public ModifierResult ConfirmSelectionMove(HashSet<(int col, int row)> originalHexes, int offsetCol, int offsetRow)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+        if (originalHexes.Count == 0) return ModifierResult.Fail("没有选中的格子");
+        if (offsetCol == 0 && offsetRow == 0) return ModifierResult.Ok("偏移为零，无需移动");
+
+        var modifiedHexes = new List<(int, int)>();
+
+        var moveOperations = new List<(int sourceCol, int sourceRow, int destCol, int destRow, TerrainData terrainData)>();
+        foreach (var (sourceCol, sourceRow) in originalHexes)
+        {
+            int destCol = sourceCol + offsetCol;
+            int destRow = sourceRow + offsetRow;
+
+            if (!IsValidCoord(destCol, destRow)) continue;
+            if (sourceCol == destCol && sourceRow == destRow) continue;
+
+            TerrainData sourceTerrain = _mapData.GetTerrainRef(sourceCol, sourceRow);
+            moveOperations.Add((sourceCol, sourceRow, destCol, destRow, sourceTerrain));
+        }
+
+        foreach (var op in moveOperations)
+        {
+            ref var terrain = ref _mapData.GetTerrainRef(op.sourceCol, op.sourceRow);
+            terrain.TileType1 = 1;
+            terrain.DecorationType1 = 0;
+            modifiedHexes.Add((op.sourceCol, op.sourceRow));
+        }
+
+        foreach (var op in moveOperations)
+        {
+            if (!IsValidCoord(op.destCol, op.destRow)) continue;
+            _mapData.GetTerrainRef(op.destCol, op.destRow) = op.terrainData;
+            modifiedHexes.Add((op.destCol, op.destRow));
+        }
+
+        if (modifiedHexes.Count > 0) MarkModified();
+        return ModifierResult.Ok($"已移动框选区域，共修改 {modifiedHexes.Count} 个格子", modifiedHexes.Count);
+    }
+
+    #endregion
+
+    public async Task<(bool success, int modifiedCount)> RecognizeTerrainAsync(
+        IProgress<(int current, int total, int row, int col)>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var (success, modifiedCount) = await _terrainRecognizer.RecognizeTerrainAsync(progress, cancellationToken);
+        if (success && modifiedCount > 0)
+            MarkModified();
+        return (success, modifiedCount);
     }
 }
 

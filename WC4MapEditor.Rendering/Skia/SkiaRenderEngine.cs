@@ -26,6 +26,7 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
     private TrapRender? _trapRender;
     private SelectionRender? _selectionRender;
     private OverlayRender? _overlayRender;
+    private GeoRulerRender? _geoRulerRender;
 
     public bool IsAvailable => true;
     public string EngineName => "SkiaSharp";
@@ -37,6 +38,8 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
     public bool EnableArmyRender { get; set; } = true;
     public bool EnableTrapRender { get; set; } = true;
     public bool EnableSelectionRender { get; set; } = true;
+
+    public GeoRulerRender? GeoRuler => _geoRulerRender;
 
     private string _helpText = string.Empty;
     private string _modeName = string.Empty;
@@ -53,6 +56,9 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
 
     private SKBitmap? _viewLayerCache;
     private bool _viewLayerCacheValid;
+
+    private readonly SkiaViewLayerImageProvider _viewLayerImageProvider = new();
+    public SkiaViewLayerImageProvider ViewLayerImageProvider => _viewLayerImageProvider;
     private double _viewLayerCacheZoom;
     private double _viewLayerCacheOffsetX;
     private double _viewLayerCacheOffsetY;
@@ -85,6 +91,28 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
             _showHelp = value;
             if (_overlayRender != null) _overlayRender.ShowHelp = _showHelp;
         }
+    }
+
+    public float HelpOpacity
+    {
+        get => _overlayRender?.HelpOpacity ?? 1.0f;
+        set { if (_overlayRender != null) _overlayRender.HelpOpacity = value; }
+    }
+
+    public void UpdateHelpFadeAnimation()
+    {
+        _overlayRender?.UpdateFadeAnimation();
+    }
+
+    public void SetBrushPreview(int centerCol, int centerRow, int brushSize, string brushShape,
+        double zoomLevel, double offsetX, double offsetY, bool visible)
+    {
+        _overlayRender?.SetBrushPreview(centerCol, centerRow, brushSize, brushShape, zoomLevel, offsetX, offsetY, visible);
+    }
+
+    public void HideBrushPreview()
+    {
+        _overlayRender?.HideBrushPreview();
     }
 
     public bool ShowModeName
@@ -159,6 +187,7 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
             ShowHelp = _showHelp,
             ShowModeName = _showModeName
         };
+        _geoRulerRender = new GeoRulerRender();
     }
 
     public void Resize(int width, int height)
@@ -211,6 +240,7 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
             _selectionRender.ZoomLevel = camera.ZoomLevel;
             _selectionRender.ViewportWidth = (int)camera.ViewportWidth;
             _selectionRender.ViewportHeight = (int)camera.ViewportHeight;
+            _selectionRender.MapData = mapData;
             _selectionRender.Render(canvas, mapData.MapWidth, mapData.MapHeight);
         }
 
@@ -219,6 +249,18 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
             _overlayRender.ViewportWidth = (int)camera.ViewportWidth;
             _overlayRender.ViewportHeight = (int)camera.ViewportHeight;
             _overlayRender.Render(canvas);
+        }
+
+        if (_geoRulerRender != null)
+        {
+            _geoRulerRender.OffsetX = camera.OffsetX;
+            _geoRulerRender.OffsetY = camera.OffsetY;
+            _geoRulerRender.ZoomLevel = camera.ZoomLevel;
+            _geoRulerRender.ViewportWidth = (int)camera.ViewportWidth;
+            _geoRulerRender.ViewportHeight = (int)camera.ViewportHeight;
+            _geoRulerRender.MapWidth = mapData.MapWidth;
+            _geoRulerRender.MapHeight = mapData.MapHeight;
+            _geoRulerRender.Render(canvas);
         }
     }
 
@@ -279,6 +321,8 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
             _viewLayerVisible = true;
             _viewLayerCacheValid = false;
 
+            _viewLayerImageProvider.UpdateBitmap(_viewLayerImage);
+
             System.Diagnostics.Debug.WriteLine($"[视图层] 加载成功, 实际尺寸: {_viewLayerOriginalWidth}x{_viewLayerOriginalHeight}");
             Invalidate();
             return true;
@@ -299,6 +343,7 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
         _viewLayerImagePath = string.Empty;
         _viewLayerVisible = false;
         _viewLayerCacheValid = false;
+        _viewLayerImageProvider.UpdateBitmap(null);
         Invalidate();
     }
 
@@ -472,5 +517,6 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
         _trapRender?.Dispose();
         _selectionRender?.Dispose();
         _overlayRender?.Dispose();
+        _geoRulerRender?.Dispose();
     }
 }

@@ -7,10 +7,12 @@ namespace WC4MapEditor.Views;
 public class ConquestRenderScene : RenderSceneBase
 {
     private readonly string? _filePath;
+    private readonly bool _isNew;
 
-    public ConquestRenderScene(MainWindow window, string? filePath = null) : base(window)
+    public ConquestRenderScene(MainWindow window, string? filePath = null, bool isNew = false) : base(window)
     {
         _filePath = filePath;
+        _isNew = isNew;
     }
 
     protected override string SceneTitle => "征服地图";
@@ -18,20 +20,28 @@ public class ConquestRenderScene : RenderSceneBase
 
     protected override MapData? LoadMapData()
     {
+        if (_isNew)
+        {
+            var parser = new ConquestParser();
+            if (!parser.CreateNew(40, 30, 2))
+                return null;
+            return BuildMapDataFromConquestParser(parser);
+        }
+
         string? path = _filePath;
         if (string.IsNullOrEmpty(path))
         {
             var dlg = new OpenFileDialog
             {
-                Filter = "Conquest Files|*.bin;*.dat|All Files|*.*",
+                Filter = "征服文件 (*.btl)|*.btl|所有文件 (*.*)|*.*",
                 Title = "打开征服地图文件"
             };
             if (dlg.ShowDialog() != true) return null;
             path = dlg.FileName;
         }
 
-        var parser = new ConquestParser(path);
-        return BuildMapDataFromConquestParser(parser);
+        var fileParser = new ConquestParser(path);
+        return BuildMapDataFromConquestParser(fileParser);
     }
 
     private static MapData BuildMapDataFromConquestParser(ConquestParser parser)
@@ -39,10 +49,11 @@ public class ConquestRenderScene : RenderSceneBase
         var mapData = new MapData();
         mapData.FilePath = parser.HexFilePath;
         mapData.Header = parser.Header;
-        mapData.MapWidth = parser.Header.MapWidth;
-        mapData.MapHeight = parser.Header.MapLength;
+        // 注意：与VB版本保持一致，MapLength存宽度，MapWidth存高度
+        mapData.MapWidth = parser.Header.MapLength;
+        mapData.MapHeight = parser.Header.MapWidth;
 
-        mapData.InitializeTerrain(parser.Header.MapWidth, parser.Header.MapLength);
+        mapData.InitializeTerrain(mapData.MapWidth, mapData.MapHeight);
 
         var provinceData = parser.GetProvinceData();
         if (provinceData.Count > 0)

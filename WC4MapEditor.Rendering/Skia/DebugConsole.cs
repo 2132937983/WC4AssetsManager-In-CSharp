@@ -4,6 +4,7 @@ using System.Text;
 using SkiaSharp;
 using WC4MapEditor.Core.Commands;
 using WC4MapEditor.Core.Config;
+using WC4MapEditor.Core.Input;
 
 namespace WC4MapEditor.Rendering.Skia;
 
@@ -40,7 +41,7 @@ public sealed class DebugConsole : IDisposable
 
     private bool _isVisible;
     private bool _cursorVisible = true;
-    private System.Windows.Threading.DispatcherTimer? _cursorTimer;
+    private System.Threading.Timer? _cursorTimer;
 
     private SKPaint? _backgroundPaint;
     private SKPaint? _textPaint;
@@ -63,6 +64,16 @@ public sealed class DebugConsole : IDisposable
     public bool IsVisible => _isVisible;
 
     public Action? InvalidateCallback { get; set; }
+
+    /// <summary>
+    /// 用于在 UI 线程执行回调的委托 - 由 GUI 层注入（如 WPF 的 Dispatcher.Invoke）
+    /// </summary>
+    public Action<Action>? InvokeOnUiThread { get; set; }
+
+    /// <summary>
+    /// 控制台可见性变化事件 - 参数为是否可见
+    /// </summary>
+    public event Action<bool>? VisibilityChanged;
 
     private DebugConsole()
     {
@@ -178,16 +189,14 @@ public sealed class DebugConsole : IDisposable
     {
         if (_cursorTimer != null) return;
 
-        _cursorTimer = new System.Windows.Threading.DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(500)
-        };
-        _cursorTimer.Tick += (_, _) =>
+        _cursorTimer = new System.Threading.Timer(_ =>
         {
             _cursorVisible = !_cursorVisible;
-            InvalidateCallback?.Invoke();
-        };
-        _cursorTimer.Start();
+            if (InvokeOnUiThread != null)
+                InvokeOnUiThread(() => InvalidateCallback?.Invoke());
+            else
+                InvalidateCallback?.Invoke();
+        }, null, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(500));
     }
 
     public void WriteLine(string message)
@@ -282,18 +291,20 @@ public sealed class DebugConsole : IDisposable
     {
         if (_isVisible) return;
         _isVisible = true;
-        _cursorTimer?.Start();
+        _cursorTimer?.Change(TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(500));
         InvalidateCallback?.Invoke();
+        VisibilityChanged?.Invoke(true);
     }
 
     public void HideConsole()
     {
         if (!_isVisible) return;
         _isVisible = false;
-        _cursorTimer?.Stop();
+        _cursorTimer?.Change(Timeout.Infinite, Timeout.Infinite);
         _currentInput = "";
         _cursorPosition = 0;
         InvalidateCallback?.Invoke();
+        VisibilityChanged?.Invoke(false);
     }
 
     public void Toggle()
@@ -306,54 +317,54 @@ public sealed class DebugConsole : IDisposable
     {
         if (!_isVisible) return false;
 
-        System.Windows.Input.Key key = (System.Windows.Input.Key)keyCode;
+        var key = (VirtualKey)keyCode;
 
         switch (key)
         {
-            case System.Windows.Input.Key.Enter:
+            case VirtualKey.Enter:
                 ExecuteCurrentInput();
                 return true;
 
-            case System.Windows.Input.Key.Up:
+            case VirtualKey.Up:
                 NavigateHistory(-1);
                 return true;
 
-            case System.Windows.Input.Key.Down:
+            case VirtualKey.Down:
                 NavigateHistory(1);
                 return true;
 
-            case System.Windows.Input.Key.Left:
+            case VirtualKey.Left:
                 if (_cursorPosition > 0) _cursorPosition--;
                 return true;
 
-            case System.Windows.Input.Key.Right:
+            case VirtualKey.Right:
                 if (_cursorPosition < _currentInput.Length) _cursorPosition++;
                 return true;
 
-            case System.Windows.Input.Key.Escape:
+            case VirtualKey.Escape:
                 HideConsole();
                 return true;
 
-            case System.Windows.Input.Key.PageUp:
+            case VirtualKey.PageUp:
                 _scrollOffset += 10;
                 ClampScrollOffset();
                 return true;
 
-            case System.Windows.Input.Key.PageDown:
+            case VirtualKey.PageDown:
                 _scrollOffset -= 10;
                 ClampScrollOffset();
                 return true;
 
-            case System.Windows.Input.Key.Home:
+            case VirtualKey.Home:
                 _scrollOffset = int.MaxValue;
                 ClampScrollOffset();
                 return true;
 
-            case System.Windows.Input.Key.End:
+            case VirtualKey.End:
                 _scrollOffset = 0;
                 return true;
 
-            case System.Windows.Input.Key.Back:
+            case VirtualKey.Back:
                 if (_cursorPosition > 0 && _currentInput.Length > 0)
                 {
                     _currentInput = _currentInput[..(_cursorPosition - 1)] + _currentInput[_cursorPosition..];
@@ -361,7 +372,7 @@ public sealed class DebugConsole : IDisposable
                 }
                 return true;
 
-            case System.Windows.Input.Key.Delete:
+            case VirtualKey.Delete:
                 if (_cursorPosition < _currentInput.Length)
                     _currentInput = _currentInput[.._cursorPosition] + _currentInput[(_cursorPosition + 1)..];
                 return true;
@@ -525,7 +536,8 @@ public sealed class DebugConsole : IDisposable
         _font?.Dispose();
         _backgroundImage?.Dispose();
         _backgroundImagePaint?.Dispose();
-        _cursorTimer?.Stop();
+        _cursorTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+        _cursorTimer?.Dispose();
         _cursorTimer = null;
     }
 }

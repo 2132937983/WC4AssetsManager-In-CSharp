@@ -1,5 +1,6 @@
 using SkiaSharp;
 using WC4MapEditor.Core.Selection;
+using WC4MapEditor.Models;
 
 namespace WC4MapEditor.Rendering.Skia;
 
@@ -11,6 +12,10 @@ public sealed class SelectionRender : IDisposable
 
     private static readonly SKColor HIGHLIGHT_FILL_COLOR = new(255, 255, 0, 80);
     private static readonly SKColor HIGHLIGHT_BORDER_COLOR = new(255, 255, 0, 200);
+    private static readonly SKColor OCEAN_FILL_COLOR = new(0, 100, 255, 80);
+    private static readonly SKColor OCEAN_BORDER_COLOR = new(0, 100, 255, 200);
+    private static readonly SKColor LAND_FILL_COLOR = new(0, 255, 100, 80);
+    private static readonly SKColor LAND_BORDER_COLOR = new(0, 255, 100, 200);
     private static readonly SKColor SELECTION_RECT_FILL_COLOR = new(100, 149, 237, 40);
     private static readonly SKColor SELECTION_RECT_BORDER_COLOR = new(100, 149, 237, 180);
 
@@ -24,10 +29,16 @@ public sealed class SelectionRender : IDisposable
     private int _viewportHeight = 600;
     private bool _disposed;
 
-    private SKPaint _fillPaint;
-    private SKPaint _borderPaint;
-    private SKPaint _rectFillPaint;
-    private SKPaint _rectBorderPaint;
+    private SKPaint _fillPaint = null!;
+    private SKPaint _borderPaint = null!;
+    private SKPaint _oceanFillPaint = null!;
+    private SKPaint _oceanBorderPaint = null!;
+    private SKPaint _landFillPaint = null!;
+    private SKPaint _landBorderPaint = null!;
+    private SKPaint _rectFillPaint = null!;
+    private SKPaint _rectBorderPaint = null!;
+
+    public MapData? MapData { get; set; }
 
     public double OffsetX
     {
@@ -78,6 +89,36 @@ public sealed class SelectionRender : IDisposable
             IsAntialias = true,
             Style = SKPaintStyle.Stroke,
             Color = HIGHLIGHT_BORDER_COLOR,
+            StrokeWidth = 2
+        };
+
+        _oceanFillPaint = new SKPaint
+        {
+            IsAntialias = true,
+            Style = SKPaintStyle.Fill,
+            Color = OCEAN_FILL_COLOR
+        };
+
+        _oceanBorderPaint = new SKPaint
+        {
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            Color = OCEAN_BORDER_COLOR,
+            StrokeWidth = 2
+        };
+
+        _landFillPaint = new SKPaint
+        {
+            IsAntialias = true,
+            Style = SKPaintStyle.Fill,
+            Color = LAND_FILL_COLOR
+        };
+
+        _landBorderPaint = new SKPaint
+        {
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            Color = LAND_BORDER_COLOR,
             StrokeWidth = 2
         };
 
@@ -142,8 +183,15 @@ public sealed class SelectionRender : IDisposable
         double hexSpacingY = HEX_VERTICAL_SPACING * zoomLevel;
 
         _borderPaint.StrokeWidth = Math.Max(1f, Math.Min(3f, (float)(zoomLevel * 1.5)));
+        _oceanBorderPaint.StrokeWidth = _borderPaint.StrokeWidth;
+        _landBorderPaint.StrokeWidth = _borderPaint.StrokeWidth;
 
         SKPath hexPath = GetHexPath(hexSize);
+        var mapData = MapData;
+        bool isMovingSelection = selector.IsMovingSelection;
+        int moveOffsetCol = selector.MoveOffsetCol;
+        int moveOffsetRow = selector.MoveOffsetRow;
+        var originalSelectedHexes = selector.OriginalSelectedHexes;
 
         foreach (var coord in selector.SelectedHexes)
         {
@@ -158,8 +206,45 @@ public sealed class SelectionRender : IDisposable
             using var translatedPath = new SKPath(hexPath);
             translatedPath.Transform(matrix);
 
-            canvas.DrawPath(translatedPath, _fillPaint);
-            canvas.DrawPath(translatedPath, _borderPaint);
+            SKPaint fillPaint, borderPaint;
+
+            if (isMovingSelection && mapData != null)
+            {
+                int originalCol = coord.Col - moveOffsetCol;
+                int originalRow = coord.Row - moveOffsetRow;
+                bool isOriginalHex = originalSelectedHexes?.Contains((originalCol, originalRow)) ?? false;
+
+                if (isOriginalHex)
+                {
+                    bool isOcean = originalCol >= 0 && originalCol < mapData.MapWidth
+                        && originalRow >= 0 && originalRow < mapData.MapHeight
+                        && mapData.GetTerrainRef(originalCol, originalRow).TileType1 == 1;
+
+                    if (isOcean)
+                    {
+                        fillPaint = _oceanFillPaint;
+                        borderPaint = _oceanBorderPaint;
+                    }
+                    else
+                    {
+                        fillPaint = _landFillPaint;
+                        borderPaint = _landBorderPaint;
+                    }
+                }
+                else
+                {
+                    fillPaint = _landFillPaint;
+                    borderPaint = _landBorderPaint;
+                }
+            }
+            else
+            {
+                fillPaint = _fillPaint;
+                borderPaint = _borderPaint;
+            }
+
+            canvas.DrawPath(translatedPath, fillPaint);
+            canvas.DrawPath(translatedPath, borderPaint);
         }
     }
 
@@ -189,6 +274,10 @@ public sealed class SelectionRender : IDisposable
         _disposed = true;
         _fillPaint?.Dispose();
         _borderPaint?.Dispose();
+        _oceanFillPaint?.Dispose();
+        _oceanBorderPaint?.Dispose();
+        _landFillPaint?.Dispose();
+        _landBorderPaint?.Dispose();
         _rectFillPaint?.Dispose();
         _rectBorderPaint?.Dispose();
         foreach (var p in _hexPathCache.Values) p.Dispose();

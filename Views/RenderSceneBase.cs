@@ -8,6 +8,7 @@ using System.Windows.Media.Effects;
 using SkiaSharp;
 using SkiaSharp.Views.WPF;
 using WC4MapEditor.Core.Commands;
+using WC4MapEditor.Core.Geo;
 using WC4MapEditor.Core.Helpers;
 using WC4MapEditor.Core.Input;
 using WC4MapEditor.Core.Modifiers;
@@ -16,6 +17,7 @@ using WC4MapEditor.Core.Selection;
 using WC4MapEditor.Core.Services;
 using WC4MapEditor.Models;
 using WC4MapEditor.Parsers.World;
+using WC4MapEditor.Rendering.Helpers;
 using WC4MapEditor.Rendering.Skia;
 using WC4MapEditor.Views.Assist;
 using WC4MapEditor.Views.Dialogs;
@@ -37,7 +39,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     private BrushSettingsWindow? _brushSettingsWindow;
     private bool _brushDragging;
     private MousePosition _brushLastDragPos;
+    private (int col, int row) _brushLastPaintedCell = (-1, -1);
     private const double BrushMinDragDistance = 5.0;
+    private const double BrushInterpolationStep = 4.0;
     private int _sceneId = -1;
 
     private StackPanel? _sceneTabPanel;
@@ -49,6 +53,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     private readonly DebugConsole _debugConsole = DebugConsole.Instance;
     private readonly EditModeManager _editModeManager = EditModeManager.Instance;
     private readonly FileStateManager _fileStateManager = new();
+    private Grid? _titleBar;
 
     protected MainRender RenderEngine => _renderEngine;
 
@@ -79,12 +84,13 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _skElement.PaintSurface += OnPaintSurface;
         _rootGrid.Children.Add(_skElement);
 
-        var titleBar = new Grid
+        _titleBar = new Grid
         {
             Height = 40,
             Background = new SolidColorBrush(Color.FromArgb(180, 0, 0, 0)),
-            VerticalAlignment = VerticalAlignment.Top
+            VerticalAlignment = VerticalAlignment.Bottom
         };
+        var titleBar = _titleBar;
 
         var titlePanel = new StackPanel
         {
@@ -182,7 +188,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             Child = _sceneTabPanel,
             StaysOpen = false,
-            Placement = PlacementMode.Bottom,
+            Placement = PlacementMode.Top,
             PlacementTarget = titleBar,
             PopupAnimation = PopupAnimation.Fade,
             AllowsTransparency = true,
@@ -253,6 +259,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _skElement.MouseRightButtonUp += OnWpfMouseRightUp;
         _skElement.MouseMove += OnWpfMouseMove;
         _skElement.MouseWheel += OnWpfMouseWheel;
+        _skElement.MouseLeave += OnWpfMouseLeave;
         _skElement.SizeChanged += OnSizeChanged;
         _skElement.KeyDown += OnSkElementKeyDown;
         _skElement.KeyUp += OnSkElementKeyUp;
@@ -264,11 +271,15 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         _keyboardManager.RegisterBinding("EscBack", (int)Key.Escape, KeyModifiers.None, OnEscPressed, "返回主场景");
         _keyboardManager.RegisterBinding("ToggleConsole", (int)Key.F3, KeyModifiers.None, OnToggleConsole, "调试控制台");
+        _keyboardManager.RegisterBinding("Screenshot", (int)Key.F2, KeyModifiers.None, OnScreenshot, "截图");
 
         InitializeEditModeKeyBindings();
 
         _editModeManager.Initialize(_mapData);
         _editModeManager.SetUndoManager(_fileStateManager.UndoManager);
+        _editModeManager.SetDialogService(new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!));
+        _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(Core.Commands.CommandManager.Instance));
+        _editModeManager.SetRecognizeTerrainCallback(RecognizeTerrainFromViewLayer);
         _editModeManager.ModeChanged += OnEditModeChanged;
         _editModeManager.StatusMessageChanged += OnEditModeStatusMessageChanged;
         _editModeManager.DataModified += OnEditModeDataModified;
@@ -285,6 +296,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _keyboardManager.KeyDown += OnKeyboardManagerKeyDown;
 
         _debugConsole.InvalidateCallback = () => _skElement.InvalidateVisual();
+        _debugConsole.InvokeOnUiThread = action => Dispatcher.Invoke(action);
+        _debugConsole.VisibilityChanged += isVisible =>
+        {
+            if (_titleBar != null)
+                _titleBar.Visibility = isVisible ? Visibility.Collapsed : Visibility.Visible;
+        };
         _debugConsole.StartCursorTimer();
         Core.Commands.CommandManager.Instance.SetContext(new CommandContext { MapData = _mapData });
         Core.Commands.CommandManager.Instance.RegisterCommand("undo", _ =>
@@ -297,6 +314,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             if (_fileStateManager.Redo()) { _editModeManager_DataModifiedFromUndo(); }
             else { _debugConsole.WriteLine("无法重做"); }
         }, "重做上一步操作");
+        RegisterTerrainCliCommands();
         HexInfoService.Instance.SetMapData(_mapData);
 
         _skElement.Focus();
@@ -335,6 +353,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _skElement.MouseRightButtonUp -= OnWpfMouseRightUp;
         _skElement.MouseMove -= OnWpfMouseMove;
         _skElement.MouseWheel -= OnWpfMouseWheel;
+        _skElement.MouseLeave -= OnWpfMouseLeave;
         _skElement.SizeChanged -= OnSizeChanged;
         _skElement.KeyDown -= OnSkElementKeyDown;
         _skElement.KeyUp -= OnSkElementKeyUp;
@@ -368,6 +387,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _camera.ViewportWidth = info.Width;
         _camera.ViewportHeight = info.Height;
 
+        _renderEngine.UpdateHelpFadeAnimation();
         _renderEngine.Render(canvas, _mapData, _camera);
 
         _debugConsole.Render(canvas, info.Width, info.Height);
@@ -551,6 +571,266 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _debugConsole.Toggle();
     }
 
+    private async void OnScreenshot()
+    {
+        await CaptureMapScreenshotAsync();
+    }
+
+    private enum ScreenshotMode { Standard, HexBased, Cancel }
+
+    private async Task CaptureMapScreenshotAsync()
+    {
+        try
+        {
+            if (_mapData == null)
+            {
+                _debugConsole.WriteLine("[截图] 地图数据为空，无法截图");
+                return;
+            }
+
+            var screenshotMode = await ShowScreenshotModeDialogAsync();
+            if (screenshotMode == ScreenshotMode.Cancel) return;
+
+            var saveDialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "PNG 图片|*.png|所有文件|*.*",
+                Title = "保存地图截图"
+            };
+
+            saveDialog.FileName = screenshotMode == ScreenshotMode.HexBased
+                ? HexBasedScreenshotHelper.GenerateDefaultFileName()
+                : ScreenshotHelper.GenerateDefaultFileName();
+
+            var screenshotsDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "screenshots");
+            if (!System.IO.Directory.Exists(screenshotsDir))
+                System.IO.Directory.CreateDirectory(screenshotsDir);
+            saveDialog.InitialDirectory = screenshotsDir;
+
+            if (saveDialog.ShowDialog() != true) return;
+
+            string outputPath = saveDialog.FileName;
+            _debugConsole.WriteLine("[截图] 开始生成地图截图...");
+
+            var progressWindow = new ProgressWindow();
+            progressWindow.Show();
+
+            var progress = new Progress<(int current, int total, int row, int col, int percent)>(p =>
+            {
+                progressWindow.UpdateProgress(p.current, p.total, p.row, p.col, p.percent);
+            });
+
+            bool success;
+            var mapData = _mapData;
+            var showLayer2 = RenderEngine.ShowLayer2;
+
+            switch (screenshotMode)
+            {
+                case ScreenshotMode.HexBased:
+                    _debugConsole.WriteLine("[截图] 使用逐个六边形渲染截图");
+                    success = await Task.Run(() =>
+                    {
+                        using var helper = new HexBasedScreenshotHelper();
+                        return helper.CaptureMap(mapData, outputPath, 1.0, false, false, showLayer2, progress);
+                    });
+                    break;
+
+                default:
+                    _debugConsole.WriteLine("[截图] 使用标准截图");
+                    success = await Task.Run(() =>
+                    {
+                        using var helper = new ScreenshotHelper();
+                        return helper.CaptureMap(mapData, outputPath, 1.0, false, false, showLayer2, progress);
+                    });
+                    break;
+            }
+
+            progressWindow.PlayFadeOutAndClose();
+
+            if (success)
+                _debugConsole.WriteLine("[截图] 截图已保存: " + outputPath);
+            else
+                _debugConsole.WriteLine("[截图] 截图生成失败");
+        }
+        catch (Exception ex)
+        {
+            _debugConsole.WriteLine("[截图] 错误: " + ex.Message);
+        }
+    }
+
+    private Task<ScreenshotMode> ShowScreenshotModeDialogAsync()
+    {
+        var tcs = new TaskCompletionSource<ScreenshotMode>();
+
+        var parentGrid = Content as Grid;
+        if (parentGrid == null)
+        {
+            tcs.SetResult(ScreenshotMode.Cancel);
+            return tcs.Task;
+        }
+
+        var overlay = new Border
+        {
+            Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(128, 0, 0, 0)),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch
+        };
+
+        var dialogPanel = new Border
+        {
+            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(45, 45, 48)),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(24),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Effect = new DropShadowEffect { ShadowDepth = 4, Opacity = 0.5 }
+        };
+
+        var stackPanel = new StackPanel();
+
+        var titleBlock = new TextBlock
+        {
+            Text = "选择截图模式",
+            Foreground = Brushes.White,
+            FontSize = 16,
+            FontWeight = FontWeights.Bold,
+            Margin = new Thickness(0, 0, 0, 16)
+        };
+        stackPanel.Children.Add(titleBlock);
+
+        var descBlock = new TextBlock
+        {
+            Text = "标准截图：使用渲染引擎快速生成\n逐个六边形：逐个绘制地形纹理，质量更高",
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromArgb(180, 255, 255, 255)),
+            FontSize = 12,
+            Margin = new Thickness(0, 0, 0, 16),
+            TextWrapping = TextWrapping.Wrap
+        };
+        stackPanel.Children.Add(descBlock);
+
+        var standardButton = new Button
+        {
+            Content = "标准截图（快速）",
+            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 122, 204)),
+            Foreground = Brushes.White,
+            Padding = new Thickness(16, 8, 16, 8),
+            Margin = new Thickness(0, 0, 0, 8),
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        standardButton.Click += (s, e) =>
+        {
+            parentGrid.Children.Remove(overlay);
+            tcs.TrySetResult(ScreenshotMode.Standard);
+        };
+        stackPanel.Children.Add(standardButton);
+
+        var hexBasedButton = new Button
+        {
+            Content = "逐个六边形渲染（高质量）",
+            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(80, 80, 80)),
+            Foreground = Brushes.White,
+            Padding = new Thickness(16, 8, 16, 8),
+            Margin = new Thickness(0, 0, 0, 8),
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        hexBasedButton.Click += (s, e) =>
+        {
+            parentGrid.Children.Remove(overlay);
+            tcs.TrySetResult(ScreenshotMode.HexBased);
+        };
+        stackPanel.Children.Add(hexBasedButton);
+
+        var cancelButton = new Button
+        {
+            Content = "取消",
+            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(80, 80, 80)),
+            Foreground = Brushes.White,
+            Padding = new Thickness(16, 8, 16, 8),
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        cancelButton.Click += (s, e) =>
+        {
+            parentGrid.Children.Remove(overlay);
+            tcs.TrySetResult(ScreenshotMode.Cancel);
+        };
+        stackPanel.Children.Add(cancelButton);
+
+        dialogPanel.Child = stackPanel;
+        overlay.Child = dialogPanel;
+        parentGrid.Children.Add(overlay);
+
+        return tcs.Task;
+    }
+
+    private readonly GeoCoordinateCalculator _geoCalculator = new();
+
+    private async Task OnGeoCalculateAsync()
+    {
+        if (_mapData == null)
+        {
+            MessageBox.Show("地图数据未加载", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        UpdateGeoReferenceFromRuler();
+
+        var rp = _geoCalculator.ReferencePoints;
+
+        if (!rp.IsValid())
+        {
+            MessageBox.Show(
+                "请先设置参考点：\n" +
+                "1. 拖动顶部/左侧标记到目标位置\n" +
+                "2. 右键点击标记输入经纬度\n" +
+                "3. 需要至少设置两个行参考点和两个列参考点",
+                "经纬度换算", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (!rp.IsValid())
+        {
+            MessageBox.Show(
+                "参考点设置不完整，需要两个不同的行参考点和两个不同的列参考点。\n" +
+                $"当前: 行1={rp.RowRef1}(纬{rp.LatRef1}), 行2={rp.RowRef2}(纬{rp.LatRef2})\n" +
+                $"      列1={rp.ColRef1}(经{rp.LonRef1}), 列2={rp.ColRef2}(经{rp.LonRef2})",
+                "参考点不完整", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var saveDialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "JSON文件 (*.json)|*.json|所有文件 (*.*)|*.*",
+            Title = "保存经纬度换算结果",
+            FileName = $"geo_coords_{DateTime.Now:yyyyMMddHHmmss}.json"
+        };
+
+        if (saveDialog.ShowDialog() != true) return;
+
+        var progressWindow = new ProgressWindow();
+        progressWindow.Title = "正在计算经纬度";
+        progressWindow.Show();
+
+        try
+        {
+            await Task.Run(() =>
+            {
+                _geoCalculator.CalculateAndExport(_mapData, saveDialog.FileName);
+                Dispatcher.Invoke(() => progressWindow.UpdateProgress(100, 100, 0, 0, 100));
+            });
+
+            MessageBox.Show($"经纬度换算结果已保存到:\n{saveDialog.FileName}", "成功",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"经纬度换算失败: {ex.Message}", "错误",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            progressWindow.Close();
+        }
+    }
+
     private void OnToggleHexInfo()
     {
         if (_hexInfoWindow != null)
@@ -649,6 +929,17 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     private void OnWpfMouseLeftDown(object sender, MouseButtonEventArgs e)
     {
         var pos = e.GetPosition(_skElement);
+
+        var ruler = _renderEngine.GeoRuler;
+        if (ruler != null && ruler.HitTestMarker(pos.X, pos.Y, out int markerId))
+        {
+            ruler.DraggingMarker = markerId;
+            _skElement.CaptureMouse();
+            _skElement.InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         _mouseManager.SetModifierState(GetCurrentKeyModifiers());
         _mouseManager.ProcessMouseDown(MouseButtons.Left, pos.X, pos.Y);
         _skElement.CaptureMouse();
@@ -659,18 +950,119 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     private void OnWpfMouseLeftUp(object sender, MouseButtonEventArgs e)
     {
         var pos = e.GetPosition(_skElement);
+
+        var ruler = _renderEngine.GeoRuler;
+        if (ruler != null && ruler.DraggingMarker.HasValue)
+        {
+            ruler.SnapDraggingMarkerToNearest(pos.X, pos.Y);
+            ruler.DraggingMarker = null;
+            _skElement.ReleaseMouseCapture();
+            _skElement.InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         _mouseManager.SetModifierState(GetCurrentKeyModifiers());
         _mouseManager.ProcessMouseUp(MouseButtons.Left, pos.X, pos.Y);
         _skElement.ReleaseMouseCapture();
         e.Handled = false;
     }
 
-    private void OnWpfMouseRightDown(object sender, MouseButtonEventArgs e)
+    private async void OnWpfMouseRightDown(object sender, MouseButtonEventArgs e)
     {
         var pos = e.GetPosition(_skElement);
+
+        var ruler = _renderEngine.GeoRuler;
+        if (ruler != null && ruler.HitTestMarker(pos.X, pos.Y, out int markerId))
+        {
+            if (markerId == 1)
+            {
+                using var inputDialog = new SingleInputDialog(Window)
+                {
+                    Title = $"设置顶部标记1（第 {ruler.TopMarker1Col} 列）的经度",
+                    Description = "请输入经度值（如：116.4074）：",
+                    DefaultValue = ruler.TopMarker1Lon?.ToString("F7") ?? ""
+                };
+                var result = await inputDialog.ShowAsync();
+                if (result != null && double.TryParse(result, out double lon))
+                {
+                    ruler.TopMarker1Lon = lon;
+                    UpdateGeoReferenceFromRuler();
+                    _skElement.InvalidateVisual();
+                }
+            }
+            else if (markerId == 2)
+            {
+                using var inputDialog = new SingleInputDialog(Window)
+                {
+                    Title = $"设置顶部标记2（第 {ruler.TopMarker2Col} 列）的经度",
+                    Description = "请输入经度值（如：116.4074）：",
+                    DefaultValue = ruler.TopMarker2Lon?.ToString("F7") ?? ""
+                };
+                var result = await inputDialog.ShowAsync();
+                if (result != null && double.TryParse(result, out double lon))
+                {
+                    ruler.TopMarker2Lon = lon;
+                    UpdateGeoReferenceFromRuler();
+                    _skElement.InvalidateVisual();
+                }
+            }
+            else if (markerId == 3)
+            {
+                using var inputDialog = new SingleInputDialog(Window)
+                {
+                    Title = $"设置左侧标记1（第 {ruler.LeftMarker1Row} 行）的纬度",
+                    Description = "请输入纬度值（如：39.9042）：",
+                    DefaultValue = ruler.LeftMarker1Lat?.ToString("F7") ?? ""
+                };
+                var result = await inputDialog.ShowAsync();
+                if (result != null && double.TryParse(result, out double lat))
+                {
+                    ruler.LeftMarker1Lat = lat;
+                    UpdateGeoReferenceFromRuler();
+                    _skElement.InvalidateVisual();
+                }
+            }
+            else if (markerId == 4)
+            {
+                using var inputDialog = new SingleInputDialog(Window)
+                {
+                    Title = $"设置左侧标记2（第 {ruler.LeftMarker2Row} 行）的纬度",
+                    Description = "请输入纬度值（如：39.9042）：",
+                    DefaultValue = ruler.LeftMarker2Lat?.ToString("F7") ?? ""
+                };
+                var result = await inputDialog.ShowAsync();
+                if (result != null && double.TryParse(result, out double lat))
+                {
+                    ruler.LeftMarker2Lat = lat;
+                    UpdateGeoReferenceFromRuler();
+                    _skElement.InvalidateVisual();
+                }
+            }
+            e.Handled = true;
+            return;
+        }
+
         _mouseManager.SetModifierState(GetCurrentKeyModifiers());
         _mouseManager.ProcessMouseDown(MouseButtons.Right, pos.X, pos.Y);
         e.Handled = false;
+    }
+
+    private void UpdateGeoReferenceFromRuler()
+    {
+        var ruler = _renderEngine.GeoRuler;
+        if (ruler == null) return;
+
+        var rp = _geoCalculator.ReferencePoints;
+
+        rp.RowRef1 = ruler.LeftMarker1Row;
+        rp.LatRef1 = ruler.LeftMarker1Lat ?? 0;
+        rp.RowRef2 = ruler.LeftMarker2Row;
+        rp.LatRef2 = ruler.LeftMarker2Lat ?? 0;
+        rp.ColRef1 = ruler.TopMarker1Col;
+        rp.LonRef1 = ruler.TopMarker1Lon ?? 0;
+        rp.ColRef2 = ruler.TopMarker2Col;
+        rp.LonRef2 = ruler.TopMarker2Lon ?? 0;
     }
 
     private void OnWpfMouseRightUp(object sender, MouseButtonEventArgs e)
@@ -684,8 +1076,19 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     private void OnWpfMouseMove(object sender, MouseEventArgs e)
     {
         var pos = e.GetPosition(_skElement);
+
+        var ruler = _renderEngine.GeoRuler;
+        if (ruler != null && ruler.DraggingMarker.HasValue)
+        {
+            ruler.SnapDraggingMarkerToNearest(pos.X, pos.Y);
+            _skElement.InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         _mouseManager.SetModifierState(GetCurrentKeyModifiers());
         _mouseManager.ProcessMouseMove(pos.X, pos.Y);
+        UpdateBrushPreview(pos.X, pos.Y);
     }
 
     private void OnWpfMouseWheel(object sender, MouseWheelEventArgs e)
@@ -745,9 +1148,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
     private void HandleHexSelect(MouseActionEventArgs e)
     {
-        if (_mapData == null || _camera == null) return;
-        var (col, row) = _camera.ScreenToHex(e.Position.X, e.Position.Y);
-        HexSelector.Instance.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
+        var selector = HexSelector.Instance;
+        selector.ClearSelection();
+        selector.SetSelectionMoving(false, 0, 0, null);
     }
 
     private void HandleZoom(MouseActionEventArgs e)
@@ -777,10 +1180,28 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         var filter = GetSelectionFilter();
         var matched = HexSelector.Instance.EndSelectionRect(
             (x, y) => _camera.ScreenToHex(x, y),
+            (c, r) => _camera.HexToScreen(c, r),
             _mapData.MapWidth, _mapData.MapHeight, filter);
 
         if (matched.Count > 0)
-            HexSelector.Instance.SetSelection(matched);
+        {
+            bool shiftPressed = (e.Modifiers & Core.Input.KeyModifiers.Shift) != 0;
+            bool ctrlPressed = (e.Modifiers & Core.Input.KeyModifiers.Ctrl) != 0;
+            if (shiftPressed)
+            {
+                foreach (var coord in matched)
+                    HexSelector.Instance.AddToSelection(coord);
+            }
+            else if (ctrlPressed)
+            {
+                foreach (var coord in matched)
+                    HexSelector.Instance.RemoveFromSelection(coord);
+            }
+            else
+            {
+                HexSelector.Instance.SetSelection(matched);
+            }
+        }
     }
 
     private void HandleRightClickSelect(MouseActionEventArgs e)
@@ -789,10 +1210,23 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         var (col, row) = _camera.ScreenToHex(e.Position.X, e.Position.Y);
         var coord = new HexCoord(col, row);
         var filter = GetSelectionFilter();
-        if (col >= 0 && col < _mapData.MapWidth && row >= 0 && row < _mapData.MapHeight)
+        if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight) return;
+        if (filter != null && !filter(coord)) return;
+
+        bool shiftPressed = (e.Modifiers & Core.Input.KeyModifiers.Shift) != 0;
+        bool ctrlPressed = (e.Modifiers & Core.Input.KeyModifiers.Ctrl) != 0;
+
+        if (shiftPressed)
         {
-            if (filter == null || filter(coord))
-                HexSelector.Instance.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
+            HexSelector.Instance.AddToSelection(col, row, _mapData.MapWidth, _mapData.MapHeight);
+        }
+        else if (ctrlPressed)
+        {
+            HexSelector.Instance.RemoveFromSelection(coord);
+        }
+        else
+        {
+            HexSelector.Instance.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
         }
     }
 
@@ -806,6 +1240,36 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         return terrain != null && terrain.BrushActive;
     }
 
+    private void UpdateBrushPreview(double screenX, double screenY)
+    {
+        if (_camera == null || !IsBrushModeActive())
+        {
+            _renderEngine.HideBrushPreview();
+            return;
+        }
+
+        var terrain = _editModeManager.GetModifier<TerrainModifier>();
+        if (terrain == null)
+        {
+            _renderEngine.HideBrushPreview();
+            return;
+        }
+
+        var (col, row) = _camera.ScreenToHex(screenX, screenY);
+        _renderEngine.SetBrushPreview(
+            col, row,
+            terrain.BrushSize, terrain.BrushShape,
+            _camera.ZoomLevel, _camera.OffsetX, _camera.OffsetY,
+            true);
+        _skElement.InvalidateVisual();
+    }
+
+    private void OnWpfMouseLeave(object sender, MouseEventArgs e)
+    {
+        _renderEngine.HideBrushPreview();
+        _skElement.InvalidateVisual();
+    }
+
     private void ApplyBrushAtPosition(MousePosition pos)
     {
         if (_mapData == null || _camera == null) return;
@@ -815,28 +1279,46 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         var (col, row) = _camera.ScreenToHex(pos.X, pos.Y);
         if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight) return;
+        if (col == _brushLastPaintedCell.col && row == _brushLastPaintedCell.row) return;
+        _brushLastPaintedCell = (col, row);
 
         var maskIds = _brushSettingsWindow?.IsMaskEnabled == true
             ? _brushSettingsWindow!.MaskedTerrainIds
             : null;
         bool maskInclude = _brushSettingsWindow?.MaskIncludeMode ?? true;
 
-        _editModeManager.RecordMultiCellChange($"画笔绘制 ({col},{row})", () =>
-        {
-            if (maskIds != null && maskIds.Count > 0)
-                terrain.PaintWithBrushMasked(col, row, maskIds, maskInclude);
-            else
-                terrain.PaintWithBrush(col, row);
-        });
+        if (maskIds != null && maskIds.Count > 0)
+            terrain.PaintWithBrushMasked(col, row, maskIds, maskInclude);
+        else
+            terrain.PaintWithBrush(col, row);
+
         _renderEngine.InvalidateTerrainCache();
-        _renderEngine.InvalidateCoastCacheFull(_mapData);
+        _renderEngine.InvalidateCoastCacheRegion(_mapData, col, row, terrain.BrushSize + 2);
         _skElement.InvalidateVisual();
+    }
+
+    private void ApplyBrushStrokeSegment(MousePosition from, MousePosition to)
+    {
+        if (_mapData == null || _camera == null) return;
+
+        double dist = from.DistanceTo(to);
+        int steps = Math.Max(1, (int)Math.Ceiling(dist / BrushInterpolationStep));
+        for (int i = 1; i <= steps; i++)
+        {
+            double t = i / (double)steps;
+            ApplyBrushAtPosition(new MousePosition(
+                from.X + (to.X - from.X) * t,
+                from.Y + (to.Y - from.Y) * t));
+        }
     }
 
     private bool TryBrushClick(MouseActionEventArgs e)
     {
         if (!IsBrushModeActive()) return false;
+        _brushLastPaintedCell = (-1, -1);
+        _editModeManager.BeginBrushStroke();
         ApplyBrushAtPosition(e.Position);
+        _editModeManager.EndBrushStroke("画笔绘制");
         return true;
     }
 
@@ -845,6 +1327,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         if (!IsBrushModeActive()) return false;
         _brushDragging = true;
         _brushLastDragPos = e.Position;
+        _brushLastPaintedCell = (-1, -1);
+        _editModeManager.BeginBrushStroke();
         ApplyBrushAtPosition(e.Position);
         return true;
     }
@@ -858,7 +1342,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         if (dx < BrushMinDragDistance && dy < BrushMinDragDistance)
             return true;
 
-        ApplyBrushAtPosition(e.Position);
+        ApplyBrushStrokeSegment(_brushLastDragPos, e.Position);
         _brushLastDragPos = e.Position;
         return true;
     }
@@ -867,6 +1351,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         if (!_brushDragging) return false;
         _brushDragging = false;
+        _editModeManager.EndBrushStroke("画笔绘制");
         return true;
     }
 
@@ -943,6 +1428,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
                 _editModeManager.Initialize(_mapData);
                 _editModeManager.SetUndoManager(_fileStateManager.UndoManager);
+                _editModeManager.SetDialogService(new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!));
+                _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(Core.Commands.CommandManager.Instance));
+                _editModeManager.SetRecognizeTerrainCallback(RecognizeTerrainFromViewLayer);
                 _fileStateManager.OpenFile(_mapData, dialog.FileName, SceneType);
 
                 var sceneName = System.IO.Path.GetFileNameWithoutExtension(dialog.FileName);
@@ -1014,6 +1502,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         _editModeManager.Initialize(_mapData);
         _editModeManager.SetUndoManager(_fileStateManager.UndoManager);
+        _editModeManager.SetDialogService(new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!));
+        _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(Core.Commands.CommandManager.Instance));
+        _editModeManager.SetRecognizeTerrainCallback(RecognizeTerrainFromViewLayer);
         _fileStateManager.OpenFile(_mapData, "", SceneType);
     }
 
@@ -1228,6 +1719,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
             _editModeManager.Initialize(_mapData!);
             _editModeManager.SetUndoManager(_fileStateManager.UndoManager);
+            _editModeManager.SetDialogService(new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!));
+            _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(Core.Commands.CommandManager.Instance));
+            _editModeManager.SetRecognizeTerrainCallback(RecognizeTerrainFromViewLayer);
             _fileStateManager.OpenFile(_mapData, targetScene.MapFilePath, SceneType);
 
             sceneManager.ActivateScene(targetSceneId);
@@ -1284,7 +1778,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
     private static readonly (string Id, Key Key, KeyModifiers Mods, string Action, string Desc)[] EditModeKeyDefs =
     {
-        ("EditMode_Tab", Key.Tab, KeyModifiers.None, "tab_action", "切换模式/信息"),
+        ("EditMode_Space", Key.Space, KeyModifiers.None, "cycle_mode", "切换模式"),
+        ("EditMode_Tab", Key.Tab, KeyModifiers.None, "tab_action", "查看格子信息"),
         ("EditMode_BracketOpen", Key.OemOpenBrackets, KeyModifiers.None, "decrease_type", "上一个地形类型"),
         ("EditMode_BracketClose", Key.OemCloseBrackets, KeyModifiers.None, "increase_type", "下一个地形类型"),
         ("EditMode_ShiftBracketOpen", Key.OemOpenBrackets, KeyModifiers.Shift, "decrease_decoration", "上一个变体"),
@@ -1292,7 +1787,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         ("EditMode_H", Key.H, KeyModifiers.None, "toggle_brush", "切换画笔"),
         ("EditMode_C", Key.C, KeyModifiers.None, "copy", "复制"),
         ("EditMode_V", Key.V, KeyModifiers.None, "paste", "粘贴"),
-        ("EditMode_O", Key.O, KeyModifiers.None, "toggle_view_layer", "切换视图层"),
+        ("EditMode_O", Key.O, KeyModifiers.None, "remove_ocean_from_selection", "剔除海洋格子"),
         ("EditMode_Y", Key.Y, KeyModifiers.None, "set_river", "绘制河流"),
         ("EditMode_P", Key.P, KeyModifiers.None, "recognize_terrain", "识别地形"),
         ("EditMode_U", Key.U, KeyModifiers.None, "greening", "绿化平地"),
@@ -1304,6 +1799,11 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         ("EditMode_F6", Key.F6, KeyModifiers.None, "export_hd", "导出HD文件"),
         ("EditMode_T", Key.T, KeyModifiers.None, "connect_buildings", "连接建筑"),
         ("EditMode_G", Key.G, KeyModifiers.None, "scale_map", "按比例缩放地图"),
+        ("EditMode_I", Key.I, KeyModifiers.None, "ijkl_action", "I键-调整地图/移动选区"),
+        ("EditMode_J", Key.J, KeyModifiers.None, "jkl_action", "J键-调整地图/移动选区"),
+        ("EditMode_K", Key.K, KeyModifiers.None, "kl_action", "K键-调整地图/移动选区"),
+        ("EditMode_Enter", Key.Enter, KeyModifiers.None, "confirm_selection_move", "确认选区移动"),
+        ("EditMode_Escape", Key.Escape, KeyModifiers.None, "cancel_selection_move", "取消选区移动"),
         ("EditMode_Z", Key.Z, KeyModifiers.None, "toggle_layer", "切换编辑层"),
         ("EditMode_B", Key.B, KeyModifiers.None, "toggle_hex_borders", "显示/隐藏网格"),
         ("EditMode_N", Key.N, KeyModifiers.None, "toggle_labels", "显示/隐藏标签"),
@@ -1316,8 +1816,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         ("EditMode_E", Key.E, KeyModifiers.None, "next_legion", "下一个军团"),
         ("EditMode_S", Key.S, KeyModifiers.None, "set_province", "设置省份"),
         ("EditMode_X", Key.X, KeyModifiers.None, "clear_province", "清除省份"),
-        ("EditMode_L", Key.L, KeyModifiers.None, "set_legion", "按归属设军团"),
+        ("EditMode_L", Key.L, KeyModifiers.None, "l_action", "L键-调整地图/移动选区/设军团"),
         ("EditMode_Apply", Key.OemPlus, KeyModifiers.None, "apply", "应用"),
+        ("EditMode_F7", Key.F7, KeyModifiers.None, "geo_calculate", "经纬度换算"),
     };
 
     private void InitializeEditModeKeyBindings()
@@ -1335,13 +1836,345 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             _keyboardManager.UnregisterBinding(def.Id);
     }
 
-    private void DispatchEditModeAction(string action)
+    private void RegisterTerrainCliCommands()
+    {
+        var cm = Core.Commands.CommandManager.Instance;
+
+        cm.RegisterCommand("greening", args =>
+        {
+            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            var terrain = _editModeManager.GetModifier<TerrainModifier>();
+            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+
+            int prob = 50;
+            if (args.Length > 0 && int.TryParse(args[0], out int p))
+                prob = Math.Clamp(p, 0, 100);
+
+            _editModeManager.RecordMultiCellChange($"绿化平地 (概率={prob}%)", () => terrain.ApplyGreening(prob));
+            _editModeManager_DataModifiedFromUndo();
+            _skElement.InvalidateVisual();
+            _debugConsole.WriteLine($"绿化完成，概率={prob}%");
+        }, "绿化平地", "<概率0-100>");
+
+        cm.RegisterCommand("random_flat", args =>
+        {
+            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            var terrain = _editModeManager.GetModifier<TerrainModifier>();
+            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+
+            int prob = 50;
+            if (args.Length > 0 && int.TryParse(args[0], out int p))
+                prob = Math.Clamp(p, 0, 100);
+
+            _editModeManager.RecordMultiCellChange($"随机平地变体 (概率={prob}%)", () => terrain.RandomizeFlatTerrain(prob));
+            _editModeManager_DataModifiedFromUndo();
+            _skElement.InvalidateVisual();
+            _debugConsole.WriteLine($"随机平地变体完成，概率={prob}%");
+        }, "随机平地地形变体", "<概率0-100>");
+
+        cm.RegisterCommand("random_variant", args =>
+        {
+            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            var terrain = _editModeManager.GetModifier<TerrainModifier>();
+            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+
+            int prob = 50;
+            if (args.Length > 0 && int.TryParse(args[0], out int p))
+                prob = Math.Clamp(p, 0, 100);
+
+            _editModeManager.RecordMultiCellChange($"随机当前层变体 (概率={prob}%)", () => terrain.RandomizeVariant(prob));
+            _editModeManager_DataModifiedFromUndo();
+            _skElement.InvalidateVisual();
+            _debugConsole.WriteLine($"随机变体完成，编辑层={terrain.EditLayer}，概率={prob}%");
+        }, "随机当前层地形变体", "<概率0-100>");
+
+        cm.RegisterCommand("create_coast", args =>
+        {
+            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            var terrain = _editModeManager.GetModifier<TerrainModifier>();
+            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+
+            var selectedHexes = WC4MapEditor.Core.Selection.HexSelector.Instance.SelectedHexes;
+            var targetHexes = selectedHexes.Count > 0
+                ? selectedHexes.Select(h => (h.Col, h.Row)).ToList()
+                : null;
+
+            _editModeManager.RecordMultiCellChange("创建海岸线", () => terrain.CreateCoast(targetHexes));
+            _editModeManager_DataModifiedFromUndo();
+            _skElement.InvalidateVisual();
+            _debugConsole.WriteLine("海岸线创建完成");
+        }, "创建海岸线", "");
+
+        cm.RegisterCommand("process_ocean_layer2", args =>
+        {
+            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            var terrain = _editModeManager.GetModifier<TerrainModifier>();
+            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+
+            var selectedHexes = WC4MapEditor.Core.Selection.HexSelector.Instance.SelectedHexes;
+            var targetHexes = selectedHexes.Count > 0
+                ? selectedHexes.Select(h => (h.Col, h.Row)).ToList()
+                : null;
+
+            _editModeManager.RecordMultiCellChange("处理海洋第二层", () => terrain.ProcessOceanSecondLayer(targetHexes));
+            _editModeManager_DataModifiedFromUndo();
+            _skElement.InvalidateVisual();
+            _debugConsole.WriteLine("海洋第二层处理完成");
+        }, "处理海洋第二层", "");
+
+        cm.RegisterCommand("export_hd", async args =>
+        {
+            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            var terrain = _editModeManager.GetModifier<TerrainModifier>();
+            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+
+            var result = terrain.ExportHdFile();
+            _debugConsole.WriteLine(result.Message);
+        }, "导出HD文件", "");
+
+        cm.RegisterCommand("scale_map", args =>
+        {
+            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            var terrain = _editModeManager.GetModifier<TerrainModifier>();
+            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+
+            double scale = 1.0;
+            if (args.Length > 0 && double.TryParse(args[0], out double s))
+                scale = Math.Clamp(s, 0.1, 10.0);
+
+            if (Math.Abs(scale - 1.0) < 0.001)
+            {
+                _debugConsole.WriteLine("缩放比例为1.0，无需调整");
+                return;
+            }
+
+            _editModeManager.RecordMapResizeChange($"缩放地图 (比例={scale:F2})", () => terrain.ScaleMap(scale));
+            _editModeManager_DataModifiedFromUndo();
+            _skElement.InvalidateVisual();
+            _debugConsole.WriteLine($"地图缩放完成，比例={scale:F2}");
+        }, "按比例缩放地图", "<比例0.1-10.0>");
+
+        cm.RegisterCommand("resize_map", args =>
+        {
+            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            var terrain = _editModeManager.GetModifier<TerrainModifier>();
+            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+
+            if (args.Length < 2)
+            {
+                _debugConsole.WriteLine("用法: resize_map <direction> <amount> [ocean]");
+                _debugConsole.WriteLine("  direction: up, down, left, right");
+                _debugConsole.WriteLine("  amount: 正数扩展，负数收缩");
+                _debugConsole.WriteLine("  ocean: 可选，扩展时新格子使用海洋");
+                return;
+            }
+
+            string direction = args[0];
+            if (!int.TryParse(args[1], out int amount) || amount == 0)
+            {
+                _debugConsole.WriteLine("无效的调整量");
+                return;
+            }
+
+            bool useOcean = args.Length > 2 && args[2].Equals("ocean", StringComparison.OrdinalIgnoreCase);
+
+            _editModeManager.RecordMapResizeChange($"调整地图大小 ({direction}, {amount})", () => terrain.ResizeMap(direction, amount, useOcean));
+            _editModeManager_DataModifiedFromUndo();
+            _skElement.InvalidateVisual();
+            _debugConsole.WriteLine($"地图大小调整完成，方向={direction}，量={amount}");
+        }, "调整地图大小", "<direction> <amount> [ocean]");
+
+        cm.RegisterCommand("geo_set_ref", args =>
+        {
+            if (args.Length < 4)
+            {
+                _debugConsole.WriteLine("用法: geo_set_ref <row|col> <index> <value> <ref_num>");
+                _debugConsole.WriteLine("  row|col: 设置行参考还是列参考");
+                _debugConsole.WriteLine("  index: 行号或列号");
+                _debugConsole.WriteLine("  value: 纬度或经度值");
+                _debugConsole.WriteLine("  ref_num: 1或2，第一个或第二个参考点");
+                return;
+            }
+
+            string type = args[0].ToLower();
+            if (!int.TryParse(args[1], out int index) || !double.TryParse(args[2], out double value) || !int.TryParse(args[3], out int refNum) || (refNum != 1 && refNum != 2))
+            {
+                _debugConsole.WriteLine("参数格式错误");
+                return;
+            }
+
+            var rp = _geoCalculator.ReferencePoints;
+            var ruler = _renderEngine.GeoRuler;
+
+            if (type == "row")
+            {
+                if (refNum == 1) { rp.RowRef1 = index; rp.LatRef1 = value; if (ruler != null) { ruler.LeftMarker1Row = index; ruler.LeftMarker1Lat = value; } }
+                else { rp.RowRef2 = index; rp.LatRef2 = value; if (ruler != null) { ruler.LeftMarker2Row = index; ruler.LeftMarker2Lat = value; } }
+                _debugConsole.WriteLine($"行参考点{refNum}: 行={index}, 纬度={value:F7}");
+            }
+            else if (type == "col")
+            {
+                if (refNum == 1) { rp.ColRef1 = index; rp.LonRef1 = value; if (ruler != null) { ruler.TopMarker1Col = index; ruler.TopMarker1Lon = value; } }
+                else { rp.ColRef2 = index; rp.LonRef2 = value; if (ruler != null) { ruler.TopMarker2Col = index; ruler.TopMarker2Lon = value; } }
+                _debugConsole.WriteLine($"列参考点{refNum}: 列={index}, 经度={value:F7}");
+            }
+            else
+            {
+                _debugConsole.WriteLine("类型必须是 row 或 col");
+            }
+
+            _skElement.InvalidateVisual();
+        }, "设置经纬度参考点", "<row|col> <index> <value> <1|2>");
+
+        cm.RegisterCommand("geo_calc", args =>
+        {
+            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+
+            var rp = _geoCalculator.ReferencePoints;
+            if (!rp.IsValid())
+            {
+                _debugConsole.WriteLine("参考点设置不完整，需要两个不同的行参考点和两个不同的列参考点");
+                _debugConsole.WriteLine($"当前: 行1={rp.RowRef1}(纬{rp.LatRef1:F7}), 行2={rp.RowRef2}(纬{rp.LatRef2:F7})");
+                _debugConsole.WriteLine($"      列1={rp.ColRef1}(经{rp.LonRef1:F7}), 列2={rp.ColRef2}(经{rp.LonRef2:F7})");
+                return;
+            }
+
+            string outputPath = args.Length > 0 ? args[0] : $"geo_coords_{DateTime.Now:yyyyMMddHHmmss}.json";
+
+            try
+            {
+                _geoCalculator.CalculateAndExport(_mapData, outputPath);
+                _debugConsole.WriteLine($"经纬度换算完成，结果已保存到: {outputPath}");
+            }
+            catch (Exception ex)
+            {
+                _debugConsole.WriteLine($"经纬度换算失败: {ex.Message}");
+            }
+        }, "计算并导出经纬度", "[输出文件路径]");
+
+        cm.RegisterCommand("geo_show_ref", _ =>
+        {
+            var rp = _geoCalculator.ReferencePoints;
+            var ruler = _renderEngine.GeoRuler;
+            _debugConsole.WriteLine($"行参考点1: 行={rp.RowRef1}, 纬度={rp.LatRef1:F7}");
+            _debugConsole.WriteLine($"行参考点2: 行={rp.RowRef2}, 纬度={rp.LatRef2:F7}");
+            _debugConsole.WriteLine($"列参考点1: 列={rp.ColRef1}, 经度={rp.LonRef1:F7}");
+            _debugConsole.WriteLine($"列参考点2: 列={rp.ColRef2}, 经度={rp.LonRef2:F7}");
+            _debugConsole.WriteLine($"参考点有效: {rp.IsValid()}");
+            if (ruler != null)
+            {
+                _debugConsole.WriteLine($"标尺: 顶部标记1(C{ruler.TopMarker1Col}, {ruler.TopMarker1Lon:F7}), 顶部标记2(C{ruler.TopMarker2Col}, {ruler.TopMarker2Lon:F7})");
+                _debugConsole.WriteLine($"      左侧标记1(R{ruler.LeftMarker1Row}, {ruler.LeftMarker1Lat:F7}), 左侧标记2(R{ruler.LeftMarker2Row}, {ruler.LeftMarker2Lat:F7})");
+            }
+        }, "显示当前经纬度参考点", "");
+
+        cm.RegisterCommand("geo_ruler", _ =>
+        {
+            _debugConsole.WriteLine("经纬度标尺始终显示，无需切换");
+        }, "经纬度标尺状态（始终显示）", "");
+    }
+
+    private async Task HandleIjklAction(string action)
+    {
+        var selector = HexSelector.Instance;
+        bool hasSelection = selector.SelectedHexes.Count > 0;
+
+        if (_editModeManager.CurrentMode == EditMode.TerrainPaint)
+        {
+            if (hasSelection)
+            {
+                string moveAction = action switch
+                {
+                    "ijkl_action" => "move_selection_up",
+                    "jkl_action" => "move_selection_left",
+                    "kl_action" => "move_selection_down",
+                    "l_action" => "move_selection_right",
+                    _ => action
+                };
+                if (_mapData != null && _camera != null)
+                {
+                    var p = selector.PrimarySelected;
+                    await _editModeManager.HandleKeyAction(moveAction, p?.Col ?? 0, p?.Row ?? 0);
+                    _skElement.InvalidateVisual();
+                }
+            }
+            else
+            {
+                string resizeAction = action switch
+                {
+                    "ijkl_action" => "resize_map_up",
+                    "jkl_action" => "resize_map_left",
+                    "kl_action" => "resize_map_down",
+                    "l_action" => "resize_map_right",
+                    _ => action
+                };
+                if (_mapData != null && _camera != null)
+                {
+                    var p = selector.PrimarySelected;
+                    await _editModeManager.HandleKeyAction(resizeAction, p?.Col ?? 0, p?.Row ?? 0);
+                    _skElement.InvalidateVisual();
+                }
+            }
+            return;
+        }
+
+        if (action == "l_action")
+        {
+            if (_mapData != null && _camera != null)
+            {
+                var p = selector.PrimarySelected;
+                await _editModeManager.HandleKeyAction("set_legion", p?.Col ?? 0, p?.Row ?? 0);
+                _skElement.InvalidateVisual();
+            }
+        }
+    }
+
+    private async void DispatchEditModeAction(string action)
     {
         Debug.WriteLine($"[EditMode] DispatchEditModeAction: action={action}, mode={_editModeManager.CurrentMode}");
 
         if (action == "tab_action")
         {
             OnToggleHexInfo();
+            return;
+        }
+
+        if (action is "ijkl_action" or "jkl_action" or "kl_action" or "l_action")
+        {
+            await HandleIjklAction(action);
+            return;
+        }
+
+        if (action == "confirm_selection_move" || action == "cancel_selection_move" || action == "remove_ocean_from_selection")
+        {
+            if (_mapData != null && _camera != null)
+            {
+                var selPrimary = HexSelector.Instance.PrimarySelected;
+                int selCol = selPrimary?.Col ?? 0;
+                int selRow = selPrimary?.Row ?? 0;
+                await _editModeManager.HandleKeyAction(action, selCol, selRow);
+                _skElement.InvalidateVisual();
+            }
+            return;
+        }
+
+        if (action is "create_coast" or "process_ocean_layer2")
+        {
+            if (_mapData != null)
+            {
+                await _editModeManager.HandleKeyAction(action, 0, 0);
+                _skElement.InvalidateVisual();
+            }
+            return;
+        }
+
+        if (action == "export_hd")
+        {
+            if (_mapData != null)
+            {
+                await _editModeManager.HandleKeyAction(action, 0, 0);
+                _skElement.InvalidateVisual();
+            }
             return;
         }
 
@@ -1376,6 +2209,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             _renderEngine.CycleLabelMode();
             _skElement.InvalidateVisual();
+            return;
+        }
+
+        if (action == "geo_calculate")
+        {
+            await OnGeoCalculateAsync();
             return;
         }
 
@@ -1415,7 +2254,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         }
 
         Debug.WriteLine($"[EditMode] Calling HandleKeyAction({action}, {col}, {row})");
-        bool handled = _editModeManager.HandleKeyAction(action, col, row);
+        bool handled = await _editModeManager.HandleKeyAction(action, col, row);
         Debug.WriteLine($"[EditMode] HandleKeyAction result: {handled}");
         _skElement.InvalidateVisual();
     }
@@ -1509,6 +2348,68 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
     #endregion
 
+    private async Task<(bool success, int modifiedCount)> RecognizeTerrainFromViewLayer()
+    {
+        var terrain = _editModeManager.GetModifier<TerrainModifier>();
+        if (terrain == null) return (false, 0);
+
+        var provider = _renderEngine.ViewLayerImageProvider;
+        if (provider == null)
+        {
+            _editModeManager.RaiseStatusMessage("当前渲染引擎不支持视图层图片访问");
+            return (false, 0);
+        }
+
+        terrain.TerrainRecognizer.SetImageProvider(provider);
+
+        var cts = new CancellationTokenSource();
+        var progressWindow = new Views.Dialogs.ProgressWindow();
+        progressWindow.Closing += (_, _) =>
+        {
+            try
+            {
+                if (!cts.IsCancellationRequested)
+                    cts.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // CTS 已被释放，忽略
+            }
+        };
+
+        var progress = new Progress<(int current, int total, int row, int col)>(p =>
+        {
+            int percent = p.total > 0 ? (int)((double)p.current / p.total * 100) : 0;
+            progressWindow.UpdateProgress(p.current, p.total, p.row, p.col, percent);
+        });
+
+        progressWindow.Show();
+
+        // 等待窗口加载完成并开始淡入动画后再执行识别
+        await Task.Delay(250);
+
+        var (success, modifiedCount) = await terrain.RecognizeTerrainAsync(progress, cts.Token);
+
+        progressWindow.PlayFadeOutAndClose();
+
+        // 延迟释放 CTS，确保窗口关闭事件处理完毕
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(1000);
+            cts.Dispose();
+        });
+
+        if (success && modifiedCount > 0)
+        {
+            _renderEngine.InvalidateTerrainCache();
+            if (_mapData != null)
+                _renderEngine.InvalidateCoastCacheFull(_mapData);
+            _skElement.InvalidateVisual();
+        }
+
+        return (success, modifiedCount);
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
@@ -1519,6 +2420,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         HexSelector.Instance.CancelSelectionRect();
         HexSelector.Instance.ClearSelection();
         _keyboardManager.UnregisterBinding("EscBack");
+        _keyboardManager.UnregisterBinding("Screenshot");
         UnregisterEditModeKeyBindings();
         _editModeManager.ModeChanged -= OnEditModeChanged;
         _editModeManager.StatusMessageChanged -= OnEditModeStatusMessageChanged;
