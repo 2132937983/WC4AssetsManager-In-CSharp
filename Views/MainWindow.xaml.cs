@@ -10,7 +10,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using WC4MapEditor.Core.Input;
-using WC4MapEditor.Core.SceneManagement;
+using WC4MapEditor.Services;
 using WC4MapEditor.Views;
 
 namespace WC4MapEditor.Views;

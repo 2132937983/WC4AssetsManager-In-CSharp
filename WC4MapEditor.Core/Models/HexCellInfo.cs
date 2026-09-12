@@ -1,5 +1,3 @@
-using WC4MapEditor.Core.Config;
-
 namespace WC4MapEditor.Core.Models;
 
 public enum HexInfoDisplayMode
@@ -97,8 +95,6 @@ public class HexCellInfo
 
         return sections;
     }
-
-    public static string GetTerrainName(int tileType) => ConfigManager.Instance.GetTerrainTypeName(tileType);
 
     public static string GetKeyPointText(int keyPoint) => keyPoint switch
     {

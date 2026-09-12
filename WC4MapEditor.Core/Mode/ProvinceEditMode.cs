@@ -1,6 +1,6 @@
 using WC4MapEditor.Core.Input;
 using WC4MapEditor.Core.Modifiers;
-using WC4MapEditor.Core.SceneManagement;
+using WC4MapEditor.Core.Services;
 using WC4MapEditor.Core.Selection;
 using WC4MapEditor.Core.Models;
 
@@ -259,41 +259,40 @@ public sealed class ProvinceEditMode : IModeHandler
 
     private static void SyncCopiedProvinceToGlobal(ProvinceModifier province)
     {
-        var sceneManager = RenderSceneManager.Instance;
+        var clipboard = MapClipboard.Instance;
         var copiedData = province.GetCopiedProvinceData();
         var anchor = province.GetCopyAnchor();
 
         if (copiedData.HasValue)
         {
-            sceneManager.GlobalCopiedProvince = copiedData.Value;
-            sceneManager.GlobalCopiedProvinceFromCol = anchor.col;
-            sceneManager.GlobalCopiedProvinceFromRow = anchor.row;
-            sceneManager.GlobalCopiedProvinceFromSceneId = sceneManager.CurrentSceneId;
+            clipboard.GlobalCopiedProvince = copiedData.Value;
+            clipboard.GlobalCopiedProvinceFromCol = anchor.col;
+            clipboard.GlobalCopiedProvinceFromRow = anchor.row;
         }
 
         var copiedGroup = province.GetCopiedProvinceGroup();
-        sceneManager.GlobalCopiedProvinceHexes.Clear();
+        clipboard.GlobalCopiedProvinceHexes.Clear();
         if (copiedGroup != null && copiedGroup.Count > 0)
         {
             foreach (var kv in copiedGroup)
-                sceneManager.GlobalCopiedProvinceHexes[kv.Key] = kv.Value;
-            sceneManager.GlobalCopiedProvinceRegionMinCol = anchor.col;
-            sceneManager.GlobalCopiedProvinceRegionMinRow = anchor.row;
+                clipboard.GlobalCopiedProvinceHexes[kv.Key] = kv.Value;
+            clipboard.GlobalCopiedProvinceRegionMinCol = anchor.col;
+            clipboard.GlobalCopiedProvinceRegionMinRow = anchor.row;
         }
     }
 
     private static void SyncGlobalCopiedProvinceToLocal(ProvinceModifier province)
     {
-        var sceneManager = RenderSceneManager.Instance;
-        if (sceneManager.GlobalCopiedProvince == null) return;
+        var clipboard = MapClipboard.Instance;
+        if (clipboard.GlobalCopiedProvince == null) return;
 
-        province.SetCopiedProvinceData(sceneManager.GlobalCopiedProvince.Value,
-            sceneManager.GlobalCopiedProvinceFromCol, sceneManager.GlobalCopiedProvinceFromRow);
+        province.SetCopiedProvinceData(clipboard.GlobalCopiedProvince.Value,
+            clipboard.GlobalCopiedProvinceFromCol, clipboard.GlobalCopiedProvinceFromRow);
 
-        if (sceneManager.GlobalCopiedProvinceHexes.Count > 0)
+        if (clipboard.GlobalCopiedProvinceHexes.Count > 0)
         {
-            province.SetCopiedProvinceGroup(sceneManager.GlobalCopiedProvinceHexes,
-                sceneManager.GlobalCopiedProvinceRegionMinCol, sceneManager.GlobalCopiedProvinceRegionMinRow);
+            province.SetCopiedProvinceGroup(clipboard.GlobalCopiedProvinceHexes,
+                clipboard.GlobalCopiedProvinceRegionMinCol, clipboard.GlobalCopiedProvinceRegionMinRow);
         }
     }
 }

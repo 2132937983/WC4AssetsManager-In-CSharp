@@ -5,7 +5,7 @@ using WC4MapEditor.Core.Parsers.Conquest;
 using WC4MapEditor.Core.Parsers.Stage;
 using WC4MapEditor.Core.Parsers.World;
 
-namespace WC4MapEditor.Core.SceneManagement;
+namespace WC4MapEditor.Services;
 
 public enum RenderSceneType
 {
@@ -75,11 +75,11 @@ public sealed class RenderSceneManager
 
     public static RenderSceneType GetSceneTypeByFilePath(string filePath)
     {
-        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        var ext = IOPath.GetExtension(filePath).ToLowerInvariant();
         if (ext is ".bin" or ".dat") return RenderSceneType.Test;
         if (ext == ".btl")
         {
-            var name = Path.GetFileNameWithoutExtension(filePath).ToLowerInvariant();
+            var name = IOPath.GetFileNameWithoutExtension(filePath).ToLowerInvariant();
             if (name.StartsWith("conquest")) return RenderSceneType.Conquest;
             return RenderSceneType.Stage;
         }
@@ -117,7 +117,7 @@ public sealed class RenderSceneManager
     private static string InitializeCacheDirectory()
     {
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        var cachePath = Path.Combine(baseDir, "Cache", "Scenes");
+        var cachePath = IOPath.Combine(baseDir, "Cache", "Scenes");
         if (!Directory.Exists(cachePath))
         {
             Directory.CreateDirectory(cachePath);
@@ -154,7 +154,7 @@ public sealed class RenderSceneManager
                 SceneName = string.IsNullOrEmpty(sceneName) ? $"场景 {_sceneIdCounter}" : sceneName,
                 MapFilePath = mapFilePath,
                 SceneType = sceneType,
-                CacheFilePath = Path.Combine(_cacheDirectory, $"scene_{_sceneIdCounter}.cache")
+                CacheFilePath = IOPath.Combine(_cacheDirectory, $"scene_{_sceneIdCounter}.cache")
             };
             _scenes[_sceneIdCounter] = scene;
             Debug.WriteLine($"[SceneManager] 创建场景 {scene.SceneId}: {scene.SceneName}");
@@ -205,7 +205,7 @@ public sealed class RenderSceneManager
 
             try
             {
-                var cacheDir = Path.GetDirectoryName(scene.CacheFilePath);
+                var cacheDir = IOPath.GetDirectoryName(scene.CacheFilePath);
                 if (!string.IsNullOrEmpty(cacheDir) && !Directory.Exists(cacheDir))
                     Directory.CreateDirectory(cacheDir);
 
@@ -348,40 +348,6 @@ public sealed class RenderSceneManager
         }
     }
 
-    #region 全局复制数据（跨场景共享）
-
-    public TerrainData? GlobalCopiedTerrain { get; set; }
-    public int GlobalCopiedFromCol { get; set; } = -1;
-    public int GlobalCopiedFromRow { get; set; } = -1;
-    public int GlobalCopiedFromSceneId { get; set; } = -1;
-
-    public Dictionary<(int, int), TerrainData> GlobalCopiedHexes { get; } = new();
-    public int GlobalCopiedRegionMinCol { get; set; }
-    public int GlobalCopiedRegionMinRow { get; set; }
-
-    public Province? GlobalCopiedProvince { get; set; }
-    public int GlobalCopiedProvinceFromCol { get; set; } = -1;
-    public int GlobalCopiedProvinceFromRow { get; set; } = -1;
-    public int GlobalCopiedProvinceFromSceneId { get; set; } = -1;
-
-    public Dictionary<(int, int), Province> GlobalCopiedProvinceHexes { get; } = new();
-    public int GlobalCopiedProvinceRegionMinCol { get; set; }
-    public int GlobalCopiedProvinceRegionMinRow { get; set; }
-
-    public void ClearGlobalCopiedData()
-    {
-        GlobalCopiedTerrain = null;
-        GlobalCopiedFromCol = -1;
-        GlobalCopiedFromRow = -1;
-        GlobalCopiedFromSceneId = -1;
-        GlobalCopiedHexes.Clear();
-        GlobalCopiedProvince = null;
-        GlobalCopiedProvinceFromCol = -1;
-        GlobalCopiedProvinceFromRow = -1;
-        GlobalCopiedProvinceFromSceneId = -1;
-        GlobalCopiedProvinceHexes.Clear();
-    }
-
     private static bool SaveWorldMapData(MapData mapData, string filePath)
     {
         try
@@ -394,6 +360,4 @@ public sealed class RenderSceneManager
             return false;
         }
     }
-
-    #endregion
 }

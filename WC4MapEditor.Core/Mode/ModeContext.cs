@@ -1,6 +1,5 @@
 using WC4MapEditor.Core.Commands;
 using WC4MapEditor.Core.Modifiers;
-using WC4MapEditor.Core.SceneManagement;
 using WC4MapEditor.Core.Selection;
 using WC4MapEditor.Core.Services;
 using WC4MapEditor.Core.Models;

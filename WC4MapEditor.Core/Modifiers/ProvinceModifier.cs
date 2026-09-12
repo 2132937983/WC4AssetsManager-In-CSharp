@@ -298,10 +298,10 @@ public sealed class ProvinceModifier : ModifierBase, IBrushTarget
 
     private void SyncFromGlobalClipboard()
     {
-        var sceneManager = SceneManagement.RenderSceneManager.Instance;
-        if (sceneManager.GlobalCopiedProvince.HasValue)
+        var clipboard = Services.MapClipboard.Instance;
+        if (clipboard.GlobalCopiedProvince.HasValue)
         {
-            _copiedProvinceValue = sceneManager.GlobalCopiedProvince.Value.ProvinceValue;
+            _copiedProvinceValue = clipboard.GlobalCopiedProvince.Value.ProvinceValue;
             _hasCopiedProvince = true;
         }
     }

@@ -1,6 +1,6 @@
 using WC4MapEditor.Core.Input;
 using WC4MapEditor.Core.Modifiers;
-using WC4MapEditor.Core.SceneManagement;
+using WC4MapEditor.Core.Services;
 using WC4MapEditor.Core.Selection;
 using WC4MapEditor.Core.Models;
 
@@ -318,41 +318,40 @@ public sealed class TerrainPaintMode : IModeHandler
 
     private static void SyncCopiedTerrainToGlobal(TerrainModifier terrain)
     {
-        var sceneManager = RenderSceneManager.Instance;
+        var clipboard = MapClipboard.Instance;
         var copiedData = terrain.GetCopiedTerrainData();
         var copiedGroup = terrain.GetCopiedTerrainGroup();
         var anchor = terrain.GetCopyAnchor();
 
         if (copiedData.HasValue)
         {
-            sceneManager.GlobalCopiedTerrain = copiedData.Value;
-            sceneManager.GlobalCopiedFromCol = anchor.col;
-            sceneManager.GlobalCopiedFromRow = anchor.row;
-            sceneManager.GlobalCopiedFromSceneId = sceneManager.CurrentSceneId;
+            clipboard.GlobalCopiedTerrain = copiedData.Value;
+            clipboard.GlobalCopiedFromCol = anchor.col;
+            clipboard.GlobalCopiedFromRow = anchor.row;
         }
 
-        sceneManager.GlobalCopiedHexes.Clear();
+        clipboard.GlobalCopiedHexes.Clear();
         if (copiedGroup != null && copiedGroup.Count > 0)
         {
             foreach (var kv in copiedGroup)
-                sceneManager.GlobalCopiedHexes[kv.Key] = kv.Value;
-            sceneManager.GlobalCopiedRegionMinCol = anchor.col;
-            sceneManager.GlobalCopiedRegionMinRow = anchor.row;
+                clipboard.GlobalCopiedHexes[kv.Key] = kv.Value;
+            clipboard.GlobalCopiedRegionMinCol = anchor.col;
+            clipboard.GlobalCopiedRegionMinRow = anchor.row;
         }
     }
 
     private static void SyncGlobalCopiedTerrainToLocal(TerrainModifier terrain)
     {
-        var sceneManager = RenderSceneManager.Instance;
-        if (sceneManager.GlobalCopiedTerrain == null) return;
+        var clipboard = MapClipboard.Instance;
+        if (clipboard.GlobalCopiedTerrain == null) return;
 
-        terrain.SetCopiedTerrainData(sceneManager.GlobalCopiedTerrain.Value,
-            sceneManager.GlobalCopiedFromCol, sceneManager.GlobalCopiedFromRow);
+        terrain.SetCopiedTerrainData(clipboard.GlobalCopiedTerrain.Value,
+            clipboard.GlobalCopiedFromCol, clipboard.GlobalCopiedFromRow);
 
-        if (sceneManager.GlobalCopiedHexes.Count > 0)
+        if (clipboard.GlobalCopiedHexes.Count > 0)
         {
-            terrain.SetCopiedTerrainGroup(sceneManager.GlobalCopiedHexes,
-                sceneManager.GlobalCopiedRegionMinCol, sceneManager.GlobalCopiedRegionMinRow);
+            terrain.SetCopiedTerrainGroup(clipboard.GlobalCopiedHexes,
+                clipboard.GlobalCopiedRegionMinCol, clipboard.GlobalCopiedRegionMinRow);
         }
     }
 

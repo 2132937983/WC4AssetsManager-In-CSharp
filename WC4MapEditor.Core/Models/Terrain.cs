@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using WC4MapEditor.Core.Config;
 
 namespace WC4MapEditor.Core.Models;
 
@@ -82,16 +81,6 @@ public struct Terrain
         TextureOffsetY3 = TextureOffsetY3,
         RiverValue = RiverValue
     };
-
-    /// <summary>
-    /// 获取地形类型名称（从ConfigManager的manager.json配置读取）
-    /// </summary>
-    public static string GetTerrainName(int terrainId) => ConfigManager.Instance.GetTerrainTypeName(terrainId);
-
-    /// <summary>
-    /// 获取第一层地形类型名称
-    /// </summary>
-    public readonly string GetTerrainTypeName() => GetTerrainName(TileType1);
 
     /// <summary>
     /// 检查是否可以通过（陆地单位）
