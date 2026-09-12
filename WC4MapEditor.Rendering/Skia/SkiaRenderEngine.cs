@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using SkiaSharp;
 using WC4MapEditor.Core.Helpers;
 using WC4MapEditor.Core.Models;
@@ -194,50 +195,100 @@ public class SkiaRenderEngine : IRenderEngine
     {
     }
 
+    /// <summary>构造计时辅助：用于定位「进入渲染场景」的耗时分布</summary>
+    private static T Timed<T>(string name, Func<T> factory)
+    {
+        var sw = Stopwatch.StartNew();
+        var result = factory();
+        Debug.WriteLine($"[Timing]   {name}: {sw.ElapsedMilliseconds}ms");
+        return result;
+    }
+
     private void InitializeTerrainRenderers()
     {
         if (_backgroundRender != null) return;
 
-        _landTerrainsRender = new LandTerrainsRender();
-        _backgroundRender = new BackGroundRender();
+        var total = Stopwatch.StartNew();
+        Debug.WriteLine("[Timing] InitializeTerrainRenderers 开始");
+
+        _landTerrainsRender = Timed("LandTerrainsRender", () => new LandTerrainsRender());
+        _backgroundRender = Timed("BackGroundRender", () => new BackGroundRender());
         _backgroundRender.SetLandTerrainsRender(_landTerrainsRender);
         _backgroundRender.ShowLayer2 = _showLayer2;
         _backgroundRender.ShowGridLines = _showHexBorders;
         _backgroundRender.CoastCacheUpdated += OnCoastCacheUpdated;
-        _provinceRender = new ProvinceRender();
-        _selectionRender = new SelectionRender();
-        _overlayRender = new OverlayRender
+        _provinceRender = Timed("ProvinceRender", () => new ProvinceRender());
+        _selectionRender = Timed("SelectionRender", () => new SelectionRender());
+        _overlayRender = Timed("OverlayRender", () => new OverlayRender
         {
             HelpText = _helpText,
             ModeName = _modeName,
             ShowHelp = _showHelp,
             ShowModeName = _showModeName
-        };
-        _geoRulerRender = new GeoRulerRender();
-        _legionDomainRender = new LegionDomainRender();
-        _belongFlagRender = new BelongFlagRender();
+        });
+        _geoRulerRender = Timed("GeoRulerRender", () => new GeoRulerRender());
+        _legionDomainRender = Timed("LegionDomainRender", () => new LegionDomainRender());
+        _belongFlagRender = Timed("BelongFlagRender", () => new BelongFlagRender());
+
+        Debug.WriteLine($"[Timing] InitializeTerrainRenderers 总计: {total.ElapsedMilliseconds}ms");
     }
 
     private void InitializeEntityRenderers(Camera camera, MapData mapData)
     {
-        if (_buildingRender == null)
-            _buildingRender = new BuildingRender(camera, mapData);
-        if (_armyRender == null)
-            _armyRender = new ArmyRender(camera, mapData);
-        if (_trapRender == null)
-            _trapRender = new TrapRender(camera, mapData);
-        if (_reinforceRender == null)
-            _reinforceRender = new ReinforceRender(camera, mapData);
-        if (_reinforceRenderNew == null)
-            _reinforceRenderNew = new ReinforceRenderNew(camera, mapData);
-        if (_strategicConstructionRender == null)
-            _strategicConstructionRender = new StrategicConstructionRender(camera, mapData);
-        if (_airForceRender == null)
-            _airForceRender = new AirForceRender(camera, mapData);
-        if (_weatherRender == null)
-            _weatherRender = new WeatherRender(camera, mapData);
-        if (_mapCaseRender == null)
-            _mapCaseRender = new MapCaseRender(camera, mapData);
+        // 只创建当前开关启用（或可能被渲染路径用到）的渲染器，避免为未启用的图层
+        // 白付构造成本。Render 每帧都会调用本方法，开关之后再打开时会自动补建。
+        var total = Stopwatch.StartNew();
+        bool anyCreated = false;
+
+        if (_buildingRender == null && EnableBuildingRender)
+        {
+            anyCreated = true;
+            _buildingRender = Timed("BuildingRender", () => new BuildingRender(camera, mapData));
+        }
+        if (_armyRender == null && EnableArmyRender)
+        {
+            anyCreated = true;
+            _armyRender = Timed("ArmyRender", () => new ArmyRender(camera, mapData));
+        }
+        if (_trapRender == null && EnableTrapRender)
+        {
+            anyCreated = true;
+            _trapRender = Timed("TrapRender", () => new TrapRender(camera, mapData));
+        }
+        // 旧版增援渲染器仅在「未启用新版增援、且启用部队渲染」时才会被用到（见 Render）。
+        if (_reinforceRender == null && !EnableReinforceNewRender && EnableArmyRender)
+        {
+            anyCreated = true;
+            _reinforceRender = Timed("ReinforceRender", () => new ReinforceRender(camera, mapData));
+        }
+        if (_reinforceRenderNew == null && EnableReinforceNewRender)
+        {
+            anyCreated = true;
+            _reinforceRenderNew = Timed("ReinforceRenderNew", () => new ReinforceRenderNew(camera, mapData));
+        }
+        if (_strategicConstructionRender == null && EnableStrategicConstructionRender)
+        {
+            anyCreated = true;
+            _strategicConstructionRender = Timed("StrategicConstructionRender", () => new StrategicConstructionRender(camera, mapData));
+        }
+        if (_airForceRender == null && EnableAirForceRender)
+        {
+            anyCreated = true;
+            _airForceRender = Timed("AirForceRender", () => new AirForceRender(camera, mapData));
+        }
+        if (_weatherRender == null && EnableWeatherRender)
+        {
+            anyCreated = true;
+            _weatherRender = Timed("WeatherRender", () => new WeatherRender(camera, mapData));
+        }
+        if (_mapCaseRender == null && EnableMapCaseRender)
+        {
+            anyCreated = true;
+            _mapCaseRender = Timed("MapCaseRender", () => new MapCaseRender(camera, mapData));
+        }
+
+        if (anyCreated)
+            Debug.WriteLine($"[Timing] InitializeEntityRenderers 总计: {total.ElapsedMilliseconds}ms");
     }
 
     public void Resize(int width, int height)

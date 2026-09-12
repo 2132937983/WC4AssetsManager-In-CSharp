@@ -31,6 +31,44 @@ public class ProvinceRender : IDisposable
 
     private static readonly double[] EdgeAngles = { -60, 0, 60, 120, 180, 240 };
 
+    // 六边形 6 条边的端点单位向量与外法线方向。这些值只取决于 edgeIndex，
+    // 与格子位置、缩放无关，预先算好以避免每格重复做 三角函数 + 开方。
+    private static readonly float[] EdgeStartCos = new float[6];
+    private static readonly float[] EdgeStartSin = new float[6];
+    private static readonly float[] EdgeEndCos = new float[6];
+    private static readonly float[] EdgeEndSin = new float[6];
+    private static readonly float[] EdgeNormalX = new float[6];
+    private static readonly float[] EdgeNormalY = new float[6];
+
+    static ProvinceRender()
+    {
+        for (int i = 0; i < 6; i++)
+        {
+            double a0 = Math.PI / 180 * EdgeAngles[i];
+            double a1 = Math.PI / 180 * ((EdgeAngles[i] + 60) % 360);
+
+            float c0 = (float)Math.Cos(a0);
+            float s0 = (float)Math.Sin(a0);
+            float c1 = (float)Math.Cos(a1);
+            float s1 = (float)Math.Sin(a1);
+
+            EdgeStartCos[i] = c0;
+            EdgeStartSin[i] = s0;
+            EdgeEndCos[i] = c1;
+            EdgeEndSin[i] = s1;
+
+            // 边中点相对格心的方向（未归一化）→ 归一化后即为边界线的外偏移方向。
+            // 原实现中的 screenX/Y 与 hexSize 在归一化时相互抵消，故可预先计算。
+            float mx = (c0 + c1) / 2f;
+            float my = (s0 + s1) / 2f;
+            float len = (float)Math.Sqrt(mx * mx + my * my);
+            if (len > 0) { mx /= len; my /= len; }
+
+            EdgeNormalX[i] = mx;
+            EdgeNormalY[i] = my;
+        }
+    }
+
     public bool EnableProvinceRender
     {
         get { _stateLock.EnterReadLock(); try { return _enableProvinceRender; } finally { _stateLock.ExitReadLock(); } }
@@ -123,12 +161,13 @@ public class ProvinceRender : IDisposable
                 var fillColor = GetProvinceColor(provinceId);
                 fillPaint.Color = fillColor;
 
-                var matrix = SKMatrix.CreateTranslation((float)centerX, (float)centerY);
-                using var translatedPath = new SKPath(hexPath);
-                translatedPath.Transform(matrix);
-                canvas.DrawPath(translatedPath, fillPaint);
+                // 用画布平移代替「每格复制一份 SKPath 再 Transform」，避免可视范围内逐格分配路径对象。
+                canvas.Save();
+                canvas.Translate((float)centerX, (float)centerY);
+                canvas.DrawPath(hexPath, fillPaint);
+                canvas.Restore();
 
-                DrawProvinceBorders(canvas, col, row, provinceId, (float)centerX, (float)centerY, hexSize, borderWidth, mapData, mapData.Belongs, mapData.Legions);
+                DrawProvinceBorders(canvas, col, row, provinceId, (float)centerX, (float)centerY, hexSize, borderWidth, borderPaint, mapData, mapData.Belongs, mapData.Legions);
 
                 if (enableCapital && capitalDrawCalls != null)
                 {
@@ -259,17 +298,12 @@ public class ProvinceRender : IDisposable
     }
 
     private void DrawProvinceBorders(SKCanvas canvas, int col, int row, int provinceValue,
-        float screenX, float screenY, float hexSize, float borderWidth, MapData mapData,
+        float screenX, float screenY, float hexSize, float borderWidth, SKPaint paint, MapData mapData,
         List<string>? belongs, ObservableCollection<Legion>? legions)
     {
-        var borderColor = GetBorderColor(provinceValue, belongs, legions);
-        using var paint = new SKPaint
-        {
-            Color = borderColor,
-            StrokeWidth = borderWidth,
-            IsAntialias = true,
-            Style = SKPaintStyle.Stroke
-        };
+        // paint 由调用方复用（Style 已为 Stroke、StrokeWidth 已设好），这里只更新颜色，
+        // 避免可视范围内逐格 new SKPaint。
+        paint.Color = GetBorderColor(provinceValue, belongs, legions);
 
         for (int edgeIndex = 0; edgeIndex < 6; edgeIndex++)
         {
@@ -285,26 +319,15 @@ public class ProvinceRender : IDisposable
 
                 if (neighborProvinceValue != provinceValue)
                 {
-                    double angleDeg = EdgeAngles[edgeIndex];
-                    double angleRad = Math.PI / 180 * angleDeg;
-                    float startX = screenX + hexSize * (float)Math.Cos(angleRad);
-                    float startY = screenY + hexSize * (float)Math.Sin(angleRad);
-
-                    double nextAngleDeg = (angleDeg + 60) % 360;
-                    double nextAngleRad = Math.PI / 180 * nextAngleDeg;
-                    float endX = screenX + hexSize * (float)Math.Cos(nextAngleRad);
-                    float endY = screenY + hexSize * (float)Math.Sin(nextAngleRad);
-
-                    float edgeMidX = (startX + endX) / 2;
-                    float edgeMidY = (startY + endY) / 2;
-                    float dirX = edgeMidX - screenX;
-                    float dirY = edgeMidY - screenY;
-                    float dirLength = (float)Math.Sqrt(dirX * dirX + dirY * dirY);
-                    if (dirLength > 0) { dirX /= dirLength; dirY /= dirLength; }
+                    // 端点与偏移方向全部查表，省掉原先每格 6 组 三角函数 + 开方。
+                    float startX = screenX + hexSize * EdgeStartCos[edgeIndex];
+                    float startY = screenY + hexSize * EdgeStartSin[edgeIndex];
+                    float endX = screenX + hexSize * EdgeEndCos[edgeIndex];
+                    float endY = screenY + hexSize * EdgeEndSin[edgeIndex];
 
                     float offset = 0.5f * borderWidth;
-                    float ox = dirX * offset;
-                    float oy = dirY * offset;
+                    float ox = EdgeNormalX[edgeIndex] * offset;
+                    float oy = EdgeNormalY[edgeIndex] * offset;
 
                     canvas.DrawLine(startX - ox, startY - oy, endX - ox, endY - oy, paint);
                 }

@@ -10,6 +10,8 @@ using SkiaSharp;
 using SkiaSharp.Views.WPF;
 using WC4MapEditor.Core.Brush;
 using WC4MapEditor.Core.Commands;
+// 与 WPF 的 System.Windows.Input.CommandManager 同名，使用别名消除歧义
+using CoreCommandManager = WC4MapEditor.Core.Commands.CommandManager;
 using WC4MapEditor.Core.ErrorHandling;
 using WC4MapEditor.Core.Geo;
 using WC4MapEditor.Core.Helpers;
@@ -62,7 +64,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     private readonly MouseManager _mouseManager;
     private readonly KeyboardManager _keyboardManager;
     private readonly DebugConsole _debugConsole;
-    private readonly EditModeManager _editModeManager = EditModeManager.Instance;
+    private readonly EditModeManager _editModeManager;
+    private readonly HexSelector _hexSelector;
+    private readonly CoreCommandManager _commandManager;
     private readonly FileStateManager _fileStateManager = new();
     private Grid? _titleBar;
 
@@ -126,6 +130,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _mouseManager = window.MouseManager;
         _debugConsole = window.DebugConsole;
         _keyboardManager = window.KeyboardManager;
+        _editModeManager = window.EditModeManager;
+        _hexSelector = window.HexSelector;
+        _commandManager = window.CommandManager;
         Focusable = true;
         SetupUI();
         Loaded += OnLoaded;
@@ -311,9 +318,15 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        var swTotal = Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
+        Debug.WriteLine("[Timing] ===== OnLoaded 开始 =====");
+
         _renderEngine = new MainRender(RenderEngineFactory.Create());
+        Debug.WriteLine($"[Timing] 创建渲染引擎: {sw.ElapsedMilliseconds}ms"); sw.Restart();
 
         _mapData = LoadMapData();
+        Debug.WriteLine($"[Timing] LoadMapData: {sw.ElapsedMilliseconds}ms"); sw.Restart();
         if (_mapData == null)
         {
             CloseAllAssistWindows();
@@ -329,14 +342,19 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             ViewportHeight = (int)_skElement.ActualHeight
         };
         _camera.CenterOnMap();
+        Debug.WriteLine($"[Timing] Camera: {sw.ElapsedMilliseconds}ms"); sw.Restart();
 
         InitializeRenderers();
+        Debug.WriteLine($"[Timing] InitializeRenderers(场景开关): {sw.ElapsedMilliseconds}ms"); sw.Restart();
 
         _renderEngine.Initialize(IntPtr.Zero, (int)_skElement.ActualWidth, (int)_skElement.ActualHeight);
         _renderEngine.Resize((int)_skElement.ActualWidth, (int)_skElement.ActualHeight);
 
         _renderEngine.InitializeTacticalMapImageCache();
+        Debug.WriteLine($"[Timing] InitializeTacticalMapImageCache: {sw.ElapsedMilliseconds}ms"); sw.Restart();
+
         _renderEngine.PreloadBelongFlagAtlas(_mapData);
+        Debug.WriteLine($"[Timing] PreloadBelongFlagAtlas: {sw.ElapsedMilliseconds}ms"); sw.Restart();
 
         _skElement.MouseLeftButtonDown += OnWpfMouseLeftDown;
         _skElement.MouseLeftButtonUp += OnWpfMouseLeftUp;
@@ -351,8 +369,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _skElement.TextInput += OnSkElementTextInput;
 
         _mouseManager.MouseAction += OnMouseAction;
-        HexSelector.Instance.SelectionChanged += OnHexSelectionChanged;
-        HexSelector.Instance.SelectionRectChanged += OnSelectionRectChanged;
+        _hexSelector.SelectionChanged += OnHexSelectionChanged;
+        _hexSelector.SelectionRectChanged += OnSelectionRectChanged;
 
         _keyboardManager.RegisterBinding("EscBack", (int)Key.Escape, KeyModifiers.None, OnEscPressed, "返回主场景");
         _keyboardManager.RegisterBinding("ToggleConsole", (int)Key.F3, KeyModifiers.None, OnToggleConsole, "调试控制台");
@@ -364,7 +382,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _editModeManager.Initialize(_mapData);
         _editModeManager.SetUndoManager(_fileStateManager.UndoManager);
         _editModeManager.SetDialogService(new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!));
-        _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(Core.Commands.CommandManager.Instance));
+        _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(_commandManager));
         _editModeManager.SetRecognizeTerrainCallback(RecognizeTerrainFromViewLayer);
         _editModeManager.SetGeoCalculateCallback(OnGeoCalculateAsync);
         _editModeManager.SetGeoExportRefCallback(OnGeoExportRefAsync);
@@ -409,7 +427,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             _renderEngine.ShowHelp = !isVisible;
             _skElement.InvalidateVisual();
         };
-        Core.Commands.CommandManager.Instance.SetContext(new CommandContext { MapData = _mapData });
+        _commandManager.SetContext(new CommandContext { MapData = _mapData });
         Core.Commands.CliCommandHost.Instance.SetOutput(new Core.Commands.DebugConsoleWriter(_debugConsole));
         Core.Commands.CliCommandHost.Instance.DataModified += () =>
         {
@@ -421,12 +439,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             _renderEngine.ReloadBuildingCityNames();
             _skElement.InvalidateVisual();
         };
-        Core.Commands.CommandManager.Instance.RegisterCommand("undo", _ =>
+        _commandManager.RegisterCommand("undo", _ =>
         {
             if (_fileStateManager.Undo()) { _editModeManager_DataModifiedFromUndo(); }
             else { _debugConsole.WriteLine("无法撤销"); }
         }, "撤销上一步操作");
-        Core.Commands.CommandManager.Instance.RegisterCommand("redo", _ =>
+        _commandManager.RegisterCommand("redo", _ =>
         {
             if (_fileStateManager.Redo()) { _editModeManager_DataModifiedFromUndo(); }
             else { _debugConsole.WriteLine("无法重做"); }
@@ -461,7 +479,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 _sceneNameLabel.Text = sceneName;
         }
 
+        Debug.WriteLine($"[Timing] 命令注册/场景登记等: {sw.ElapsedMilliseconds}ms");
         _skElement.InvalidateVisual();
+        Debug.WriteLine($"[Timing] ===== OnLoaded 总计: {swTotal.ElapsedMilliseconds}ms =====");
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -479,8 +499,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _skElement.KeyUp -= OnSkElementKeyUp;
         _skElement.TextInput -= OnSkElementTextInput;
         _mouseManager.MouseAction -= OnMouseAction;
-        HexSelector.Instance.SelectionChanged -= OnHexSelectionChanged;
-        HexSelector.Instance.SelectionRectChanged -= OnSelectionRectChanged;
+        _hexSelector.SelectionChanged -= OnHexSelectionChanged;
+        _hexSelector.SelectionRectChanged -= OnSelectionRectChanged;
         _keyboardManager.UnregisterBinding("EscBack");
         _keyboardManager.UnregisterBinding("ToggleConsole");
         _keyboardManager.UnregisterBinding("QuickSave");
@@ -871,7 +891,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             return;
         }
 
-        var primary = HexSelector.Instance.PrimarySelected;
+        var primary = _hexSelector.PrimarySelected;
         if (!primary.HasValue)
         {
             MessageBox.Show("请先选中一个格子", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1074,7 +1094,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _hexInfoWindow.Top = mainWindow.Top + 10;
         _hexInfoWindow.SetDisplayMode(HexInfoDisplayMode.Default);
 
-        var primary = HexSelector.Instance.PrimarySelected;
+        var primary = _hexSelector.PrimarySelected;
         if (primary.HasValue && _mapData != null)
             _hexInfoWindow.UpdateHexInfo(primary.Value.Col, primary.Value.Row);
 
@@ -1361,18 +1381,18 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         if (shiftPressed)
         {
-            HexSelector.Instance.AddToSelection(col, row, _mapData.MapWidth, _mapData.MapHeight);
+            _hexSelector.AddToSelection(col, row, _mapData.MapWidth, _mapData.MapHeight);
         }
         else if (ctrlPressed)
         {
-            HexSelector.Instance.RemoveFromSelection(new HexCoord(col, row));
+            _hexSelector.RemoveFromSelection(new HexCoord(col, row));
         }
         else
         {
-            HexSelector.Instance.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
+            _hexSelector.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
         }
 
-        HexSelector.Instance.SetSelectionMoving(false, 0, 0, null);
+        _hexSelector.SetSelectionMoving(false, 0, 0, null);
     }
 
     private void HandleZoom(MouseActionEventArgs e)
@@ -1388,13 +1408,13 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     private void HandleSelectionRectStart(MouseActionEventArgs e)
     {
         if (!_editModeManager.IsSelectionActive) return;
-        HexSelector.Instance.BeginSelectionRect(e.Position.X, e.Position.Y);
+        _hexSelector.BeginSelectionRect(e.Position.X, e.Position.Y);
     }
 
     private void HandleSelectionRectMove(MouseActionEventArgs e)
     {
         if (!_editModeManager.IsSelectionActive) return;
-        HexSelector.Instance.UpdateSelectionRect(e.Position.X, e.Position.Y);
+        _hexSelector.UpdateSelectionRect(e.Position.X, e.Position.Y);
     }
 
     private void HandleSelectionRectEnd(MouseActionEventArgs e)
@@ -1403,7 +1423,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         if (_mapData == null || _camera == null) return;
 
         var filter = GetSelectionFilter();
-        var matched = HexSelector.Instance.EndSelectionRect(
+        var matched = _hexSelector.EndSelectionRect(
             (x, y) => _camera.ScreenToHex(x, y),
             (c, r) => _camera.HexToScreen(c, r),
             _mapData.MapWidth, _mapData.MapHeight, filter);
@@ -1415,16 +1435,16 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             if (shiftPressed)
             {
                 foreach (var coord in matched)
-                    HexSelector.Instance.AddToSelection(coord);
+                    _hexSelector.AddToSelection(coord);
             }
             else if (ctrlPressed)
             {
                 foreach (var coord in matched)
-                    HexSelector.Instance.RemoveFromSelection(coord);
+                    _hexSelector.RemoveFromSelection(coord);
             }
             else
             {
-                HexSelector.Instance.SetSelection(matched);
+                _hexSelector.SetSelection(matched);
             }
         }
     }
@@ -1442,15 +1462,15 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         if (shiftPressed)
         {
-            HexSelector.Instance.AddToSelection(col, row, _mapData.MapWidth, _mapData.MapHeight);
+            _hexSelector.AddToSelection(col, row, _mapData.MapWidth, _mapData.MapHeight);
         }
         else if (ctrlPressed)
         {
-            HexSelector.Instance.RemoveFromSelection(coord);
+            _hexSelector.RemoveFromSelection(coord);
         }
         else
         {
-            HexSelector.Instance.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
+            _hexSelector.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
         }
     }
 
@@ -1721,7 +1741,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 _editModeManager.Initialize(_mapData);
                 _editModeManager.SetUndoManager(_fileStateManager.UndoManager);
                 _editModeManager.SetDialogService(new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!));
-                _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(Core.Commands.CommandManager.Instance));
+                _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(_commandManager));
                 _editModeManager.SetRecognizeTerrainCallback(RecognizeTerrainFromViewLayer);
                 _fileStateManager.OpenFile(_mapData, dialog.FileName, SceneType);
 
@@ -1833,7 +1853,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _editModeManager.Initialize(_mapData);
         _editModeManager.SetUndoManager(_fileStateManager.UndoManager);
         _editModeManager.SetDialogService(new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!));
-        _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(Core.Commands.CommandManager.Instance));
+        _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(_commandManager));
         _editModeManager.SetRecognizeTerrainCallback(RecognizeTerrainFromViewLayer);
         _fileStateManager.OpenFile(_mapData, "", SceneType);
     }
@@ -2059,7 +2079,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             _editModeManager.Initialize(_mapData!);
             _editModeManager.SetUndoManager(_fileStateManager.UndoManager);
             _editModeManager.SetDialogService(new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!));
-            _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(Core.Commands.CommandManager.Instance));
+            _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(_commandManager));
             _editModeManager.SetRecognizeTerrainCallback(RecognizeTerrainFromViewLayer);
             _editModeManager.SetSceneType(SceneType);
             _fileStateManager.OpenFile(_mapData, targetScene.MapFilePath, SceneType);
@@ -2149,7 +2169,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
     private void RegisterTerrainCliCommands()
     {
-        var cm = Core.Commands.CommandManager.Instance;
+        var cm = _commandManager;
 
         cm.RegisterCommand("greening", args =>
         {
@@ -2205,7 +2225,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             var terrain = _editModeManager.GetModifier<TerrainModifier>();
             if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
 
-            var selectedHexes = WC4MapEditor.Core.Selection.HexSelector.Instance.SelectedHexes;
+            var selectedHexes = _hexSelector.SelectedHexes;
             var targetHexes = selectedHexes.Count > 0
                 ? selectedHexes.Select(h => (h.Col, h.Row)).ToList()
                 : null;
@@ -2222,7 +2242,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             var terrain = _editModeManager.GetModifier<TerrainModifier>();
             if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
 
-            var selectedHexes = WC4MapEditor.Core.Selection.HexSelector.Instance.SelectedHexes;
+            var selectedHexes = _hexSelector.SelectedHexes;
             var targetHexes = selectedHexes.Count > 0
                 ? selectedHexes.Select(h => (h.Col, h.Row)).ToList()
                 : null;
@@ -2538,7 +2558,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             return;
         }
 
-        var primary = HexSelector.Instance.PrimarySelected;
+        var primary = _hexSelector.PrimarySelected;
         int col, row;
 
         if (primary.HasValue)
@@ -2551,7 +2571,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             (col, row) = _camera.ScreenToHex(mousePos.X, mousePos.Y);
             Debug.WriteLine($"[EditMode] No primary selected, using mouse pos=({mousePos.X:F0},{mousePos.Y:F0}) -> hex=({col},{row})");
             if (col >= 0 && col < _mapData.MapWidth && row >= 0 && row < _mapData.MapHeight)
-                HexSelector.Instance.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
+                _hexSelector.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
         }
 
         if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight)
@@ -2668,7 +2688,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         if (_mapData == null || _camera == null) return (0, 0);
 
-        var primary = HexSelector.Instance.PrimarySelected;
+        var primary = _hexSelector.PrimarySelected;
         if (primary.HasValue)
         {
             return (primary.Value.Col, primary.Value.Row);
@@ -2678,7 +2698,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         var (col, row) = _camera.ScreenToHex(mousePos.X, mousePos.Y);
         if (col >= 0 && col < _mapData.MapWidth && row >= 0 && row < _mapData.MapHeight)
         {
-            HexSelector.Instance.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
+            _hexSelector.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
             return (col, row);
         }
 
@@ -2970,10 +2990,10 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         if (_disposed) return;
         _disposed = true;
         _mouseManager.MouseAction -= OnMouseAction;
-        HexSelector.Instance.SelectionChanged -= OnHexSelectionChanged;
-        HexSelector.Instance.SelectionRectChanged -= OnSelectionRectChanged;
-        HexSelector.Instance.CancelSelectionRect();
-        HexSelector.Instance.ClearSelection();
+        _hexSelector.SelectionChanged -= OnHexSelectionChanged;
+        _hexSelector.SelectionRectChanged -= OnSelectionRectChanged;
+        _hexSelector.CancelSelectionRect();
+        _hexSelector.ClearSelection();
         _keyboardManager.UnregisterBinding("EscBack");
         _keyboardManager.UnregisterBinding("Screenshot");
         UnregisterEditModeKeyBindings();

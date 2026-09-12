@@ -28,6 +28,14 @@ public class LegionDomainRender : IDisposable
 
     private SKPaint? _domainPaint;
 
+    /// <summary>
+    /// 按颜色分组的格子位置。原实现每帧新建 Dictionary、并为每种颜色新建 List，
+    /// 在可视范围内逐格分配；这里改为复用容器（List 回收进池）。
+    /// 仅在渲染线程使用，无需加锁。
+    /// </summary>
+    private readonly Dictionary<SKColor, List<(float x, float y)>> _colorGroups = new();
+    private readonly Stack<List<(float x, float y)>> _colorGroupPool = new();
+
     public bool EnableLegionDomainRender
     {
         get { _stateLock.EnterReadLock(); try { return _enableLegionDomainRender; } finally { _stateLock.ExitReadLock(); } }
@@ -120,7 +128,13 @@ public class LegionDomainRender : IDisposable
         int endCol = Math.Min(mapWidth - 1, startCol + (int)(_viewportWidth / hexSpacingX) + padding * 2);
         int endRow = Math.Min(mapHeight - 1, startRow + (int)(_viewportHeight / hexSpacingY) + padding * 2);
 
-        var colorGroups = new Dictionary<SKColor, List<(float x, float y)>>();
+        // 回收上一帧的 List 并清空字典（Dictionary.Clear 保留内部数组，不会重新分配）。
+        foreach (var reused in _colorGroups.Values)
+        {
+            reused.Clear();
+            _colorGroupPool.Push(reused);
+        }
+        _colorGroups.Clear();
 
         for (int row = startRow; row <= endRow; row++)
         {
@@ -143,15 +157,20 @@ public class LegionDomainRender : IDisposable
                 float x = (float)(_offsetX + col * hexSpacingX);
                 float y = (float)(_offsetY + (col % 2) * (hexSpacingY / 2) + row * hexSpacingY);
 
-                if (!colorGroups.ContainsKey(color))
-                    colorGroups[color] = new List<(float, float)>();
-                colorGroups[color].Add((x, y));
+                if (!_colorGroups.TryGetValue(color, out var positions))
+                {
+                    positions = _colorGroupPool.Count > 0
+                        ? _colorGroupPool.Pop()
+                        : new List<(float x, float y)>(16);
+                    _colorGroups[color] = positions;
+                }
+                positions.Add((x, y));
             }
         }
 
         if (_domainPaint == null) return;
 
-        foreach (var kvp in colorGroups)
+        foreach (var kvp in _colorGroups)
         {
             _domainPaint.Color = kvp.Key;
             foreach (var pos in kvp.Value)

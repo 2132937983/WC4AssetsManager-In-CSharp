@@ -25,7 +25,8 @@ public sealed class CommandManager
     private readonly Dictionary<string, CommandEntry> _commands = new(StringComparer.OrdinalIgnoreCase);
     private CommandContext? _context;
 
-    private CommandManager() { }
+    /// <summary>供依赖注入使用的公开构造（替代单例入口）</summary>
+    public CommandManager() { }
 
     public void SetContext(CommandContext context) => _context = context;
 

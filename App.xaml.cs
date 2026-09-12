@@ -6,10 +6,13 @@ using System.Windows.Threading;
 using WC4MapEditor.Core.Assets;
 using WC4MapEditor.Core.Commands;
 using WC4MapEditor.Core.ErrorHandling;
+// 与 WPF 的 System.Windows.Input.CommandManager 同名，使用别名消除歧义
+using CoreCommandManager = WC4MapEditor.Core.Commands.CommandManager;
 using WC4MapEditor.Core.Input;
 using WC4MapEditor.Core.Modifiers;
 using WC4MapEditor.Core.Parsers.Country;
 using WC4MapEditor.Core.Parsers.General;
+using WC4MapEditor.Core.Selection;
 using WC4MapEditor.Core.Services;
 using WC4MapEditor.Rendering.Helpers;
 using WC4MapEditor.ViewModels;
@@ -57,6 +60,11 @@ public partial class App : Application
         services.AddSingleton<KeyboardManager>(_ => KeyboardManager.Instance);
         services.AddSingleton<ErrorCollector>(_ => ErrorCollector.Instance);
         services.AddSingleton<EditModeManager>(_ => EditModeManager.Instance);
+
+        // 批次 4：选择 / 命令 / 战术图缓存 —— 仅在 View 层改用注入，其余（Core、Rendering 内部）保持单例
+        services.AddSingleton<HexSelector>(_ => HexSelector.Instance);
+        services.AddSingleton<CoreCommandManager>(_ => CoreCommandManager.Instance);
+        services.AddSingleton<TacticalMapImageCache>(_ => TacticalMapImageCache.Instance);
 
         services.AddTransient<MainWindow>();
         services.AddTransient<BeginScene>();

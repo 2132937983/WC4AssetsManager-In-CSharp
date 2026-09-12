@@ -252,6 +252,10 @@ public class BackGroundRender : IDisposable
             if (!_coastMaskProcessor.IsInitialized)
                 _coastMaskProcessor.Initialize(_coastHelper);
 
+            // 缓存命中时无需预生成六边形图块：
+            // 六边形图块（_hexagonCoastCache）仅被「最终图集构建」使用，而缓存已提供等价产物
+            if (_coastMaskProcessor.LoadedFromDiskCache || _coastMaskProcessor.HasFinalAtlas) return;
+
             Task.Run(() => _coastHelper.PreGenerateAllHexagonCoasts(null));
         }
         catch (Exception ex)
@@ -814,12 +818,15 @@ public class BackGroundRender : IDisposable
 
     private byte GetCachedCoastDecorationType(int col, int row)
     {
-        if (_coastDecorationArray == null) return 10;
-        lock (_arraySwapLock)
-        {
-            if (col >= 0 && col < _coastDecorationArray.GetLength(0) && row >= 0 && row < _coastDecorationArray.GetLength(1))
-                return _coastDecorationArray[col, row];
-        }
+        // 数组引用由后台预计算任务整体替换（见 StartCoastPrecomputation），内容则只在
+        // UI 线程原地更新，而渲染也在 UI 线程，因此这里只需用 Volatile.Read 取一次引用，
+        // 不必为可视范围内上万次调用逐个加锁（原实现每格 lock 一次）。
+        var array = System.Threading.Volatile.Read(ref _coastDecorationArray);
+        if (array == null) return 10;
+
+        if (col >= 0 && col < array.GetLength(0) && row >= 0 && row < array.GetLength(1))
+            return array[col, row];
+
         return 10;
     }
 

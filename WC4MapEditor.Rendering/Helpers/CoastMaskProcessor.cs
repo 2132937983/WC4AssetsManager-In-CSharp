@@ -1,6 +1,11 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using SkiaSharp;
+using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Models;
 
 namespace WC4MapEditor.Rendering.Helpers;
@@ -28,6 +33,409 @@ public sealed class CoastMaskProcessor
     public bool IsInitialized => _initialized;
     public bool HasFinalAtlas => _finalAtlasBuilt && _finalCoastAtlas != null;
 
+    #region 最终图集磁盘缓存
+
+    /// <summary>缓存子目录名</summary>
+    private const string CacheFolderName = "CoastAtlas";
+
+    /// <summary>缓存格式版本；结构变更时递增即可让旧缓存自然失效</summary>
+    private const int CacheFormatVersion = 1;
+
+    /// <summary>
+    /// 缓存目录：固定在 %LOCALAPPDATA%\WC4MapEditor\Cache\CoastAtlas。
+    /// <para>
+    /// 刻意**不使用**相对工作目录（如 <c>Path.Combine(".", "Cache")</c>）——
+    /// 否则从 IDE / 双击 exe / 命令行启动会解析到不同位置，
+    /// 且当工作目录位于 bin 下时，清理 bin 会连带删除缓存。
+    /// </para>
+    /// </summary>
+    private static string GetCacheDirectory()
+    {
+        string? root = null;
+        try
+        {
+            root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        }
+        catch { /* 取不到则走兜底 */ }
+
+        if (string.IsNullOrEmpty(root))
+            root = AppDomain.CurrentDomain.BaseDirectory;
+
+        return Path.Combine(root, "WC4MapEditor", "Cache", CacheFolderName);
+    }
+
+    /// <summary>图集缓存的元数据</summary>
+    private sealed class FinalAtlasCacheMeta
+    {
+        public int Version { get; set; } = CacheFormatVersion;
+        public int AtlasWidth { get; set; }
+        public int AtlasHeight { get; set; }
+        public List<SpriteMeta> Sprites { get; set; } = new();
+    }
+
+    /// <summary>单个精灵在图集中的位置与原点</summary>
+    private sealed class SpriteMeta
+    {
+        public string Name { get; set; } = "";
+        public float X { get; set; }
+        public float Y { get; set; }
+        public float W { get; set; }
+        public float H { get; set; }
+        public float Ox { get; set; }
+        public float Oy { get; set; }
+    }
+
+    /// <summary>
+    /// 计算源文件指纹。海岸线灰度图集、其配置、陆地纹理三者任一发生变化都会得到不同的 key，
+    /// 从而使旧缓存自然失效，无需手动清理。
+    /// </summary>
+    private static string? ComputeSourceFingerprint()
+    {
+        try
+        {
+            string grayLevelDir = ConfigManager.Instance.GetTexturePath("MapCoastGrayLevel");
+            string terrainDir = ConfigManager.Instance.GetTexturePath("MapTerrian");
+
+            string[] sources =
+            [
+                Path.Combine(grayLevelDir, "coastmask_hd.webp"),
+                Path.Combine(grayLevelDir, "coastmask_hd.xml"),
+                Path.Combine(terrainDir, "MapLand.png"),
+            ];
+
+            var sb = new StringBuilder();
+            foreach (var path in sources)
+            {
+                if (!File.Exists(path)) { sb.Append("missing|"); continue; }
+                var fi = new FileInfo(path);
+                sb.Append(Path.GetFileName(path)).Append(':')
+                  .Append(fi.Length).Append(':')
+                  .Append(fi.LastWriteTimeUtc.Ticks).Append('|');
+            }
+
+            return Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(sb.ToString())));
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CoastMaskProcessor] 计算缓存指纹失败: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>尝试从磁盘恢复最终图集与精灵元数据；成功返回 true。</summary>
+    private bool TryLoadFinalAtlasFromCache()
+    {
+        try
+        {
+            var key = ComputeSourceFingerprint();
+            if (key == null) return false;
+
+            var dir = GetCacheDirectory();
+            var atlasPath = Path.Combine(dir, key + ".webp");
+            var metaPath = Path.Combine(dir, key + ".json");
+            if (!File.Exists(atlasPath) || !File.Exists(metaPath)) return false;
+
+            var meta = JsonSerializer.Deserialize<FinalAtlasCacheMeta>(File.ReadAllText(metaPath));
+            if (meta == null || meta.Version != CacheFormatVersion || meta.Sprites.Count == 0) return false;
+
+            SKImage? atlas;
+            using (var fs = File.OpenRead(atlasPath))
+                atlas = SKImage.FromEncodedData(fs);
+
+            if (atlas == null) return false;
+            if (atlas.Width != meta.AtlasWidth || atlas.Height != meta.AtlasHeight)
+            {
+                atlas.Dispose();
+                Debug.WriteLine("[CoastMaskProcessor] 图集缓存尺寸不匹配，已忽略");
+                return false;
+            }
+
+            _finalCoastAtlas?.Dispose();
+            _finalCoastAtlas = atlas;
+            _finalAtlasSpriteRects.Clear();
+            _finalAtlasSpriteSizes.Clear();
+            _finalAtlasSpriteOrigins.Clear();
+
+            foreach (var s in meta.Sprites)
+            {
+                _finalAtlasSpriteRects[s.Name] = new SKRect(s.X, s.Y, s.X + s.W, s.Y + s.H);
+                _finalAtlasSpriteSizes[s.Name] = new SKSize(s.W, s.H);
+                _finalAtlasSpriteOrigins[s.Name] = new SKPoint(s.Ox, s.Oy);
+            }
+
+            _finalAtlasBuilt = true;
+            _finalAtlasLandTextureRef = _landTexture;
+            Debug.WriteLine($"[CoastMaskProcessor] 已从磁盘缓存加载最终图集: {meta.Sprites.Count} 个精灵, {atlas.Width}x{atlas.Height}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CoastMaskProcessor] 读取图集缓存失败: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>把当前最终图集与精灵元数据写入磁盘缓存。</summary>
+    private void SaveFinalAtlasToCache()
+    {
+        try
+        {
+            if (_finalCoastAtlas == null || _finalAtlasSpriteRects.Count == 0) return;
+
+            var key = ComputeSourceFingerprint();
+            if (key == null) return;
+
+            var dir = GetCacheDirectory();
+            Directory.CreateDirectory(dir);
+
+            var atlasPath = Path.Combine(dir, key + ".webp");
+            using (var fs = File.Create(atlasPath))
+            using (var data = _finalCoastAtlas.Encode(SKEncodedImageFormat.Webp, 100))
+                data.SaveTo(fs);
+
+            var meta = new FinalAtlasCacheMeta
+            {
+                AtlasWidth = _finalCoastAtlas.Width,
+                AtlasHeight = _finalCoastAtlas.Height,
+                Sprites = _finalAtlasSpriteRects.Select(kv => new SpriteMeta
+                {
+                    Name = kv.Key,
+                    X = kv.Value.Left,
+                    Y = kv.Value.Top,
+                    W = kv.Value.Width,
+                    H = kv.Value.Height,
+                    Ox = _finalAtlasSpriteOrigins.TryGetValue(kv.Key, out var o) ? o.X : kv.Value.Width / 2f,
+                    Oy = _finalAtlasSpriteOrigins.TryGetValue(kv.Key, out var o2) ? o2.Y : kv.Value.Height / 2f,
+                }).ToList()
+            };
+            File.WriteAllText(Path.Combine(dir, key + ".json"), JsonSerializer.Serialize(meta));
+
+            Debug.WriteLine($"[CoastMaskProcessor] 最终图集已写入缓存: {atlasPath} ({meta.Sprites.Count} 个精灵)");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CoastMaskProcessor] 写入图集缓存失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>清空磁盘上的图集与遮罩缓存（供诊断 / 强制重建使用）</summary>
+    public static void ClearDiskCache()
+    {
+        try
+        {
+            var dir = GetCacheDirectory();
+            if (!Directory.Exists(dir)) return;
+            foreach (var f in Directory.GetFiles(dir, "*.webp")) File.Delete(f);
+            foreach (var f in Directory.GetFiles(dir, "*.json")) File.Delete(f);
+            foreach (var f in Directory.GetFiles(dir, "masks_*.bin.gz")) File.Delete(f);
+            Debug.WriteLine("[CoastMaskProcessor] 磁盘缓存已清空");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CoastMaskProcessor] 清空缓存失败: {ex.Message}");
+        }
+    }
+
+    #endregion
+
+    #region 遮罩（_maskCache）磁盘缓存
+
+    /// <summary>遮罩缓存格式版本；结构变更时递增即可让旧缓存自然失效</summary>
+    private const int MaskCacheFormatVersion = 1;
+
+    /// <summary>
+    /// 本次实例是否由磁盘缓存恢复。
+    /// 宿主可据此跳过后续预热步骤（如 CoastHelper.PreGenerateAllHexagonCoasts）。
+    /// </summary>
+    public bool LoadedFromDiskCache { get; private set; }
+
+    private static string GetMaskCachePath(string key) =>
+        Path.Combine(GetCacheDirectory(), $"masks_{key}.bin.gz");
+
+    /// <summary>
+    /// 尝试从磁盘恢复整份遮罩缓存（正常渲染路径直接依赖 _maskCache，这是打开场景卡顿的主因）；成功返回 true。
+    /// </summary>
+    private bool TryLoadMasksFromCache()
+    {
+        Dictionary<string, (SKBitmap CoastMask, SKBitmap LandMask)>? loaded = null;
+        try
+        {
+            var key = ComputeSourceFingerprint();
+            if (key == null) return false;
+
+            var path = GetMaskCachePath(key);
+            if (!File.Exists(path))
+            {
+                Debug.WriteLine($"[CoastMaskProcessor] 未找到遮罩缓存（首次运行属正常）: {path}");
+                return false;
+            }
+
+            using var fs = File.OpenRead(path);
+            using var gz = new GZipStream(fs, CompressionMode.Decompress);
+            using var reader = new BinaryReader(gz, Encoding.UTF8);
+
+            if (reader.ReadInt32() != MaskCacheFormatVersion) return false;
+            int count = reader.ReadInt32();
+            if (count <= 0) return false;
+
+            loaded = new Dictionary<string, (SKBitmap, SKBitmap)>(count);
+            for (int i = 0; i < count; i++)
+            {
+                int nameLen = reader.ReadInt32();
+                if (nameLen <= 0 || nameLen > 1024) return false;
+                string name = Encoding.UTF8.GetString(reader.ReadBytes(nameLen));
+
+                int w = reader.ReadInt32();
+                int h = reader.ReadInt32();
+                if (w <= 0 || h <= 0 || w > 16384 || h > 16384) return false;
+
+                var coastAlpha = reader.ReadBytes(w * h);
+                var landAlpha = reader.ReadBytes(w * h);
+                if (coastAlpha.Length != w * h || landAlpha.Length != w * h) return false;
+
+                loaded[name] = (BuildMaskBitmap(coastAlpha, w, h), BuildMaskBitmap(landAlpha, w, h));
+            }
+
+            lock (_cacheLock)
+            {
+                foreach (var kv in _maskCache.Values)
+                {
+                    kv.CoastMask.Dispose();
+                    kv.LandMask.Dispose();
+                }
+                _maskCache.Clear();
+                foreach (var kv in loaded)
+                    _maskCache[kv.Key] = kv.Value;
+            }
+            loaded = null;   // 所有权已转移给 _maskCache
+
+            Debug.WriteLine($"[CoastMaskProcessor] 遮罩缓存已从磁盘加载: {count} 个");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CoastMaskProcessor] 读取遮罩缓存失败: {ex.Message}");
+            return false;
+        }
+        finally
+        {
+            if (loaded != null)
+            {
+                foreach (var kv in loaded.Values)
+                {
+                    kv.CoastMask.Dispose();
+                    kv.LandMask.Dispose();
+                }
+            }
+        }
+    }
+
+    /// <summary>把当前遮罩缓存写入磁盘。</summary>
+    private void SaveMasksToCache()
+    {
+        try
+        {
+            KeyValuePair<string, (SKBitmap CoastMask, SKBitmap LandMask)>[] snapshot;
+            lock (_cacheLock)
+            {
+                if (_maskCache.Count == 0) return;
+                snapshot = _maskCache.ToArray();
+            }
+
+            var key = ComputeSourceFingerprint();
+            if (key == null) return;
+
+            var dir = GetCacheDirectory();
+            Directory.CreateDirectory(dir);
+
+            var path = GetMaskCachePath(key);
+            using (var fs = File.Create(path))
+            using (var gz = new GZipStream(fs, CompressionLevel.Fastest))
+            using (var writer = new BinaryWriter(gz, Encoding.UTF8))
+            {
+                writer.Write(MaskCacheFormatVersion);
+                writer.Write(snapshot.Length);
+                foreach (var kv in snapshot)
+                {
+                    var nameBytes = Encoding.UTF8.GetBytes(kv.Key);
+                    writer.Write(nameBytes.Length);
+                    writer.Write(nameBytes);
+                    writer.Write(kv.Value.CoastMask.Width);
+                    writer.Write(kv.Value.CoastMask.Height);
+                    writer.Write(ExtractAlpha(kv.Value.CoastMask));
+                    writer.Write(ExtractAlpha(kv.Value.LandMask));
+                }
+            }
+
+            var fi = new FileInfo(path);
+            Debug.WriteLine($"[CoastMaskProcessor] 遮罩缓存已写入磁盘: {path} ({snapshot.Length} 个, {fi.Length / 1024.0:F0} KB)");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CoastMaskProcessor] 写入遮罩缓存失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>从 RGBA bitmap 抽取 alpha 通道（遮罩只有 alpha 有语义）。</summary>
+    private static byte[] ExtractAlpha(SKBitmap bitmap)
+    {
+        int w = bitmap.Width, h = bitmap.Height;
+        var alpha = new byte[w * h];
+        var ptr = bitmap.GetPixels();
+        if (ptr == IntPtr.Zero) return alpha;
+
+        var rowBytes = bitmap.RowBytes;
+        for (int y = 0; y < h; y++)
+        {
+            int rowOffset = y * rowBytes;
+            int alphaRow = y * w;
+            for (int x = 0; x < w; x++)
+                alpha[alphaRow + x] = Marshal.ReadByte(ptr, rowOffset + x * 4 + 3);
+        }
+        return alpha;
+    }
+
+    /// <summary>
+    /// 把单通道 alpha 展开为 RGBA bitmap（RGB 恒为 255，与 CreateMasks 的输出保持一致）。
+    /// </summary>
+    private static SKBitmap BuildMaskBitmap(byte[] alpha, int width, int height)
+    {
+        var pixels = new byte[width * height * 4];
+        var span = pixels.AsSpan();
+        for (int i = 0; i < alpha.Length; i++)
+        {
+            int o = i * 4;
+            span[o] = 255;
+            span[o + 1] = 255;
+            span[o + 2] = 255;
+            span[o + 3] = alpha[i];
+        }
+
+        var bmp = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var ptr = bmp.GetPixels();
+        if (ptr == IntPtr.Zero)
+        {
+            bmp.Dispose();
+            throw new InvalidOperationException($"无法获取像素指针: {width}x{height}");
+        }
+
+        // 拷贝进 Skia 自管内存（InstallPixels 不拷贝且需调用方保证内存存活，故不用）
+        int rowBytes = bmp.RowBytes;
+        if (rowBytes == width * 4)
+        {
+            Marshal.Copy(pixels, 0, ptr, pixels.Length);
+        }
+        else
+        {
+            for (int y = 0; y < height; y++)
+                Marshal.Copy(pixels, y * width * 4, IntPtr.Add(ptr, y * rowBytes), width * 4);
+        }
+
+        return bmp;
+    }
+
+    #endregion
+
     public static CoastMaskProcessor Instance
     {
         get
@@ -52,6 +460,27 @@ public sealed class CoastMaskProcessor
     {
         if (coastHelper == null) return;
         if (_initialized) { progressCallback?.Invoke(100, "海岸线遮罩已缓存"); return; }
+
+        Debug.WriteLine($"[CoastMaskProcessor] 缓存目录: {GetCacheDirectory()}");
+
+        // ① 优先从磁盘恢复整份遮罩缓存 —— 正常渲染路径（RenderCoastFromAtlas → DrawMaskedCoast）
+        //    直接依赖 _maskCache，命中即可跳过 90 个精灵的遮罩生成（实测约 4.7 秒，是打开场景卡顿的主因）
+        if (TryLoadMasksFromCache())
+        {
+            _initialized = true;
+            LoadedFromDiskCache = true;
+            progressCallback?.Invoke(100, "海岸线遮罩已从本地缓存加载");
+            return;
+        }
+
+        // ② 其次尝试最终图集缓存（截图路径的产物，同样可直接支撑渲染，避免再生成遮罩）
+        if (TryLoadFinalAtlasFromCache())
+        {
+            _initialized = true;
+            LoadedFromDiskCache = true;
+            progressCallback?.Invoke(100, "海岸线图集已从本地缓存加载");
+            return;
+        }
 
         Debug.WriteLine("[CoastMaskProcessor] 开始初始化遮罩缓存...");
         var sw = Stopwatch.StartNew();
@@ -90,6 +519,9 @@ public sealed class CoastMaskProcessor
         sw.Stop();
         progressCallback?.Invoke(100, $"海岸线遮罩完成 ({processedCount}/{totalCount})");
         Debug.WriteLine($"[CoastMaskProcessor] 遮罩缓存初始化完成: {processedCount} 个，耗时 {sw.ElapsedMilliseconds}ms");
+
+        // 落盘：下次启动直接加载，跳过上面整段生成过程
+        SaveMasksToCache();
     }
 
     public void DrawMaskedCoast(SKCanvas canvas, SKImage coastAtlasImage, SKRect coastSrcRect,
@@ -390,6 +822,9 @@ public sealed class CoastMaskProcessor
         sw.Stop();
         progressCallback?.Invoke(100, $"海岸线图集完成 ({compositedBitmaps.Count} 个精灵)");
         Debug.WriteLine($"[CoastMaskProcessor] 最终图集构建完成: {compositedBitmaps.Count} 个精灵，耗时 {sw.ElapsedMilliseconds}ms");
+
+        // 落盘缓存：下次启动可直接加载，跳过整条烘焙链路
+        SaveFinalAtlasToCache();
     }
 
     private (SKBitmap Bitmap, int Width, int Height, SKPoint Origin)? BuildSingleFinalCoastTexture(CoastHelper coastHelper, string spriteName)

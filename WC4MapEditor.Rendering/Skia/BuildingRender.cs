@@ -13,7 +13,6 @@ public class BuildingRender : IDisposable
     private const double FACILITY_IMAGE_SCALE = 0.45;
     private const double KEY_POINT_ELLIPSE_SCALE = 1.8;
     private const byte KEY_POINT_ALPHA = 128;
-    private const int ATLAS_TILE_SIZE = 128;
 
     private readonly Camera _camera;
     private readonly MapData _mapData;
@@ -21,20 +20,23 @@ public class BuildingRender : IDisposable
     private bool _showBuildingNames = true;
     private bool _disposed;
 
-    private readonly Dictionary<int, string> _cityNames = new();
+    /// <summary>城市名表，指向全进程共享的实例，本类只读。</summary>
+    private Dictionary<int, string> _cityNames = new();
     private readonly Dictionary<int, string> _cityNameCache = new();
 
+    /// <summary>三张图集由 <see cref="BuildingAtlasCache"/> 持有所有权，本类不得 Dispose。</summary>
     private SKImage? _buildingAtlas;
     private SKImage? _facilityAtlas;
     private SKImage? _cityLevelAtlas;
 
-    private readonly Dictionary<string, SKRect> _buildingAtlasMap = new();
-    private readonly Dictionary<string, SKRect> _facilityAtlasMap = new();
-    private readonly Dictionary<string, SKRect> _cityLevelAtlasMap = new();
+    /// <summary>以下映射表均指向 <see cref="BuildingAtlasCache"/> 中的实例，只读使用。</summary>
+    private Dictionary<string, SKRect> _buildingAtlasMap = new();
+    private Dictionary<string, SKRect> _facilityAtlasMap = new();
+    private Dictionary<string, SKRect> _cityLevelAtlasMap = new();
 
-    private readonly Dictionary<string, SKSize> _buildingOriginalSize = new();
-    private readonly Dictionary<string, SKSize> _facilityOriginalSize = new();
-    private readonly Dictionary<string, SKSize> _cityLevelOriginalSize = new();
+    private Dictionary<string, SKSize> _buildingOriginalSize = new();
+    private Dictionary<string, SKSize> _facilityOriginalSize = new();
+    private Dictionary<string, SKSize> _cityLevelOriginalSize = new();
 
     private readonly SKFont _buildingNameFont;
     private readonly SKFont _facilityLevelFont;
@@ -75,9 +77,14 @@ public class BuildingRender : IDisposable
     /// </summary>
     public void ReloadCityNames()
     {
-        _cityNames.Clear();
+        // 丢弃全进程共享的城市名表并重建。
+        lock (_sharedCityNamesLock)
+        {
+            _sharedCityNames = null;
+        }
+
+        _cityNames = GetSharedCityNames();
         _cityNameCache.Clear();
-        LoadCityNames();
         Debug.WriteLine("[BuildingRender] 城市名称已重新加载");
     }
 
@@ -85,263 +92,76 @@ public class BuildingRender : IDisposable
 
     private void InitializeTextureAtlases()
     {
-        InitializeBuildingAtlas();
-        InitializeFacilityAtlas();
-        InitializeCityLevelAtlas();
+        // 三张图集只取决于资源目录、与地图无关，由 BuildingAtlasCache 全进程构建一次。
+        // 本类只持有引用，不拥有所有权。
+        var set = BuildingAtlasCache.Get();
+
+        _buildingAtlas = set.BuildingAtlas;
+        _facilityAtlas = set.FacilityAtlas;
+        _cityLevelAtlas = set.CityLevelAtlas;
+
+        _buildingAtlasMap = set.BuildingAtlasMap;
+        _facilityAtlasMap = set.FacilityAtlasMap;
+        _cityLevelAtlasMap = set.CityLevelAtlasMap;
+
+        _buildingOriginalSize = set.BuildingOriginalSize;
+        _facilityOriginalSize = set.FacilityOriginalSize;
+        _cityLevelOriginalSize = set.CityLevelOriginalSize;
 
         Debug.WriteLine($"[BuildingRender] 建筑图集: {_buildingAtlasMap.Count} 个纹理, 设施图集: {_facilityAtlasMap.Count} 个纹理, 城市等级图集: {_cityLevelAtlasMap.Count} 个纹理");
     }
 
-    private void InitializeBuildingAtlas()
-    {
-        lock (_atlasLock)
-        {
-            var basePath = ConfigManager.Instance.GetBuildMarkPath();
-            if (!Directory.Exists(basePath)) return;
 
-            var buildingImages = new Dictionary<string, string>();
 
-            for (int buildingType = 1; buildingType <= 31; buildingType++)
-            {
-                for (int appearance = 0; appearance <= 9; appearance++)
-                {
-                    string fileName = $"building_{buildingType}_{appearance}.png";
-                    string filePath = Path.Combine(basePath, fileName);
-                    if (File.Exists(filePath))
-                    {
-                        string cacheKey = $"{buildingType}_{appearance}_0";
-                        buildingImages[cacheKey] = filePath;
-                    }
-                }
-
-                string defaultFileName = $"building_{buildingType}.png";
-                string defaultFilePath = Path.Combine(basePath, defaultFileName);
-                if (File.Exists(defaultFilePath))
-                {
-                    string cacheKey = $"{buildingType}_0_0";
-                    if (!buildingImages.ContainsKey(cacheKey))
-                        buildingImages[cacheKey] = defaultFilePath;
-                }
-            }
-
-            try
-            {
-                var capitalFiles = Directory.GetFiles(basePath, "capital_*.png");
-                foreach (var capitalFilePath in capitalFiles)
-                {
-                    string capitalFileName = Path.GetFileNameWithoutExtension(capitalFilePath);
-                    string capitalIdStr = capitalFileName.Replace("capital_", "");
-                    if (int.TryParse(capitalIdStr, out int capitalId) && capitalId > 0)
-                    {
-                        string cacheKey = $"0_0_{capitalId}";
-                        buildingImages[cacheKey] = capitalFilePath;
-                    }
-                }
-            }
-            catch { }
-
-            string defaultBuildingPath = Path.Combine(basePath, "building_1.png");
-            if (File.Exists(defaultBuildingPath))
-                buildingImages["default"] = defaultBuildingPath;
-
-            int totalCount = buildingImages.Count;
-            if (totalCount == 0) return;
-
-            int atlasTiles = CalculateAtlasSize(totalCount);
-            int atlasWidth = atlasTiles * ATLAS_TILE_SIZE;
-            int atlasHeight = atlasTiles * ATLAS_TILE_SIZE;
-
-            using var surface = SKSurface.Create(new SKImageInfo(atlasWidth, atlasHeight));
-            var canvas = surface.Canvas;
-            canvas.Clear(SKColors.Transparent);
-
-            int tileIndex = 0;
-            foreach (var kvp in buildingImages)
-            {
-                if (tileIndex >= atlasTiles * atlasTiles) break;
-
-                string cacheKey = kvp.Key;
-                string imagePath = kvp.Value;
-
-                try
-                {
-                    using var stream = File.OpenRead(imagePath);
-                    var bitmap = SKBitmap.Decode(stream);
-                    if (bitmap != null)
-                    {
-                        _buildingOriginalSize[cacheKey] = new SKSize(bitmap.Width, bitmap.Height);
-
-                        int atlasX = (tileIndex % atlasTiles) * ATLAS_TILE_SIZE;
-                        int atlasY = (tileIndex / atlasTiles) * ATLAS_TILE_SIZE;
-
-                        var srcRect = new SKRect(0, 0, bitmap.Width, bitmap.Height);
-                        var dstRect = new SKRect(atlasX, atlasY, atlasX + ATLAS_TILE_SIZE, atlasY + ATLAS_TILE_SIZE);
-                        canvas.DrawBitmap(bitmap, srcRect, dstRect);
-
-                        _buildingAtlasMap[cacheKey] = new SKRect(atlasX, atlasY, atlasX + ATLAS_TILE_SIZE, atlasY + ATLAS_TILE_SIZE);
-                        tileIndex++;
-                    }
-                }
-                catch { }
-            }
-
-            _buildingAtlas = surface.Snapshot();
-        }
-    }
-
-    private void InitializeFacilityAtlas()
-    {
-        lock (_atlasLock)
-        {
-            var basePath = ConfigManager.Instance.GetInformationMarkPath();
-            if (!Directory.Exists(basePath)) return;
-
-            string[] facilityTypes = { "factory", "lab", "depot", "airport", "launch", "nuclear" };
-            var facilityImages = new Dictionary<string, string>();
-
-            foreach (var facilityType in facilityTypes)
-            {
-                string filePath = Path.Combine(basePath, $"facility_{facilityType}.png");
-                if (File.Exists(filePath))
-                    facilityImages[facilityType] = filePath;
-            }
-
-            if (facilityImages.Count == 0) return;
-
-            int atlasTiles = CalculateAtlasSize(facilityImages.Count);
-            int atlasWidth = atlasTiles * ATLAS_TILE_SIZE;
-            int atlasHeight = atlasTiles * ATLAS_TILE_SIZE;
-
-            using var surface = SKSurface.Create(new SKImageInfo(atlasWidth, atlasHeight));
-            var canvas = surface.Canvas;
-            canvas.Clear(SKColors.Transparent);
-
-            int tileIndex = 0;
-            foreach (var kvp in facilityImages)
-            {
-                if (tileIndex >= atlasTiles * atlasTiles) break;
-
-                string cacheKey = kvp.Key;
-                string imagePath = kvp.Value;
-
-                try
-                {
-                    using var stream = File.OpenRead(imagePath);
-                    var bitmap = SKBitmap.Decode(stream);
-                    if (bitmap != null)
-                    {
-                        _facilityOriginalSize[cacheKey] = new SKSize(bitmap.Width, bitmap.Height);
-
-                        int atlasX = (tileIndex % atlasTiles) * ATLAS_TILE_SIZE;
-                        int atlasY = (tileIndex / atlasTiles) * ATLAS_TILE_SIZE;
-
-                        var srcRect = new SKRect(0, 0, bitmap.Width, bitmap.Height);
-                        var dstRect = new SKRect(atlasX, atlasY, atlasX + ATLAS_TILE_SIZE, atlasY + ATLAS_TILE_SIZE);
-                        canvas.DrawBitmap(bitmap, srcRect, dstRect);
-
-                        _facilityAtlasMap[cacheKey] = new SKRect(atlasX, atlasY, atlasX + ATLAS_TILE_SIZE, atlasY + ATLAS_TILE_SIZE);
-                        tileIndex++;
-                    }
-                }
-                catch { }
-            }
-
-            _facilityAtlas = surface.Snapshot();
-        }
-    }
-
-    private void InitializeCityLevelAtlas()
-    {
-        lock (_atlasLock)
-        {
-            var basePath = ConfigManager.Instance.GetInformationMarkPath();
-            if (!Directory.Exists(basePath)) return;
-
-            string[] cityLevels = { "city_lv1", "city_lv2", "city_lv3", "city_lv4", "city_lv5" };
-            var cityLevelImages = new Dictionary<string, string>();
-
-            foreach (var cityLevel in cityLevels)
-            {
-                string filePath = Path.Combine(basePath, $"{cityLevel}.png");
-                if (File.Exists(filePath))
-                    cityLevelImages[cityLevel] = filePath;
-            }
-
-            if (cityLevelImages.Count == 0) return;
-
-            int atlasTiles = CalculateAtlasSize(cityLevelImages.Count);
-            int atlasWidth = atlasTiles * ATLAS_TILE_SIZE;
-            int atlasHeight = atlasTiles * ATLAS_TILE_SIZE;
-
-            using var surface = SKSurface.Create(new SKImageInfo(atlasWidth, atlasHeight));
-            var canvas = surface.Canvas;
-            canvas.Clear(SKColors.Transparent);
-
-            int tileIndex = 0;
-            foreach (var kvp in cityLevelImages)
-            {
-                if (tileIndex >= atlasTiles * atlasTiles) break;
-
-                string cacheKey = kvp.Key;
-                string imagePath = kvp.Value;
-
-                try
-                {
-                    using var stream = File.OpenRead(imagePath);
-                    var bitmap = SKBitmap.Decode(stream);
-                    if (bitmap != null)
-                    {
-                        _cityLevelOriginalSize[cacheKey] = new SKSize(bitmap.Width, bitmap.Height);
-
-                        int atlasX = (tileIndex % atlasTiles) * ATLAS_TILE_SIZE;
-                        int atlasY = (tileIndex / atlasTiles) * ATLAS_TILE_SIZE;
-
-                        var srcRect = new SKRect(0, 0, bitmap.Width, bitmap.Height);
-                        var dstRect = new SKRect(atlasX, atlasY, atlasX + ATLAS_TILE_SIZE, atlasY + ATLAS_TILE_SIZE);
-                        canvas.DrawBitmap(bitmap, srcRect, dstRect);
-
-                        _cityLevelAtlasMap[cacheKey] = new SKRect(atlasX, atlasY, atlasX + ATLAS_TILE_SIZE, atlasY + ATLAS_TILE_SIZE);
-                        tileIndex++;
-                    }
-                }
-                catch { }
-            }
-
-            _cityLevelAtlas = surface.Snapshot();
-        }
-    }
-
-    private static int CalculateAtlasSize(int totalCount)
-    {
-        int size = 4;
-        while (size * size < totalCount)
-            size *= 2;
-        return Math.Min(size, 32);
-    }
 
     #endregion
 
     #region City Names
 
-    private void LoadCityNames()
-    {
-        try
-        {
-            var parser = ConfigManager.Instance.GetStringTableParser();
-            var cityNames = parser.FindCityNames();
+    private static readonly object _sharedCityNamesLock = new();
+    private static Dictionary<int, string>? _sharedCityNames;
 
-            foreach (var kvp in cityNames)
+    /// <summary>
+    /// 全进程共享的城市名表。原实现每次构造 BuildingRender 都会向 StringTableParser
+    /// 取一次 9841 条城市名并逐条拷进实例字典，而它只取决于字符串表配置，与地图无关，
+    /// 因此改为只构建一次。
+    /// </summary>
+    private static Dictionary<int, string> GetSharedCityNames()
+    {
+        var cached = _sharedCityNames;
+        if (cached != null) return cached;
+
+        lock (_sharedCityNamesLock)
+        {
+            if (_sharedCityNames != null) return _sharedCityNames;
+
+            var names = new Dictionary<int, string>();
+            try
             {
-                if (!string.IsNullOrEmpty(kvp.Value))
-                    _cityNames[kvp.Key] = kvp.Value;
+                var parser = ConfigManager.Instance.GetStringTableParser();
+                var cityNames = parser.FindCityNames();
+
+                foreach (var kvp in cityNames)
+                {
+                    if (!string.IsNullOrEmpty(kvp.Value))
+                        names[kvp.Key] = kvp.Value;
+                }
+
+                Debug.WriteLine($"[BuildingRender] 已加载 {names.Count} 个城市名称（共享）");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[BuildingRender] 加载城市名称失败: {ex.Message}");
             }
 
-            Debug.WriteLine($"[BuildingRender] 已加载 {_cityNames.Count} 个城市名称");
+            _sharedCityNames = names;
+            return names;
         }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[BuildingRender] 加载城市名称失败: {ex.Message}");
-        }
+    }
+
+    private void LoadCityNames()
+    {
+        _cityNames = GetSharedCityNames();
     }
 
     private string GetCityName(int nameId)
@@ -716,18 +536,10 @@ public class BuildingRender : IDisposable
 
         lock (_atlasLock)
         {
-            _buildingAtlas?.Dispose();
+            // 图集与映射表归 BuildingAtlasCache 持有，这里只解除引用，不能 Dispose / Clear。
             _buildingAtlas = null;
-            _facilityAtlas?.Dispose();
             _facilityAtlas = null;
-            _cityLevelAtlas?.Dispose();
             _cityLevelAtlas = null;
-            _buildingAtlasMap.Clear();
-            _facilityAtlasMap.Clear();
-            _cityLevelAtlasMap.Clear();
-            _buildingOriginalSize.Clear();
-            _facilityOriginalSize.Clear();
-            _cityLevelOriginalSize.Clear();
         }
 
         _redKeyPointPaint?.Dispose();

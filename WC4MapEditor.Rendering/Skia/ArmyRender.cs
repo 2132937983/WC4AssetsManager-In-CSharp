@@ -28,8 +28,10 @@ public class ArmyRender : IDisposable
     private bool _showUnits = true;
     private bool _atlasInitialized;
 
+    /// <summary>共享单位图集，由 <see cref="UnitAtlasCache"/> 持有所有权，本类不得 Dispose。</summary>
     private SKImage? _unitAtlas;
-    private readonly Dictionary<int, SKRect> _unitAtlasMap = new();
+    /// <summary>共享切片表，指向 <see cref="UnitAtlasCache"/> 中的实例，只读使用。</summary>
+    private Dictionary<int, SKRect> _unitAtlasMap = new();
 
     private readonly List<SKRect> _spriteRects = new();
     private readonly List<SKRotationScaleMatrix> _transforms = new();
@@ -81,94 +83,18 @@ public class ArmyRender : IDisposable
 
         lock (_atlasLock)
         {
-            try
+            if (_atlasInitialized) return;
+
+            // 图集由 UnitAtlasCache 在全进程内构建一次，ArmyRender / ReinforceRender /
+            // ReinforceRenderNew 共享同一份实例，避免各自重复扫描目录与解码 PNG。
+            // 本类只持有引用，不负责释放。
+            if (UnitAtlasCache.TryGet(out var atlas, out var tileMap))
             {
-                _unitAtlas?.Dispose();
-                _unitAtlas = null;
-                _unitAtlasMap.Clear();
-
-                string armyMarkPath = ConfigManager.Instance.GetArmyMarkPath();
-                if (!Directory.Exists(armyMarkPath)) return;
-
-                var availableUnits = CollectAvailableUnits(armyMarkPath);
-                if (availableUnits.Count == 0) return;
-
-                int atlasTiles = CalculateAtlasSize(availableUnits.Count);
-                int atlasWidth = atlasTiles * ATLAS_TILE_SIZE;
-                int atlasHeight = atlasTiles * ATLAS_TILE_SIZE;
-
-                using var surface = SKSurface.Create(new SKImageInfo(atlasWidth, atlasHeight));
-                var canvas = surface.Canvas;
-                canvas.Clear(SKColors.Transparent);
-
-                int tileIndex = 0;
-                foreach (int unitType in availableUnits)
-                {
-                    if (tileIndex >= atlasTiles * atlasTiles) break;
-
-                    using var unitImage = LoadUnitImage(armyMarkPath, unitType);
-                    if (unitImage != null)
-                    {
-                        int atlasX = (tileIndex % atlasTiles) * ATLAS_TILE_SIZE;
-                        int atlasY = (tileIndex / atlasTiles) * ATLAS_TILE_SIZE;
-
-                        var srcRect = new SKRect(0, 0, unitImage.Width, unitImage.Height);
-                        var dstRect = new SKRect(atlasX, atlasY, atlasX + ATLAS_TILE_SIZE, atlasY + ATLAS_TILE_SIZE);
-                        canvas.DrawImage(unitImage, srcRect, dstRect);
-
-                        _unitAtlasMap[unitType] = new SKRect(atlasX, atlasY, atlasX + ATLAS_TILE_SIZE, atlasY + ATLAS_TILE_SIZE);
-                        tileIndex++;
-                    }
-                }
-
-                _unitAtlas = surface.Snapshot();
+                _unitAtlas = atlas;
+                _unitAtlasMap = tileMap;
                 _atlasInitialized = true;
             }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[ArmyRender] 初始化单位图集失败: {ex.Message}");
-            }
         }
-    }
-
-    private static List<int> CollectAvailableUnits(string armyMarkPath)
-    {
-        var units = new List<int>();
-        try
-        {
-            foreach (string file in Directory.GetFiles(armyMarkPath, "legion_icon_*.png"))
-            {
-                string fileName = Path.GetFileNameWithoutExtension(file);
-                string[] parts = fileName.Split('_');
-                if (parts.Length >= 3 && int.TryParse(parts[2], out int type))
-                    units.Add(type);
-            }
-            units.Sort();
-        }
-        catch { }
-        return units;
-    }
-
-    private static int CalculateAtlasSize(int unitCount)
-    {
-        int tiles = 1;
-        while (tiles * tiles < unitCount) tiles *= 2;
-        return tiles;
-    }
-
-    private static SKImage? LoadUnitImage(string armyMarkPath, int unitType)
-    {
-        try
-        {
-            string imagePath = Path.Combine(armyMarkPath, $"legion_icon_{unitType}.png");
-            if (File.Exists(imagePath))
-            {
-                using var stream = File.OpenRead(imagePath);
-                return SKImage.FromEncodedData(stream);
-            }
-        }
-        catch { }
-        return null;
     }
 
     private void InitializeLevelAndFormationImages()
@@ -655,7 +581,7 @@ public class ArmyRender : IDisposable
 
         lock (_atlasLock)
         {
-            _unitAtlas?.Dispose();
+            // _unitAtlas / _unitAtlasMap 归 UnitAtlasCache 持有，这里只解除引用，不能 Dispose。
             _unitAtlas = null;
         }
 

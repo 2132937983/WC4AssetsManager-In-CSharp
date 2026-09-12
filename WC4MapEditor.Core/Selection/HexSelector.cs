@@ -82,7 +82,8 @@ public sealed class HexSelector
     public event EventHandler<HexSelectionChangedEventArgs>? SelectionChanged;
     public event EventHandler<SelectionRectChangedEventArgs>? SelectionRectChanged;
 
-    private HexSelector() { }
+    /// <summary>供依赖注入使用的公开构造（替代单例入口）</summary>
+    public HexSelector() { }
 
     public HexCoord? PrimarySelected => _primarySelected;
     public IReadOnlySet<HexCoord> SelectedHexes => _selectedHexes;

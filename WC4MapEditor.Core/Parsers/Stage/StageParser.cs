@@ -64,6 +64,8 @@ public class StageParser
     {
         try
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+
             using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             int fileLength = (int)fs.Length;
             HexData = new byte[fileLength];
@@ -76,10 +78,12 @@ public class StageParser
                 remaining -= readCount;
             }
             HexFilePath = filePath;
-            Debug.WriteLine($"[StageParser] 成功加载: {filePath}, 大小: {HexData.Length} 字节");
+            Debug.WriteLine($"[StageParser] 成功加载: {filePath}, 大小: {HexData.Length} 字节, 读取耗时 {sw.ElapsedMilliseconds}ms");
+            sw.Restart();
 
             ResetLoadFlags();
             GetHeaderData();
+            Debug.WriteLine($"[Timing-Load]   ResetLoadFlags+GetHeaderData: {sw.ElapsedMilliseconds}ms");
             return true;
         }
         catch (Exception ex)
@@ -400,10 +404,19 @@ public class StageParser
     /// </summary>
     public static MapData LoadToMapData(string filePath)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        Debug.WriteLine("[Timing-Load] LoadToMapData 开始");
+
         var parser = new StageParser(filePath);
+        Debug.WriteLine($"[Timing-Load]   new StageParser(读文件+文件头): {sw.ElapsedMilliseconds}ms"); sw.Restart();
+
         var mapData = new MapData();
+        Debug.WriteLine($"[Timing-Load]   new MapData(): {sw.ElapsedMilliseconds}ms"); sw.Restart();
+
         PopulateMapData(parser, mapData);
         mapData.FilePath = filePath;
+        Debug.WriteLine($"[Timing-Load]   PopulateMapData: {sw.ElapsedMilliseconds}ms");
+
         return mapData;
     }
 
@@ -412,26 +425,40 @@ public class StageParser
     /// </summary>
     public static void PopulateMapData(StageParser parser, MapData mapData)
     {
+        var t = System.Diagnostics.Stopwatch.StartNew();
+        Debug.WriteLine("[Timing-Load] PopulateMapData 开始");
+
         mapData.Header = parser.GetHeaderData();
         mapData.MapWidth = parser.Header.MapLength;
         mapData.MapHeight = parser.Header.MapWidth;
+        Debug.WriteLine($"[Timing-Load]   Header: {t.ElapsedMilliseconds}ms"); t.Restart();
+
         mapData.InitializeTerrain(mapData.MapWidth, mapData.MapHeight);
+        Debug.WriteLine($"[Timing-Load]   InitializeTerrain({mapData.MapWidth}x{mapData.MapHeight}): {t.ElapsedMilliseconds}ms"); t.Restart();
 
         var terrainData = parser.GetTerrainData();
         for (int i = 0; i < Math.Min(terrainData.Count, mapData.TerrainCount); i++)
             mapData.SetTerrain(i, terrainData[i].ToTerrainData());
+        Debug.WriteLine($"[Timing-Load]   地形(解析+填充): {t.ElapsedMilliseconds}ms"); t.Restart();
 
         var provinceData = parser.GetProvinceData();
         for (int i = 0; i < Math.Min(provinceData.Count, mapData.TerrainCount); i++)
             mapData.SetProvince(i, provinceData[i]);
+        Debug.WriteLine($"[Timing-Load]   省份(解析+填充): {t.ElapsedMilliseconds}ms"); t.Restart();
 
         mapData.Legions = new System.Collections.ObjectModel.ObservableCollection<Legion>(parser.GetLegionData());
+        Debug.WriteLine($"[Timing-Load]   Legions: {t.ElapsedMilliseconds}ms"); t.Restart();
+
         mapData.Belongs = parser.GetBelongData();
+        Debug.WriteLine($"[Timing-Load]   Belongs: {t.ElapsedMilliseconds}ms"); t.Restart();
+
         mapData.Buildings = new System.Collections.ObjectModel.ObservableCollection<Building>(parser.GetBuildingData());
+        Debug.WriteLine($"[Timing-Load]   Buildings: {t.ElapsedMilliseconds}ms"); t.Restart();
 
         var armies = parser.GetArmyData();
         mapData.Armies = new System.Collections.ObjectModel.ObservableCollection<Army>(armies);
         mapData.ArmiesV3 = new System.Collections.ObjectModel.ObservableCollection<Army_3>(parser.ArmiesV3);
+        Debug.WriteLine($"[Timing-Load]   Armies: {t.ElapsedMilliseconds}ms"); t.Restart();
 
         mapData.Traps = new System.Collections.ObjectModel.ObservableCollection<Trap>(parser.GetTrapData());
         mapData.Cases = new System.Collections.ObjectModel.ObservableCollection<MapCase>(parser.GetCaseData());
@@ -447,6 +474,7 @@ public class StageParser
         mapData.Capitals = new System.Collections.ObjectModel.ObservableCollection<Capital>(parser.GetCapitalData());
         mapData.StrategyConstructions = new System.Collections.ObjectModel.ObservableCollection<StrategicConstruction>(parser.GetStrategyConstructionData());
         mapData.AirSupports = new System.Collections.ObjectModel.ObservableCollection<AirSupport>(parser.GetAirSupportData());
+        Debug.WriteLine($"[Timing-Load]   其余模块(Trap/Case/Weather/Event/Reinforce/Air/Unit/Capital/Strategy/AirSupport): {t.ElapsedMilliseconds}ms");
     }
 
     /// <summary>

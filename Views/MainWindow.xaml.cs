@@ -9,8 +9,13 @@ using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using WC4MapEditor.Core.Commands;
 using WC4MapEditor.Core.Input;
+using WC4MapEditor.Core.Modifiers;
+using WC4MapEditor.Core.Selection;
 using WC4MapEditor.Services;
+// 与 WPF 的 System.Windows.Input.CommandManager 同名，使用别名消除歧义
+using CoreCommandManager = WC4MapEditor.Core.Commands.CommandManager;
 using WC4MapEditor.Views;
 
 namespace WC4MapEditor.Views;
@@ -57,11 +62,24 @@ public partial class MainWindow : Window
     /// </summary>
     public KeyboardManager KeyboardManager { get; }
 
-    public MainWindow(MouseManager mouseManager, DebugConsole debugConsole, KeyboardManager keyboardManager)
+    /// <summary>格子选择器（由 DI 注入，各渲染场景共享同一选择状态）</summary>
+    public HexSelector HexSelector { get; }
+
+    /// <summary>控制台命令管理器（由 DI 注入）</summary>
+    public CoreCommandManager CommandManager { get; }
+
+    /// <summary>编辑模式管理器（由 DI 注入）</summary>
+    public EditModeManager EditModeManager { get; }
+
+    public MainWindow(MouseManager mouseManager, DebugConsole debugConsole, KeyboardManager keyboardManager,
+                      HexSelector hexSelector, CoreCommandManager commandManager, EditModeManager editModeManager)
     {
         MouseManager = mouseManager;
         DebugConsole = debugConsole;
         KeyboardManager = keyboardManager;
+        HexSelector = hexSelector;
+        CommandManager = commandManager;
+        EditModeManager = editModeManager;
         InitializeComponent();
         SetupWindow();
         Loaded += MainWindow_Loaded;
