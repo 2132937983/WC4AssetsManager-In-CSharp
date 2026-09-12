@@ -59,9 +59,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     private TextBlock? _sceneNameLabel;
     private TextBlock? _layerInfoLabel;
 
-    private readonly MouseManager _mouseManager = MouseManager.Instance;
-    private readonly KeyboardManager _keyboardManager = KeyboardManager.Instance;
-    private readonly DebugConsole _debugConsole = DebugConsole.Instance;
+    private readonly MouseManager _mouseManager;
+    private readonly KeyboardManager _keyboardManager;
+    private readonly DebugConsole _debugConsole;
     private readonly EditModeManager _editModeManager = EditModeManager.Instance;
     private readonly FileStateManager _fileStateManager = new();
     private Grid? _titleBar;
@@ -123,6 +123,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     protected RenderSceneBase(MainWindow window)
     {
         Window = window;
+        _mouseManager = window.MouseManager;
+        _debugConsole = window.DebugConsole;
+        _keyboardManager = window.KeyboardManager;
         Focusable = true;
         SetupUI();
         Loaded += OnLoaded;

@@ -94,7 +94,8 @@ public sealed class EditModeManager
     public event EventHandler? BrushToggled;
     public event EventHandler? BrushSizeChanged;
 
-    private EditModeManager()
+    /// <summary>供依赖注入使用的公开构造（替代单例入口）</summary>
+    public EditModeManager()
     {
         RegisterModifier(ModifierKind.Terrain, new TerrainModifier());
         RegisterModifier(ModifierKind.Province, new ProvinceModifier());

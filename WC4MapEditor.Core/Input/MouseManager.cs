@@ -117,6 +117,14 @@ public sealed class MouseManager
     private static readonly object _lock = new();
     private static MouseManager? _instance;
 
+    /// <summary>
+    /// 全局默认实例。
+    /// <para>
+    /// 【迁移中】新代码应通过依赖注入获取 <see cref="MouseManager"/>：
+    /// 由容器注入 <c>MainWindow</c>，再经 <c>Window.MouseManager</c> 提供给各渲染场景。
+    /// 待全部调用点迁移完毕后移除此属性。
+    /// </para>
+    /// </summary>
     public static MouseManager Instance
     {
         get
@@ -147,7 +155,8 @@ public sealed class MouseManager
 
     public event EventHandler<MouseActionEventArgs>? MouseAction;
 
-    private MouseManager() { }
+    /// <summary>供依赖注入使用的公开构造（替代单例入口）</summary>
+    public MouseManager() { }
 
     public MousePosition CurrentPosition => _currentPosition;
     public MousePosition LastPosition => _lastPosition;

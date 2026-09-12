@@ -40,7 +40,8 @@ public sealed class CoastMaskProcessor
         }
     }
 
-    private CoastMaskProcessor() { }
+    /// <summary>供依赖注入使用的公开构造（替代单例入口）</summary>
+    public CoastMaskProcessor() { }
 
     public void Initialize(CoastHelper coastHelper)
     {

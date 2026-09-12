@@ -93,7 +93,8 @@ public sealed class DebugConsole : IDisposable
     /// </summary>
     private Action? _closeHostAction;
 
-    private DebugConsole()
+    /// <summary>供依赖注入使用的公开构造（替代单例入口）</summary>
+    public DebugConsole()
     {
         InitializePaints();
         LoadBackgroundImage();

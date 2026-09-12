@@ -74,7 +74,8 @@ public sealed class KeyboardManager
     public event EventHandler<KeyboardEventArgs>? KeyDown;
     public event EventHandler<KeyboardEventArgs>? KeyUp;
 
-    private KeyboardManager() { }
+    /// <summary>供依赖注入使用的公开构造（替代单例入口）</summary>
+    public KeyboardManager() { }
 
     public KeyBinding RegisterBinding(string id, int keyCode, KeyModifiers modifiers = KeyModifiers.None, Action? callback = null, string? description = null)
     {

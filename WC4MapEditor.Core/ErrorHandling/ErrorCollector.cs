@@ -124,7 +124,8 @@ public sealed class ErrorCollector
     public event EventHandler<ErrorHandleResult>? ErrorRecovered;
     public event EventHandler? ErrorsCleared;
 
-    private ErrorCollector() { }
+    /// <summary>供依赖注入使用的公开构造（替代单例入口）</summary>
+    public ErrorCollector() { }
 
     /// <summary>
     /// 注册恢复策略

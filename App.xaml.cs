@@ -3,6 +3,15 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
+using WC4MapEditor.Core.Assets;
+using WC4MapEditor.Core.Commands;
+using WC4MapEditor.Core.ErrorHandling;
+using WC4MapEditor.Core.Input;
+using WC4MapEditor.Core.Modifiers;
+using WC4MapEditor.Core.Parsers.Country;
+using WC4MapEditor.Core.Parsers.General;
+using WC4MapEditor.Core.Services;
+using WC4MapEditor.Rendering.Helpers;
 using WC4MapEditor.ViewModels;
 using WC4MapEditor.Views;
 
@@ -29,6 +38,25 @@ public partial class App : Application
         var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
 
         services.AddSingleton<ConfigManager>(_ => ConfigManager.Instance);
+
+        // 迁移期：以既有单例作为容器实例来源，确保与尚未迁移的调用点持有同一对象
+        services.AddSingleton<MouseManager>(_ => MouseManager.Instance);
+        services.AddSingleton<DebugConsole>(_ => DebugConsole.Instance);
+        services.AddSingleton<AssetCache>(_ => AssetCache.Instance);
+        services.AddSingleton<TextureDiskCache>(_ => TextureDiskCache.Instance);
+        services.AddSingleton<CoastHelper>(_ => CoastHelper.Instance);
+        services.AddSingleton<CoastMaskProcessor>(_ => CoastMaskProcessor.Instance);
+
+        // 批次 2：仅注册进容器，不开放实例化 —— 原因见 docs/decoupling-plan.md 的 H-2.5
+        services.AddSingleton<HexInfoService>(_ => HexInfoService.Instance);
+        services.AddSingleton<GeneralSettingParser>(_ => GeneralSettingParser.Instance);
+        services.AddSingleton<CountrySettingParser>(_ => CountrySettingParser.Instance);
+        services.AddSingleton<ICommandHost>(_ => CliCommandHost.Instance);
+
+        // 批次 3：仅在 View 层改用注入（KeyboardManager）；Core 内部仍走单例（Core 不依赖 DI 容器）
+        services.AddSingleton<KeyboardManager>(_ => KeyboardManager.Instance);
+        services.AddSingleton<ErrorCollector>(_ => ErrorCollector.Instance);
+        services.AddSingleton<EditModeManager>(_ => EditModeManager.Instance);
 
         services.AddTransient<MainWindow>();
         services.AddTransient<BeginScene>();

@@ -43,7 +43,8 @@ public sealed class TextureDiskCache
         }
     }
 
-    private TextureDiskCache()
+    /// <summary>供依赖注入使用的公开构造（替代单例入口）</summary>
+    public TextureDiskCache()
     {
         _cacheDirectory = Path.Combine(".", "Cache", "Textures");
         EnsureCacheDirectory();

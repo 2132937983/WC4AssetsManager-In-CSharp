@@ -42,8 +42,26 @@ public partial class MainWindow : Window
     private UserControl? _currentScene;
     private bool _isClosing;
 
-    public MainWindow()
+    /// <summary>
+    /// 鼠标输入管理器（由 DI 注入，供各渲染场景共享）
+    /// </summary>
+    public MouseManager MouseManager { get; }
+
+    /// <summary>
+    /// 调试控制台（由 DI 注入，全局唯一）
+    /// </summary>
+    public DebugConsole DebugConsole { get; }
+
+    /// <summary>
+    /// 键盘输入管理器（由 DI 注入，供主窗口与各渲染场景共享）
+    /// </summary>
+    public KeyboardManager KeyboardManager { get; }
+
+    public MainWindow(MouseManager mouseManager, DebugConsole debugConsole, KeyboardManager keyboardManager)
     {
+        MouseManager = mouseManager;
+        DebugConsole = debugConsole;
+        KeyboardManager = keyboardManager;
         InitializeComponent();
         SetupWindow();
         Loaded += MainWindow_Loaded;
@@ -362,12 +380,12 @@ public partial class MainWindow : Window
     {
         if (e.Key == Key.F3)
         {
-            KeyboardManager.Instance.ProcessKeyDown((int)Key.F3);
+            KeyboardManager.ProcessKeyDown((int)Key.F3);
             e.Handled = true;
         }
         else if (e.Key == Key.Tab)
         {
-            KeyboardManager.Instance.ProcessKeyDown((int)Key.Tab);
+            KeyboardManager.ProcessKeyDown((int)Key.Tab);
             e.Handled = true;
         }
     }
@@ -376,12 +394,12 @@ public partial class MainWindow : Window
     {
         if (e.Key == Key.F3)
         {
-            KeyboardManager.Instance.ProcessKeyUp((int)Key.F3);
+            KeyboardManager.ProcessKeyUp((int)Key.F3);
             e.Handled = true;
         }
         else if (e.Key == Key.Tab)
         {
-            KeyboardManager.Instance.ProcessKeyUp((int)Key.Tab);
+            KeyboardManager.ProcessKeyUp((int)Key.Tab);
             e.Handled = true;
         }
     }

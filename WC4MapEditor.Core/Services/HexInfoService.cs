@@ -8,6 +8,13 @@ public sealed class HexInfoService : IHexInfoProvider
     private static readonly object _lock = new();
     private static HexInfoService? _instance;
 
+    /// <summary>
+    /// 全局默认实例。
+    /// <para>
+    /// 【迁移中】本服务实现 <see cref="IHexInfoProvider"/> 接口，新代码应依赖该接口并经由
+    /// 依赖注入获取实例（见 <c>App.xaml.cs</c> 的注册）。
+    /// </para>
+    /// </summary>
     public static HexInfoService Instance
     {
         get
@@ -25,7 +32,8 @@ public sealed class HexInfoService : IHexInfoProvider
 
     private MapData? _mapData;
 
-    private HexInfoService() { }
+    /// <summary>供依赖注入使用的公开构造（替代单例入口）</summary>
+    public HexInfoService() { }
 
     public void SetMapData(MapData? mapData) => _mapData = mapData;
 

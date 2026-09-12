@@ -63,7 +63,8 @@ public sealed class CoastHelper
     public bool IsAtlasLoaded => _coastAtlasLoaded;
     public bool IsGrayLevelAtlasLoaded => _grayLevelAtlasLoaded;
 
-    private CoastHelper()
+    /// <summary>供依赖注入使用的公开构造（替代单例入口）</summary>
+    public CoastHelper()
     {
         ConfigManager.Instance.Initialize();
         _coastFolderPath = ConfigManager.Instance.GetTexturePath("MapCoast");
