@@ -8,7 +8,6 @@ public abstract class ModifierBase : IModifier
 
     public abstract string Name { get; }
     public abstract string DisplayName { get; }
-    public abstract string HelpText { get; }
 
     public virtual void Initialize(MapData mapData)
     {

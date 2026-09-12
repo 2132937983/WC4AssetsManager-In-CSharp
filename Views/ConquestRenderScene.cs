@@ -21,12 +21,7 @@ public class ConquestRenderScene : RenderSceneBase
     protected override MapData? LoadMapData()
     {
         if (_isNew)
-        {
-            var parser = new ConquestParser();
-            if (!parser.CreateNew(40, 30, 2))
-                return null;
-            return BuildMapDataFromConquestParser(parser);
-        }
+            return ConquestParser.CreateNewMapData(40, 30, 2);
 
         string? path = _filePath;
         if (string.IsNullOrEmpty(path))
@@ -40,55 +35,25 @@ public class ConquestRenderScene : RenderSceneBase
             path = dlg.FileName;
         }
 
-        var fileParser = new ConquestParser(path);
-        return BuildMapDataFromConquestParser(fileParser);
+        return ConquestParser.LoadToMapData(path);
     }
 
-    private static MapData BuildMapDataFromConquestParser(ConquestParser parser)
-    {
-        var mapData = new MapData();
-        mapData.FilePath = parser.HexFilePath;
-        mapData.Header = parser.Header;
-        // 注意：与VB版本保持一致，MapLength存宽度，MapWidth存高度
-        mapData.MapWidth = parser.Header.MapLength;
-        mapData.MapHeight = parser.Header.MapWidth;
+    protected override bool SaveMapData(MapData mapData, string outputPath)
+        => ConquestParser.SaveFromMapData(mapData, outputPath);
 
-        mapData.InitializeTerrain(mapData.MapWidth, mapData.MapHeight);
-
-        var provinceData = parser.GetProvinceData();
-        if (provinceData.Count > 0)
-        {
-            for (int i = 0; i < Math.Min(provinceData.Count, mapData.TerrainCount); i++)
-            {
-                mapData.SetProvince(i, provinceData[i]);
-            }
-        }
-
-        foreach (var building in parser.GetBuildingData())
-            mapData.Buildings.Add(building);
-
-        foreach (var army in parser.GetTroopData())
-            mapData.Armies.Add(army);
-
-        foreach (var legion in parser.GetLegionData())
-            mapData.Legions.Add(legion);
-
-        foreach (var trap in parser.GetTrapData())
-            mapData.Traps.Add(trap);
-
-        foreach (var reinforcement in parser.GetReinforcementData())
-            mapData.Reinforcements.Add(reinforcement);
-
-        return mapData;
-    }
+    protected override MapData? ReloadMapData(string filePath)
+        => ConquestParser.LoadToMapData(filePath);
 
     protected override void InitializeRenderers()
     {
+        // 基础渲染层始终启用
         RenderEngine.EnableBackgroundRender = true;
         RenderEngine.EnableTerrainsRender = true;
-        RenderEngine.EnableProvinceRender = true;
-        RenderEngine.EnableBuildingRender = true;
-        RenderEngine.EnableArmyRender = true;
-        RenderEngine.EnableTrapRender = true;
+        // 其他渲染层由编辑模式控制，不在此处默认启用
+        RenderEngine.EnableProvinceRender = false;
+        RenderEngine.EnableBuildingRender = false;
+        RenderEngine.EnableArmyRender = false;
+        RenderEngine.EnableTrapRender = false;
+        RenderEngine.EnableSelectionRender = false;
     }
 }

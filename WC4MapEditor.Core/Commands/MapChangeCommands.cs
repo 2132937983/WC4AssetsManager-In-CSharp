@@ -152,3 +152,156 @@ public sealed class MapResizeCommand : IUndoableCommand
         _mapData.IsModified = true;
     }
 }
+
+/// <summary>
+/// 省份完整快照命令 - 用于大范围变更（比逐格记录更省内存）
+/// </summary>
+public sealed class ProvinceFullSnapshotCommand : IUndoableCommand
+{
+    private readonly MapData _mapData;
+    private readonly Province[] _beforeSnapshot;
+    private Province[]? _afterSnapshot;
+
+    public string Description { get; }
+
+    public ProvinceFullSnapshotCommand(MapData mapData, string description, Province[] beforeSnapshot)
+    {
+        _mapData = mapData;
+        Description = description;
+        _beforeSnapshot = new Province[beforeSnapshot.Length];
+        Array.Copy(beforeSnapshot, _beforeSnapshot, beforeSnapshot.Length);
+
+        // 立即捕获 after 状态
+        _afterSnapshot = new Province[mapData.MapWidth * mapData.MapHeight];
+        for (int i = 0; i < _afterSnapshot.Length; i++)
+            _afterSnapshot[i] = mapData.GetProvinceRef(i);
+    }
+
+    public void Execute()
+    {
+        if (_afterSnapshot == null) return;
+        for (int i = 0; i < _afterSnapshot.Length; i++)
+            _mapData.GetProvinceRef(i) = _afterSnapshot[i];
+        _mapData.IsModified = true;
+    }
+
+    public void Undo()
+    {
+        for (int i = 0; i < _beforeSnapshot.Length; i++)
+            _mapData.GetProvinceRef(i) = _beforeSnapshot[i];
+        _mapData.IsModified = true;
+    }
+}
+
+/// <summary>
+/// 地形完整快照命令 - 用于大范围变更（比逐格记录更省内存）
+/// </summary>
+public sealed class TerrainFullSnapshotCommand : IUndoableCommand
+{
+    private readonly MapData _mapData;
+    private readonly TerrainData[] _beforeSnapshot;
+    private TerrainData[]? _afterSnapshot;
+
+    public string Description { get; }
+
+    public TerrainFullSnapshotCommand(MapData mapData, string description, TerrainData[] beforeSnapshot)
+    {
+        _mapData = mapData;
+        Description = description;
+        _beforeSnapshot = new TerrainData[beforeSnapshot.Length];
+        Array.Copy(beforeSnapshot, _beforeSnapshot, beforeSnapshot.Length);
+
+        // 立即捕获 after 状态
+        _afterSnapshot = new TerrainData[mapData.MapWidth * mapData.MapHeight];
+        for (int i = 0; i < _afterSnapshot.Length; i++)
+            _afterSnapshot[i] = mapData.GetTerrainRef(i);
+    }
+
+    public void Execute()
+    {
+        if (_afterSnapshot == null) return;
+        for (int i = 0; i < _afterSnapshot.Length; i++)
+            _mapData.GetTerrainRef(i) = _afterSnapshot[i];
+        _mapData.IsModified = true;
+    }
+
+    public void Undo()
+    {
+        for (int i = 0; i < _beforeSnapshot.Length; i++)
+            _mapData.GetTerrainRef(i) = _beforeSnapshot[i];
+        _mapData.IsModified = true;
+    }
+}
+
+/// <summary>
+/// 归属变更命令 - 逐格记录归属变更
+/// </summary>
+public sealed class BelongChangeCommand : IUndoableCommand
+{
+    private readonly MapData _mapData;
+    private readonly (int col, int row, byte before, byte after)[] _changes;
+
+    public string Description { get; }
+
+    public BelongChangeCommand(MapData mapData, string description,
+        (int col, int row, byte before, byte after)[] changes)
+    {
+        _mapData = mapData;
+        Description = description;
+        _changes = changes;
+    }
+
+    public void Execute()
+    {
+        foreach (var (col, row, _, after) in _changes)
+            _mapData.SetBelongValue(col, row, after);
+        _mapData.IsModified = true;
+    }
+
+    public void Undo()
+    {
+        foreach (var (col, row, before, _) in _changes)
+            _mapData.SetBelongValue(col, row, before);
+        _mapData.IsModified = true;
+    }
+}
+
+/// <summary>
+/// 归属完整快照命令 - 用于大范围变更
+/// </summary>
+public sealed class BelongFullSnapshotCommand : IUndoableCommand
+{
+    private readonly MapData _mapData;
+    private readonly byte[] _beforeSnapshot;
+    private byte[]? _afterSnapshot;
+
+    public string Description { get; }
+
+    public BelongFullSnapshotCommand(MapData mapData, string description, byte[] beforeSnapshot)
+    {
+        _mapData = mapData;
+        Description = description;
+        _beforeSnapshot = new byte[beforeSnapshot.Length];
+        Array.Copy(beforeSnapshot, _beforeSnapshot, beforeSnapshot.Length);
+
+        // 立即捕获 after 状态
+        _afterSnapshot = new byte[mapData.MapWidth * mapData.MapHeight];
+        for (int i = 0; i < _afterSnapshot.Length; i++)
+            _afterSnapshot[i] = (byte)mapData.GetBelongValueByIndex(i);
+    }
+
+    public void Execute()
+    {
+        if (_afterSnapshot == null) return;
+        for (int i = 0; i < _afterSnapshot.Length; i++)
+            _mapData.SetBelongValueByIndex(i, _afterSnapshot[i]);
+        _mapData.IsModified = true;
+    }
+
+    public void Undo()
+    {
+        for (int i = 0; i < _beforeSnapshot.Length; i++)
+            _mapData.SetBelongValueByIndex(i, _beforeSnapshot[i]);
+        _mapData.IsModified = true;
+    }
+}

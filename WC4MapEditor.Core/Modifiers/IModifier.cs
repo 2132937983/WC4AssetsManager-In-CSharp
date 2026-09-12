@@ -6,7 +6,6 @@ public interface IModifier
 {
     string Name { get; }
     string DisplayName { get; }
-    string HelpText { get; }
 
     void Initialize(MapData mapData);
     void Deinitialize();

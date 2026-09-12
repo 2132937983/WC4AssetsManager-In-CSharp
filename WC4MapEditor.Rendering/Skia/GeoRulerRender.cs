@@ -2,7 +2,16 @@ using SkiaSharp;
 
 namespace WC4MapEditor.Rendering.Skia;
 
-public sealed class GeoRulerRender
+public sealed class GeoRulerMarker
+{
+    public int Id { get; set; }
+    public int Row { get; set; }
+    public int Col { get; set; }
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+}
+
+public sealed class GeoRulerRender : IDisposable
 {
     private const double BASE_HEX_SIZE = 20.0;
     private static readonly double HEX_HORIZONTAL_SPACING = BASE_HEX_SIZE * 1.5;
@@ -19,21 +28,11 @@ public sealed class GeoRulerRender
     public int ViewportWidth { get; set; }
     public int ViewportHeight { get; set; }
 
-    public int TopMarker1Col { get; set; } = 0;
-    public int TopMarker2Col { get; set; } = 1;
-    public int LeftMarker1Row { get; set; } = 0;
-    public int LeftMarker2Row { get; set; } = 1;
-
-    public double? TopMarker1Lon { get; set; }
-    public double? TopMarker2Lon { get; set; }
-    public double? LeftMarker1Lat { get; set; }
-    public double? LeftMarker2Lat { get; set; }
-
-    public int? DraggingMarker { get; set; }
+    public List<GeoRulerMarker> Markers { get; set; } = [];
+    public int? DraggingMarkerId { get; set; }
 
     private SKFont? _labelFont;
     private SKPaint? _markerPaint;
-    private SKPaint? _markerHoverPaint;
     private SKPaint? _markerDragPaint;
     private SKPaint? _labelPaint;
     private SKPaint? _labelBgPaint;
@@ -42,6 +41,46 @@ public sealed class GeoRulerRender
 
     public float MarkerSize => MARKER_SIZE * (float)ZoomLevel;
     public float LabelFontSize => Math.Max(6f, LABEL_FONT_SIZE * (float)ZoomLevel);
+
+    public int AddMarker(int row, int col, double lat = 0, double lon = 0)
+    {
+        int id = Markers.Count > 0 ? Markers.Max(m => m.Id) + 1 : 1;
+        Markers.Add(new GeoRulerMarker
+        {
+            Id = id,
+            Row = row,
+            Col = col,
+            Latitude = lat,
+            Longitude = lon
+        });
+        return id;
+    }
+
+    public void RemoveMarker(int id)
+    {
+        Markers.RemoveAll(m => m.Id == id);
+    }
+
+    public void ClearMarkers()
+    {
+        Markers.Clear();
+    }
+
+    // 获取上侧标记的屏幕位置（经度标尺，按列定位）
+    private (float mx, float my) GetTopMarkerScreenPos(GeoRulerMarker marker, double hexSpacingX, float size)
+    {
+        float mx = (float)(OffsetX + marker.Col * hexSpacingX);
+        float my = (float)(OffsetY - size);
+        return (mx, my);
+    }
+
+    // 获取左侧标记的屏幕位置（纬度标尺，按行定位）
+    private (float mx, float my) GetLeftMarkerScreenPos(GeoRulerMarker marker, double hexSpacingY, float size)
+    {
+        float mx = (float)(OffsetX - size);
+        float my = (float)(OffsetY + marker.Row * hexSpacingY);
+        return (mx, my);
+    }
 
     public bool HitTestMarker(double screenX, double screenY, out int markerId)
     {
@@ -52,20 +91,23 @@ public sealed class GeoRulerRender
         double hexSpacingX = HEX_HORIZONTAL_SPACING * ZoomLevel;
         double hexSpacingY = HEX_VERTICAL_SPACING * ZoomLevel;
 
-        var markers = new[]
+        foreach (var marker in Markers)
         {
-            (1, (float)(OffsetX + TopMarker1Col * hexSpacingX), (float)(OffsetY - size)),
-            (2, (float)(OffsetX + TopMarker2Col * hexSpacingX), (float)(OffsetY - size)),
-            (3, (float)(OffsetX - size), (float)(OffsetY + LeftMarker1Row * hexSpacingY)),
-            (4, (float)(OffsetX - size), (float)(OffsetY + LeftMarker2Row * hexSpacingY)),
-        };
-
-        foreach (var (id, mx, my) in markers)
-        {
-            if (screenX >= mx - half && screenX <= mx + half &&
-                screenY >= my - half && screenY <= my + half)
+            // 检测上侧标记
+            var (topMx, topMy) = GetTopMarkerScreenPos(marker, hexSpacingX, size);
+            if (screenX >= topMx - half && screenX <= topMx + half &&
+                screenY >= topMy - half && screenY <= topMy + half)
             {
-                markerId = id;
+                markerId = marker.Id;
+                return true;
+            }
+
+            // 检测左侧标记
+            var (leftMx, leftMy) = GetLeftMarkerScreenPos(marker, hexSpacingY, size);
+            if (screenX >= leftMx - half && screenX <= leftMx + half &&
+                screenY >= leftMy - half && screenY <= leftMy + half)
+            {
+                markerId = marker.Id;
                 return true;
             }
         }
@@ -75,26 +117,16 @@ public sealed class GeoRulerRender
 
     public void SnapDraggingMarkerToNearest(double screenX, double screenY)
     {
-        if (!DraggingMarker.HasValue) return;
+        if (!DraggingMarkerId.HasValue) return;
+
+        var marker = Markers.FirstOrDefault(m => m.Id == DraggingMarkerId.Value);
+        if (marker == null) return;
 
         double hexSpacingX = HEX_HORIZONTAL_SPACING * ZoomLevel;
         double hexSpacingY = HEX_VERTICAL_SPACING * ZoomLevel;
 
-        switch (DraggingMarker.Value)
-        {
-            case 1:
-                TopMarker1Col = Math.Clamp((int)Math.Round((screenX - OffsetX) / hexSpacingX), 0, MapWidth - 1);
-                break;
-            case 2:
-                TopMarker2Col = Math.Clamp((int)Math.Round((screenX - OffsetX) / hexSpacingX), 0, MapWidth - 1);
-                break;
-            case 3:
-                LeftMarker1Row = Math.Clamp((int)Math.Round((screenY - OffsetY) / hexSpacingY), 0, MapHeight - 1);
-                break;
-            case 4:
-                LeftMarker2Row = Math.Clamp((int)Math.Round((screenY - OffsetY) / hexSpacingY), 0, MapHeight - 1);
-                break;
-        }
+        marker.Col = Math.Clamp((int)Math.Round((screenX - OffsetX) / hexSpacingX), 0, MapWidth - 1);
+        marker.Row = Math.Clamp((int)Math.Round((screenY - OffsetY) / hexSpacingY), 0, MapHeight - 1);
     }
 
     public void Render(SKCanvas canvas)
@@ -108,76 +140,88 @@ public sealed class GeoRulerRender
         float size = MarkerSize;
         float half = size / 2;
 
-        RenderMarker(canvas, 1, (float)(OffsetX + TopMarker1Col * hexSpacingX), (float)(OffsetY - size), size,
-            TopMarker1Lon, $"C{TopMarker1Col}");
-        RenderMarker(canvas, 2, (float)(OffsetX + TopMarker2Col * hexSpacingX), (float)(OffsetY - size), size,
-            TopMarker2Lon, $"C{TopMarker2Col}");
-        RenderMarker(canvas, 3, (float)(OffsetX - size), (float)(OffsetY + LeftMarker1Row * hexSpacingY), size,
-            LeftMarker1Lat, $"R{LeftMarker1Row}");
-        RenderMarker(canvas, 4, (float)(OffsetX - size), (float)(OffsetY + LeftMarker2Row * hexSpacingY), size,
-            LeftMarker2Lat, $"R{LeftMarker2Row}");
+        foreach (var marker in Markers)
+        {
+            bool isDragging = DraggingMarkerId == marker.Id;
+            var paint = isDragging ? _markerDragPaint! : _markerPaint!;
 
-        DrawDashedLine(canvas, (float)(OffsetX + TopMarker1Col * hexSpacingX), (float)(OffsetY - size) + half,
-            (float)(OffsetX + TopMarker1Col * hexSpacingX), (float)OffsetY);
-        DrawDashedLine(canvas, (float)(OffsetX + TopMarker2Col * hexSpacingX), (float)(OffsetY - size) + half,
-            (float)(OffsetX + TopMarker2Col * hexSpacingX), (float)OffsetY);
-        DrawDashedLine(canvas, (float)(OffsetX - size) + half, (float)(OffsetY + LeftMarker1Row * hexSpacingY),
-            (float)OffsetX, (float)(OffsetY + LeftMarker1Row * hexSpacingY));
-        DrawDashedLine(canvas, (float)(OffsetX - size) + half, (float)(OffsetY + LeftMarker2Row * hexSpacingY),
-            (float)OffsetX, (float)(OffsetY + LeftMarker2Row * hexSpacingY));
+            // ========== 上侧标记（经度标尺）==========
+            var (topMx, topMy) = GetTopMarkerScreenPos(marker, hexSpacingX, size);
+
+            // 绘制虚线连接到对应格子上边缘
+            float cellTopX = (float)(OffsetX + marker.Col * hexSpacingX);
+            float cellTopY = (float)OffsetY;
+            DrawDashedLine(canvas, topMx, topMy + half, cellTopX, cellTopY);
+
+            // 绘制标记（菱形）
+            DrawDiamond(canvas, topMx, topMy, half, paint);
+
+            // 绘制列标签（在标记上方）
+            string colLabel = $"C{marker.Col}";
+            DrawLabel(canvas, colLabel, topMx, topMy - half - 4, true);
+
+            // 绘制经度值（在标记下方）
+            string lonText = $"{marker.Longitude:F4}";
+            DrawLabel(canvas, lonText, topMx, topMy + half + _labelFont!.Size + 4, false);
+
+            // ========== 左侧标记（纬度标尺）==========
+            var (leftMx, leftMy) = GetLeftMarkerScreenPos(marker, hexSpacingY, size);
+
+            // 绘制虚线连接到对应格子左边缘
+            float cellLeftX = (float)OffsetX;
+            float cellLeftY = (float)(OffsetY + marker.Row * hexSpacingY);
+            DrawDashedLine(canvas, leftMx + half, leftMy, cellLeftX, cellLeftY);
+
+            // 绘制标记（菱形）
+            DrawDiamond(canvas, leftMx, leftMy, half, paint);
+
+            // 绘制行标签（在标记左侧）
+            string rowLabel = $"R{marker.Row}";
+            float rowLabelWidth = _labelFont!.MeasureText(rowLabel);
+            DrawLabel(canvas, rowLabel, leftMx - half - 4, leftMy, true, true);
+
+            // 绘制纬度值（在标记右侧）
+            string latText = $"{marker.Latitude:F4}";
+            DrawLabel(canvas, latText, leftMx + half + 4, leftMy, false, false);
+        }
     }
 
-    private void RenderMarker(SKCanvas canvas, int markerId, float x, float y, float size, double? value, string label)
+    private void DrawDiamond(SKCanvas canvas, float cx, float cy, float half, SKPaint paint)
     {
-        float half = size / 2;
-        bool isDragging = DraggingMarker == markerId;
+        using var path = new SKPath();
+        path.MoveTo(cx, cy - half);
+        path.LineTo(cx + half, cy);
+        path.LineTo(cx, cy + half);
+        path.LineTo(cx - half, cy);
+        path.Close();
+        canvas.DrawPath(path, paint);
+    }
 
-        var paint = isDragging ? _markerDragPaint! : _markerPaint!;
+    private void DrawLabel(SKCanvas canvas, string text, float x, float y, bool isAboveOrLeft, bool alignRight = false)
+    {
+        float textWidth = _labelFont!.MeasureText(text);
+        float textHeight = _labelFont.Size;
 
-        canvas.DrawRect(x - half, y - half, size, size, paint);
+        float drawX, drawY;
+        SKRect bgRect;
 
-        float textWidth = _labelFont!.MeasureText(label);
-        float labelY = y + _labelFont.Size / 3;
-
-        if (markerId <= 2)
+        if (alignRight)
         {
-            float labelX = x - textWidth / 2;
-            float bgY = y - half - _labelFont.Size - 4;
-            var bgRect = new SKRect(labelX - 2, bgY - 1, labelX + textWidth + 2, bgY + _labelFont.Size + 2);
-            canvas.DrawRect(bgRect, _labelBgPaint!);
-            canvas.DrawText(label, labelX, bgY + _labelFont.Size, SKTextAlign.Left, _labelFont, _labelPaint!);
+            // 右对齐（用于左侧标记的标签，显示在标记左边）
+            drawX = x - textWidth;
+            drawY = y + textHeight / 3;
+            bgRect = new SKRect(drawX - 2, drawY - textHeight - 1, drawX + textWidth + 2, drawY + 2);
         }
         else
         {
-            float labelX = x - half - textWidth - 4;
-            float bgY = y - _labelFont.Size / 2;
-            var bgRect = new SKRect(labelX - 2, bgY - 1, labelX + textWidth + 2, bgY + _labelFont.Size + 2);
-            canvas.DrawRect(bgRect, _labelBgPaint!);
-            canvas.DrawText(label, labelX, bgY + _labelFont.Size, SKTextAlign.Left, _labelFont, _labelPaint!);
+            // 居中
+            drawX = x - textWidth / 2;
+            drawY = isAboveOrLeft ? y : y + textHeight / 3;
+            bgRect = new SKRect(drawX - 2, drawY - textHeight - 1, drawX + textWidth + 2, drawY + 2);
         }
 
-        if (value.HasValue)
-        {
-            string valText = $"{value.Value:F4}";
-            float valWidth = _labelFont.MeasureText(valText);
-
-            if (markerId <= 2)
-            {
-                float valX = x - valWidth / 2;
-                float valY = y + half + _labelFont.Size + 2;
-                var bgRect = new SKRect(valX - 2, valY - _labelFont.Size - 1, valX + valWidth + 2, valY + 2);
-                canvas.DrawRect(bgRect, _labelBgPaint!);
-                canvas.DrawText(valText, valX, valY, SKTextAlign.Left, _labelFont, _labelPaint!);
-            }
-            else
-            {
-                float valX = x + half + 4;
-                float valY = y + _labelFont.Size / 3;
-                var bgRect = new SKRect(valX - 2, valY - _labelFont.Size - 1, valX + valWidth + 2, valY + 2);
-                canvas.DrawRect(bgRect, _labelBgPaint!);
-                canvas.DrawText(valText, valX, valY, SKTextAlign.Left, _labelFont, _labelPaint!);
-            }
-        }
+        canvas.DrawRect(bgRect, _labelBgPaint!);
+        canvas.DrawText(text, drawX, drawY, SKTextAlign.Left, _labelFont, _labelPaint!);
     }
 
     private void DrawDashedLine(SKCanvas canvas, float x1, float y1, float x2, float y2)
@@ -215,26 +259,11 @@ public sealed class GeoRulerRender
             Style = SKPaintStyle.Fill
         };
 
-        _markerHoverPaint = new SKPaint
-        {
-            IsAntialias = true,
-            Color = new SKColor(255, 235, 100, 255),
-            Style = SKPaintStyle.Fill
-        };
-
         _markerDragPaint = new SKPaint
         {
             IsAntialias = true,
             Color = new SKColor(255, 100, 100, 255),
             Style = SKPaintStyle.Fill
-        };
-
-        _linePaint = new SKPaint
-        {
-            IsAntialias = true,
-            Color = new SKColor(255, 215, 0, 180),
-            Style = SKPaintStyle.Stroke,
-            StrokeWidth = 1.5f
         };
 
         _labelPaint = new SKPaint
@@ -247,8 +276,16 @@ public sealed class GeoRulerRender
         _labelBgPaint = new SKPaint
         {
             IsAntialias = true,
-            Color = new SKColor(0, 0, 0, 200),
+            Color = new SKColor(0, 0, 0, 180),
             Style = SKPaintStyle.Fill
+        };
+
+        _linePaint = new SKPaint
+        {
+            IsAntialias = true,
+            Color = new SKColor(255, 215, 0, 180),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 1.5f
         };
 
         _labelFont = new SKFont(SKTypeface.Default, LabelFontSize);
@@ -257,12 +294,10 @@ public sealed class GeoRulerRender
     public void Dispose()
     {
         _markerPaint?.Dispose();
-        _markerHoverPaint?.Dispose();
         _markerDragPaint?.Dispose();
-        _linePaint?.Dispose();
         _labelPaint?.Dispose();
         _labelBgPaint?.Dispose();
+        _linePaint?.Dispose();
         _labelFont?.Dispose();
-        _paintsInitialized = false;
     }
 }

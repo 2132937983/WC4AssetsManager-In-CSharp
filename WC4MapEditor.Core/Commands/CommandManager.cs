@@ -29,6 +29,8 @@ public sealed class CommandManager
 
     public void SetContext(CommandContext context) => _context = context;
 
+    public CommandContext? GetContext() => _context;
+
     public void RegisterCommand(string name, Action<string[]> execute, string description = "", string usage = "")
     {
         _commands[name] = new CommandEntry(name, execute, description, usage);

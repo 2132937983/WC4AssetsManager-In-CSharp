@@ -280,7 +280,8 @@ public struct Legion
         CountryTaxRate = 0.1f,
         ColorR = 0xFF,
         ColorG = 0xFF,
-        ColorB = 0xFF
+        ColorB = 0xFF,
+        InitialTechLevel = 1
     };
 
     public readonly double GetAverageArmyLevel()

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using WC4MapEditor.Core.ErrorHandling;
 
 namespace WC4MapEditor.Core.Input;
 
@@ -126,12 +127,23 @@ public sealed class KeyboardManager
             return;
         }
 
-        foreach (var binding in _bindings.Values)
+        // 复制绑定列表以避免在遍历过程中修改集合（如模式切换时注册/注销绑定）
+        var bindingsSnapshot = _bindings.Values.ToList();
+        foreach (var binding in bindingsSnapshot)
         {
             if (binding.Matches(keyCode, _currentModifiers) && binding.Callback != null)
             {
                 Debug.WriteLine($"[KeyboardManager] Binding matched: {binding.Id} ({binding})");
-                binding.Callback.Invoke();
+                try
+                {
+                    binding.Callback.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    ErrorCollector.Instance.RecordError(ErrorSeverity.Error,
+                        $"按键回调执行失败: {binding.Id}", nameof(ProcessKeyDown), ex);
+                    // 继续处理其他绑定，不中断
+                }
             }
         }
     }

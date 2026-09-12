@@ -14,6 +14,7 @@ public sealed class ModeContext
     public Action<string>? RaiseStatusMessage { get; init; }
     public Action? NotifyDataModified { get; init; }
     public Action? NotifyBrushToggled { get; init; }
+    public Action? NotifyBrushSizeChanged { get; init; }
 
     /// <summary>
     /// 对话框服务 - 由 GUI 层实现并注入
@@ -40,6 +41,11 @@ public sealed class ModeContext
         EditModeManager.Instance.RecordMultiCellChange(description, applyChange);
     }
 
+    public void RecordMultiCellProvinceChange(string description, Action applyChange)
+    {
+        EditModeManager.Instance.RecordMultiCellProvinceChange(description, applyChange);
+    }
+
     public void RecordProvinceChange(int col, int row, string description, Action applyChange)
     {
         EditModeManager.Instance.RecordProvinceChange(col, row, description, applyChange);
@@ -49,4 +55,24 @@ public sealed class ModeContext
     {
         EditModeManager.Instance.RecordEntityChange(description, execute, undo);
     }
+
+    /// <summary>
+    /// 地理计算回调 - 由 GUI 层实现并注入，负责执行经纬度换算并导出
+    /// </summary>
+    public Func<Task>? GeoCalculateCallback { get; init; }
+
+    /// <summary>
+    /// 导出参考点回调 - 由 GUI 层实现并注入
+    /// </summary>
+    public Func<Task>? GeoExportRefCallback { get; init; }
+
+    /// <summary>
+    /// 导入参考点回调 - 由 GUI 层实现并注入
+    /// </summary>
+    public Func<Task>? GeoImportRefCallback { get; init; }
+
+    /// <summary>
+    /// 添加地理参考点回调 - 由 GUI 层实现并注入
+    /// </summary>
+    public Func<Task>? AddGeoRefCallback { get; init; }
 }

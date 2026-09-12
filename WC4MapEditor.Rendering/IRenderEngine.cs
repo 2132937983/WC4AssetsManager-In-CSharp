@@ -14,12 +14,14 @@ public interface IRenderEngine : IDisposable
     void Render(SKCanvas canvas, MapData mapData, Camera camera);
     void Invalidate();
     void InvalidateTerrainCache();
+    void InvalidateProvinceCache();
     void InvalidateCoastCache(MapData mapData);
     void InvalidateCoastCacheRegion(MapData mapData, int centerCol, int centerRow, int radius);
     void InvalidateCoastCacheFull(MapData mapData);
     bool EnableTerrainsRender { get; set; }
     bool EnableBackgroundRender { get; set; }
     bool EnableProvinceRender { get; set; }
+    bool EnableProvinceCapitalRender { get; set; }
     bool EnableBuildingRender { get; set; }
     bool EnableArmyRender { get; set; }
     bool EnableTrapRender { get; set; }
@@ -40,6 +42,16 @@ public interface IRenderEngine : IDisposable
     bool ViewLayerVisible { get; set; }
     float ViewLayerOpacity { get; set; }
     void InvalidateViewLayerCache();
+    bool EnableLegionDomainRender { get; set; }
+    bool EnableBelongFlagRender { get; set; }
+    bool EnableReinforceNewRender { get; set; }
+    bool EnableStrategicConstructionRender { get; set; }
+    bool EnableAirForceRender { get; set; }
+    bool EnableWeatherRender { get; set; }
+    bool EnableMapCaseRender { get; set; }
+    bool ShowBuildingNames { get; set; }
+    void PreloadBelongFlagAtlas(MapData mapData);
+    void InitializeTacticalMapImageCache();
     bool ShowLayer2 { get; set; }
     bool ShowHexBorders { get; set; }
     void CycleLabelMode();

@@ -25,6 +25,8 @@ public partial class AssetBrowserScene : UserControl
     private StackPanel _categoryPanel = null!;
 
     private AssetKind? _selectedKind;
+    private bool _showAllFiles;
+    private Button? _allFilesButton;
     private readonly ObservableCollection<AssetEntry> _entries = new();
 
     public AssetBrowserScene(MainWindow window)
@@ -194,15 +196,36 @@ public partial class AssetBrowserScene : UserControl
             BorderThickness = new Thickness(0),
             FontSize = 13,
             Foreground = Brushes.White,
+            SelectionMode = SelectionMode.Extended,
         };
+
+        // 自定义选中项样式：选中时字体变黑
+        var itemContainerStyle = new Style(typeof(ListViewItem));
+        itemContainerStyle.Setters.Add(new Setter(ListViewItem.BackgroundProperty, Brushes.Transparent));
+        itemContainerStyle.Setters.Add(new Setter(ListViewItem.ForegroundProperty, Brushes.White));
+        itemContainerStyle.Setters.Add(new Setter(ListViewItem.BorderThicknessProperty, new Thickness(0)));
+        itemContainerStyle.Setters.Add(new Setter(ListViewItem.PaddingProperty, new Thickness(6, 3, 6, 3)));
+
+        var selectedTrigger = new Trigger { Property = ListViewItem.IsSelectedProperty, Value = true };
+        selectedTrigger.Setters.Add(new Setter(ListViewItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(100, 150, 220))));
+        selectedTrigger.Setters.Add(new Setter(ListViewItem.ForegroundProperty, Brushes.Black));
+        itemContainerStyle.Triggers.Add(selectedTrigger);
+
+        var mouseOverTrigger = new Trigger { Property = ListViewItem.IsMouseOverProperty, Value = true };
+        mouseOverTrigger.Setters.Add(new Setter(ListViewItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(50, 60, 80))));
+        itemContainerStyle.Triggers.Add(mouseOverTrigger);
+
+        _fileList.ItemContainerStyle = itemContainerStyle;
 
         var gv = new GridView();
         gv.Columns.Add(CreateColumn("文件名", 250, nameof(AssetEntry.FileName)));
         gv.Columns.Add(CreateColumn("大小", 90, nameof(AssetEntry.Size)));
         gv.Columns.Add(CreateColumn("类别", 110, nameof(AssetEntry.Kind)));
+        gv.Columns.Add(CreateColumn("修改时间", 150, nameof(AssetEntry.LastModifiedUtc)));
         gv.Columns.Add(CreateColumn("路径", 0, nameof(AssetEntry.RelativePath)));
         _fileList.View = gv;
         _fileList.MouseDoubleClick += FileList_MouseDoubleClick;
+        _fileList.KeyDown += FileList_KeyDown;
         _fileList.ItemsSource = _entries;
 
         contentArea.Children.Add(_fileList);
@@ -242,6 +265,8 @@ public partial class AssetBrowserScene : UserControl
         var b = new Binding(binding);
         if (binding == nameof(AssetEntry.Size))
             b.StringFormat = "{0:N0} B";
+        else if (binding == nameof(AssetEntry.LastModifiedUtc))
+            b.StringFormat = "yyyy-MM-dd HH:mm:ss";
         col.DisplayMemberBinding = b;
         return col;
     }
@@ -250,7 +275,7 @@ public partial class AssetBrowserScene : UserControl
     {
         try
         {
-            _manager.ScanDefault();
+            _manager.ScanDefault(forceReload: true);
             PopulateCategories();
             PopulateExtensions();
             UpdateStatus($"已加载 {_manager.Count} 个文件");
@@ -264,6 +289,36 @@ public partial class AssetBrowserScene : UserControl
     private void PopulateCategories()
     {
         _categoryPanel.Children.Clear();
+
+        // "全部文件" 按钮（按修改时间排序）
+        _allFilesButton = new Button
+        {
+            Content = $"全部文件 ({_manager.Count})",
+            Tag = null,
+            Background = Brushes.Transparent,
+            Foreground = Brushes.White,
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(12, 6, 12, 6),
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            FontSize = 13,
+            Cursor = Cursors.Hand,
+            Margin = new Thickness(4, 1, 4, 1)
+        };
+        _allFilesButton.Click += AllFilesButton_Click;
+        _allFilesButton.MouseEnter += (s, e) =>
+        {
+            if (!_showAllFiles)
+                _allFilesButton.Background = new SolidColorBrush(Color.FromRgb(50, 50, 65));
+        };
+        _allFilesButton.MouseLeave += (s, e) =>
+        {
+            if (!_showAllFiles)
+                _allFilesButton.Background = Brushes.Transparent;
+        };
+        _categoryPanel.Children.Add(_allFilesButton);
+
+        // Separator
+        _categoryPanel.Children.Add(new Separator { Margin = new Thickness(8, 6, 8, 6), Background = new SolidColorBrush(Color.FromRgb(60, 60, 70)) });
 
         var counts = _manager.GetKindCounts();
         if (counts.Count == 0) return;
@@ -331,11 +386,34 @@ public partial class AssetBrowserScene : UserControl
         _categoryPanel.Children.Add(btn);
     }
 
+    private void AllFilesButton_Click(object sender, RoutedEventArgs e)
+    {
+        _showAllFiles = true;
+        _selectedKind = null;
+
+        // Update visual selection
+        if (_allFilesButton != null)
+            _allFilesButton.Background = new SolidColorBrush(Color.FromRgb(60, 70, 90));
+
+        foreach (var child in _categoryPanel.Children)
+        {
+            if (child is Button b && b.Tag is AssetKind)
+                b.Background = Brushes.Transparent;
+        }
+
+        ApplyFilter();
+    }
+
     private void CategoryButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn || btn.Tag is not AssetKind kind) return;
 
+        _showAllFiles = false;
+
         // Update visual selection
+        if (_allFilesButton != null)
+            _allFilesButton.Background = Brushes.Transparent;
+
         foreach (var child in _categoryPanel.Children)
         {
             if (child is Button b)
@@ -356,11 +434,26 @@ public partial class AssetBrowserScene : UserControl
         string? search = _searchBox.Text;
         if (search == "搜索文件名...") search = null;
 
-        var results = _manager.Query(
-            _selectedKind,
-            ext,
-            null,
-            search);
+        List<AssetEntry> results;
+        if (_showAllFiles)
+        {
+            // 全部文件模式：按修改时间降序排列
+            results = _manager.GetAllSortedByModifiedTime().ToList();
+        }
+        else
+        {
+            results = _manager.Query(
+                _selectedKind,
+                ext,
+                null,
+                search).ToList();
+        }
+
+        // 应用扩展名和搜索过滤（全部文件模式下也需要）
+        if (ext != null)
+            results = results.Where(r => string.Equals(r.Extension, ext.TrimStart('.'), StringComparison.OrdinalIgnoreCase)).ToList();
+        if (!string.IsNullOrEmpty(search))
+            results = results.Where(r => r.FileNameWithoutExtension.Contains(search, StringComparison.OrdinalIgnoreCase)).ToList();
 
         foreach (var entry in results)
             _entries.Add(entry);
@@ -381,23 +474,65 @@ public partial class AssetBrowserScene : UserControl
             _extFilter.Items.Add("." + ext);
     }
 
+    private void FileList_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            CopySelectedFilesToClipboard();
+            e.Handled = true;
+        }
+    }
+
+    private void CopySelectedFilesToClipboard()
+    {
+        var selectedItems = _fileList.SelectedItems.Cast<AssetEntry>().ToList();
+        if (selectedItems.Count == 0) return;
+
+        var fileDropList = new System.Collections.Specialized.StringCollection();
+        foreach (var entry in selectedItems)
+        {
+            if (File.Exists(entry.FullPath))
+                fileDropList.Add(entry.FullPath);
+        }
+
+        if (fileDropList.Count > 0)
+        {
+            var data = new System.Windows.DataObject();
+            data.SetFileDropList(fileDropList);
+            System.Windows.Clipboard.SetDataObject(data, true);
+            UpdateStatus($"已复制 {fileDropList.Count} 个文件到剪贴板");
+        }
+    }
+
+    private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "png", "webp", "jpg", "jpeg", "bmp", "gif", "tga", "pkm"
+    };
+
     private void FileList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (_fileList.SelectedItem is not AssetEntry entry) return;
 
         if (entry.Extension.Equals("btl", StringComparison.OrdinalIgnoreCase))
         {
-            // Open in map editor
-            try
+            if (entry.Kind == AssetKind.Conquest)
             {
-                var mapData = Parsers.BTL.BTLParser.LoadFromFile(entry.FullPath);
-                // Navigate to editor with loaded map
-                UpdateStatus($"已加载地图: {entry.FileName} ({mapData.MapWidth}x{mapData.MapHeight})");
+                var scene = new ConquestRenderScene(_window, entry.FullPath);
+                _window.SetCurrentScene(scene);
             }
-            catch (Exception ex)
+            else
             {
-                UpdateStatus($"加载失败: {ex.Message}");
+                var scene = new StageRenderScene(_window, entry.FullPath);
+                _window.SetCurrentScene(scene);
             }
+        }
+        else if (ImageExtensions.Contains(entry.Extension))
+        {
+            string? xmlPath = FindAssociatedXml(entry.FullPath);
+            string? sourceDir = System.IO.Path.GetDirectoryName(entry.FullPath);
+            if (string.IsNullOrEmpty(sourceDir)) sourceDir = Environment.CurrentDirectory;
+            var scene = new TacticalMapEditScene(_window, entry.FullPath, xmlPath, sourceDir);
+            _window.SetCurrentScene(scene);
         }
         else if (entry.Extension.Equals("json", StringComparison.OrdinalIgnoreCase) ||
                  entry.Extension.Equals("xml", StringComparison.OrdinalIgnoreCase) ||
@@ -419,6 +554,15 @@ public partial class AssetBrowserScene : UserControl
             }
             catch { }
         }
+    }
+
+    private static string? FindAssociatedXml(string imageFilePath)
+    {
+        string dir = IOPath.GetDirectoryName(imageFilePath) ?? "";
+        string name = IOPath.GetFileNameWithoutExtension(imageFilePath);
+        string xmlPath = IOPath.Combine(dir, name + ".xml");
+        if (File.Exists(xmlPath)) return xmlPath;
+        return null;
     }
 
     private void RefreshAssets()

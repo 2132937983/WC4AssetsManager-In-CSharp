@@ -45,6 +45,19 @@ public class MapRenderScene : RenderSceneBase
         return loadedData;
     }
 
+    protected override bool SaveMapData(MapData mapData, string outputPath)
+    {
+        try { WorldParser.SaveToFile(mapData, outputPath); return true; }
+        catch { return false; }
+    }
+
+    protected override MapData? ReloadMapData(string filePath)
+    {
+        var loaded = WorldParser.LoadFromFile(filePath);
+        if (loaded != null) loaded.FilePath = filePath;
+        return loaded;
+    }
+
     protected override void InitializeRenderers()
     {
         RenderEngine.EnableBackgroundRender = true;

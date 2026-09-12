@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Text.Json;
+using WC4MapEditor.Models;
 
 namespace WC4MapEditor.Core.Assets;
 
@@ -113,6 +115,10 @@ public sealed class AssetManager
     /// <summary>按相对路径精确获取单个条目，找不到返回 null。</summary>
     public AssetEntry? Find(string relativePath) => _cache.GetByRelativePath(relativePath);
 
+    /// <summary>返回全部条目，按最后修改时间降序排列（最新的在前）。</summary>
+    public IReadOnlyList<AssetEntry> GetAllSortedByModifiedTime()
+        => _cache.GetAllSortedByModifiedTime();
+
     // ---------------------------------------------------------------------
     // 读取
     // ---------------------------------------------------------------------
@@ -169,5 +175,86 @@ public sealed class AssetManager
     public void PrintSummary()
     {
         Console.WriteLine(GetSummaryReport());
+    }
+
+    // ---------------------------------------------------------------------
+    // Data 文件读取（从 assets 缓存中解析 JSON / INI）
+    // ---------------------------------------------------------------------
+
+    private List<ConquerCountryConfig>? _conquerCountrySettings;
+    private List<GeneralSettings>? _generalSettings;
+    private Dictionary<string, string>? _stringTable;
+
+    public List<ConquerCountryConfig> GetConquerCountrySettings()
+    {
+        if (_conquerCountrySettings != null) return _conquerCountrySettings;
+        var entry = Find("json/ConquerCountrySettings.json");
+        if (entry != null)
+        {
+            try
+            {
+                _conquerCountrySettings = JsonSerializer.Deserialize<List<ConquerCountryConfig>>(ReadText(entry));
+                Debug.WriteLine($"[AssetManager] 加载了 {_conquerCountrySettings?.Count ?? 0} 个征服国家配置");
+            }
+            catch (Exception ex) { Debug.WriteLine($"[AssetManager] 加载 ConquerCountrySettings.json 失败: {ex.Message}"); }
+        }
+        return _conquerCountrySettings ?? [];
+    }
+
+    public List<GeneralSettings> GetGeneralSettings()
+    {
+        if (_generalSettings != null) return _generalSettings;
+        var entry = Find("json/GeneralSettings.json");
+        if (entry != null)
+        {
+            try
+            {
+                _generalSettings = JsonSerializer.Deserialize<List<GeneralSettings>>(ReadText(entry));
+                Debug.WriteLine($"[AssetManager] 加载了 {_generalSettings?.Count ?? 0} 个将领配置");
+            }
+            catch (Exception ex) { Debug.WriteLine($"[AssetManager] 加载 GeneralSettings.json 失败: {ex.Message}"); }
+        }
+        return _generalSettings ?? [];
+    }
+
+    public Dictionary<string, string> GetStringTable(string locale = "tw")
+    {
+        if (_stringTable != null) return _stringTable;
+        var entry = Find($"stringtable_{locale}.ini");
+        if (entry != null)
+        {
+            try
+            {
+                _stringTable = ParseIniFile(ReadText(entry));
+                Debug.WriteLine($"[AssetManager] 加载了 {_stringTable.Count} 个字符串表条目 (locale={locale})");
+            }
+            catch (Exception ex) { Debug.WriteLine($"[AssetManager] 加载 stringtable_{locale}.ini 失败: {ex.Message}"); }
+        }
+        return _stringTable ?? [];
+    }
+
+    public string GetStringTableValue(string key, string defaultValue = "", string locale = "tw")
+    {
+        var table = GetStringTable(locale);
+        return table.TryGetValue(key, out var v) ? v : defaultValue;
+    }
+
+    private static Dictionary<string, string> ParseIniFile(string content)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        using var reader = new StringReader(content);
+        string? line;
+        while ((line = reader.ReadLine()) != null)
+        {
+            line = line.Trim();
+            if (string.IsNullOrEmpty(line) || line.StartsWith(";") || line.StartsWith("#") || line.StartsWith("["))
+                continue;
+            int eq = line.IndexOf('=');
+            if (eq <= 0) continue;
+            string key = line[..eq].Trim();
+            string val = line[(eq + 1)..].Trim();
+            result[key] = val;
+        }
+        return result;
     }
 }

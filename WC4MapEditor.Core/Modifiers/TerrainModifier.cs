@@ -1,15 +1,15 @@
 using System.IO;
+using WC4MapEditor.Core.Brush;
 using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Services;
 using WC4MapEditor.Models;
 
 namespace WC4MapEditor.Core.Modifiers;
 
-public sealed class TerrainModifier : ModifierBase
+public sealed class TerrainModifier : ModifierBase, IBrushTarget
 {
     public override string Name => "terrain";
     public override string DisplayName => "地形修改器";
-    public override string HelpText => "";
 
     private TerrainData _copiedTerrain;
     private bool _hasCopiedTerrain;
@@ -1170,8 +1170,41 @@ public sealed class TerrainModifier : ModifierBase
         foreach (var kvp in tempProvinces)
             _mapData.GetProvinceRef(kvp.Key.Item1, kvp.Key.Item2) = kvp.Value;
 
-        _mapData.Header.MapWidth = newWidth;
-        _mapData.Header.MapLength = newHeight;
+        var buildingsToUpdate = _mapData.Buildings.ToList();
+        _mapData.Buildings.Clear();
+        for (int bi = 0; bi < buildingsToUpdate.Count; bi++)
+        {
+            var building = buildingsToUpdate[bi];
+            var coord = HexCoord.FromIndex(building.Coordinate, oldWidth);
+            int newCol = Math.Min((int)(coord.Col * scale), newWidth - 1);
+            int newRow = Math.Min((int)(coord.Row * scale), newHeight - 1);
+            building.Coordinate = newRow * newWidth + newCol;
+            _mapData.Buildings.Add(building);
+        }
+
+        var trapsToUpdate = _mapData.Traps.ToList();
+        _mapData.Traps.Clear();
+        for (int ti = 0; ti < trapsToUpdate.Count; ti++)
+        {
+            var trap = trapsToUpdate[ti];
+            var coord = HexCoord.FromIndex(trap.Coordinate, oldWidth);
+            int newCol = Math.Min((int)(coord.Col * scale), newWidth - 1);
+            int newRow = Math.Min((int)(coord.Row * scale), newHeight - 1);
+            trap.Coordinate = (short)(newRow * newWidth + newCol);
+            _mapData.Traps.Add(trap);
+        }
+
+        for (int i = _mapData.Armies.Count - 1; i >= 0; i--)
+        {
+            var army = _mapData.Armies[i];
+            var coord = HexCoord.FromIndex(army.Coordinate, oldWidth);
+            int newCol = Math.Min((int)(coord.Col * scale), newWidth - 1);
+            int newRow = Math.Min((int)(coord.Row * scale), newHeight - 1);
+            army.Coordinate = (short)(newRow * newWidth + newCol);
+        }
+
+        _mapData.Header.MapLength = newWidth;
+        _mapData.Header.MapWidth = newHeight;
 
         MarkModified();
         return ModifierResult.Ok($"地图已缩放：{oldWidth}x{oldHeight} -> {newWidth}x{newHeight} (比例 {scale:F2})");
@@ -1250,13 +1283,194 @@ public sealed class TerrainModifier : ModifierBase
         foreach (var kvp in tempProvinces)
             _mapData.GetProvinceRef(kvp.Key.Item1, kvp.Key.Item2) = kvp.Value;
 
-        _mapData.Header.MapWidth = newWidth;
-        _mapData.Header.MapLength = newHeight;
+        if (offsetCol != 0 || offsetRow != 0)
+        {
+            var buildingsToUpdate = _mapData.Buildings.ToList();
+            _mapData.Buildings.Clear();
+            for (int bi = 0; bi < buildingsToUpdate.Count; bi++)
+            {
+                var building = buildingsToUpdate[bi];
+                var coord = HexCoord.FromIndex(building.Coordinate, oldWidth);
+                int newCol = coord.Col + offsetCol;
+                int newRow = coord.Row + offsetRow;
+                if (newCol >= 0 && newCol < newWidth && newRow >= 0 && newRow < newHeight)
+                {
+                    building.Coordinate = newRow * newWidth + newCol;
+                    _mapData.Buildings.Add(building);
+                }
+            }
+        }
+        else
+        {
+            for (int i = _mapData.Buildings.Count - 1; i >= 0; i--)
+            {
+                var building = _mapData.Buildings[i];
+                var coord = HexCoord.FromIndex(building.Coordinate, oldWidth);
+                if (coord.Col >= newWidth || coord.Row >= newHeight)
+                    _mapData.Buildings.RemoveAt(i);
+                else
+                    building.Coordinate = coord.Row * newWidth + coord.Col;
+            }
+        }
+
+        var trapsToUpdate = _mapData.Traps.ToList();
+        _mapData.Traps.Clear();
+        for (int ti = 0; ti < trapsToUpdate.Count; ti++)
+        {
+            var trap = trapsToUpdate[ti];
+            var coord = HexCoord.FromIndex(trap.Coordinate, oldWidth);
+            int newCol = coord.Col + offsetCol;
+            int newRow = coord.Row + offsetRow;
+            if (newCol >= 0 && newCol < newWidth && newRow >= 0 && newRow < newHeight)
+            {
+                trap.Coordinate = (short)(newRow * newWidth + newCol);
+                _mapData.Traps.Add(trap);
+            }
+        }
+
+        for (int i = _mapData.Armies.Count - 1; i >= 0; i--)
+        {
+            var army = _mapData.Armies[i];
+            var coord = HexCoord.FromIndex(army.Coordinate, oldWidth);
+            int newCol = coord.Col + offsetCol;
+            int newRow = coord.Row + offsetRow;
+            if (newCol < 0 || newCol >= newWidth || newRow < 0 || newRow >= newHeight)
+                _mapData.Armies.RemoveAt(i);
+            else
+                army.Coordinate = (short)(newRow * newWidth + newCol);
+        }
+
+        _mapData.Header.MapLength = newWidth;
+        _mapData.Header.MapWidth = newHeight;
 
         MarkModified();
         string dirText = direction switch { "up" => "向上", "down" => "向下", "left" => "向左", "right" => "向右", _ => direction };
         string actionText = amount > 0 ? "扩展" : "收缩";
         return ModifierResult.Ok($"地图已调整：{dirText} 方向 {actionText} {Math.Abs(amount)} 格，新尺寸 {newWidth}x{newHeight}");
+    }
+
+    #endregion
+
+    #region T键 - 连接建筑
+
+    public ModifierResult ConnectBuildings()
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+
+        var buildingCoords = new List<(int col, int row)>();
+        foreach (var building in _mapData.Buildings)
+        {
+            if (building.BuildingType >= 11 && building.BuildingType <= 15)
+            {
+                int col = building.Coordinate % _mapData.MapWidth;
+                int row = building.Coordinate / _mapData.MapWidth;
+                if (col >= 0 && col < _mapData.MapWidth && row >= 0 && row < _mapData.MapHeight)
+                    buildingCoords.Add((col, row));
+            }
+        }
+
+        if (buildingCoords.Count < 2)
+            return ModifierResult.Ok($"找到 {buildingCoords.Count} 个目标建筑，需要至少2个才能连接");
+
+        int totalModified = 0;
+        var modifiedHexes = new HashSet<(int, int)>();
+
+        for (int i = 0; i < buildingCoords.Count - 1; i++)
+        {
+            var start = buildingCoords[i];
+            var target = buildingCoords[i + 1];
+            var path = FindPathWithAStar(start.col, start.row, target.col, target.row);
+
+            if (path == null || path.Count == 0) continue;
+
+            for (int pathIndex = 1; pathIndex < path.Count - 1; pathIndex++)
+            {
+                var (pc, pr) = path[pathIndex];
+                if (pc < 0 || pc >= _mapData.MapWidth || pr < 0 || pr >= _mapData.MapHeight)
+                    continue;
+
+                ref var terrain = ref _mapData.GetTerrainRef(pc, pr);
+                if (terrain.TileType1 != 0 && terrain.TileType1 != 1)
+                {
+                    terrain.TileType1 = 0;
+                    terrain.DecorationType1 = 0;
+                    totalModified++;
+                    modifiedHexes.Add((pc, pr));
+                }
+            }
+        }
+
+        if (modifiedHexes.Count > 0) MarkModified();
+        return ModifierResult.Ok($"建筑连接完成：共修改了 {totalModified} 个格子");
+    }
+
+    private List<(int col, int row)>? FindPathWithAStar(int startCol, int startRow, int targetCol, int targetRow)
+    {
+        if (_mapData == null) return null;
+        if (startCol == targetCol && startRow == targetRow)
+            return new List<(int, int)> { (startCol, startRow) };
+
+        var openSet = new PriorityQueue<(int col, int row), double>();
+        var closedSet = new HashSet<(int, int)>();
+        var cameFrom = new Dictionary<(int, int), (int, int)>();
+        var gScore = new Dictionary<(int, int), double>();
+
+        var start = (startCol, startRow);
+        gScore[start] = 0;
+        openSet.Enqueue(start, HexHeuristic(startCol, startRow, targetCol, targetRow));
+
+        int maxIterations = _mapData.MapWidth * _mapData.MapHeight * 2;
+        int iterations = 0;
+
+        while (openSet.Count > 0)
+        {
+            iterations++;
+            if (iterations > maxIterations) return null;
+
+            var current = openSet.Dequeue();
+            if (current == (targetCol, targetRow))
+                return ReconstructPath(cameFrom, current);
+
+            if (closedSet.Contains(current)) continue;
+            closedSet.Add(current);
+
+            foreach (var (nc, nr) in GetHexNeighbors(current.col, current.row))
+            {
+                if (nc < 0 || nc >= _mapData.MapWidth || nr < 0 || nr >= _mapData.MapHeight)
+                    continue;
+                var neighbor = (nc, nr);
+                if (closedSet.Contains(neighbor)) continue;
+
+                double moveCost = 1.0;
+                ref var terrain = ref _mapData.GetTerrainRef(nc, nr);
+                if (terrain.TileType1 != 0 && terrain.TileType1 != 1)
+                    moveCost = 5.0;
+
+                double tentativeG = gScore[current] + moveCost;
+                if (!gScore.TryGetValue(neighbor, out double existingG) || tentativeG < existingG)
+                {
+                    cameFrom[neighbor] = current;
+                    gScore[neighbor] = tentativeG;
+                    openSet.Enqueue(neighbor, tentativeG + HexHeuristic(nc, nr, targetCol, targetRow));
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static double HexHeuristic(int col1, int row1, int col2, int row2)
+    {
+        return Math.Abs(col1 - col2) + Math.Abs(row1 - row2);
+    }
+
+    private static List<(int col, int row)> ReconstructPath(Dictionary<(int, int), (int, int)> cameFrom, (int, int) current)
+    {
+        var path = new List<(int, int)> { current };
+        while (cameFrom.TryGetValue(current, out current))
+            path.Add(current);
+        path.Reverse();
+        return path;
     }
 
     #endregion

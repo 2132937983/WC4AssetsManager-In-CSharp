@@ -127,6 +127,12 @@ public static class SettingTxtParser
             case "BuidingOnSea":
             case "BuildingOnSea": ctx.BuildingConfig.BuildingOnSea = ParseIntList(value); break;
             case "BuildingNeedDirection": ctx.BuildingConfig.BuildingNeedDirection = ParseIntList(value); break;
+            case "OwnNameBuildingRandomConfig": ctx.BuildingConfig.OwnNameBuildingRandomConfig = ParseBuildingNameRandomConfig(value); break;
+            case "NotOwnNameBuildingRandomConfig": ctx.BuildingConfig.NotOwnNameBuildingRandomConfig = ParseBuildingNameRandomConfig(value); break;
+            default:
+                if (key.StartsWith("BuildingRandomCharacter["))
+                    ParseBuildingRandomParameter(key, value, ctx);
+                break;
         }
     }
 
@@ -194,6 +200,129 @@ public static class SettingTxtParser
             }
         }
         catch { /* 忽略解析错误 */ }
+    }
+
+    private static void ParseBuildingRandomParameter(string key, string value, SectionContext ctx)
+    {
+        try
+        {
+            var inner = key.Substring(key.IndexOf('[') + 1);
+            inner = inner.Substring(0, inner.IndexOf(']'));
+            if (!int.TryParse(inner, out int index)) return;
+
+            var parameters = ctx.BuildingConfig!.BuildingRandomParameters;
+            while (parameters.Count <= index)
+                parameters.Add([]);
+
+            if (!value.StartsWith('[') || !value.EndsWith(']')) return;
+            value = value[1..^1];
+
+            var tupleList = parameters[index];
+            int depth = 0;
+            string current = "";
+            foreach (char c in value)
+            {
+                if (c == '(') { depth++; current += c; }
+                else if (c == ')')
+                {
+                    depth--;
+                    current += c;
+                    if (depth == 0)
+                    {
+                        var trimmed = current.Trim();
+                        if (trimmed.StartsWith('(') && trimmed.EndsWith(')'))
+                        {
+                            var nums = trimmed[1..^1].Split(',');
+                            if (nums.Length >= 2 && int.TryParse(nums[0].Trim(), out int min) && int.TryParse(nums[1].Trim(), out int max))
+                                tupleList.Add((min, max));
+                        }
+                        current = "";
+                    }
+                }
+                else if (depth > 0) current += c;
+            }
+        }
+        catch { }
+    }
+
+    private static BuildingNameRandomConfig ParseBuildingNameRandomConfig(string value)
+    {
+        var result = new BuildingNameRandomConfig();
+        try
+        {
+            if (!value.StartsWith('[') || !value.EndsWith(']')) return result;
+            value = value[1..^1].Trim();
+
+            int depth = 0;
+            var elements = new List<string>();
+            string current = "";
+            foreach (char c in value)
+            {
+                if (c == '[') { depth++; current += c; }
+                else if (c == ']')
+                {
+                    depth--;
+                    current += c;
+                    if (depth == 0)
+                    {
+                        var trimmed = current.TrimStart(',', ' ');
+                        if (!string.IsNullOrEmpty(trimmed)) elements.Add(trimmed);
+                        current = "";
+                    }
+                }
+                else if (c == '(' && depth == 0)
+                {
+                    if (!string.IsNullOrEmpty(current.Trim(',', ' ')))
+                        elements.Add(current.Trim(',', ' '));
+                    current = "" + c;
+                    depth = 1;
+                    bool foundClose = false;
+                    continue;
+                }
+                else if (c == ')' && depth == 1)
+                {
+                    current += c;
+                    elements.Add(current.Trim());
+                    current = "";
+                    depth = 0;
+                    continue;
+                }
+                else
+                {
+                    current += c;
+                }
+            }
+
+            for (int i = 0; i < elements.Count; i++)
+            {
+                var elem = elements[i].Trim();
+                if (elem.StartsWith('(') && elem.EndsWith(')') && i == 0)
+                {
+                    var nums = elem[1..^1].Split(',');
+                    if (nums.Length >= 2 && int.TryParse(nums[0].Trim(), out int min) && int.TryParse(nums[1].Trim(), out int max))
+                        result.DefaultRange = (min, max);
+                }
+                else if (elem.StartsWith('[') && elem.EndsWith(']'))
+                {
+                    var inner = elem[1..^1].Trim();
+                    if (inner.StartsWith('(') && inner.Contains(')'))
+                    {
+                        int closeParen = inner.IndexOf(')');
+                        var rangePart = inner.Substring(0, closeParen + 1);
+                        var rest = inner.Substring(closeParen + 1).Trim(',', ' ');
+
+                        var rangeNums = rangePart[1..^1].Split(',');
+                        if (rangeNums.Length >= 2 && int.TryParse(rangeNums[0].Trim(), out int rMin) && int.TryParse(rangeNums[1].Trim(), out int rMax))
+                        {
+                            if (int.TryParse(rest.Trim(), out int bType))
+                                result.Rules.Add(((rMin, rMax), bType));
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+        return result;
     }
 
     private static List<int> ParseIntList(string value)
@@ -321,12 +450,21 @@ public class SettingTxtData
 public class BuildingConfig
 {
     public List<int> BuildingRandomCharacter { get; set; } = [];
+    public List<List<(int Min, int Max)>> BuildingRandomParameters { get; set; } = [];
+    public BuildingNameRandomConfig OwnNameBuildingRandomConfig { get; set; } = new();
+    public BuildingNameRandomConfig NotOwnNameBuildingRandomConfig { get; set; } = new();
     public List<int> LowStrengthBuilding { get; set; } = [];
     public List<int> MediumStrengthBuilding { get; set; } = [];
     public List<int> HighStrengthBuilding { get; set; } = [];
     public List<int> CommonBuilding { get; set; } = [];
     public List<int> BuildingOnSea { get; set; } = [];
     public List<int> BuildingNeedDirection { get; set; } = [];
+}
+
+public class BuildingNameRandomConfig
+{
+    public (int Min, int Max) DefaultRange { get; set; }
+    public List<((int Min, int Max) Range, int BuildingType)> Rules { get; set; } = [];
 }
 
 public class ArmyEditConfig
@@ -362,6 +500,19 @@ public class WordCloudConfig
 }
 
 public class EventEditConfig { }
-public class AirForceEditConfig { }
+public class AirForceEditConfig
+{
+    public List<ConfigKeyValue> AirForceList { get; set; } = [];
+    public List<ConfigKeyValue> AirForcePowerList { get; set; } = [];
+}
 public class CaseEditConfig { }
-public class WeatherEditConfig { }
+public class WeatherEditConfig
+{
+    public List<ConfigKeyValue> WeatherList { get; set; } = [];
+}
+
+public class ConfigKeyValue
+{
+    public string Name { get; set; } = "";
+    public int Value { get; set; }
+}

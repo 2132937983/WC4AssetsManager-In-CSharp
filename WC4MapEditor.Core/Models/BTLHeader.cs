@@ -8,8 +8,8 @@ public class BTLHeader
     public int MapNumber { get; set; }
     public int MapClipX { get; set; }
     public int MapClipY { get; set; }
-    public int MapLength { get; set; }
-    public int MapWidth { get; set; }
+    public int MapLength { get; set; } // 用作地图列数,也就是地图宽
+    public int MapWidth { get; set; } // 用作地图行数,也就是地图高
     public int ArmyCount { get; set; }
     public int BuildingCount { get; set; }
     public int TroopCount { get; set; }

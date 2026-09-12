@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 
 namespace WC4MapEditor.Views.Dialogs;
 
@@ -240,7 +241,41 @@ public sealed class SingleInputDialog : IDisposable
             rootPanel.Children.Remove(_overlay);
         }
 
+        RestoreOwnerFocus();
+
+        _owner.Dispatcher.BeginInvoke(() =>
+        {
+            RestoreOwnerFocus();
+        }, System.Windows.Threading.DispatcherPriority.Input);
+
         _tcs?.SetResult(result);
+    }
+
+    private void RestoreOwnerFocus()
+    {
+        var skElement = FindVisualChild<SkiaSharp.Views.WPF.SKElement>(_owner);
+        if (skElement != null)
+        {
+            Keyboard.Focus(skElement);
+        }
+        else
+        {
+            _owner.Focus();
+        }
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T result)
+                return result;
+            var descendant = FindVisualChild<T>(child);
+            if (descendant != null)
+                return descendant;
+        }
+        return null;
     }
 
     public void Dispose()

@@ -538,5 +538,14 @@
     "ArmoredMod": 10,
     "ArtilleryMod": 10,
     "Logo": 10
+  },
+  {
+    "Id": 61,
+    "Name": "测试国家",
+    "Camp": 0,
+    "InfantryMod": 0,
+    "ArmoredMod": 0,
+    "ArtilleryMod": 0,
+    "Logo": 0
   }
 ]

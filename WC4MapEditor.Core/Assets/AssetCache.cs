@@ -220,6 +220,19 @@ public sealed class AssetCache
         finally { _lock.ExitReadLock(); }
     }
 
+    /// <summary>
+    /// 返回全部缓存条目，按最后修改时间降序排列（最新的在前）。
+    /// </summary>
+    public IReadOnlyList<AssetEntry> GetAllSortedByModifiedTime()
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            return _entries.OrderByDescending(e => e.LastModifiedUtc).ToArray();
+        }
+        finally { _lock.ExitReadLock(); }
+    }
+
     /// <summary>读取指定条目的字节内容。</summary>
     public byte[] ReadBytes(AssetEntry entry)
     {

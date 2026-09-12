@@ -8,7 +8,7 @@ namespace WC4MapEditor.Models;
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct Building
 {
-    public short Coordinate;
+    public int Coordinate;
     public short Name;
     public byte BuildingType;
     public byte Appearance;
@@ -43,7 +43,7 @@ public struct Building
 
         return new Building
         {
-            Coordinate = BitConverter.ToInt16(data[offset..]),
+            Coordinate = BitConverter.ToUInt16(data[offset..]),
             Name = BitConverter.ToInt16(data[(offset + 2)..]),
             BuildingType = data[offset + 4],
             Appearance = data[offset + 5],
@@ -72,7 +72,7 @@ public struct Building
     /// </summary>
     public void ToBytes(Span<byte> data, int offset)
     {
-        BitConverter.TryWriteBytes(data[offset..], Coordinate);
+        BitConverter.TryWriteBytes(data[offset..], (ushort)(Coordinate & 0xFFFF));
         BitConverter.TryWriteBytes(data[(offset + 2)..], Name);
         data[offset + 4] = BuildingType;
         data[offset + 5] = Appearance;
@@ -98,10 +98,10 @@ public struct Building
     /// <summary>
     /// 创建默认建筑
     /// </summary>
-    public static Building CreateDefault(short coord) => new Building
+    public static Building CreateDefault(int coord) => new Building
     {
         Coordinate = coord,
-        Name = 0,
+        Name = -1,
         BuildingType = 0,
         Appearance = 0,
         LandmarkBuilding = 0,

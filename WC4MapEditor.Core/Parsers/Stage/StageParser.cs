@@ -8,7 +8,7 @@ namespace WC4MapEditor.Parsers.Stage;
 
 /// <summary>
 /// 战役关卡解析器。
-/// 使用 BTL 模块组合解析，支持懒加载。
+/// 纯文件 I/O 工具，直接操作 MapData，不持有运行时数据。
 /// </summary>
 public class StageParser
 {
@@ -17,7 +17,6 @@ public class StageParser
     public BTLHeader Header { get; private set; } = null!;
     public int BtlVersion => Header?.BtlVersion ?? 0;
 
-    // 解析结果
     public List<Legion> Legions { get; } = new();
     public List<Terrain> Terrains { get; } = new();
     public List<Province> Provinces { get; } = new();
@@ -37,7 +36,6 @@ public class StageParser
     public List<StrategicConstruction> StrategyConstructions { get; } = new();
     public List<AirSupport> AirSupports { get; } = new();
 
-    // 懒加载标记
     private bool _legionsLoaded;
     private bool _terrainsLoaded;
     private bool _provincesLoaded;
@@ -80,10 +78,7 @@ public class StageParser
             HexFilePath = filePath;
             Debug.WriteLine($"[StageParser] 成功加载: {filePath}, 大小: {HexData.Length} 字节");
 
-            // 重置加载标记
             ResetLoadFlags();
-
-            // 解析文件头
             GetHeaderData();
             return true;
         }
@@ -398,6 +393,174 @@ public class StageParser
         return offsets.dataEnd;
     }
 
+    #region 直接操作 MapData 的静态方法 - 消除数据重复
+
+    /// <summary>
+    /// 从文件加载所有数据到 MapData，Parser 不持有数据副本。
+    /// </summary>
+    public static MapData LoadToMapData(string filePath)
+    {
+        var parser = new StageParser(filePath);
+        var mapData = new MapData();
+        PopulateMapData(parser, mapData);
+        mapData.FilePath = filePath;
+        return mapData;
+    }
+
+    /// <summary>
+    /// 从 Parser 填充 MapData，Parser 用完即弃。
+    /// </summary>
+    public static void PopulateMapData(StageParser parser, MapData mapData)
+    {
+        mapData.Header = parser.GetHeaderData();
+        mapData.MapWidth = parser.Header.MapLength;
+        mapData.MapHeight = parser.Header.MapWidth;
+        mapData.InitializeTerrain(mapData.MapWidth, mapData.MapHeight);
+
+        var terrainData = parser.GetTerrainData();
+        for (int i = 0; i < Math.Min(terrainData.Count, mapData.TerrainCount); i++)
+            mapData.SetTerrain(i, terrainData[i].ToTerrainData());
+
+        var provinceData = parser.GetProvinceData();
+        for (int i = 0; i < Math.Min(provinceData.Count, mapData.TerrainCount); i++)
+            mapData.SetProvince(i, provinceData[i]);
+
+        mapData.Legions = new System.Collections.ObjectModel.ObservableCollection<Legion>(parser.GetLegionData());
+        mapData.Belongs = parser.GetBelongData();
+        mapData.Buildings = new System.Collections.ObjectModel.ObservableCollection<Building>(parser.GetBuildingData());
+
+        var armies = parser.GetArmyData();
+        mapData.Armies = new System.Collections.ObjectModel.ObservableCollection<Army>(armies);
+        mapData.ArmiesV3 = new System.Collections.ObjectModel.ObservableCollection<Army_3>(parser.ArmiesV3);
+
+        mapData.Traps = new System.Collections.ObjectModel.ObservableCollection<Trap>(parser.GetTrapData());
+        mapData.Cases = new System.Collections.ObjectModel.ObservableCollection<MapCase>(parser.GetCaseData());
+        mapData.Weathers = new System.Collections.ObjectModel.ObservableCollection<Weather>(parser.GetWeatherData());
+        mapData.Events = new System.Collections.ObjectModel.ObservableCollection<MapEvent>(parser.GetEventData());
+
+        var reinforcements = parser.GetReinforcementData();
+        mapData.Reinforcements = new System.Collections.ObjectModel.ObservableCollection<Reinforcement>(reinforcements);
+        mapData.ReinforcementsV3 = new System.Collections.ObjectModel.ObservableCollection<Reinforcement_3>(parser.ReinforcementsV3);
+
+        mapData.AirForces = new System.Collections.ObjectModel.ObservableCollection<AirForce>(parser.GetAirForceData());
+        mapData.UnitPlaces = new System.Collections.ObjectModel.ObservableCollection<UnitPlacement>(parser.GetUnitPlaceData());
+        mapData.Capitals = new System.Collections.ObjectModel.ObservableCollection<Capital>(parser.GetCapitalData());
+        mapData.StrategyConstructions = new System.Collections.ObjectModel.ObservableCollection<StrategicConstruction>(parser.GetStrategyConstructionData());
+        mapData.AirSupports = new System.Collections.ObjectModel.ObservableCollection<AirSupport>(parser.GetAirSupportData());
+    }
+
+    /// <summary>
+    /// 创建新的战役 MapData。
+    /// </summary>
+    public static MapData CreateNewMapData(int mapWidth, int mapHeight, int numLegions)
+    {
+        int totalTiles = mapWidth * mapHeight;
+        var mapData = new MapData();
+        mapData.Header = new BTLHeader
+        {
+            BtlVersion = 1,
+            MapNumber = 0,
+            MapClipX = 0,
+            MapClipY = 0,
+            MapLength = mapWidth,
+            MapWidth = mapHeight,
+            ArmyCount = numLegions,
+            BuildingCount = 0,
+            TroopCount = 0,
+            PlanCount = 0,
+            EventCount = 0,
+            WeatherCount = 0,
+            VictoryCondition = 0,
+            MinTurns = 50,
+            MaxTurns = 50,
+            ReinforcementCount = 0,
+            AirRaidCount = 0,
+            TrapCount = 0,
+            StrategyCount = 0,
+            AirSupportCount = 0,
+            PlacementA = 0,
+            PlacementB = 0,
+            ConqueredFlagPosition = numLegions,
+            Unknown4 = 0,
+            SelectableTileCount = totalTiles,
+            AccumulatedEconomy = 0,
+            AccumulatedIndustry = 0,
+            AccumulatedTech = 0
+        };
+
+        mapData.MapWidth = mapWidth;
+        mapData.MapHeight = mapHeight;
+        mapData.InitializeTerrain(mapWidth, mapHeight);
+
+        for (int i = 0; i < numLegions; i++)
+            mapData.Legions.Add(Legion.CreateDefault(i + 1));
+
+        for (int i = 0; i < totalTiles; i++)
+            mapData.SetProvince(i, Province.Create(0xFFFF));
+
+        mapData.Belongs = new List<string>();
+        for (int i = 0; i < totalTiles; i++)
+            mapData.Belongs.Add((i % numLegions).ToString("X2"));
+
+        for (int i = 0; i < numLegions; i++)
+            mapData.Capitals.Add(new Capital { Coordinate = i * (totalTiles / Math.Max(numLegions, 1)) });
+
+        mapData.FilePath = string.Empty;
+        return mapData;
+    }
+
+    /// <summary>
+    /// 从 MapData 保存到文件，不经过 Parser 数据副本。
+    /// </summary>
+    public static bool SaveFromMapData(MapData mapData, string outputPath)
+    {
+        if (mapData.Header == null) { Debug.WriteLine("[StageParser] 错误：头部数据尚未初始化"); return false; }
+
+        var header = mapData.Header;
+        header.ArmyCount = mapData.Legions.Count;
+        header.BuildingCount = mapData.Buildings.Count;
+        header.TroopCount = header.BtlVersion >= 3 ? mapData.ArmiesV3.Count : mapData.Armies.Count;
+        header.PlanCount = mapData.Cases.Count;
+        header.EventCount = mapData.Events.Count;
+        header.WeatherCount = mapData.Weathers.Count;
+        header.ReinforcementCount = header.BtlVersion >= 3 ? mapData.ReinforcementsV3.Count : mapData.Reinforcements.Count;
+        header.AirRaidCount = mapData.AirForces.Count;
+        header.TrapCount = mapData.Traps.Count;
+        header.StrategyCount = mapData.StrategyConstructions.Count;
+        header.AirSupportCount = mapData.AirSupports.Count;
+        if (mapData.TerrainCount != header.SelectableTileCount) header.SelectableTileCount = mapData.TerrainCount;
+        if (mapData.UnitPlaces.Count != header.PlacementA + header.PlacementB) { header.PlacementA = mapData.UnitPlaces.Count; header.PlacementB = 0; }
+        if (mapData.Capitals.Count != header.ConqueredFlagPosition) header.ConqueredFlagPosition = mapData.Capitals.Count;
+
+        var resultData = new List<byte>();
+        resultData.AddRange(header.ToBytes());
+        foreach (var legion in mapData.Legions) { var buf = new byte[300]; legion.ToBytes(buf, 0); resultData.AddRange(buf); }
+        resultData.AddRange(mapData.TerrainsToBytes());
+        resultData.AddRange(mapData.ProvincesToBytes());
+        foreach (var belong in mapData.Belongs) resultData.Add(byte.Parse(belong, System.Globalization.NumberStyles.HexNumber));
+        foreach (var building in mapData.Buildings) { var buf = new byte[32]; building.ToBytes(buf, 0); resultData.AddRange(buf); }
+        if (header.BtlVersion >= 3) { foreach (var t in mapData.ArmiesV3) { var buf = new byte[64]; t.ToBytes(buf, 0); resultData.AddRange(buf); } }
+        else { foreach (var t in mapData.Armies) { var buf = new byte[48]; t.ToBytes(buf, 0); resultData.AddRange(buf); } }
+        foreach (var trap in mapData.Traps) { var buf = new byte[12]; trap.ToBytes(buf, 0); resultData.AddRange(buf); }
+        foreach (var c in mapData.Cases) { var buf = new byte[16]; c.ToBytes(buf, 0); resultData.AddRange(buf); }
+        foreach (var w in mapData.Weathers) { var buf = new byte[16]; w.ToBytes(buf, 0); resultData.AddRange(buf); }
+        foreach (var ev in mapData.Events) { var buf = new byte[44]; ev.ToBytes(buf, 0); resultData.AddRange(buf); }
+        if (header.BtlVersion >= 3) { foreach (var r in mapData.ReinforcementsV3) { var buf = new byte[104]; r.ToBytes(buf, 0); resultData.AddRange(buf); } }
+        else { foreach (var r in mapData.Reinforcements) { var buf = new byte[80]; r.ToBytes(buf, 0); resultData.AddRange(buf); } }
+        foreach (var af in mapData.AirForces) { var buf = new byte[20]; af.ToBytes(buf, 0); resultData.AddRange(buf); }
+        foreach (var up in mapData.UnitPlaces) { var buf = new byte[8]; up.ToBytes(buf, 0); resultData.AddRange(buf); }
+        foreach (var cap in mapData.Capitals) { var buf = new byte[4]; cap.ToBytes(buf, 0); resultData.AddRange(buf); }
+        foreach (var sc in mapData.StrategyConstructions) { var buf = new byte[16]; sc.ToBytes(buf, 0); resultData.AddRange(buf); }
+        foreach (var asup in mapData.AirSupports) { var buf = new byte[16]; asup.ToBytes(buf, 0); resultData.AddRange(buf); }
+
+        try { File.WriteAllBytes(outputPath, resultData.ToArray()); Debug.WriteLine($"[StageParser] 成功保存到: {outputPath} ({resultData.Count} 字节)"); return true; }
+        catch (Exception ex) { Debug.WriteLine($"[StageParser] 保存失败: {ex.Message}"); return false; }
+    }
+
+    #endregion
+
+    #region 兼容旧接口 - 供 BTLAnalyzer / CLI 使用
+
     public bool CreateNew(int mapWidth, int mapHeight, int numLegions)
     {
         try
@@ -409,7 +572,6 @@ public class StageParser
                 MapNumber = 0,
                 MapClipX = 0,
                 MapClipY = 0,
-                // 注意：与VB版本保持一致，MapLength存宽度，MapWidth存高度
                 MapLength = mapWidth,
                 MapWidth = mapHeight,
                 ArmyCount = numLegions,
@@ -444,11 +606,11 @@ public class StageParser
             for (int i = 0; i < numLegions; i++)
                 Legions.Add(Legion.CreateDefault(i + 1));
             for (int i = 0; i < totalTiles; i++)
-                Terrains.Add(Terrain.CreateDefault());
+                Terrains.Add(new Terrain { TileType1 = 0, TileType2 = 0x3F, DecorationType2 = 0xFF, TileType3 = 0x3F, DecorationType3 = 0xFF });
             for (int i = 0; i < totalTiles; i++)
-                Provinces.Add(new Province());
+                Provinces.Add(Province.Create(0xFFFF));
             for (int i = 0; i < totalTiles; i++)
-                Belongs.Add("00");
+                Belongs.Add((i % numLegions).ToString("X2"));
             for (int i = 0; i < numLegions; i++)
                 Capitals.Add(new Capital { Coordinate = i * (totalTiles / Math.Max(numLegions, 1)) });
 
@@ -514,4 +676,6 @@ public class StageParser
         try { File.WriteAllBytes(outputPath, resultData.ToArray()); Debug.WriteLine($"[StageParser] 成功保存到: {outputPath} ({resultData.Count} 字节)"); return true; }
         catch (Exception ex) { Debug.WriteLine($"[StageParser] 保存失败: {ex.Message}"); return false; }
     }
+
+    #endregion
 }

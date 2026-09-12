@@ -29,6 +29,8 @@ public partial class BeginScene : UserControl
     private Button _newMapButton = null!;
     private Button _assetButton = null!;
     private Button _settingsButton = null!;
+    private Button _generalButton = null!;
+    private Button _countryButton = null!;
     private Button _checkDataButton = null!;
 
     private Grid _campaignGroup = null!;
@@ -197,6 +199,8 @@ public partial class BeginScene : UserControl
         _mapGroup = CreateButtonGroup(_mapButton, _newMapButton);
 
         _assetButton = CreateNavButton("资源管理器", AssetButton_Click);
+        _generalButton = CreateNavButton("将领编辑", GeneralButton_Click);
+        _countryButton = CreateNavButton("国家编辑", CountryButton_Click);
         _checkDataButton = CreateNavButton("检查数据", CheckDataButton_Click);
         _settingsButton = CreateNavButton(ConfigManager.Instance.GetText("SettingsButtonText", "设置"), SettingsButton_Click);
 
@@ -204,6 +208,8 @@ public partial class BeginScene : UserControl
         _navPanel.Children.Add(_conquestGroup);
         _navPanel.Children.Add(_mapGroup);
         _navPanel.Children.Add(_assetButton);
+        _navPanel.Children.Add(_generalButton);
+        _navPanel.Children.Add(_countryButton);
         _navPanel.Children.Add(_checkDataButton);
         _navPanel.Children.Add(_settingsButton);
 
@@ -806,6 +812,16 @@ public partial class BeginScene : UserControl
     private void AssetButton_Click(object sender, RoutedEventArgs e)
     {
         var scene = new AssetBrowserScene(_window);
+        _window.SetCurrentScene(scene);
+    }
+    private void GeneralButton_Click(object sender, RoutedEventArgs e)
+    {
+        var scene = new GeneralEditScene(_window);
+        _window.SetCurrentScene(scene);
+    }
+    private void CountryButton_Click(object sender, RoutedEventArgs e)
+    {
+        var scene = new CountryEditScene(_window);
         _window.SetCurrentScene(scene);
     }
     private void CheckDataButton_Click(object sender, RoutedEventArgs e) { }

@@ -6,6 +6,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>WC4MapEditor.Core</RootNamespace>
     <AssemblyName>WC4MapEditor.Core</AssemblyName>
+    <NoWarn>NU1701</NoWarn>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.0-beta5.25277.114" />
+    <PackageReference Include="SkiaSharp" Version="3.119.2" />
+  </ItemGroup>
 
 </Project>

@@ -59,7 +59,7 @@ public sealed class HexInfoService : IHexInfoProvider
             LegionSection = BuildLegionSection(legion),
             ReinforcementSection = BuildReinforcementSection(reinforcement),
             TrapSection = BuildTrapSection(trap),
-            BelongSection = BuildBelongSection(province)
+            BelongSection = BuildBelongSection(_mapData.GetBelongValue(col, row))
         };
     }
 
@@ -124,8 +124,7 @@ public sealed class HexInfoService : IHexInfoProvider
             Title = "省份信息",
             Items = new List<(string, string)>
             {
-                ("省份", province.CountryId > 0 ? $"{province.CountryId}" : "-"),
-                ("归属", province.CountryId > 0 ? $"0x{province.CountryId:X2}" : "-")
+                ("省份值", province.ProvinceValue > 0 && province.ProvinceValue != 0xFFFF ? $"{province.ProvinceValue}" : "-")
             }
         };
     }
@@ -372,14 +371,14 @@ public sealed class HexInfoService : IHexInfoProvider
         };
     }
 
-    private static HexInfoSection BuildBelongSection(Province province)
+    private static HexInfoSection BuildBelongSection(int belongValue)
     {
         return new HexInfoSection
         {
             Title = "归属信息",
             Items = new List<(string, string)>
             {
-                ("归属", province.CountryId > 0 ? $"0x{province.CountryId:X2}" : "-")
+                ("归属", belongValue >= 0 && belongValue != 0xFF ? $"0x{belongValue:X2}" : "-")
             }
         };
     }

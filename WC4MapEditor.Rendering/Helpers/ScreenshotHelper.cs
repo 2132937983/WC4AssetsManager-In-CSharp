@@ -82,6 +82,12 @@ public class ScreenshotHelper : IDisposable
             Debug.WriteLine("[ScreenshotHelper] Target: " + targetWidth + "x" + targetHeight + ", Render: " + renderWidth + "x" + renderHeight);
 
             _screenshotRender ??= new BackGroundRender();
+            // 设置地形渲染器，确保地形纹理能被渲染
+            if (_screenshotRender.GetLandTerrainsRender() == null)
+            {
+                var landTerrainsRender = new LandTerrainsRender();
+                _screenshotRender.SetLandTerrainsRender(landTerrainsRender);
+            }
 
             using var bitmap = new SKBitmap(new SKImageInfo(targetWidth, targetHeight));
             using (var canvas = new SKCanvas(bitmap))
@@ -92,18 +98,10 @@ public class ScreenshotHelper : IDisposable
                 float scaleY = (float)(targetHeight / (double)renderHeight);
                 canvas.Scale(scaleX, scaleY);
 
-                _screenshotRender.ZoomLevel = renderZoomLevel;
-                _screenshotRender.OffsetX = HEX_WIDTH * renderZoomLevel / 2;
-                _screenshotRender.OffsetY = HEX_HEIGHT * renderZoomLevel / 2;
-                _screenshotRender.ViewportWidth = renderWidth;
-                _screenshotRender.ViewportHeight = renderHeight;
-                _screenshotRender.ShowGridLines = showGridLines;
                 _screenshotRender.ShowHexLabels = showHexLabels;
-                _screenshotRender.EnableBackgroundRender = true;
-                _screenshotRender.EnableTerrainsRender = true;
-                _screenshotRender.ShowLayer2 = showLayer2;
-
-                _screenshotRender.Render(canvas, mapData);
+                _screenshotRender.RenderFullMap(canvas, mapData,
+                    HEX_WIDTH * renderZoomLevel / 2, HEX_HEIGHT * renderZoomLevel / 2,
+                    renderZoomLevel, renderWidth, renderHeight, showLayer2, showGridLines);
             }
 
             progress?.Report((totalHexes, totalHexes, mapHeight - 1, mapWidth - 1, 50));

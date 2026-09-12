@@ -24,9 +24,17 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
     private BuildingRender? _buildingRender;
     private ArmyRender? _armyRender;
     private TrapRender? _trapRender;
+    private ReinforceRender? _reinforceRender;
+    private ReinforceRenderNew? _reinforceRenderNew;
+    private StrategicConstructionRender? _strategicConstructionRender;
+    private AirForceRender? _airForceRender;
+    private WeatherRender? _weatherRender;
+    private MapCaseRender? _mapCaseRender;
     private SelectionRender? _selectionRender;
     private OverlayRender? _overlayRender;
     private GeoRulerRender? _geoRulerRender;
+    private LegionDomainRender? _legionDomainRender;
+    private BelongFlagRender? _belongFlagRender;
 
     public bool IsAvailable => true;
     public string EngineName => "SkiaSharp";
@@ -34,18 +42,44 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
     public bool EnableTerrainsRender { get; set; } = true;
     public bool EnableBackgroundRender { get; set; } = true;
     public bool EnableProvinceRender { get; set; }
+    public bool EnableProvinceCapitalRender { get; set; } = true;
     public bool EnableBuildingRender { get; set; } = true;
     public bool EnableArmyRender { get; set; } = true;
     public bool EnableTrapRender { get; set; } = true;
     public bool EnableSelectionRender { get; set; } = true;
+    public bool EnableLegionDomainRender { get; set; }
+    public bool EnableBelongFlagRender { get; set; }
+    public bool EnableReinforceNewRender { get; set; }
+    public bool EnableStrategicConstructionRender { get; set; }
+    public bool EnableAirForceRender { get; set; }
+    public bool EnableWeatherRender { get; set; }
+    public bool EnableMapCaseRender { get; set; }
 
-    public GeoRulerRender? GeoRuler => _geoRulerRender;
+    public bool ShowBuildingNames
+    {
+        get => _buildingRender?.ShowBuildingNames ?? true;
+        set
+        {
+            if (_buildingRender != null)
+                _buildingRender.ShowBuildingNames = value;
+        }
+    }
+
+    public GeoRulerRender? GeoRuler
+    {
+        get => _geoRulerRender;
+        set
+        {
+            _geoRulerRender?.Dispose();
+            _geoRulerRender = value;
+        }
+    }
 
     private string _helpText = string.Empty;
     private string _modeName = string.Empty;
     private bool _showHelp = true;
     private bool _showModeName = true;
-    private bool _showLayer2;
+    private bool _showLayer2 = true;
 
     private SKBitmap? _viewLayerImage;
     private bool _viewLayerVisible;
@@ -179,6 +213,7 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
         _backgroundRender.ShowLayer2 = _showLayer2;
         _backgroundRender.ShowGridLines = _showHexBorders;
         _backgroundRender.CoastCacheUpdated += OnCoastCacheUpdated;
+        _provinceRender = new ProvinceRender();
         _selectionRender = new SelectionRender();
         _overlayRender = new OverlayRender
         {
@@ -188,6 +223,30 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
             ShowModeName = _showModeName
         };
         _geoRulerRender = new GeoRulerRender();
+        _legionDomainRender = new LegionDomainRender();
+        _belongFlagRender = new BelongFlagRender();
+    }
+
+    private void InitializeEntityRenderers(Camera camera, MapData mapData)
+    {
+        if (_buildingRender == null)
+            _buildingRender = new BuildingRender(camera, mapData);
+        if (_armyRender == null)
+            _armyRender = new ArmyRender(camera, mapData);
+        if (_trapRender == null)
+            _trapRender = new TrapRender(camera, mapData);
+        if (_reinforceRender == null)
+            _reinforceRender = new ReinforceRender(camera, mapData);
+        if (_reinforceRenderNew == null)
+            _reinforceRenderNew = new ReinforceRenderNew(camera, mapData);
+        if (_strategicConstructionRender == null)
+            _strategicConstructionRender = new StrategicConstructionRender(camera, mapData);
+        if (_airForceRender == null)
+            _airForceRender = new AirForceRender(camera, mapData);
+        if (_weatherRender == null)
+            _weatherRender = new WeatherRender(camera, mapData);
+        if (_mapCaseRender == null)
+            _mapCaseRender = new MapCaseRender(camera, mapData);
     }
 
     public void Resize(int width, int height)
@@ -205,6 +264,24 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
         _skElement.InvalidateVisual();
     }
 
+    public void PreloadBelongFlagAtlas(MapData mapData)
+    {
+        _belongFlagRender?.PreloadAtlas(mapData);
+    }
+
+    /// <summary>
+    /// 重新加载建筑城市名称（用于热重载）
+    /// </summary>
+    public void ReloadBuildingCityNames()
+    {
+        _buildingRender?.ReloadCityNames();
+    }
+
+    public void InitializeTacticalMapImageCache()
+    {
+        TacticalMapImageCache.Instance.Initialize();
+    }
+
     public void Render(SKCanvas canvas, MapData mapData, Camera camera)
     {
         if (canvas == null || mapData == null) return;
@@ -212,6 +289,7 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
         canvas.Clear(SKColors.Black);
 
         InitializeTerrainRenderers();
+        InitializeEntityRenderers(camera, mapData);
 
         if (EnableBackgroundRender && _backgroundRender != null)
         {
@@ -223,14 +301,82 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
 
         RenderViewLayer(canvas, camera);
 
-        if (EnableProvinceRender && _provinceRender != null)
+        if (_provinceRender != null)
         {
+            _provinceRender.EnableProvinceRender = EnableProvinceRender;
+            _provinceRender.EnableCapitalRender = EnableProvinceCapitalRender;
             _provinceRender.OffsetX = camera.OffsetX;
             _provinceRender.OffsetY = camera.OffsetY;
             _provinceRender.ZoomLevel = camera.ZoomLevel;
             _provinceRender.ViewportWidth = (int)camera.ViewportWidth;
             _provinceRender.ViewportHeight = (int)camera.ViewportHeight;
             _provinceRender.Render(canvas, mapData);
+        }
+
+        if (_legionDomainRender != null)
+        {
+            _legionDomainRender.EnableLegionDomainRender = EnableLegionDomainRender;
+            _legionDomainRender.OffsetX = camera.OffsetX;
+            _legionDomainRender.OffsetY = camera.OffsetY;
+            _legionDomainRender.ZoomLevel = camera.ZoomLevel;
+            _legionDomainRender.ViewportWidth = (int)camera.ViewportWidth;
+            _legionDomainRender.ViewportHeight = (int)camera.ViewportHeight;
+            _legionDomainRender.Render(canvas, mapData);
+        }
+
+        if (_belongFlagRender != null)
+        {
+            _belongFlagRender.EnableBelongFlagRender = EnableBelongFlagRender;
+            _belongFlagRender.OffsetX = camera.OffsetX;
+            _belongFlagRender.OffsetY = camera.OffsetY;
+            _belongFlagRender.ZoomLevel = camera.ZoomLevel;
+            _belongFlagRender.ViewportWidth = (int)camera.ViewportWidth;
+            _belongFlagRender.ViewportHeight = (int)camera.ViewportHeight;
+            _belongFlagRender.Render(canvas, mapData);
+        }
+
+        if (EnableBuildingRender && _buildingRender != null)
+        {
+            _buildingRender.Render(canvas, true);
+        }
+
+        if (EnableArmyRender && _armyRender != null)
+        {
+            _armyRender.Render(canvas);
+        }
+
+        if (EnableTrapRender && _trapRender != null)
+        {
+            _trapRender.Render(canvas);
+        }
+
+        if (EnableReinforceNewRender && _reinforceRenderNew != null)
+        {
+            _reinforceRenderNew.Render(canvas);
+        }
+        else if (EnableArmyRender && _reinforceRender != null)
+        {
+            _reinforceRender.Render(canvas);
+        }
+
+        if (EnableStrategicConstructionRender && _strategicConstructionRender != null)
+        {
+            _strategicConstructionRender.Render(canvas);
+        }
+
+        if (EnableAirForceRender && _airForceRender != null)
+        {
+            _airForceRender.Render(canvas);
+        }
+
+        if (EnableWeatherRender && _weatherRender != null)
+        {
+            _weatherRender.Render(canvas);
+        }
+
+        if (EnableMapCaseRender && _mapCaseRender != null)
+        {
+            _mapCaseRender.Render(canvas);
         }
 
         if (EnableSelectionRender && _selectionRender != null)
@@ -463,6 +609,11 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
         _backgroundRender?.InvalidateCache();
     }
 
+    public void InvalidateProvinceCache()
+    {
+        _provinceRender?.InvalidateCache();
+    }
+
     public void InvalidateCoastCache(MapData mapData)
     {
         _backgroundRender?.InvalidateCoastCache(mapData);
@@ -515,8 +666,16 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
         _buildingRender?.Dispose();
         _armyRender?.Dispose();
         _trapRender?.Dispose();
+        _reinforceRender?.Dispose();
+        _reinforceRenderNew?.Dispose();
+        _strategicConstructionRender?.Dispose();
+        _airForceRender?.Dispose();
+        _weatherRender?.Dispose();
+        _mapCaseRender?.Dispose();
         _selectionRender?.Dispose();
         _overlayRender?.Dispose();
         _geoRulerRender?.Dispose();
+        _legionDomainRender?.Dispose();
+        _belongFlagRender?.Dispose();
     }
 }

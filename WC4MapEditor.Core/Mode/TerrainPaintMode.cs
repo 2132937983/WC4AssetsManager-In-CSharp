@@ -1,3 +1,4 @@
+using WC4MapEditor.Core.Input;
 using WC4MapEditor.Core.Modifiers;
 using WC4MapEditor.Core.SceneManagement;
 using WC4MapEditor.Core.Selection;
@@ -16,6 +17,7 @@ public sealed class TerrainPaintMode : IModeHandler
     public string DisplayName => "地形绘制";
     public ModifierKind PrimaryModifierKind => ModifierKind.Terrain;
     public ModifierKind[] ModifierKinds => new[] { ModifierKind.Terrain };
+    public bool RequiresSelection => true;
 
     public string HelpText =>
         "H - 使用画笔\n" +
@@ -30,16 +32,21 @@ public sealed class TerrainPaintMode : IModeHandler
         "F4 - 创建海岸线\n" +
         "F5 - 处理海洋第二层\n" +
         "F6 - 导出HD文件\n" +
+        "F7 - 经纬度换算并导出\n" +
+        "F8 - 导出参考点配置\n" +
+        "F9 - 导入参考点配置\n" +
+        "Q - 添加经纬度参考点\n" +
         "T - 连接建筑（平地连接11-15类型建筑）\n" +
         "G - 按比例缩放地图（0.1-10.0）\n" +
-        "[, ] - 修改地形类型\n" +
-        "Shift+[, ] - 修改变体\n" +
+        "[, ] - 调整画笔大小\n" +
+        ",, . - 修改地形类型\n" +
+        "Shift+, . - 修改变体\n" +
         "Z - 切换编辑层\n" +
         "B - 显示/隐藏网格\n" +
         "N - 显示/隐藏标签\n" +
         "F1 - 显示/隐藏第二层\n" +
         "Ctrl+F1 - 显示/隐藏帮助文本\n" +
-        "I,J,K,L - 调整地图大小（无框选时）\n" +
+        "I,J,K,L - 调整地图大小（单选或无选区时）\n" +
         "框选操作：\n" +
         "  右键拖动 - 框选区域\n" +
         "  Shift+右键拖动 - 新增选区\n" +
@@ -48,12 +55,75 @@ public sealed class TerrainPaintMode : IModeHandler
         "  Enter - 确认移动\n" +
         "  O - 剔除海洋格子";
 
+    public IEnumerable<ModeKeyBinding> GetKeyBindings()
+    {
+        return new[]
+        {
+            new ModeKeyBinding("TP_BracketOpen", KeyCodes.OemOpenBrackets, KeyModifiers.None, "decrease_brush_size", "减小画笔大小"),
+            new ModeKeyBinding("TP_BracketClose", KeyCodes.OemCloseBrackets, KeyModifiers.None, "increase_brush_size", "增大画笔大小"),
+            new ModeKeyBinding("TP_Comma", KeyCodes.OemComma, KeyModifiers.None, "decrease_type", "上一个地形类型"),
+            new ModeKeyBinding("TP_Period", KeyCodes.OemPeriod, KeyModifiers.None, "increase_type", "下一个地形类型"),
+            new ModeKeyBinding("TP_ShiftComma", KeyCodes.OemComma, KeyModifiers.Shift, "decrease_decoration", "上一个变体"),
+            new ModeKeyBinding("TP_ShiftPeriod", KeyCodes.OemPeriod, KeyModifiers.Shift, "increase_decoration", "下一个变体"),
+            new ModeKeyBinding("TP_H", KeyCodes.H, KeyModifiers.None, "toggle_brush", "切换画笔"),
+            new ModeKeyBinding("TP_C", KeyCodes.C, KeyModifiers.None, "copy", "复制"),
+            new ModeKeyBinding("TP_V", KeyCodes.V, KeyModifiers.None, "paste", "粘贴"),
+            new ModeKeyBinding("TP_O", KeyCodes.O, KeyModifiers.None, "remove_ocean_from_selection", "剔除海洋格子"),
+            new ModeKeyBinding("TP_Y", KeyCodes.Y, KeyModifiers.None, "set_river", "绘制河流"),
+            new ModeKeyBinding("TP_P", KeyCodes.P, KeyModifiers.None, "recognize_terrain", "识别地形"),
+            new ModeKeyBinding("TP_U", KeyCodes.U, KeyModifiers.None, "greening", "绿化平地"),
+            new ModeKeyBinding("TP_R", KeyCodes.R, KeyModifiers.None, "randomize_flat", "随机平地变体"),
+            new ModeKeyBinding("TP_ShiftR", KeyCodes.R, KeyModifiers.Shift, "randomize_variant", "随机当前层变体"),
+            new ModeKeyBinding("TP_F", KeyCodes.F, KeyModifiers.None, "flood_fill", "洪水填充"),
+            new ModeKeyBinding("TP_F4", KeyCodes.F4, KeyModifiers.None, "create_coast", "创建海岸线"),
+            new ModeKeyBinding("TP_F5", KeyCodes.F5, KeyModifiers.None, "process_ocean_layer2", "处理海洋第二层"),
+            new ModeKeyBinding("TP_F6", KeyCodes.F6, KeyModifiers.None, "export_hd", "导出HD文件"),
+            new ModeKeyBinding("TP_T", KeyCodes.T, KeyModifiers.None, "connect_buildings", "连接建筑"),
+            new ModeKeyBinding("TP_G", KeyCodes.G, KeyModifiers.None, "scale_map", "按比例缩放地图"),
+            new ModeKeyBinding("TP_I", KeyCodes.I, KeyModifiers.None, "ijkl_action", "I键-调整地图/移动选区"),
+            new ModeKeyBinding("TP_J", KeyCodes.J, KeyModifiers.None, "jkl_action", "J键-调整地图/移动选区"),
+            new ModeKeyBinding("TP_K", KeyCodes.K, KeyModifiers.None, "kl_action", "K键-调整地图/移动选区"),
+            new ModeKeyBinding("TP_L", KeyCodes.L, KeyModifiers.None, "l_action", "L键-调整地图/移动选区"),
+            new ModeKeyBinding("TP_Enter", KeyCodes.Enter, KeyModifiers.None, "confirm_selection_move", "确认选区移动"),
+            new ModeKeyBinding("TP_Escape", KeyCodes.Escape, KeyModifiers.None, "cancel_selection_move", "取消选区移动"),
+            new ModeKeyBinding("TP_Z", KeyCodes.Z, KeyModifiers.None, "toggle_layer", "切换编辑层"),
+            new ModeKeyBinding("TP_B", KeyCodes.B, KeyModifiers.None, "toggle_hex_borders", "显示/隐藏网格"),
+            new ModeKeyBinding("TP_N", KeyCodes.N, KeyModifiers.None, "toggle_labels", "显示/隐藏标签"),
+            new ModeKeyBinding("TP_F1", KeyCodes.F1, KeyModifiers.None, "toggle_show_layer2", "切换第二层地形显示"),
+            new ModeKeyBinding("TP_CtrlF1", KeyCodes.F1, KeyModifiers.Ctrl, "toggle_help_text", "显示/隐藏帮助文本"),
+            new ModeKeyBinding("TP_CtrlZ", KeyCodes.Z, KeyModifiers.Ctrl, "undo", "撤销"),
+            new ModeKeyBinding("TP_CtrlY", KeyCodes.Y, KeyModifiers.Ctrl, "redo", "重做"),
+            new ModeKeyBinding("TP_Delete", KeyCodes.Delete, KeyModifiers.None, "remove", "删除"),
+            new ModeKeyBinding("TP_Q", KeyCodes.Q, KeyModifiers.None, "add_geo_ref", "添加经纬度参考点"),
+            new ModeKeyBinding("TP_F7", KeyCodes.F7, KeyModifiers.None, "geo_calculate", "经纬度换算并导出"),
+            new ModeKeyBinding("TP_F8", KeyCodes.F8, KeyModifiers.None, "geo_export_ref", "导出参考点配置"),
+            new ModeKeyBinding("TP_F9", KeyCodes.F9, KeyModifiers.None, "geo_import_ref", "导入参考点配置"),
+        };
+    }
+
     public async Task<bool> HandleKeyAction(string action, int col, int row, ModeContext context)
     {
         var terrain = context.GetModifier<TerrainModifier>()!;
         bool modified = false;
+
+        // I/J/K/L 键根据是否有选区映射为不同动作
+        if (action is "ijkl_action" or "jkl_action" or "kl_action" or "l_action")
+        {
+            return await HandleIjklAction(action, col, row, context, terrain);
+        }
+
         switch (action)
         {
+            case "decrease_brush_size":
+                terrain.BrushSize = Math.Max(0, terrain.BrushSize - 1);
+                context.RaiseStatusMessage?.Invoke($"画笔大小: {terrain.BrushSize}");
+                context.NotifyBrushSizeChanged?.Invoke();
+                return true;
+            case "increase_brush_size":
+                terrain.BrushSize = Math.Min(20, terrain.BrushSize + 1);
+                context.RaiseStatusMessage?.Invoke($"画笔大小: {terrain.BrushSize}");
+                context.NotifyBrushSizeChanged?.Invoke();
+                return true;
             case "increase_type":
                 context.RecordMultiCellChange($"增加地形类型 ({col},{row})", () => terrain.ChangeTerrainType(col, row, 1));
                 modified = true; break;
@@ -138,10 +208,7 @@ public sealed class TerrainPaintMode : IModeHandler
                 }
             case "create_coast":
                 {
-                    var targetHexes = HexSelector.Instance.SelectedHexes.Count > 0
-                        ? HexSelector.Instance.SelectedHexes.Select(h => (h.Col, h.Row)).ToList()
-                        : null;
-                    var result = terrain.CreateCoast(targetHexes);
+                    var result = terrain.CreateCoast(null);
                     context.RecordMultiCellChange("创建海岸线", () => { });
                     context.NotifyDataModified?.Invoke();
                     context.RaiseStatusMessage?.Invoke(result.Message);
@@ -149,10 +216,7 @@ public sealed class TerrainPaintMode : IModeHandler
                 return true;
             case "process_ocean_layer2":
                 {
-                    var targetHexes = HexSelector.Instance.SelectedHexes.Count > 0
-                        ? HexSelector.Instance.SelectedHexes.Select(h => (h.Col, h.Row)).ToList()
-                        : null;
-                    var result = terrain.ProcessOceanSecondLayer(targetHexes);
+                    var result = terrain.ProcessOceanSecondLayer(null);
                     context.RecordMultiCellChange("处理海洋第二层", () => { });
                     context.NotifyDataModified?.Invoke();
                     context.RaiseStatusMessage?.Invoke(result.Message);
@@ -169,7 +233,11 @@ public sealed class TerrainPaintMode : IModeHandler
                 }
                 return true;
             case "connect_buildings":
-                context.RaiseStatusMessage?.Invoke("连接建筑功能待实现（需要建筑数据）");
+                {
+                    var result = terrain.ConnectBuildings();
+                    context.RaiseStatusMessage?.Invoke(result.Message);
+                    if (result.Success) context.NotifyDataModified?.Invoke();
+                }
                 return true;
             case "scale_map":
                 return await ShowInputDialogAndExecuteCliDouble(context, "按比例缩放地图", "请输入缩放比例（0.1-10.0）：", 1.0, "scale_map");
@@ -204,6 +272,22 @@ public sealed class TerrainPaintMode : IModeHandler
                 return true;
             case "toggle_brush":
                 context.NotifyBrushToggled?.Invoke();
+                return true;
+            case "geo_calculate":
+                if (context.GeoCalculateCallback != null)
+                    await context.GeoCalculateCallback();
+                return true;
+            case "geo_export_ref":
+                if (context.GeoExportRefCallback != null)
+                    await context.GeoExportRefCallback();
+                return true;
+            case "geo_import_ref":
+                if (context.GeoImportRefCallback != null)
+                    await context.GeoImportRefCallback();
+                return true;
+            case "add_geo_ref":
+                if (context.AddGeoRefCallback != null)
+                    await context.AddGeoRefCallback();
                 return true;
         }
         if (modified) context.NotifyDataModified?.Invoke();
@@ -432,5 +516,38 @@ public sealed class TerrainPaintMode : IModeHandler
             selector.RemoveFromSelection(hex);
 
         context.RaiseStatusMessage?.Invoke($"已剔除 {hexesToRemove.Count} 个海洋格子，剩余 {selector.SelectedHexes.Count} 个格子");
+    }
+
+    private async Task<bool> HandleIjklAction(string action, int col, int row, ModeContext context, TerrainModifier terrain)
+    {
+        var selector = HexSelector.Instance;
+        bool hasMultiSelection = selector.SelectedHexes.Count > 1;
+
+        if (hasMultiSelection)
+        {
+            // 多选时，I/J/K/L 移动选区
+            string moveAction = action switch
+            {
+                "ijkl_action" => "move_selection_up",
+                "jkl_action" => "move_selection_left",
+                "kl_action" => "move_selection_down",
+                "l_action" => "move_selection_right",
+                _ => action
+            };
+            return await HandleKeyAction(moveAction, col, row, context);
+        }
+        else
+        {
+            // 单选或无选区时，I/J/K/L 调整地图大小
+            string resizeAction = action switch
+            {
+                "ijkl_action" => "resize_map_up",
+                "jkl_action" => "resize_map_left",
+                "kl_action" => "resize_map_down",
+                "l_action" => "resize_map_right",
+                _ => action
+            };
+            return await HandleKeyAction(resizeAction, col, row, context);
+        }
     }
 }

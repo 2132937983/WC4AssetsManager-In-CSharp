@@ -11,10 +11,23 @@ public class MapData : INotifyPropertyChanged
     private Province[] _provinces;
     private BTLHeader _header;
     private ObservableCollection<Building> _buildings;
+    private Dictionary<int, int> _buildingCoordIndex = new();
     private ObservableCollection<Army> _armies;
+    private ObservableCollection<Army_3> _armiesV3;
     private ObservableCollection<Legion> _legions;
     private ObservableCollection<Trap> _traps;
     private ObservableCollection<Reinforcement> _reinforcements;
+    private ObservableCollection<Reinforcement_3> _reinforcementsV3;
+    private ObservableCollection<Capital> _capitals;
+    private List<string> _belongs;
+    private ObservableCollection<MapCase> _cases;
+    private ObservableCollection<Weather> _weathers;
+    private ObservableCollection<MapEvent> _events;
+    private ObservableCollection<AirForce> _airForces;
+    private ObservableCollection<UnitPlacement> _unitPlaces;
+    private ObservableCollection<StrategicConstruction> _strategyConstructions;
+    private ObservableCollection<AirSupport> _airSupports;
+    private bool _belongOffset;
     private int _mapWidth;
     private int _mapHeight;
     private string _filePath;
@@ -41,6 +54,12 @@ public class MapData : INotifyPropertyChanged
         set { _armies = value; OnPropertyChanged(); }
     }
 
+    public ObservableCollection<Army_3> ArmiesV3
+    {
+        get => _armiesV3;
+        set { _armiesV3 = value; OnPropertyChanged(); }
+    }
+
     public ObservableCollection<Legion> Legions
     {
         get => _legions;
@@ -59,6 +78,72 @@ public class MapData : INotifyPropertyChanged
         set { _reinforcements = value; OnPropertyChanged(); }
     }
 
+    public ObservableCollection<Reinforcement_3> ReinforcementsV3
+    {
+        get => _reinforcementsV3;
+        set { _reinforcementsV3 = value; OnPropertyChanged(); }
+    }
+
+    public ObservableCollection<Capital> Capitals
+    {
+        get => _capitals;
+        set { _capitals = value; OnPropertyChanged(); }
+    }
+
+    public List<string> Belongs
+    {
+        get => _belongs;
+        set { _belongs = value; OnPropertyChanged(); }
+    }
+
+    public ObservableCollection<MapCase> Cases
+    {
+        get => _cases;
+        set { _cases = value; OnPropertyChanged(); }
+    }
+
+    public ObservableCollection<Weather> Weathers
+    {
+        get => _weathers;
+        set { _weathers = value; OnPropertyChanged(); }
+    }
+
+    public ObservableCollection<MapEvent> Events
+    {
+        get => _events;
+        set { _events = value; OnPropertyChanged(); }
+    }
+
+    public ObservableCollection<AirForce> AirForces
+    {
+        get => _airForces;
+        set { _airForces = value; OnPropertyChanged(); }
+    }
+
+    public ObservableCollection<UnitPlacement> UnitPlaces
+    {
+        get => _unitPlaces;
+        set { _unitPlaces = value; OnPropertyChanged(); }
+    }
+
+    public ObservableCollection<StrategicConstruction> StrategyConstructions
+    {
+        get => _strategyConstructions;
+        set { _strategyConstructions = value; OnPropertyChanged(); }
+    }
+
+    public ObservableCollection<AirSupport> AirSupports
+    {
+        get => _airSupports;
+        set { _airSupports = value; OnPropertyChanged(); }
+    }
+
+    public bool BelongOffset
+    {
+        get => _belongOffset;
+        set { _belongOffset = value; OnPropertyChanged(); }
+    }
+
     public int MapWidth
     {
         get => _mapWidth;
@@ -75,6 +160,34 @@ public class MapData : INotifyPropertyChanged
     {
         get => _filePath;
         set { _filePath = value; OnPropertyChanged(); }
+    }
+
+    public int GetBelongValue(int col, int row)
+    {
+        int index = row * _mapWidth + col;
+        return GetBelongValueByIndex(index);
+    }
+
+    public int GetBelongValueByIndex(int index)
+    {
+        if (_belongs == null || index < 0 || index >= _belongs.Count) return 0xFF;
+        string s = _belongs[index];
+        if (s.StartsWith("&H", StringComparison.OrdinalIgnoreCase))
+            return Convert.ToInt32(s.Substring(2), 16);
+        return int.TryParse(s, System.Globalization.NumberStyles.HexNumber, null, out int v) ? v : 0xFF;
+    }
+
+    public bool SetBelongValue(int col, int row, int belongValue)
+    {
+        int index = row * _mapWidth + col;
+        return SetBelongValueByIndex(index, belongValue);
+    }
+
+    public bool SetBelongValueByIndex(int index, int belongValue)
+    {
+        if (_belongs == null || index < 0 || index >= _belongs.Count) return false;
+        _belongs[index] = ((byte)Math.Clamp(belongValue, 0, 255)).ToString("X2");
+        return true;
     }
 
     public bool IsModified
@@ -99,9 +212,21 @@ public class MapData : INotifyPropertyChanged
         _provinces = Array.Empty<Province>();
         _buildings = new ObservableCollection<Building>();
         _armies = new ObservableCollection<Army>();
+        _armiesV3 = new ObservableCollection<Army_3>();
         _legions = new ObservableCollection<Legion>();
         _traps = new ObservableCollection<Trap>();
         _reinforcements = new ObservableCollection<Reinforcement>();
+        _reinforcementsV3 = new ObservableCollection<Reinforcement_3>();
+        _capitals = new ObservableCollection<Capital>();
+        _belongs = new List<string>();
+        _cases = new ObservableCollection<MapCase>();
+        _weathers = new ObservableCollection<Weather>();
+        _events = new ObservableCollection<MapEvent>();
+        _airForces = new ObservableCollection<AirForce>();
+        _unitPlaces = new ObservableCollection<UnitPlacement>();
+        _strategyConstructions = new ObservableCollection<StrategicConstruction>();
+        _airSupports = new ObservableCollection<AirSupport>();
+        _belongOffset = false;
         _mapWidth = 0;
         _mapHeight = 0;
         _filePath = string.Empty;
@@ -122,9 +247,21 @@ public class MapData : INotifyPropertyChanged
             _provinces[i] = new Province();
         _buildings = new ObservableCollection<Building>();
         _armies = new ObservableCollection<Army>();
+        _armiesV3 = new ObservableCollection<Army_3>();
         _legions = new ObservableCollection<Legion>();
         _traps = new ObservableCollection<Trap>();
         _reinforcements = new ObservableCollection<Reinforcement>();
+        _reinforcementsV3 = new ObservableCollection<Reinforcement_3>();
+        _capitals = new ObservableCollection<Capital>();
+        _belongs = new List<string>();
+        _cases = new ObservableCollection<MapCase>();
+        _weathers = new ObservableCollection<Weather>();
+        _events = new ObservableCollection<MapEvent>();
+        _airForces = new ObservableCollection<AirForce>();
+        _unitPlaces = new ObservableCollection<UnitPlacement>();
+        _strategyConstructions = new ObservableCollection<StrategicConstruction>();
+        _airSupports = new ObservableCollection<AirSupport>();
+        _belongOffset = false;
         _filePath = string.Empty;
         _isModified = false;
 
@@ -362,14 +499,30 @@ public class MapData : INotifyPropertyChanged
         return null;
     }
 
+    public Army_3? GetArmyV3At(int col, int row)
+    {
+        foreach (Army_3 army in ArmiesV3)
+        {
+            HexCoord coord = HexCoord.FromIndex(army.Coordinate, MapWidth);
+            if (coord.Col == col && coord.Row == row) return army;
+        }
+        return null;
+    }
+
     public void AddBuilding(Building building)
     {
         HexCoord coord = HexCoord.FromIndex(building.Coordinate, MapWidth);
         int idx = FindBuildingIndex(coord.Col, coord.Row);
         if (idx >= 0)
+        {
             _buildings[idx] = building;
+            _buildingCoordIndex[building.Coordinate] = idx;
+        }
         else
+        {
             _buildings.Add(building);
+            _buildingCoordIndex[building.Coordinate] = _buildings.Count - 1;
+        }
         IsModified = true;
     }
 
@@ -381,6 +534,17 @@ public class MapData : INotifyPropertyChanged
             _armies[idx] = army;
         else
             _armies.Add(army);
+        IsModified = true;
+    }
+
+    public void AddArmyV3(Army_3 army)
+    {
+        HexCoord coord = HexCoord.FromIndex(army.Coordinate, MapWidth);
+        int idx = FindArmyV3Index(coord.Col, coord.Row);
+        if (idx >= 0)
+            _armiesV3[idx] = army;
+        else
+            _armiesV3.Add(army);
         IsModified = true;
     }
 
@@ -400,6 +564,16 @@ public class MapData : INotifyPropertyChanged
         if (idx >= 0)
         {
             _armies.RemoveAt(idx);
+            IsModified = true;
+        }
+    }
+
+    public void RemoveArmyV3At(int col, int row)
+    {
+        int idx = FindArmyV3Index(col, row);
+        if (idx >= 0)
+        {
+            _armiesV3.RemoveAt(idx);
             IsModified = true;
         }
     }
@@ -433,8 +607,8 @@ public class MapData : INotifyPropertyChanged
         MapWidth = newWidth;
         MapHeight = newHeight;
 
-        Header.MapWidth = newWidth;
-        Header.MapLength = newHeight;
+        Header.MapLength = newWidth;
+        Header.MapWidth = newHeight;
 
         IsModified = true;
     }
@@ -468,7 +642,21 @@ public class MapData : INotifyPropertyChanged
         _provinces = Array.Empty<Province>();
         _buildings?.Clear();
         _armies?.Clear();
+        _armiesV3?.Clear();
         _legions?.Clear();
+        _capitals?.Clear();
+        _belongs?.Clear();
+        _cases?.Clear();
+        _weathers?.Clear();
+        _events?.Clear();
+        _airForces?.Clear();
+        _unitPlaces?.Clear();
+        _strategyConstructions?.Clear();
+        _airSupports?.Clear();
+        _traps?.Clear();
+        _reinforcements?.Clear();
+        _reinforcementsV3?.Clear();
+        _belongOffset = false;
         _mapWidth = 0;
         _mapHeight = 0;
 
@@ -504,11 +692,30 @@ public class MapData : INotifyPropertyChanged
     public int FindBuildingIndex(int col, int row)
     {
         int coordIndex = row * _mapWidth + col;
+        if (_buildingCoordIndex.Count > 0 && _buildingCoordIndex.TryGetValue(coordIndex, out int idx))
+            return idx;
         for (int i = 0; i < _buildings.Count; i++)
         {
             if (_buildings[i].Coordinate == coordIndex) return i;
         }
         return -1;
+    }
+
+    public void RebuildBuildingCoordIndex()
+    {
+        _buildingCoordIndex = new Dictionary<int, int>(_buildings.Count);
+        for (int i = 0; i < _buildings.Count; i++)
+            _buildingCoordIndex[_buildings[i].Coordinate] = i;
+    }
+
+    public void InvalidateBuildingCoordIndex()
+    {
+        _buildingCoordIndex.Clear();
+    }
+
+    public void AddToBuildingCoordIndex(int coordIndex, int listIndex)
+    {
+        _buildingCoordIndex[coordIndex] = listIndex;
     }
 
     public int FindArmyIndex(int col, int row)
@@ -517,6 +724,16 @@ public class MapData : INotifyPropertyChanged
         for (int i = 0; i < _armies.Count; i++)
         {
             if (_armies[i].Coordinate == coordIndex) return i;
+        }
+        return -1;
+    }
+
+    public int FindArmyV3Index(int col, int row)
+    {
+        int coordIndex = row * _mapWidth + col;
+        for (int i = 0; i < _armiesV3.Count; i++)
+        {
+            if (_armiesV3[i].Coordinate == coordIndex) return i;
         }
         return -1;
     }
@@ -552,12 +769,21 @@ public class MapData : INotifyPropertyChanged
 
     public void ReplaceBuilding(int index, Building building)
     {
-        if ((uint)index < (uint)_buildings.Count) _buildings[index] = building;
+        if ((uint)index < (uint)_buildings.Count)
+        {
+            _buildings[index] = building;
+            _buildingCoordIndex[building.Coordinate] = index;
+        }
     }
 
     public void ReplaceArmy(int index, Army army)
     {
         if ((uint)index < (uint)_armies.Count) _armies[index] = army;
+    }
+
+    public void ReplaceArmyV3(int index, Army_3 army)
+    {
+        if ((uint)index < (uint)_armiesV3.Count) _armiesV3[index] = army;
     }
 
     public void ReplaceTrap(int index, Trap trap)
@@ -577,12 +803,22 @@ public class MapData : INotifyPropertyChanged
 
     public void RemoveBuildingAt(int index)
     {
-        if ((uint)index < (uint)_buildings.Count) _buildings.RemoveAt(index);
+        if ((uint)index < (uint)_buildings.Count)
+        {
+            _buildingCoordIndex.Remove(_buildings[index].Coordinate);
+            _buildings.RemoveAt(index);
+            _buildingCoordIndex.Clear();
+        }
     }
 
     public void RemoveArmyAt(int index)
     {
         if ((uint)index < (uint)_armies.Count) _armies.RemoveAt(index);
+    }
+
+    public void RemoveArmyV3At(int index)
+    {
+        if ((uint)index < (uint)_armiesV3.Count) _armiesV3.RemoveAt(index);
     }
 
     public void RemoveTrapAt(int index)
@@ -593,6 +829,11 @@ public class MapData : INotifyPropertyChanged
     public void RemoveReinforcementAt(int index)
     {
         if ((uint)index < (uint)_reinforcements.Count) _reinforcements.RemoveAt(index);
+    }
+
+    public void RemoveReinforcementV3At(int index)
+    {
+        if ((uint)index < (uint)_reinforcementsV3.Count) _reinforcementsV3.RemoveAt(index);
     }
 
     #endregion

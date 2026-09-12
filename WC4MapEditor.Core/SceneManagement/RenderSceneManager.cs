@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.IO;
 using WC4MapEditor.Models;
+using WC4MapEditor.Parsers.Conquest;
+using WC4MapEditor.Parsers.Stage;
 using WC4MapEditor.Parsers.World;
 
 namespace WC4MapEditor.Core.SceneManagement;
@@ -24,6 +26,20 @@ public sealed class RenderSceneInfo
     public DateTime LastAccessTime { get; set; } = DateTime.Now;
     public bool IsCachedToDisk { get; set; }
     public string CacheFilePath { get; set; } = "";
+}
+
+public sealed class SceneSwitchRequestEventArgs : EventArgs
+{
+    public int TargetSceneId { get; }
+    public RenderSceneType TargetSceneType { get; }
+    public string MapFilePath { get; }
+
+    public SceneSwitchRequestEventArgs(int targetSceneId, RenderSceneType targetSceneType, string mapFilePath)
+    {
+        TargetSceneId = targetSceneId;
+        TargetSceneType = targetSceneType;
+        MapFilePath = mapFilePath;
+    }
 }
 
 public sealed class RenderSceneManager
@@ -55,6 +71,43 @@ public sealed class RenderSceneManager
 
     public event Action? SceneListChanged;
     public event Action<int>? ActiveSceneChanged;
+    public event EventHandler<SceneSwitchRequestEventArgs>? SceneSwitchRequested;
+
+    public static RenderSceneType GetSceneTypeByFilePath(string filePath)
+    {
+        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        if (ext is ".bin" or ".dat") return RenderSceneType.Test;
+        if (ext == ".btl")
+        {
+            var name = Path.GetFileNameWithoutExtension(filePath).ToLowerInvariant();
+            if (name.StartsWith("conquest")) return RenderSceneType.Conquest;
+            return RenderSceneType.Stage;
+        }
+        return RenderSceneType.Test;
+    }
+
+    public static string GetSceneTypeDisplayLabel(RenderSceneType sceneType)
+    {
+        return sceneType switch
+        {
+            RenderSceneType.Test => "[地图]",
+            RenderSceneType.Stage => "[战役]",
+            RenderSceneType.Conquest => "[征服]",
+            RenderSceneType.Campaign => "[战役]",
+            _ => ""
+        };
+    }
+
+    public static RenderSceneType MapSceneTypeToRenderSceneType(string sceneType)
+    {
+        return sceneType switch
+        {
+            "world" => RenderSceneType.Test,
+            "stage" => RenderSceneType.Stage,
+            "conquest" => RenderSceneType.Conquest,
+            _ => RenderSceneType.Test
+        };
+    }
 
     private RenderSceneManager()
     {
@@ -71,6 +124,23 @@ public sealed class RenderSceneManager
             Debug.WriteLine($"[SceneManager] 创建缓存目录: {cachePath}");
         }
         return cachePath;
+    }
+
+    public void RequestSceneSwitch(int targetSceneId)
+    {
+        lock (_lock)
+        {
+            if (!_scenes.TryGetValue(targetSceneId, out var scene)) return;
+
+            if (_currentSceneId >= 0 && _scenes.TryGetValue(_currentSceneId, out var currentScene))
+            {
+                CacheSceneToDisk(_currentSceneId);
+                ReleaseSceneMemory(_currentSceneId);
+            }
+
+            SceneSwitchRequested?.Invoke(this, new SceneSwitchRequestEventArgs(
+                targetSceneId, scene.SceneType, scene.MapFilePath));
+        }
     }
 
     public int CreateScene(string sceneName, string mapFilePath, RenderSceneType sceneType = RenderSceneType.Test)
@@ -141,9 +211,19 @@ public sealed class RenderSceneManager
 
                 if (scene.MapData != null)
                 {
-                    WorldParser.SaveToFile(scene.MapData, scene.CacheFilePath);
-                    scene.IsCachedToDisk = true;
-                    Debug.WriteLine($"[SceneManager] 场景 {sceneId} 已缓存到磁盘: {scene.CacheFilePath}");
+                    bool saved = scene.SceneType switch
+                    {
+                        RenderSceneType.Test => SaveWorldMapData(scene.MapData, scene.CacheFilePath),
+                        RenderSceneType.Stage => StageParser.SaveFromMapData(scene.MapData, scene.CacheFilePath),
+                        RenderSceneType.Conquest => ConquestParser.SaveFromMapData(scene.MapData, scene.CacheFilePath),
+                        RenderSceneType.Campaign => StageParser.SaveFromMapData(scene.MapData, scene.CacheFilePath),
+                        _ => SaveWorldMapData(scene.MapData, scene.CacheFilePath)
+                    };
+                    if (saved)
+                    {
+                        scene.IsCachedToDisk = true;
+                        Debug.WriteLine($"[SceneManager] 场景 {sceneId} 已缓存到磁盘: {scene.CacheFilePath}");
+                    }
                 }
                 else if (File.Exists(scene.MapFilePath))
                 {
@@ -173,7 +253,14 @@ public sealed class RenderSceneManager
 
             try
             {
-                var mapData = WorldParser.LoadFromFile(filePath);
+                MapData? mapData = scene.SceneType switch
+                {
+                    RenderSceneType.Test => WorldParser.LoadFromFile(filePath),
+                    RenderSceneType.Stage => StageParser.LoadToMapData(filePath),
+                    RenderSceneType.Conquest => ConquestParser.LoadToMapData(filePath),
+                    RenderSceneType.Campaign => StageParser.LoadToMapData(filePath),
+                    _ => WorldParser.LoadFromFile(filePath)
+                };
                 if (mapData != null)
                 {
                     scene.MapData = mapData;
@@ -293,6 +380,19 @@ public sealed class RenderSceneManager
         GlobalCopiedProvinceFromRow = -1;
         GlobalCopiedProvinceFromSceneId = -1;
         GlobalCopiedProvinceHexes.Clear();
+    }
+
+    private static bool SaveWorldMapData(MapData mapData, string filePath)
+    {
+        try
+        {
+            WorldParser.SaveToFile(mapData, filePath);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     #endregion

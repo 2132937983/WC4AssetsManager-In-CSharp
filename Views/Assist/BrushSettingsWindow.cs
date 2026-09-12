@@ -35,6 +35,8 @@ public sealed class BrushSettingsWindow : Window
     private string _brushShape = "圆形";
     private readonly HashSet<int> _maskedTerrainIds = [];
     private bool _isClosing;
+    private bool _isExplicitlyShown;
+    private bool _isTerrainMode = true;
 
     private TextBox? _sizeInput;
     private ListBox? _terrainList;
@@ -70,7 +72,8 @@ public sealed class BrushSettingsWindow : Window
         Closing += (s, e) =>
         {
             e.Cancel = true;
-            PlayFadeOutAndHide();
+            if (_isExplicitlyShown)
+                PlayFadeOutAndHide();
         };
     }
 
@@ -89,6 +92,7 @@ public sealed class BrushSettingsWindow : Window
     {
         if (_isClosing) return;
         _isClosing = true;
+        _isExplicitlyShown = false;
 
         var sb = new Storyboard();
         var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(150))
@@ -102,6 +106,14 @@ public sealed class BrushSettingsWindow : Window
             Visibility = Visibility.Collapsed;
         };
         sb.Begin();
+    }
+
+    public new void Show()
+    {
+        _isExplicitlyShown = true;
+        if (Visibility != Visibility.Visible)
+            Visibility = Visibility.Visible;
+        base.Show();
     }
 
     private FrameworkElement CreateWindowContent()
@@ -155,7 +167,10 @@ public sealed class BrushSettingsWindow : Window
         };
 
         CreateSizeAndShapeSection(contentPanel);
-        CreateTerrainAndVariantSection(contentPanel);
+        if (_isTerrainMode)
+        {
+            CreateTerrainAndVariantSection(contentPanel);
+        }
         CreateMaskTerrainSection(contentPanel);
 
         scrollViewer.Content = contentPanel;
@@ -525,4 +540,10 @@ public sealed class BrushSettingsWindow : Window
     public bool IsMaskEnabled => _maskedTerrainIds.Count > 0;
     public bool MaskIncludeMode => _maskIncludeMode;
     public HashSet<int> MaskedTerrainIds => _maskedTerrainIds;
+
+    public bool IsTerrainMode
+    {
+        get => _isTerrainMode;
+        set => _isTerrainMode = value;
+    }
 }

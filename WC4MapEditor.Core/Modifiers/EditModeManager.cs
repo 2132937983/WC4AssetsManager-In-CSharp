@@ -1,5 +1,9 @@
+using WC4MapEditor.Core.Brush;
 using WC4MapEditor.Core.Commands;
+using WC4MapEditor.Core.ErrorHandling;
+using WC4MapEditor.Core.Input;
 using WC4MapEditor.Core.Mode;
+using WC4MapEditor.Core.Selection;
 using WC4MapEditor.Core.Services;
 using WC4MapEditor.Models;
 
@@ -9,11 +13,12 @@ public enum EditMode
 {
     None = 0,
     TerrainPaint = 1,
-    TerritoryEdit = 2,
+    ProvinceEdit = 2,
     BuildingDeploy = 3,
     ArmyDeploy = 4,
-    TrapDeploy = 5,
-    ReinforcementDeploy = 6
+    LegionEdit = 6,
+    BelongEdit = 5,
+    ReinforcementDeploy = 8
 }
 
 public enum ModifierKind
@@ -76,11 +81,18 @@ public sealed class EditModeManager
     private IDialogService? _dialogService;
     private ICliCommandExecutor? _cliCommandExecutor;
     private Func<Task<(bool success, int modifiedCount)>>? _recognizeTerrainCallback;
+    private Func<Task>? _geoCalculateCallback;
+    private Func<Task>? _geoExportRefCallback;
+    private Func<Task>? _geoImportRefCallback;
+    private Func<Task>? _addGeoRefCallback;
+    private Func<(int col, int row)>? _getFocusHexCallback;
+    private string _currentSceneType = "stage";
 
     public event EventHandler<EditModeChangedEventArgs>? ModeChanged;
     public event EventHandler<string>? StatusMessageChanged;
     public event EventHandler? DataModified;
     public event EventHandler? BrushToggled;
+    public event EventHandler? BrushSizeChanged;
 
     private EditModeManager()
     {
@@ -94,13 +106,16 @@ public sealed class EditModeManager
         RegisterModifier(ModifierKind.Reinforcement, new ReinforcementModifier());
 
         RegisterModeHandler(new TerrainPaintMode());
-        RegisterModeHandler(new TerritoryEditMode());
+        RegisterModeHandler(new BelongEditMode());
+        RegisterModeHandler(new LegionEditMode());
+        RegisterModeHandler(new ProvinceEditMode());
         RegisterModeHandler(new BuildingDeployMode());
         RegisterModeHandler(new ArmyDeployMode());
-        RegisterModeHandler(new TrapDeployMode());
+
         RegisterModeHandler(new ReinforcementDeployMode());
 
         BuildSceneModeMap();
+        RegisterNumberKeyBindings();
     }
 
     #region 公共属性
@@ -109,6 +124,8 @@ public sealed class EditModeManager
     public IModifier? PrimaryModifier => GetCurrentHandler() != null ? GetModifier(GetCurrentHandler()!.PrimaryModifierKind) : null;
     public IReadOnlyList<IModifier> ActiveModifiers => GetActiveModifiers();
     public bool IsEditModeActive => _currentMode != EditMode.None;
+    public bool IsSelectionActive => GetCurrentHandler()?.RequiresSelection ?? false;
+    public bool IsInitialized => _isInitialized;
 
     public void SetUndoManager(UndoManager undoManager)
     {
@@ -132,6 +149,40 @@ public sealed class EditModeManager
     {
         _recognizeTerrainCallback = callback;
         if (_isInitialized) RebuildModeContext();
+    }
+
+    public void SetGeoCalculateCallback(Func<Task> callback)
+    {
+        _geoCalculateCallback = callback;
+        if (_isInitialized) RebuildModeContext();
+    }
+
+    public void SetGeoExportRefCallback(Func<Task> callback)
+    {
+        _geoExportRefCallback = callback;
+        if (_isInitialized) RebuildModeContext();
+    }
+
+    public void SetGeoImportRefCallback(Func<Task> callback)
+    {
+        _geoImportRefCallback = callback;
+        if (_isInitialized) RebuildModeContext();
+    }
+
+    public void SetAddGeoRefCallback(Func<Task> callback)
+    {
+        _addGeoRefCallback = callback;
+        if (_isInitialized) RebuildModeContext();
+    }
+
+    public void SetGetFocusHexCallback(Func<(int col, int row)> callback)
+    {
+        _getFocusHexCallback = callback;
+    }
+
+    public void SetSceneType(string sceneType)
+    {
+        _currentSceneType = sceneType;
     }
 
     #endregion
@@ -212,8 +263,32 @@ public sealed class EditModeManager
             return _currentMode;
         }
 
+        try
+        {
+
+        // 注销旧模式的按键绑定，并处理选择器交接
+        IModeHandler? oldHandler = null;
+        if (previousMode != EditMode.None && _modeHandlers.TryGetValue(previousMode, out oldHandler))
+        {
+            UnregisterModeKeyBindings(oldHandler);
+        }
+
+        // 旧模式离开时，如果它持有选择器则清空选区
+        if (oldHandler != null && oldHandler.RequiresSelection)
+        {
+            var selector = HexSelector.Instance;
+            selector.ClearSelection();
+            selector.SetSelectionMoving(false, 0, 0, null);
+        }
+
         _currentMode = mode;
         var handler = GetCurrentHandler();
+
+        // 注册新模式的按键绑定
+        if (handler != null)
+        {
+            RegisterModeKeyBindings(handler);
+        }
 
         if (previousMode != _currentMode)
         {
@@ -232,6 +307,71 @@ public sealed class EditModeManager
         }
 
         return _currentMode;
+        }
+        catch (Exception ex)
+        {
+            var error = ErrorCollector.Instance.RecordError(ErrorSeverity.Critical,
+                $"模式切换失败: {previousMode} -> {mode}", nameof(SwitchMode), ex);
+
+            // 尝试回退到上一个模式
+            try
+            {
+                if (previousMode != EditMode.None && _modeHandlers.ContainsKey(previousMode))
+                {
+                    _currentMode = previousMode;
+                    var handler = GetCurrentHandler();
+                    if (handler != null)
+                    {
+                        RegisterModeKeyBindings(handler);
+                        ModeChanged?.Invoke(this, new EditModeChangedEventArgs(
+                            mode, previousMode, PrimaryModifier, ActiveModifiers));
+                        RaiseStatusMessage($"模式切换失败，已回退到: {handler.DisplayName}");
+                    }
+                }
+                else
+                {
+                    _currentMode = EditMode.None;
+                    ModeChanged?.Invoke(this, new EditModeChangedEventArgs(
+                        mode, EditMode.None, null, Array.Empty<IModifier>()));
+                    RaiseStatusMessage("模式切换失败，已退出编辑模式");
+                }
+            }
+            catch (Exception recoveryEx)
+            {
+                ErrorCollector.Instance.RecordError(ErrorSeverity.Fatal,
+                    "模式回退失败", nameof(SwitchMode), recoveryEx);
+                _currentMode = EditMode.None;
+            }
+
+            return _currentMode;
+        }
+    }
+
+    private void RegisterModeKeyBindings(IModeHandler handler)
+    {
+        var keyboard = KeyboardManager.Instance;
+        foreach (var binding in handler.GetKeyBindings())
+        {
+            keyboard.RegisterBinding(binding.Id, binding.KeyCode, binding.Modifiers,
+                () => DispatchModeAction(handler, binding.Action), binding.Description);
+        }
+    }
+
+    private void UnregisterModeKeyBindings(IModeHandler handler)
+    {
+        var keyboard = KeyboardManager.Instance;
+        foreach (var binding in handler.GetKeyBindings())
+        {
+            keyboard.UnregisterBinding(binding.Id);
+        }
+    }
+
+    private void DispatchModeAction(IModeHandler handler, string action)
+    {
+        if (_mapData == null) return;
+        // 获取当前焦点坐标（由渲染层提供）
+        var (col, row) = _getFocusHexCallback?.Invoke() ?? (0, 0);
+        _ = handler.HandleKeyAction(action, col, row, _modeContext!);
     }
 
     public EditMode CycleMode(string sceneType)
@@ -255,6 +395,41 @@ public sealed class EditModeManager
     public EditMode ExitEditMode()
     {
         return SwitchMode(EditMode.None);
+    }
+
+    private void RegisterNumberKeyBindings()
+    {
+        var keyboard = KeyboardManager.Instance;
+
+        // 数字键 1-8 快速切换模式
+        var modeMap = new (int keyCode, EditMode mode, string name)[]
+        {
+            (KeyCodes.D1, EditMode.TerrainPaint, "地形绘制"),
+            (KeyCodes.D2, EditMode.ProvinceEdit, "省份编辑"),
+            (KeyCodes.D3, EditMode.BuildingDeploy, "建筑部署"),
+            (KeyCodes.D4, EditMode.ArmyDeploy, "单位部署"),
+            (KeyCodes.D5, EditMode.BelongEdit, "归属编辑"),
+            (KeyCodes.D6, EditMode.LegionEdit, "军团编辑"),
+            (KeyCodes.D8, EditMode.ReinforcementDeploy, "援军部署")
+        };
+
+        foreach (var (keyCode, mode, name) in modeMap)
+        {
+            keyboard.RegisterBinding($"MODE_SWITCH_{mode}", keyCode, KeyModifiers.None,
+                () =>
+                {
+                    var availableModes = GetAvailableModes(_currentSceneType);
+                    if (availableModes.Contains(mode))
+                    {
+                        SwitchMode(mode);
+                    }
+                    else
+                    {
+                        RaiseStatusMessage($"当前场景不支持 {name} 模式");
+                    }
+                },
+                $"切换到{name}模式");
+        }
     }
 
     #endregion
@@ -389,28 +564,100 @@ public sealed class EditModeManager
         RecordChangesFromSnapshot(description, beforeSnapshot);
     }
 
+    public void RecordMultiCellProvinceChange(string description, Action applyChange)
+    {
+        if (_mapData == null || _undoManager == null)
+        {
+            applyChange();
+            return;
+        }
+
+        var beforeSnapshot = new Province[_mapData.MapWidth * _mapData.MapHeight];
+        for (int i = 0; i < beforeSnapshot.Length; i++)
+            beforeSnapshot[i] = _mapData.GetProvinceRef(i);
+
+        applyChange();
+
+        RecordProvinceChangesFromSnapshot(description, beforeSnapshot);
+    }
+
     private TerrainData[]? _brushStrokeSnapshot;
+    private Province[]? _provinceBrushStrokeSnapshot;
+    private byte[]? _belongBrushStrokeSnapshot;
+
+    public IBrushTarget? GetActiveBrushTarget()
+    {
+        return _currentMode switch
+        {
+            EditMode.TerrainPaint => GetModifier<TerrainModifier>() as IBrushTarget,
+            EditMode.ProvinceEdit => GetModifier<ProvinceModifier>() as IBrushTarget,
+            EditMode.BelongEdit => GetModifier<BelongModifier>() as IBrushTarget,
+            _ => null
+        };
+    }
 
     public void BeginBrushStroke()
     {
         if (_mapData == null)
         {
             _brushStrokeSnapshot = null;
+            _provinceBrushStrokeSnapshot = null;
+            _belongBrushStrokeSnapshot = null;
             return;
         }
 
-        var snapshot = new TerrainData[_mapData.MapWidth * _mapData.MapHeight];
-        for (int i = 0; i < snapshot.Length; i++)
-            snapshot[i] = _mapData.GetTerrainRef(i);
-        _brushStrokeSnapshot = snapshot;
+        if (_currentMode == EditMode.ProvinceEdit)
+        {
+            var snapshot = new Province[_mapData.MapWidth * _mapData.MapHeight];
+            for (int i = 0; i < snapshot.Length; i++)
+                snapshot[i] = _mapData.GetProvinceRef(i);
+            _provinceBrushStrokeSnapshot = snapshot;
+            _brushStrokeSnapshot = null;
+            _belongBrushStrokeSnapshot = null;
+        }
+        else if (_currentMode == EditMode.BelongEdit)
+        {
+            var snapshot = new byte[_mapData.MapWidth * _mapData.MapHeight];
+            for (int i = 0; i < snapshot.Length; i++)
+                snapshot[i] = (byte)_mapData.GetBelongValueByIndex(i);
+            _belongBrushStrokeSnapshot = snapshot;
+            _brushStrokeSnapshot = null;
+            _provinceBrushStrokeSnapshot = null;
+        }
+        else
+        {
+            var snapshot = new TerrainData[_mapData.MapWidth * _mapData.MapHeight];
+            for (int i = 0; i < snapshot.Length; i++)
+                snapshot[i] = _mapData.GetTerrainRef(i);
+            _brushStrokeSnapshot = snapshot;
+            _provinceBrushStrokeSnapshot = null;
+            _belongBrushStrokeSnapshot = null;
+        }
     }
 
     public void EndBrushStroke(string description)
     {
-        var snapshot = _brushStrokeSnapshot;
-        _brushStrokeSnapshot = null;
-        if (_mapData == null || _undoManager == null || snapshot == null) return;
-        RecordChangesFromSnapshot(description, snapshot);
+        if (_currentMode == EditMode.ProvinceEdit)
+        {
+            var snapshot = _provinceBrushStrokeSnapshot;
+            _provinceBrushStrokeSnapshot = null;
+            if (_mapData == null || _undoManager == null || snapshot == null) return;
+            RecordProvinceChangesFromSnapshot(description, snapshot);
+        }
+        else if (_currentMode == EditMode.BelongEdit)
+        {
+            var snapshot = _belongBrushStrokeSnapshot;
+            _belongBrushStrokeSnapshot = null;
+            if (_mapData == null || _undoManager == null || snapshot == null) return;
+            RecordBelongChangesFromSnapshot(description, snapshot);
+        }
+        else
+        {
+            var snapshot = _brushStrokeSnapshot;
+            _brushStrokeSnapshot = null;
+            if (_mapData == null || _undoManager == null || snapshot == null) return;
+            RecordChangesFromSnapshot(description, snapshot);
+        }
     }
 
     private void RecordChangesFromSnapshot(string description, TerrainData[] beforeSnapshot)
@@ -431,7 +678,83 @@ public sealed class EditModeManager
 
         if (changes.Count > 0)
         {
-            var command = new TerrainChangeCommand(_mapData, description, changes.ToArray());
+            // 如果变更数量超过阈值，使用完整快照模式（更省内存）
+            const int FullSnapshotThreshold = 50000;
+            IUndoableCommand command;
+            if (changes.Count > FullSnapshotThreshold)
+            {
+                command = new TerrainFullSnapshotCommand(_mapData, description, beforeSnapshot);
+            }
+            else
+            {
+                command = new TerrainChangeCommand(_mapData, description, changes.ToArray());
+            }
+            _undoManager.Record(command);
+        }
+    }
+
+    private void RecordProvinceChangesFromSnapshot(string description, Province[] beforeSnapshot)
+    {
+        if (_mapData == null || _undoManager == null) return;
+
+        var changes = new List<(int col, int row, Province before, Province after)>();
+        for (int r = 0; r < _mapData.MapHeight; r++)
+        {
+            for (int c = 0; c < _mapData.MapWidth; c++)
+            {
+                int idx = r * _mapData.MapWidth + c;
+                Province after = _mapData.GetProvinceRef(c, r);
+                if (!beforeSnapshot[idx].Equals(after))
+                    changes.Add((c, r, beforeSnapshot[idx], after));
+            }
+        }
+
+        if (changes.Count > 0)
+        {
+            // 如果变更数量超过阈值，使用完整快照模式（更省内存）
+            const int FullSnapshotThreshold = 50000;
+            IUndoableCommand command;
+            if (changes.Count > FullSnapshotThreshold)
+            {
+                command = new ProvinceFullSnapshotCommand(_mapData, description, beforeSnapshot);
+            }
+            else
+            {
+                command = new ProvinceChangeCommand(_mapData, description, changes.ToArray());
+            }
+            _undoManager.Record(command);
+        }
+    }
+
+    private void RecordBelongChangesFromSnapshot(string description, byte[] beforeSnapshot)
+    {
+        if (_mapData == null || _undoManager == null) return;
+
+        var changes = new List<(int col, int row, byte before, byte after)>();
+        for (int r = 0; r < _mapData.MapHeight; r++)
+        {
+            for (int c = 0; c < _mapData.MapWidth; c++)
+            {
+                int idx = r * _mapData.MapWidth + c;
+                byte after = (byte)_mapData.GetBelongValue(c, r);
+                if (beforeSnapshot[idx] != after)
+                    changes.Add((c, r, beforeSnapshot[idx], after));
+            }
+        }
+
+        if (changes.Count > 0)
+        {
+            // 如果变更数量超过阈值，使用完整快照模式（更省内存）
+            const int FullSnapshotThreshold = 50000;
+            IUndoableCommand command;
+            if (changes.Count > FullSnapshotThreshold)
+            {
+                command = new BelongFullSnapshotCommand(_mapData, description, beforeSnapshot);
+            }
+            else
+            {
+                command = new BelongChangeCommand(_mapData, description, changes.ToArray());
+            }
             _undoManager.Record(command);
         }
     }
@@ -518,13 +841,15 @@ public sealed class EditModeManager
     {
         _sceneModeMap["stage"] = new List<EditMode>
         {
-            EditMode.TerrainPaint, EditMode.TerritoryEdit, EditMode.BuildingDeploy,
-            EditMode.ArmyDeploy, EditMode.TrapDeploy, EditMode.ReinforcementDeploy
+            EditMode.TerrainPaint, EditMode.ProvinceEdit, EditMode.BuildingDeploy,
+            EditMode.ArmyDeploy, EditMode.BelongEdit, EditMode.LegionEdit,
+            EditMode.ReinforcementDeploy
         };
         _sceneModeMap["conquest"] = new List<EditMode>
         {
-            EditMode.TerritoryEdit, EditMode.BuildingDeploy,
-            EditMode.ArmyDeploy, EditMode.TrapDeploy, EditMode.ReinforcementDeploy
+            EditMode.ProvinceEdit, EditMode.BuildingDeploy, EditMode.ArmyDeploy,
+            EditMode.BelongEdit, EditMode.LegionEdit,
+            EditMode.ReinforcementDeploy
         };
         _sceneModeMap["world"] = new List<EditMode>
         {
@@ -541,9 +866,14 @@ public sealed class EditModeManager
             RaiseStatusMessage = RaiseStatusMessage,
             NotifyDataModified = () => DataModified?.Invoke(this, EventArgs.Empty),
             NotifyBrushToggled = () => BrushToggled?.Invoke(this, EventArgs.Empty),
+            NotifyBrushSizeChanged = () => BrushSizeChanged?.Invoke(this, EventArgs.Empty),
             DialogService = _dialogService,
             CliCommandExecutor = _cliCommandExecutor,
-            RecognizeTerrainCallback = _recognizeTerrainCallback
+            RecognizeTerrainCallback = _recognizeTerrainCallback,
+            GeoCalculateCallback = _geoCalculateCallback,
+            GeoExportRefCallback = _geoExportRefCallback,
+            GeoImportRefCallback = _geoImportRefCallback,
+            AddGeoRefCallback = _addGeoRefCallback
         };
     }
 

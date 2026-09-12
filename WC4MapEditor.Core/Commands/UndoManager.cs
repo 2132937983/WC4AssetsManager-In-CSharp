@@ -72,13 +72,13 @@ public sealed class UndoManager
 
     private void TrimHistory()
     {
-        while (_undoStack.Count > _maxHistory)
-        {
-            var array = _undoStack.ToArray();
-            _undoStack.Clear();
-            for (int i = 0; i < _maxHistory; i++)
-                _undoStack.Push(array[_undoStack.Count]);
-        }
+        if (_undoStack.Count <= _maxHistory) return;
+
+        var array = _undoStack.ToArray();
+        _undoStack.Clear();
+        // array 是从栈顶到栈底的顺序，保留最新的 _maxHistory 个
+        for (int i = _maxHistory - 1; i >= 0; i--)
+            _undoStack.Push(array[i]);
     }
 
     private void OnStateChanged() => StateChanged?.Invoke();

@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using WC4MapEditor.Core.Analyzers;
 using WC4MapEditor.Core.Assets;
 using WC4MapEditor.Core.Config;
+using WC4MapEditor.Core.Modifiers;
 using WC4MapEditor.Models;
 using WC4MapEditor.Parsers;
 using WC4MapEditor.Parsers.BTL;
@@ -39,6 +40,7 @@ public class Program
         root.Subcommands.Add(BuildWorldCommand());
         root.Subcommands.Add(BuildScreenshotCommand());
         root.Subcommands.Add(BuildAssetCommand());
+        root.Subcommands.Add(BuildModifyCommand());
 
         return root;
     }
@@ -1271,7 +1273,7 @@ public class Program
     private class BuildingSummaryExport
     {
         [JsonPropertyName("coordinate")]
-        public short Coordinate { get; set; }
+        public int Coordinate { get; set; }
 
         [JsonPropertyName("building_type")]
         public byte BuildingType { get; set; }
@@ -1659,4 +1661,704 @@ public class Program
             Environment.ExitCode = 1;
         }
     }
+
+    #region Modify Commands
+
+    private static Command BuildModifyCommand()
+    {
+        var cmd = new Command("modify", "修改地图数据");
+
+        cmd.Subcommands.Add(BuildModifyStageCommand());
+        cmd.Subcommands.Add(BuildModifyConquestCommand());
+
+        return cmd;
+    }
+
+    private static Command BuildModifyStageCommand()
+    {
+        var cmd = new Command("stage", "修改战役文件");
+
+        var fileArg = new Argument<string>("file") { Description = "战役BTL文件路径" };
+        var outputOpt = new Option<string?>("--output", "-o") { Description = "输出文件路径（默认覆盖原文件）" };
+        cmd.Arguments.Add(fileArg);
+        cmd.Options.Add(outputOpt);
+
+        cmd.Subcommands.Add(BuildModifyTerrainCommand(fileArg, "stage"));
+        cmd.Subcommands.Add(BuildModifyProvinceCommand(fileArg, "stage"));
+        cmd.Subcommands.Add(BuildModifyBuildingCommand(fileArg, "stage"));
+        cmd.Subcommands.Add(BuildModifyBelongCommand(fileArg, "stage"));
+        cmd.Subcommands.Add(BuildModifyLegionCommand(fileArg, "stage"));
+        cmd.Subcommands.Add(BuildModifyArmyCommand(fileArg, "stage"));
+        cmd.Subcommands.Add(BuildModifyTrapCommand(fileArg, "stage"));
+        cmd.Subcommands.Add(BuildModifyInfoCommand(fileArg, "stage"));
+
+        return cmd;
+    }
+
+    private static Command BuildModifyConquestCommand()
+    {
+        var cmd = new Command("conquest", "修改征服文件");
+
+        var fileArg = new Argument<string>("file") { Description = "征服BTL文件路径" };
+        var outputOpt = new Option<string?>("--output", "-o") { Description = "输出文件路径（默认覆盖原文件）" };
+        cmd.Arguments.Add(fileArg);
+        cmd.Options.Add(outputOpt);
+
+        cmd.Subcommands.Add(BuildModifyTerrainCommand(fileArg, "conquest"));
+        cmd.Subcommands.Add(BuildModifyProvinceCommand(fileArg, "conquest"));
+        cmd.Subcommands.Add(BuildModifyBuildingCommand(fileArg, "conquest"));
+        cmd.Subcommands.Add(BuildModifyBelongCommand(fileArg, "conquest"));
+        cmd.Subcommands.Add(BuildModifyLegionCommand(fileArg, "conquest"));
+        cmd.Subcommands.Add(BuildModifyArmyCommand(fileArg, "conquest"));
+        cmd.Subcommands.Add(BuildModifyTrapCommand(fileArg, "conquest"));
+        cmd.Subcommands.Add(BuildModifyInfoCommand(fileArg, "conquest"));
+
+        return cmd;
+    }
+
+    private static Command BuildModifyTerrainCommand(Argument<string> fileArg, string fileType)
+    {
+        var cmd = new Command("terrain", "地形修改操作");
+
+        var greeningCmd = new Command("greening", "绿化平地");
+        var greeningProbOpt = new Option<int>("--probability", "-p") { Description = "绿化概率(0-100)", DefaultValueFactory = _ => 50 };
+        greeningCmd.Options.Add(greeningProbOpt);
+        greeningCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var terrain = modifiers.GetModifier<TerrainModifier>()!;
+                int prob = Math.Clamp(parseResult.GetValue(greeningProbOpt), 0, 100);
+                var result = terrain.ApplyGreening(prob);
+                Console.WriteLine(result.Message ?? $"绿化完成，概率={prob}%");
+            });
+        });
+
+        var randomFlatCmd = new Command("random-flat", "随机平地变体");
+        var randomFlatProbOpt = new Option<int>("--probability", "-p") { Description = "随机概率(0-100)", DefaultValueFactory = _ => 50 };
+        randomFlatCmd.Options.Add(randomFlatProbOpt);
+        randomFlatCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var terrain = modifiers.GetModifier<TerrainModifier>()!;
+                int prob = Math.Clamp(parseResult.GetValue(randomFlatProbOpt), 0, 100);
+                var result = terrain.RandomizeFlatTerrain(prob);
+                Console.WriteLine(result.Message ?? $"随机平地变体完成，概率={prob}%");
+            });
+        });
+
+        var randomVariantCmd = new Command("random-variant", "随机当前层变体");
+        var randomVariantProbOpt = new Option<int>("--probability", "-p") { Description = "随机概率(0-100)", DefaultValueFactory = _ => 50 };
+        var randomVariantLayerOpt = new Option<int>("--layer", "-l") { Description = "编辑层(1-3)", DefaultValueFactory = _ => 1 };
+        randomVariantCmd.Options.Add(randomVariantProbOpt);
+        randomVariantCmd.Options.Add(randomVariantLayerOpt);
+        randomVariantCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var terrain = modifiers.GetModifier<TerrainModifier>()!;
+                terrain.EditLayer = Math.Clamp(parseResult.GetValue(randomVariantLayerOpt), 1, 3);
+                int prob = Math.Clamp(parseResult.GetValue(randomVariantProbOpt), 0, 100);
+                var result = terrain.RandomizeVariant(prob);
+                Console.WriteLine(result.Message ?? $"随机变体完成，编辑层={terrain.EditLayer}，概率={prob}%");
+            });
+        });
+
+        var createCoastCmd = new Command("create-coast", "创建海岸线");
+        createCoastCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var terrain = modifiers.GetModifier<TerrainModifier>()!;
+                var result = terrain.CreateCoast();
+                Console.WriteLine(result.Message ?? "海岸线创建完成");
+            });
+        });
+
+        var processOceanCmd = new Command("process-ocean-layer2", "处理海洋第二层");
+        processOceanCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var terrain = modifiers.GetModifier<TerrainModifier>()!;
+                var result = terrain.ProcessOceanSecondLayer();
+                Console.WriteLine(result.Message ?? "海洋第二层处理完成");
+            });
+        });
+
+        var floodFillCmd = new Command("flood-fill", "洪水填充地形");
+        var fillColArg = new Argument<int>("col") { Description = "起始列" };
+        var fillRowArg = new Argument<int>("row") { Description = "起始行" };
+        var fillTypeArg = new Argument<int>("type") { Description = "替换地形类型" };
+        floodFillCmd.Arguments.Add(fillColArg);
+        floodFillCmd.Arguments.Add(fillRowArg);
+        floodFillCmd.Arguments.Add(fillTypeArg);
+        floodFillCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var terrain = modifiers.GetModifier<TerrainModifier>()!;
+                var result = terrain.FloodFill(parseResult.GetValue(fillColArg), parseResult.GetValue(fillRowArg), (byte)parseResult.GetValue(fillTypeArg));
+                Console.WriteLine(result.Message ?? "洪水填充完成");
+            });
+        });
+
+        var exportHdCmd = new Command("export-hd", "导出高清地形文件");
+        exportHdCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var terrain = modifiers.GetModifier<TerrainModifier>()!;
+                var result = terrain.ExportHdFile();
+                Console.WriteLine(result.Message ?? "高清地形文件导出完成");
+            });
+        });
+
+        var recognizeCmd = new Command("recognize", "识别地形（需图像提供者）");
+        recognizeCmd.SetAction(parseResult =>
+        {
+            Console.WriteLine("地形识别需要图像提供者，在CLI模式下不可用");
+        });
+
+        cmd.Subcommands.Add(greeningCmd);
+        cmd.Subcommands.Add(randomFlatCmd);
+        cmd.Subcommands.Add(randomVariantCmd);
+        cmd.Subcommands.Add(createCoastCmd);
+        cmd.Subcommands.Add(processOceanCmd);
+        cmd.Subcommands.Add(floodFillCmd);
+        cmd.Subcommands.Add(exportHdCmd);
+        cmd.Subcommands.Add(recognizeCmd);
+
+        return cmd;
+    }
+
+    private static Command BuildModifyProvinceCommand(Argument<string> fileArg, string fileType)
+    {
+        var cmd = new Command("province", "省份修改操作");
+
+        var clearCmd = new Command("clear", "清空所有省份");
+        clearCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var province = modifiers.GetModifier<ProvinceModifier>()!;
+                var result = province.ClearAllProvinces();
+                Console.WriteLine(result.Message ?? "所有省份已清空");
+            });
+        });
+
+        var generateCmd = new Command("generate", "生成孤立省会省区");
+        generateCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var province = modifiers.GetModifier<ProvinceModifier>()!;
+                var result = province.GenerateProvincesForIsolatedCapitals();
+                Console.WriteLine(result.Message ?? "孤立省会省区生成完成");
+            });
+        });
+
+        var expandCmd = new Command("expand", "扩展省区填满地图");
+        expandCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var province = modifiers.GetModifier<ProvinceModifier>()!;
+                var result = province.ExpandAllProvincesToFillMap();
+                Console.WriteLine(result.Message ?? "省区扩展完成");
+            });
+        });
+
+        var processCmd = new Command("process", "处理孤立和空白省区");
+        processCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var province = modifiers.GetModifier<ProvinceModifier>()!;
+                var result = province.ProcessIsolatedAndEmptyProvinces();
+                Console.WriteLine(result.Message ?? "孤立和空白省区处理完成");
+            });
+        });
+
+        var floodFillCmd = new Command("flood-fill", "洪水填充省份");
+        var fillColArg = new Argument<int>("col") { Description = "起始列" };
+        var fillRowArg = new Argument<int>("row") { Description = "起始行" };
+        floodFillCmd.Arguments.Add(fillColArg);
+        floodFillCmd.Arguments.Add(fillRowArg);
+        floodFillCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var province = modifiers.GetModifier<ProvinceModifier>()!;
+                var result = province.FloodFill(parseResult.GetValue(fillColArg), parseResult.GetValue(fillRowArg));
+                Console.WriteLine(result.Message ?? "省份洪水填充完成");
+            });
+        });
+
+        cmd.Subcommands.Add(clearCmd);
+        cmd.Subcommands.Add(generateCmd);
+        cmd.Subcommands.Add(expandCmd);
+        cmd.Subcommands.Add(processCmd);
+        cmd.Subcommands.Add(floodFillCmd);
+
+        return cmd;
+    }
+
+    private static Command BuildModifyBuildingCommand(Argument<string> fileArg, string fileType)
+    {
+        var cmd = new Command("building", "建筑修改操作");
+
+        var removeAllCmd = new Command("remove-all", "删除所有建筑");
+        removeAllCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var building = modifiers.GetModifier<BuildingModifier>()!;
+                building.RemoveAll();
+                Console.WriteLine("所有建筑已删除");
+            });
+        });
+
+        var removeNonCapitalCmd = new Command("remove-non-capital", "删除非首都建筑");
+        removeNonCapitalCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var building = modifiers.GetModifier<BuildingModifier>()!;
+                int count = building.RemoveNonCapitalBuildings(mapData);
+                Console.WriteLine($"已删除 {count} 个非首都建筑");
+            });
+        });
+
+        var randomizeNamedCmd = new Command("randomize-named", "随机有名称建筑类型");
+        randomizeNamedCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var building = modifiers.GetModifier<BuildingModifier>()!;
+                int count = building.RandomizeNamedBuildingTypes();
+                Console.WriteLine($"已随机 {count} 个有名称建筑");
+            });
+        });
+
+        var randomizeUnnamedCmd = new Command("randomize-unnamed", "随机无名称建筑类型");
+        randomizeUnnamedCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var building = modifiers.GetModifier<BuildingModifier>()!;
+                int count = building.RandomizeUnnamedBuildingTypes();
+                Console.WriteLine($"已随机 {count} 个无名称建筑");
+            });
+        });
+
+        var randomizeByBelongCmd = new Command("randomize-by-belong", "按归属随机建筑");
+        var belongIdArg = new Argument<int>("belongId") { Description = "归属ID" };
+        randomizeByBelongCmd.Arguments.Add(belongIdArg);
+        randomizeByBelongCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var building = modifiers.GetModifier<BuildingModifier>()!;
+                int belongId = parseResult.GetValue(belongIdArg);
+                int count = building.RandomizeBuildingsByBelong(belongId);
+                Console.WriteLine($"已按归属{belongId}随机 {count} 个建筑");
+            });
+        });
+
+        var generateCapitalsCmd = new Command("generate-capitals", "为所有建筑生成首都");
+        generateCapitalsCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var building = modifiers.GetModifier<BuildingModifier>()!;
+                int count = building.GenerateCapitalsForAllBuildings(mapData);
+                Console.WriteLine($"已生成 {count} 个首都");
+            });
+        });
+
+        var randomizeOnCapitalsCmd = new Command("randomize-on-capitals", "在首都随机建筑");
+        randomizeOnCapitalsCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var building = modifiers.GetModifier<BuildingModifier>()!;
+                int count = building.RandomizeBuildingsOnCapitals(mapData);
+                Console.WriteLine($"已在首都随机 {count} 个建筑");
+            });
+        });
+
+        var smartAppearanceCmd = new Command("smart-appearance", "智能设置建筑外观");
+        smartAppearanceCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var building = modifiers.GetModifier<BuildingModifier>()!;
+                int count = building.SmartSetBuildingAppearance(mapData);
+                Console.WriteLine($"已智能设置 {count} 个建筑外观");
+            });
+        });
+
+        cmd.Subcommands.Add(removeAllCmd);
+        cmd.Subcommands.Add(removeNonCapitalCmd);
+        cmd.Subcommands.Add(randomizeNamedCmd);
+        cmd.Subcommands.Add(randomizeUnnamedCmd);
+        cmd.Subcommands.Add(randomizeByBelongCmd);
+        cmd.Subcommands.Add(generateCapitalsCmd);
+        cmd.Subcommands.Add(randomizeOnCapitalsCmd);
+        cmd.Subcommands.Add(smartAppearanceCmd);
+
+        return cmd;
+    }
+
+    private static Command BuildModifyBelongCommand(Argument<string> fileArg, string fileType)
+    {
+        var cmd = new Command("belong", "归属修改操作");
+
+        var clearCmd = new Command("clear", "清空所有归属");
+        clearCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                int count = 0;
+                for (int i = 0; i < mapData.Belongs.Count; i++)
+                {
+                    if (mapData.GetBelongValueByIndex(i) != 0xFF)
+                    {
+                        mapData.SetBelongValueByIndex(i, 0xFF);
+                        count++;
+                    }
+                }
+                Console.WriteLine($"已清空 {count} 个格子的归属");
+            });
+        });
+
+        var setCmd = new Command("set", "设置指定格子归属");
+        var setColArg = new Argument<int>("col") { Description = "列" };
+        var setRowArg = new Argument<int>("row") { Description = "行" };
+        var setBelongArg = new Argument<int>("belong") { Description = "归属值(0-255, 255=无归属)" };
+        setCmd.Arguments.Add(setColArg);
+        setCmd.Arguments.Add(setRowArg);
+        setCmd.Arguments.Add(setBelongArg);
+        setCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var belong = modifiers.GetModifier<BelongModifier>()!;
+                int col = parseResult.GetValue(setColArg);
+                int row = parseResult.GetValue(setRowArg);
+                int belongVal = Math.Clamp(parseResult.GetValue(setBelongArg), 0, 255);
+                var result = belong.SetBelongByCountryId(col, row, belongVal);
+                Console.WriteLine(result.Message ?? $"已设置归属 ({col},{row}) = {belongVal}");
+            });
+        });
+
+        var fillCmd = new Command("fill-from-legion", "按军团ID填充归属到建筑格子");
+        var fillLegionIdArg = new Argument<int>("legionId") { Description = "军团ID" };
+        fillCmd.Arguments.Add(fillLegionIdArg);
+        fillCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                int legionId = parseResult.GetValue(fillLegionIdArg);
+                int count = 0;
+                foreach (var building in mapData.Buildings)
+                {
+                    int col = building.Coordinate % mapData.MapWidth;
+                    int row = building.Coordinate / mapData.MapWidth;
+                    if (mapData.GetBelongValue(col, row) != legionId)
+                    {
+                        mapData.SetBelongValue(col, row, legionId);
+                        count++;
+                    }
+                }
+                Console.WriteLine($"已将 {count} 个建筑格子归属设为军团 {legionId}");
+            });
+        });
+
+        var statsCmd = new Command("stats", "归属统计");
+        statsCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var belongCounts = new Dictionary<int, int>();
+                for (int i = 0; i < mapData.Belongs.Count; i++)
+                {
+                    int val = mapData.GetBelongValueByIndex(i);
+                    if (val != 0xFF)
+                    {
+                        if (!belongCounts.ContainsKey(val)) belongCounts[val] = 0;
+                        belongCounts[val]++;
+                    }
+                }
+                Console.WriteLine("归属值分布:");
+                foreach (var kv in belongCounts.OrderBy(x => x.Key))
+                {
+                    string name = "";
+                    int legionIdx = mapData.FindLegionIndex(kv.Key);
+                    if (legionIdx >= 0) name = $" ({mapData.Legions[legionIdx].DisplayName})";
+                    Console.WriteLine($"  归属={kv.Key}{name}: {kv.Value} 格");
+                }
+                int emptyCount = mapData.Belongs.Count - belongCounts.Values.Sum();
+                Console.WriteLine($"  无归属(0xFF): {emptyCount} 格");
+            }, save: false);
+        });
+
+        cmd.Subcommands.Add(clearCmd);
+        cmd.Subcommands.Add(setCmd);
+        cmd.Subcommands.Add(fillCmd);
+        cmd.Subcommands.Add(statsCmd);
+
+        return cmd;
+    }
+
+    private static Command BuildModifyLegionCommand(Argument<string> fileArg, string fileType)
+    {
+        var cmd = new Command("legion", "军团修改操作");
+
+        var listCmd = new Command("list", "列出所有军团");
+        listCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var legions = mapData.Legions;
+                Console.WriteLine($"军团总数: {legions.Count}");
+                Console.WriteLine();
+                Console.WriteLine($"{"ID",-4} {"名称",-20} {"颜色",-12} {"玩家控制",-10}");
+                Console.WriteLine(new string('-', 50));
+                foreach (var legion in legions)
+                {
+                    Console.WriteLine($"{legion.CountryId,-4} {legion.DisplayName,-20} ({legion.ColorR:X2}{legion.ColorG:X2}{legion.ColorB:X2})     {(legion.IsPlayerControlled == 1 ? "是" : "否"),-10}");
+                }
+            });
+        });
+
+        var setColorCmd = new Command("set-color", "设置军团颜色");
+        var setColorIdArg = new Argument<int>("legionId") { Description = "军团ID" };
+        var setColorRArg = new Argument<int>("r") { Description = "红色(0-255)" };
+        var setColorGArg = new Argument<int>("g") { Description = "绿色(0-255)" };
+        var setColorBArg = new Argument<int>("b") { Description = "蓝色(0-255)" };
+        setColorCmd.Arguments.Add(setColorIdArg);
+        setColorCmd.Arguments.Add(setColorRArg);
+        setColorCmd.Arguments.Add(setColorGArg);
+        setColorCmd.Arguments.Add(setColorBArg);
+        setColorCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var legion = modifiers.GetModifier<LegionModifier>()!;
+                int legionId = parseResult.GetValue(setColorIdArg);
+                byte r = (byte)Math.Clamp(parseResult.GetValue(setColorRArg), 0, 255);
+                byte g = (byte)Math.Clamp(parseResult.GetValue(setColorGArg), 0, 255);
+                byte b = (byte)Math.Clamp(parseResult.GetValue(setColorBArg), 0, 255);
+                var result = legion.SetLegionColor(legionId, r, g, b);
+                Console.WriteLine(result.Message ?? $"已设置军团 {legionId} 颜色为 ({r},{g},{b})");
+            });
+        });
+
+        var setActionCmd = new Command("set-action", "设置军团ActionId");
+        var setActionIdArg = new Argument<int>("legionId") { Description = "军团ID" };
+        var setActionValArg = new Argument<int>("actionId") { Description = "ActionId" };
+        setActionCmd.Arguments.Add(setActionIdArg);
+        setActionCmd.Arguments.Add(setActionValArg);
+        setActionCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var legion = modifiers.GetModifier<LegionModifier>()!;
+                int legionId = parseResult.GetValue(setActionIdArg);
+                int actionId = parseResult.GetValue(setActionValArg);
+                var result = legion.SetLegionActionId(legionId, actionId);
+                Console.WriteLine(result.Message ?? $"已设置军团 {legionId} ActionId={actionId}");
+            });
+        });
+
+        cmd.Subcommands.Add(listCmd);
+        cmd.Subcommands.Add(setColorCmd);
+        cmd.Subcommands.Add(setActionCmd);
+
+        return cmd;
+    }
+
+    private static Command BuildModifyArmyCommand(Argument<string> fileArg, string fileType)
+    {
+        var cmd = new Command("army", "部队修改操作");
+
+        var listCmd = new Command("list", "列出所有部队");
+        listCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var armies = mapData.Armies;
+                Console.WriteLine($"部队总数: {armies.Count}");
+                if (armies.Count > 0)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine($"{"序号",-6} {"类型",-6} {"坐标",-10} {"军团",-6}");
+                    Console.WriteLine(new string('-', 30));
+                    for (int i = 0; i < armies.Count; i++)
+                    {
+                        var army = armies[i];
+                        int col = army.Coordinate % mapData.MapWidth;
+                        int row = army.Coordinate / mapData.MapWidth;
+                        Console.WriteLine($"{i,-6} {army.UnitType,-6} ({col},{row})    {army.LegionId,-6}");
+                    }
+                }
+            }, save: false);
+        });
+
+        var removeAllCmd = new Command("remove-all", "删除所有部队");
+        removeAllCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                int count = mapData.Armies.Count;
+                mapData.Armies.Clear();
+                Console.WriteLine($"已删除 {count} 个部队");
+            });
+        });
+
+        cmd.Subcommands.Add(listCmd);
+        cmd.Subcommands.Add(removeAllCmd);
+
+        return cmd;
+    }
+
+    private static Command BuildModifyTrapCommand(Argument<string> fileArg, string fileType)
+    {
+        var cmd = new Command("trap", "陷阱修改操作");
+
+        var listCmd = new Command("list", "列出所有陷阱");
+        listCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var traps = mapData.Traps;
+                Console.WriteLine($"陷阱总数: {traps.Count}");
+                if (traps.Count > 0)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine($"{"序号",-6} {"坐标",-10} {"军团",-6} {"组织",-6} {"血量",-6}");
+                    Console.WriteLine(new string('-', 40));
+                    for (int i = 0; i < traps.Count; i++)
+                    {
+                        var trap = traps[i];
+                        int col = trap.Coordinate % mapData.MapWidth;
+                        int row = trap.Coordinate / mapData.MapWidth;
+                        Console.WriteLine($"{i,-6} ({col},{row})    {trap.LegionId,-6} {trap.Organization,-6} {trap.Health,-6}");
+                    }
+                }
+            }, save: false);
+        });
+
+        var removeAllCmd = new Command("remove-all", "删除所有陷阱");
+        removeAllCmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                int count = mapData.Traps.Count;
+                mapData.Traps.Clear();
+                Console.WriteLine($"已删除 {count} 个陷阱");
+            });
+        });
+
+        cmd.Subcommands.Add(listCmd);
+        cmd.Subcommands.Add(removeAllCmd);
+
+        return cmd;
+    }
+
+    private static Command BuildModifyInfoCommand(Argument<string> fileArg, string fileType)
+    {
+        var cmd = new Command("info", "显示地图信息");
+
+        cmd.SetAction(parseResult =>
+        {
+            ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
+            {
+                var header = mapData.Header;
+                Console.WriteLine("========== 地图信息 ==========");
+                Console.WriteLine($"  地图尺寸:    {header.MapWidth} x {header.MapLength}");
+                Console.WriteLine($"  总格子数:    {header.TotalTiles}");
+                Console.WriteLine($"  军团数:      {mapData.Legions.Count}");
+                Console.WriteLine($"  建筑数:      {mapData.Buildings.Count}");
+                Console.WriteLine($"  省份数据:    {mapData.Provinces.Count} 格");
+                Console.WriteLine($"  归属数据:    {mapData.Belongs.Count} 格");
+                Console.WriteLine($"  地形数据:    {mapData.Terrains.Count} 格");
+
+                int provinceCount = mapData.Provinces.Count(p => p.ProvinceValue != 0);
+                int belongCount = 0;
+                for (int i = 0; i < mapData.Belongs.Count; i++)
+                    if (mapData.GetBelongValueByIndex(i) != 0xFF) belongCount++;
+                Console.WriteLine($"  有效省份:    {provinceCount} 格");
+                Console.WriteLine($"  有效归属:    {belongCount} 格");
+                Console.WriteLine("==============================");
+            }, save: false);
+        });
+
+        return cmd;
+    }
+
+    private static void ExecuteModify(ParseResult parseResult, Argument<string> fileArg, string fileType, Action<MapData, EditModeManager> action, bool save = true)
+    {
+        try
+        {
+            string filePath = parseResult.GetValue(fileArg)!;
+            DoModify(filePath, fileType, action, save);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"错误: {ex.Message}");
+            Environment.ExitCode = 1;
+        }
+    }
+
+    private static void DoModify(string filePath, string fileType, Action<MapData, EditModeManager> action, bool save)
+    {
+        if (!File.Exists(filePath))
+        {
+            Console.Error.WriteLine($"文件不存在: {filePath}");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        Console.WriteLine($"加载文件: {filePath}");
+        MapData mapData;
+        if (fileType == "stage")
+            mapData = StageParser.LoadToMapData(filePath);
+        else
+            mapData = ConquestParser.LoadToMapData(filePath);
+
+        if (mapData == null)
+        {
+            Console.Error.WriteLine("文件加载失败");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var editModeManager = EditModeManager.Instance;
+        editModeManager.Initialize(mapData);
+
+        action(mapData, editModeManager);
+
+        if (save)
+        {
+            bool success;
+            if (fileType == "stage")
+                success = StageParser.SaveFromMapData(mapData, filePath);
+            else
+                success = ConquestParser.SaveFromMapData(mapData, filePath);
+
+            if (success)
+                Console.WriteLine($"已保存: {filePath}");
+            else
+            {
+                Console.Error.WriteLine("保存失败");
+                Environment.ExitCode = 1;
+            }
+        }
+    }
+
+    #endregion
 }

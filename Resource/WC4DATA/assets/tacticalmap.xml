@@ -1,409 +1,1806 @@
-<Texture name="tacticalmap.png" />
+﻿<Texture name="tacticalmap.png" />
 <Images>
-    <Image name="blue_07.png" x="1" y="1" w="132" h="123" refx="0" refy="0" />
-    <Image name="red_07.png" x="1" y="125" w="132" h="123" refx="0" refy="0" />
-    <Image name="blue_09.png" x="134" y="1" w="74" h="76" refx="0" refy="0" />
-    <Image name="red_09.png" x="134" y="78" w="74" h="76" refx="0" refy="0" />
-    <Image name="blue_14.png" x="134" y="155" w="109" h="68" refx="0" refy="0" />
-    <Image name="bg_general.png" x="1" y="249" w="66" h="67" refx="0" refy="0" />
-    <Image name="head_Alexander.png" x="134" y="224" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_America.png" x="68" y="249" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Antonescu.png" x="1" y="317" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Arab.png" x="58" y="317" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Arnold.png" x="1" y="379" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Auchinleck.png" x="125" y="286" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Badoglio.png" x="191" y="224" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Bagramyan.png" x="58" y="379" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Bai.C.X.png" x="1" y="441" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Balbo.png" x="115" y="348" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Blamey.png" x="182" y="286" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Bock.png" x="58" y="441" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Boris.png" x="115" y="410" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Bradley.png" x="172" y="348" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Budyonny.png" x="172" y="410" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Camacho.png" x="209" y="1" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Campioni.png" x="209" y="63" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Cavallero.png" x="266" y="1" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Chen.S.K.png" x="244" y="125" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_China.png" x="323" y="1" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Choe.png" x="266" y="63" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Christian.png" x="323" y="63" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Chuikov.png" x="380" y="1" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Chung.png" x="301" y="125" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Common.png" x="248" y="187" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Crace.png" x="437" y="1" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Crerar.png" x="380" y="63" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_de Gaulle.png" x="305" y="187" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Dempsey.png" x="358" y="125" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Devers.png" x="437" y="63" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Dill.png" x="248" y="249" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Donitz.png" x="305" y="249" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Dowding.png" x="239" y="311" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Du.Y.M.png" x="415" y="125" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Dumitrescu.png" x="362" y="187" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Dutra.png" x="419" y="187" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Eaker.png" x="362" y="249" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Eisenhower.png" x="296" y="311" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Emperor.png" x="229" y="373" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Europe.png" x="419" y="249" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Fletcher.png" x="286" y="373" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Franco.png" x="229" y="435" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_French.png" x="353" y="311" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Gamelin.png" x="410" y="311" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_General.png" x="343" y="373" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Germany.png" x="286" y="435" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Goring.png" x="400" y="373" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Govorov.png" x="343" y="435" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Graziani.png" x="400" y="435" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Greim.png" x="1" y="503" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Guderian.png" x="58" y="503" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Halsey.png" x="115" y="472" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Hata.png" x="1" y="565" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Heinrici.png" x="172" y="472" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Horthy.png" x="58" y="565" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Inoue.png" x="1" y="627" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Isakov.png" x="115" y="534" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Itagaki.png" x="172" y="534" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Italy.png" x="115" y="596" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Japan.png" x="58" y="627" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Juin.png" x="1" y="689" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Keitel.png" x="229" y="497" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Kesselring.png" x="58" y="689" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_King.png" x="1" y="751" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Kinkaid.png" x="172" y="596" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Kleist.png" x="115" y="658" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Koga.png" x="286" y="497" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Koiso.png" x="229" y="559" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Kondo.png" x="58" y="751" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Konev.png" x="1" y="813" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Krueger.png" x="343" y="497" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Kuchler.png" x="172" y="658" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Kuribayashi.png" x="115" y="720" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Kuznetsov.png" x="400" y="497" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Leclerc.png" x="172" y="720" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Lee.png" x="229" y="621" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Leeb.png" x="58" y="813" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Leopold.png" x="1" y="875" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Li.Z.R.png" x="286" y="559" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Liang.X.C.png" x="343" y="559" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Lin.B.png" x="115" y="782" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Liu.B.C.png" x="400" y="559" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_MacArthur.png" x="172" y="782" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Mahdi.png" x="286" y="621" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Mannerheim.png" x="58" y="875" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Manstein.png" x="1" y="937" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Manteuffel.png" x="229" y="683" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_McAuliffe.png" x="343" y="621" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_McCain.png" x="115" y="844" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Messe.png" x="400" y="621" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Meyer.png" x="172" y="844" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Minister.png" x="286" y="683" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Mitscher.png" x="229" y="745" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Model.png" x="58" y="937" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Montgomery.png" x="343" y="683" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Mountbatten.png" x="115" y="906" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Muhammad.png" x="400" y="683" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Nagano.png" x="172" y="906" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Nagumo.png" x="286" y="745" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Nasser.png" x="229" y="807" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Nimitz.png" x="343" y="745" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Okamura.png" x="400" y="745" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Olav.png" x="286" y="807" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Papagos.png" x="229" y="869" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Patton.png" x="343" y="807" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Peng.D.H.png" x="400" y="807" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Petain.png" x="286" y="869" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Phibun.png" x="229" y="931" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Portal.png" x="343" y="869" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Pound.png" x="400" y="869" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Riccardi.png" x="286" y="931" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Rokossovsky.png" x="343" y="931" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Rommel.png" x="400" y="931" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Rundstedt.png" x="494" y="1" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Schorner.png" x="494" y="63" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Shaposhnikov.png" x="551" y="1" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Slim.png" x="608" y="1" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Smigly.png" x="551" y="63" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Smith.png" x="472" y="125" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Soviet Union.png" x="476" y="187" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Stilwell.png" x="529" y="125" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Student.png" x="608" y="63" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Sun.L.R.png" x="665" y="1" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Tassigny.png" x="586" y="125" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Terauchi.png" x="533" y="187" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Thimayya.png" x="476" y="249" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Timoshenko.png" x="722" y="1" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Tito.png" x="643" y="125" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Toyoda.png" x="665" y="63" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_UK.png" x="590" y="187" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Umezu.png" x="467" y="311" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Ushijima.png" x="457" y="373" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Vasilevsky.png" x="722" y="63" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Vatutin.png" x="700" y="125" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Voroshilov.png" x="779" y="1" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Weichs.png" x="533" y="249" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Wingate.png" x="647" y="187" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Winkelman.png" x="704" y="187" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Witzleben.png" x="590" y="249" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Xu.S.Y.png" x="524" y="311" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Xu.X.Q.png" x="836" y="1" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Xue.Y.png" x="779" y="63" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Yamamoto.png" x="757" y="125" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Yamashita.png" x="514" y="373" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Zhang.L.F.png" x="457" y="435" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Zhang.Z.Z.png" x="893" y="1" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Zhu.D.png" x="581" y="311" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Zhukov.png" x="647" y="249" w="56" h="61" refx="0" refy="0" />
-    <Image name="head_Abrams.png" x="836" y="63" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Alan Brooke.png" x="571" y="373" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Alberto Bayo.png" x="814" y="125" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Anders.png" x="761" y="187" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Arnim.png" x="704" y="249" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Auchinleck2.png" x="638" y="311" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Bastico.png" x="950" y="1" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Bitrich.png" x="514" y="435" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Bock2.png" x="457" y="497" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Bradley2.png" x="891" y="63" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Brauchitsch.png" x="869" y="124" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_British CO.png" x="626" y="373" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Chennault.png" x="946" y="63" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Chernyakhovsky.png" x="512" y="497" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Clark.png" x="569" y="435" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Cunningham.png" x="693" y="311" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Darlan.png" x="759" y="249" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_de Gaulle2.png" x="816" y="186" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Doolittle.png" x="457" y="558" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Dowding2.png" x="924" y="124" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Eichelberger.png" x="681" y="372" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Eisenhower2.png" x="512" y="558" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Falkenhorst.png" x="871" y="185" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Fuchida.png" x="816" y="247" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Gariboldi.png" x="748" y="310" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_general_General.png" x="624" y="434" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_general_Minister.png" x="567" y="496" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_German CO.png" x="457" y="619" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Govorov2.png" x="512" y="619" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Halsey2.png" x="622" y="496" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Hartmann.png" x="567" y="557" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Helfrich.png" x="679" y="434" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Hermann Balck.png" x="803" y="310" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Hermann Hoth.png" x="748" y="371" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Higuchi.png" x="871" y="246" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Horii.png" x="926" y="185" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Horton.png" x="457" y="680" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Inonu.png" x="457" y="741" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Juliusz.png" x="512" y="680" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Katukov.png" x="926" y="246" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Kimmel.png" x="871" y="307" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Kluge.png" x="803" y="371" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Koenig.png" x="736" y="432" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Kretschmer.png" x="677" y="495" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Kuznetsov2.png" x="622" y="557" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Leslie.png" x="567" y="618" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Lhagvasuren.png" x="457" y="802" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_List.png" x="622" y="618" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Luigi.png" x="567" y="679" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_MacArthur2.png" x="677" y="556" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Malinovsky.png" x="732" y="495" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Manstein2.png" x="791" y="432" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Marshall.png" x="858" y="368" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Marshall2.png" x="926" y="307" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_McCampbell.png" x="512" y="741" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Meretskov.png" x="846" y="432" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Messe2.png" x="457" y="863" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Mikawa.png" x="567" y="740" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Model2.png" x="512" y="802" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Nenonen.png" x="913" y="368" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Nimitz2.png" x="787" y="493" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Novikov.png" x="732" y="556" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Osborn1.png" x="677" y="617" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Osborn2.png" x="622" y="679" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Ozawa.png" x="842" y="493" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Pahlevi.png" x="901" y="429" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Patton2.png" x="956" y="429" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Paulus.png" x="901" y="490" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Pavlov.png" x="677" y="678" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Percival.png" x="622" y="740" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Qasim.png" x="732" y="617" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Raeder.png" x="787" y="554" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Richthofen.png" x="968" y="368" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Rokossovsky2.png" x="567" y="801" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Rundstedt2.png" x="512" y="863" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Schmidhuber.png" x="457" y="924" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Sikorski.png" x="842" y="554" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Simo Hayha.png" x="956" y="490" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Simonds.png" x="512" y="924" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Sokolovsky.png" x="567" y="862" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Soviet CO.png" x="622" y="801" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Spaatz.png" x="787" y="615" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Spruance.png" x="732" y="678" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Takagi.png" x="677" y="739" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Tito2.png" x="897" y="551" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Tolbukhin.png" x="842" y="615" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_US CO.png" x="952" y="551" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Vasilevsky2.png" x="732" y="739" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Vasily.png" x="677" y="800" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Voronov.png" x="787" y="676" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Wainwright.png" x="622" y="862" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Wavell.png" x="567" y="923" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Weidling.png" x="897" y="612" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Weygand.png" x="842" y="676" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Wittmann.png" x="952" y="612" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Wu.png" x="622" y="923" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Yamaguchi.png" x="677" y="861" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Yeryomenko.png" x="787" y="737" w="54" h="60" refx="0" refy="0" />
-    <Image name="head_Zhukov2.png" x="732" y="800" w="54" h="60" refx="0" refy="0" />
-    <Image name="flag_1.png" x="115" y="968" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_10.png" x="168" y="968" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_11.png" x="897" y="673" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_12.png" x="842" y="737" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_13.png" x="950" y="673" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_14.png" x="787" y="798" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_15.png" x="732" y="861" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_16.png" x="677" y="922" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_17.png" x="897" y="728" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_18.png" x="842" y="792" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_19.png" x="950" y="728" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_2.png" x="730" y="922" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_20.png" x="785" y="861" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_21.png" x="895" y="783" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_22.png" x="840" y="847" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_23.png" x="948" y="783" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_24.png" x="783" y="916" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_25.png" x="895" y="838" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_26.png" x="838" y="902" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_27.png" x="948" y="838" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_28.png" x="893" y="893" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_29.png" x="836" y="957" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_3.png" x="946" y="893" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_30.png" x="891" y="948" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_31.png" x="944" y="948" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_32.png" x="1" y="999" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_33.png" x="54" y="999" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_34.png" x="1" y="1054" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_35.png" x="54" y="1054" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_36.png" x="1" y="1109" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_37.png" x="107" y="1023" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_38.png" x="160" y="1023" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_39.png" x="107" y="1078" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_4.png" x="54" y="1109" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_40.png" x="1" y="1164" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_41.png" x="221" y="993" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_42.png" x="54" y="1164" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_43.png" x="1" y="1219" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_44.png" x="160" y="1078" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_45.png" x="107" y="1133" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_46.png" x="274" y="993" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_47.png" x="54" y="1219" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_48.png" x="213" y="1048" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_49.png" x="1" y="1274" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_5.png" x="160" y="1133" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_50.png" x="107" y="1188" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_51.png" x="266" y="1048" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_52.png" x="213" y="1103" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_53.png" x="327" y="993" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_54.png" x="54" y="1274" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_55.png" x="380" y="993" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_56.png" x="107" y="1243" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_57.png" x="319" y="1048" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_58.png" x="266" y="1103" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_59.png" x="213" y="1158" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_6.png" x="160" y="1188" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_60.png" x="457" y="985" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_7.png" x="160" y="1243" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_8.png" x="266" y="1158" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_9.png" x="213" y="1213" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_91.png" x="319" y="1103" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_92.png" x="372" y="1048" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_93.png" x="425" y="1048" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_94.png" x="372" y="1103" w="52" h="54" refx="0" refy="0" />
-    <Image name="flag_95.png" x="319" y="1158" w="52" h="54" refx="0" refy="0" />
-    <Image name="blue_11.png" x="266" y="1213" w="89" h="47" refx="0" refy="0" />
-    <Image name="red_11.png" x="213" y="1268" w="89" h="47" refx="0" refy="0" />
-    <Image name="red_14.png" x="510" y="985" w="109" h="68" refx="0" refy="0" />
-    <Image name="blue_08.png" x="979" y="124" w="42" h="39" refx="0" refy="0" />
-    <Image name="red_08.png" x="981" y="164" w="42" h="39" refx="0" refy="0" />
-    <Image name="f_01.png" x="981" y="204" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_02.png" x="981" y="243" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_03.png" x="981" y="282" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_04.png" x="981" y="321" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_05.png" x="107" y="1298" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_06.png" x="145" y="1298" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_07.png" x="372" y="1158" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_08.png" x="425" y="1103" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_09.png" x="463" y="1103" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_10.png" x="425" y="1142" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_101.png" x="372" y="1197" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_102.png" x="478" y="1054" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_103.png" x="516" y="1054" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_104.png" x="303" y="1261" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_105.png" x="341" y="1261" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_106.png" x="303" y="1300" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_107.png" x="554" y="1054" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_108.png" x="501" y="1093" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_109.png" x="410" y="1181" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_11.png" x="463" y="1142" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_110.png" x="620" y="984" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_12.png" x="448" y="1181" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_13.png" x="410" y="1220" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_14.png" x="677" y="977" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_15.png" x="620" y="1023" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_16.png" x="501" y="1132" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_17.png" x="539" y="1093" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_18.png" x="341" y="1300" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_19.png" x="379" y="1259" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_20.png" x="577" y="1093" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_21.png" x="539" y="1132" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_22.png" x="501" y="1171" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_23.png" x="448" y="1220" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_24.png" x="417" y="1259" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_25.png" x="379" y="1298" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_26.png" x="658" y="1016" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_27.png" x="615" y="1062" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_28.png" x="653" y="1062" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_29.png" x="615" y="1101" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_30.png" x="696" y="1016" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_31.png" x="417" y="1298" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_32.png" x="455" y="1259" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_33.png" x="486" y="1210" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_34.png" x="539" y="1171" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_35.png" x="577" y="1132" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_36.png" x="715" y="977" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_37.png" x="753" y="977" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_38.png" x="524" y="1210" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_39.png" x="577" y="1171" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_40.png" x="734" y="1016" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_41.png" x="691" y="1055" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_42.png" x="493" y="1249" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_43.png" x="455" y="1298" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_44.png" x="531" y="1249" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_45.png" x="493" y="1288" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_46.png" x="562" y="1210" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_47.png" x="791" y="971" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_48.png" x="653" y="1101" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_49.png" x="615" y="1140" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_50.png" x="729" y="1055" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_51.png" x="691" y="1094" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_52.png" x="772" y="1016" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_53.png" x="810" y="1012" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_54.png" x="767" y="1055" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_55.png" x="729" y="1094" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_56.png" x="691" y="1133" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_57.png" x="653" y="1140" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_58.png" x="615" y="1179" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_59.png" x="653" y="1179" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_60.png" x="600" y="1218" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_91.png" x="531" y="1288" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_92.png" x="569" y="1257" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_93.png" x="607" y="1257" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_94.png" x="569" y="1296" w="37" h="38" refx="0" refy="0" />
-    <Image name="f_95.png" x="638" y="1218" w="37" h="38" refx="0" refy="0" />
-    <Image name="blue_12.png" x="691" y="1172" w="134" h="33" refx="0" refy="0" />
-    <Image name="red_12.png" x="729" y="1133" w="134" h="33" refx="0" refy="0" />
-    <Image name="blue_10.png" x="805" y="1055" w="161" h="40" refx="0" refy="0" />
-    <Image name="red_10.png" x="848" y="1012" w="161" h="40" refx="0" refy="0" />
-    <Image name="blue_13.png" x="691" y="1206" w="190" h="51" refx="0" refy="0" />
-    <Image name="red_13.png" x="645" y="1258" w="190" h="51" refx="0" refy="0" />
-    <Image name="city_point1.png" x="209" y="125" w="14" h="14" refx="0" refy="0" />
-    <Image name="city_point2.png" x="224" y="125" w="11" h="11" refx="0" refy="0" />
+  <Image name="blue_07.png" x="0" y="0" w="132" h="123" refx="0" refy="0" />
+  <Image name="red_07.png" x="0" y="125" w="132" h="123" refx="0" refy="0" />
+  <Image name="blue_09.png" x="326" y="0" w="74" h="76" refx="0" refy="0" />
+  <Image name="red_09.png" x="134" y="218" w="74" h="76" refx="0" refy="0" />
+  <Image name="blue_14.png" x="134" y="106" w="109" h="68" refx="0" refy="0" />
+  <Image name="bg_general.png" x="245" y="106" w="66" h="67" refx="0" refy="0" />
+  <Image name="head_general_General.png" x="744" y="2480" w="54" h="60" refx="0" refy="0" />
+  <Image name="head_general_Minister.png" x="3103" y="124" w="54" h="60" refx="0" refy="0" />
+  <Image name="flag_1.png" x="2864" y="372" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_11.png" x="2802" y="434" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_12.png" x="3062" y="186" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_13.png" x="3015" y="248" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_14.png" x="2953" y="310" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_15.png" x="3207" y="62" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_16.png" x="800" y="2480" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_17.png" x="3283" y="0" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_18.png" x="3159" y="124" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_19.png" x="2790" y="496" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_2.png" x="2728" y="558" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_20.png" x="2666" y="620" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_21.png" x="2604" y="682" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_22.png" x="2542" y="744" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_23.png" x="2480" y="806" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_24.png" x="2418" y="868" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_25.png" x="2356" y="930" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_26.png" x="2294" y="992" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_27.png" x="2232" y="1054" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_28.png" x="2170" y="1116" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_29.png" x="2108" y="1178" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_30.png" x="2046" y="1240" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_31.png" x="1984" y="1302" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_32.png" x="1922" y="1364" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_33.png" x="1860" y="1426" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_34.png" x="1798" y="1488" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_35.png" x="1736" y="1550" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_36.png" x="1674" y="1612" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_37.png" x="1612" y="1674" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_38.png" x="1550" y="1736" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_39.png" x="1488" y="1798" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_40.png" x="1426" y="1860" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_41.png" x="1364" y="1922" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_42.png" x="1302" y="1984" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_43.png" x="1240" y="2046" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_44.png" x="1178" y="2108" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_45.png" x="1116" y="2170" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_46.png" x="1054" y="2232" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_47.png" x="992" y="2294" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_48.png" x="930" y="2356" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_5.png" x="868" y="2418" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_51.png" x="2918" y="372" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_6.png" x="2856" y="434" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_7.png" x="3116" y="186" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_8.png" x="3069" y="242" w="52" h="54" refx="0" refy="0" />
+  <Image name="blue_11.png" x="402" y="0" w="89" h="47" refx="0" refy="0" />
+  <Image name="red_11.png" x="326" y="78" w="89" h="47" refx="0" refy="0" />
+  <Image name="red_14.png" x="0" y="250" w="109" h="68" refx="0" refy="0" />
+  <Image name="blue_08.png" x="1456" y="2034" w="42" h="39" refx="0" refy="0" />
+  <Image name="red_08.png" x="1394" y="2096" w="42" h="39" refx="0" refy="0" />
+  <Image name="f_02.png" x="1944" y="1641" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_03.png" x="1882" y="1703" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_05.png" x="1820" y="1765" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_06.png" x="1758" y="1827" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_07.png" x="1696" y="1889" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_08.png" x="1634" y="1951" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_09.png" x="1413" y="2178" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_11.png" x="1373" y="2218" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_12.png" x="1311" y="2280" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_13.png" x="1249" y="2342" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_14.png" x="1187" y="2404" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_15.png" x="1125" y="2466" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_16.png" x="1478" y="2116" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_17.png" x="3272" y="312" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_18.png" x="3229" y="368" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_19.png" x="3141" y="451" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_20.png" x="3101" y="506" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_21.png" x="1581" y="2013" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_22.png" x="1541" y="2068" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_23.png" x="3017" y="581" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_24.png" x="2977" y="636" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_25.png" x="2914" y="699" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_26.png" x="2853" y="739" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_27.png" x="3366" y="250" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_28.png" x="3326" y="290" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_29.png" x="3180" y="429" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_30.png" x="3056" y="559" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_31.png" x="1983" y="1641" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_32.png" x="1921" y="1703" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_33.png" x="1859" y="1765" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_34.png" x="1797" y="1827" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_35.png" x="1735" y="1889" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_36.png" x="1673" y="1951" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_37.png" x="3272" y="352" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_38.png" x="2791" y="813" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_39.png" x="2729" y="875" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_40.png" x="2667" y="937" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_41.png" x="2605" y="999" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_42.png" x="2543" y="1061" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_43.png" x="2481" y="1123" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_44.png" x="2419" y="1185" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_45.png" x="2357" y="1247" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_46.png" x="2295" y="1309" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_47.png" x="2233" y="1371" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_48.png" x="2171" y="1433" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_51.png" x="2109" y="1495" w="37" h="38" refx="0" refy="0" />
+  <Image name="blue_12.png" x="0" y="362" w="134" h="33" refx="0" refy="0" />
+  <Image name="red_12.png" x="0" y="397" w="134" h="33" refx="0" refy="0" />
+  <Image name="blue_10.png" x="134" y="176" w="161" h="40" refx="0" refy="0" />
+  <Image name="red_10.png" x="0" y="320" w="161" h="40" refx="0" refy="0" />
+  <Image name="blue_13.png" x="134" y="0" w="190" h="51" refx="0" refy="0" />
+  <Image name="red_13.png" x="134" y="53" w="190" h="51" refx="0" refy="0" />
+  <Image name="city_point1.png" x="111" y="250" w="14" h="14" refx="0" refy="0" />
+  <Image name="city_point2.png" x="111" y="266" w="11" h="11" refx="0" refy="0" />
+  <Image name="f_54.png" x="2047" y="1557" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_55.png" x="1620" y="1991" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_56.png" x="1452" y="2156" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_58.png" x="1412" y="2218" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_59.png" x="1350" y="2280" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_60.png" x="1288" y="2342" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_62.png" x="1226" y="2404" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_63.png" x="1164" y="2466" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_64.png" x="1110" y="2506" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_65.png" x="2892" y="739" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_66.png" x="3141" y="491" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_67.png" x="2852" y="779" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_69.png" x="1517" y="2115" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_70.png" x="1581" y="2053" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_71.png" x="3228" y="408" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_72.png" x="3017" y="621" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_73.png" x="2768" y="875" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_74.png" x="2706" y="937" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_75.png" x="2644" y="999" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_76.png" x="2582" y="1061" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_77.png" x="2520" y="1123" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_78.png" x="2458" y="1185" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_79.png" x="2396" y="1247" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_80.png" x="2334" y="1309" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_81.png" x="2272" y="1371" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_82.png" x="2210" y="1433" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_83.png" x="2148" y="1495" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_84.png" x="2086" y="1557" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_85.png" x="2046" y="1597" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_86.png" x="3100" y="546" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_87.png" x="1491" y="2156" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_88.png" x="1452" y="2196" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_89.png" x="3180" y="469" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_90.png" x="1659" y="1991" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_91.png" x="1620" y="2031" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_92.png" x="2953" y="683" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_93.png" x="3365" y="290" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_94.png" x="3056" y="599" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_95.png" x="1149" y="2506" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_96.png" x="3311" y="330" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_97.png" x="2022" y="1637" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_98.png" x="1960" y="1681" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_99.png" x="1898" y="1743" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_100.png" x="1836" y="1805" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_101.png" x="1774" y="1867" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_102.png" x="1712" y="1929" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_103.png" x="3268" y="392" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_104.png" x="1389" y="2258" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_105.png" x="1327" y="2320" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_106.png" x="1265" y="2382" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_107.png" x="1203" y="2444" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_108.png" x="2931" y="739" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_109.png" x="2891" y="779" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_110.png" x="2830" y="819" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_111.png" x="1556" y="2108" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_112.png" x="3140" y="531" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_113.png" x="2992" y="676" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_114.png" x="3219" y="448" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_115.png" x="3350" y="330" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_116.png" x="1999" y="1681" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_117.png" x="1937" y="1743" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_118.png" x="1875" y="1805" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_119.png" x="1813" y="1867" w="37" h="38" refx="0" refy="0" />
+  <Image name="flag_49.png" x="3007" y="310" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_50.png" x="3261" y="62" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_52.png" x="854" y="2480" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_53.png" x="3337" y="0" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_54.png" x="3213" y="118" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_55.png" x="2844" y="490" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_56.png" x="2782" y="558" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_58.png" x="2720" y="620" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_59.png" x="2658" y="682" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_60.png" x="2596" y="744" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_62.png" x="2534" y="806" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_63.png" x="2472" y="868" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_64.png" x="2410" y="930" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_65.png" x="2348" y="992" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_66.png" x="2286" y="1054" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_67.png" x="2224" y="1116" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_68.png" x="2162" y="1178" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_69.png" x="2100" y="1240" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_70.png" x="2038" y="1302" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_71.png" x="1976" y="1364" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_72.png" x="1914" y="1426" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_73.png" x="1852" y="1488" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_74.png" x="1790" y="1550" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_75.png" x="1728" y="1612" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_76.png" x="1666" y="1674" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_77.png" x="1604" y="1736" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_78.png" x="1542" y="1798" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_79.png" x="1480" y="1860" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_80.png" x="1418" y="1922" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_81.png" x="1356" y="1984" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_82.png" x="1294" y="2046" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_83.png" x="1232" y="2108" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_84.png" x="1170" y="2170" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_85.png" x="1108" y="2232" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_86.png" x="1046" y="2294" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_87.png" x="984" y="2356" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_88.png" x="922" y="2418" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_89.png" x="2972" y="366" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_90.png" x="2910" y="428" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_91.png" x="3170" y="180" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_92.png" x="3123" y="242" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_93.png" x="3069" y="298" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_94.png" x="3315" y="56" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_95.png" x="3267" y="118" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_96.png" x="908" y="2474" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_97.png" x="2898" y="490" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_98.png" x="2844" y="546" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_99.png" x="3026" y="366" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_100.png" x="2964" y="428" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_101.png" x="2774" y="614" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_102.png" x="2712" y="676" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_103.png" x="2650" y="738" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_104.png" x="2588" y="800" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_105.png" x="2526" y="862" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_106.png" x="2464" y="924" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_107.png" x="2402" y="986" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_108.png" x="2340" y="1048" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_109.png" x="2278" y="1110" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_110.png" x="2216" y="1172" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_111.png" x="2154" y="1234" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_112.png" x="2092" y="1296" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_113.png" x="2030" y="1358" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_114.png" x="1968" y="1420" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_115.png" x="1906" y="1482" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_116.png" x="1844" y="1544" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_117.png" x="1782" y="1606" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_118.png" x="1720" y="1668" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_119.png" x="1658" y="1730" w="52" h="54" refx="0" refy="0" />
+  <Image name="f_49.png" x="1751" y="1929" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_50.png" x="3311" y="370" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_52.png" x="1712" y="1969" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_53.png" x="2807" y="859" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_57.png" x="2745" y="915" w="37" h="38" refx="0" refy="0" />
+  <Image name="flag_57.png" x="1596" y="1792" w="52" h="54" refx="0" refy="0" />
+  <Image name="f_129.png" x="1332" y="2158" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_130.png" x="1270" y="2220" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_131.png" x="1208" y="2282" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_132.png" x="1146" y="2344" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_133.png" x="1084" y="2406" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_134.png" x="3332" y="168" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_135.png" x="3285" y="230" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_136.png" x="3231" y="286" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_137.png" x="1456" y="2075" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_138.png" x="1394" y="2137" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_139.png" x="1332" y="2199" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_140.png" x="1270" y="2261" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_141.png" x="1208" y="2323" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_142.png" x="1146" y="2385" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_143.png" x="1084" y="2447" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_144.png" x="1500" y="2034" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_145.png" x="2936" y="602" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_146.png" x="2882" y="658" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_147.png" x="3332" y="209" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_148.png" x="3188" y="348" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_149.png" x="3134" y="410" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_150.png" x="3060" y="478" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_151.png" x="2812" y="732" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_152.png" x="2750" y="794" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_153.png" x="2688" y="856" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_154.png" x="2626" y="918" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_155.png" x="2564" y="980" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_156.png" x="2502" y="1042" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_157.png" x="2440" y="1104" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_158.png" x="2378" y="1166" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_159.png" x="2316" y="1228" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_160.png" x="2254" y="1290" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_161.png" x="2327" y="1389" w="37" h="37" refx="0" refy="0" />
+  <Image name="f_162.png" x="2265" y="1451" w="37" h="37" refx="0" refy="0" />
+  <Image name="f_163.png" x="2683" y="977" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_164.png" x="2621" y="1039" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_165.png" x="2559" y="1101" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_166.png" x="2497" y="1163" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_167.png" x="2203" y="1513" w="37" h="37" refx="0" refy="0" />
+  <Image name="f_168.png" x="2192" y="1352" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_169.png" x="2130" y="1414" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_170.png" x="2068" y="1476" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_171.png" x="2006" y="1538" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_172.png" x="1944" y="1600" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_173.png" x="2164" y="1575" w="37" h="37" refx="0" refy="0" />
+  <Image name="f_174.png" x="2435" y="1225" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_175.png" x="3369" y="56" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_176.png" x="1497" y="2075" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_177.png" x="1438" y="2116" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_178.png" x="1373" y="2178" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_179.png" x="1311" y="2240" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_180.png" x="1249" y="2302" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_181.png" x="1187" y="2364" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_182.png" x="1125" y="2426" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_183.png" x="1070" y="2488" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_184.png" x="1541" y="2028" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_185.png" x="3188" y="389" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_186.png" x="2977" y="596" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_187.png" x="2936" y="643" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_188.png" x="3101" y="466" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_189.png" x="3060" y="519" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_190.png" x="2874" y="699" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_191.png" x="3326" y="250" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_192.png" x="2812" y="773" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_193.png" x="2750" y="835" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_194.png" x="2688" y="897" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_195.png" x="2626" y="959" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_196.png" x="2564" y="1021" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_197.png" x="2502" y="1083" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_198.png" x="2440" y="1145" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_199.png" x="2378" y="1207" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_200.png" x="2316" y="1269" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_201.png" x="2254" y="1331" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_202.png" x="2192" y="1393" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_203.png" x="2130" y="1455" w="38" h="38" refx="0" refy="0" />
+  <Image name="f_204.png" x="2068" y="1517" w="38" h="38" refx="0" refy="0" />
+  <Image name="flag_120.png" x="210" y="218" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_121.png" x="0" y="432" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_122.png" x="313" y="127" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_123.png" x="163" y="296" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_124.png" x="272" y="218" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_125.png" x="493" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_126.png" x="62" y="432" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_127.png" x="0" y="494" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_128.png" x="417" y="49" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_129.png" x="136" y="362" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_130.png" x="375" y="127" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_131.png" x="225" y="280" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_132.png" x="334" y="189" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_133.png" x="555" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_134.png" x="479" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_135.png" x="124" y="432" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_136.png" x="62" y="494" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_137.png" x="0" y="556" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_138.png" x="198" y="358" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_139.png" x="437" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_140.png" x="287" y="280" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_141.png" x="396" y="189" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_142.png" x="541" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_143.png" x="617" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_144.png" x="186" y="424" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_145.png" x="124" y="494" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_146.png" x="62" y="556" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_147.png" x="0" y="618" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_148.png" x="260" y="342" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_149.png" x="499" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_150.png" x="349" y="251" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_151.png" x="458" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_152.png" x="411" y="251" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_153.png" x="349" y="313" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_154.png" x="260" y="404" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_155.png" x="603" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_156.png" x="186" y="486" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_157.png" x="679" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_158.png" x="124" y="556" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_159.png" x="62" y="618" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_160.png" x="0" y="680" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_161.png" x="561" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_162.png" x="520" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_163.png" x="1534" y="1854" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_164.png" x="1472" y="1916" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_165.png" x="1410" y="1978" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_166.png" x="1348" y="2040" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_167.png" x="473" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_168.png" x="411" y="313" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_169.png" x="322" y="375" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_170.png" x="248" y="466" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_171.png" x="665" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_172.png" x="186" y="548" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_173.png" x="741" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_174.png" x="1286" y="2102" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_175.png" x="124" y="618" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_176.png" x="62" y="680" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_177.png" x="0" y="742" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_178.png" x="623" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_179.png" x="384" y="375" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_180.png" x="322" y="437" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_181.png" x="582" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_182.png" x="248" y="528" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_183.png" x="535" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_184.png" x="473" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_185.png" x="727" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_186.png" x="186" y="610" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_187.png" x="803" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_188.png" x="124" y="680" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_189.png" x="62" y="742" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_190.png" x="0" y="804" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_191.png" x="685" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_192.png" x="446" y="375" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_193.png" x="384" y="437" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_194.png" x="310" y="499" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_195.png" x="644" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_196.png" x="248" y="590" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_197.png" x="597" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_198.png" x="535" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_199.png" x="789" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_200.png" x="186" y="672" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_201.png" x="865" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_202.png" x="124" y="742" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_203.png" x="62" y="804" w="60" h="60" refx="0" refy="0" />
+  <Image name="flag_204.png" x="0" y="866" w="60" h="60" refx="0" refy="0" />
+  <Image name="f_120.png" x="1882" y="1662" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_121.png" x="1820" y="1724" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_122.png" x="1758" y="1786" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_123.png" x="1696" y="1848" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_124.png" x="1634" y="1910" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_125.png" x="1572" y="1972" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_126.png" x="3006" y="540" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_127.png" x="3285" y="271" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_128.png" x="3231" y="327" w="39" h="39" refx="0" refy="0" />
+  <Image name="f_205.png" x="2373" y="1287" w="37" h="38" refx="0" refy="0" />
+  <Image name="flag_3.png" x="1224" y="2164" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_9.png" x="1162" y="2226" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_10.png" x="1100" y="2288" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_205.png" x="1038" y="2350" w="52" h="54" refx="0" refy="0" />
+  <Image name="f_3.png" x="2311" y="1349" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_10.png" x="2249" y="1411" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_216.png" x="2187" y="1473" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_217.png" x="2125" y="1535" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_218.png" x="2085" y="1597" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_219.png" x="3095" y="586" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_220.png" x="1530" y="2155" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_221.png" x="1428" y="2258" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_222.png" x="1366" y="2320" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_223.png" x="1304" y="2382" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_224.png" x="1242" y="2444" w="37" h="38" refx="0" refy="0" />
+  <Image name="flag_206.png" x="976" y="2412" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_207.png" x="3224" y="174" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_208.png" x="3177" y="236" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_209.png" x="3123" y="298" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_210.png" x="962" y="2474" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_211.png" x="3321" y="112" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_212.png" x="2952" y="484" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_213.png" x="2828" y="614" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_214.png" x="2766" y="676" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_215.png" x="2704" y="738" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_216.png" x="2642" y="800" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_217.png" x="2580" y="862" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_218.png" x="2518" y="924" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_219.png" x="2456" y="986" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_220.png" x="2394" y="1048" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_221.png" x="2332" y="1110" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_222.png" x="2270" y="1172" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_223.png" x="2208" y="1234" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_224.png" x="2146" y="1296" w="52" h="54" refx="0" refy="0" />
+  <Image name="f_206.png" x="1491" y="2196" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_207.png" x="1203" y="2484" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_208.png" x="2869" y="819" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_209.png" x="3180" y="509" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_210.png" x="1659" y="2031" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_211.png" x="1620" y="2071" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_212.png" x="3056" y="639" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_213.png" x="2061" y="1637" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_214.png" x="2784" y="915" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_215.png" x="2722" y="977" w="37" h="38" refx="0" refy="0" />
+  <Image name="flag_237.png" x="2084" y="1358" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_238.png" x="2022" y="1420" w="52" h="54" refx="0" refy="0" />
+  <Image name="f_225.png" x="2660" y="1039" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_226.png" x="2598" y="1101" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_227.png" x="2536" y="1163" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_228.png" x="2474" y="1225" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_229.png" x="2412" y="1287" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_230.png" x="2350" y="1349" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_231.png" x="2288" y="1411" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_232.png" x="2226" y="1473" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_233.png" x="2164" y="1535" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_234.png" x="3267" y="432" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_235.png" x="2125" y="1575" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_236.png" x="2846" y="859" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_237.png" x="3219" y="488" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_238.png" x="2992" y="716" w="37" h="38" refx="0" refy="0" />
+  <Image name="flag_225.png" x="1960" y="1482" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_226.png" x="1898" y="1544" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_227.png" x="1836" y="1606" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_228.png" x="1774" y="1668" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_229.png" x="1712" y="1730" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_230.png" x="1650" y="1792" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_231.png" x="1588" y="1854" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_232.png" x="1526" y="1916" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_233.png" x="1464" y="1978" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_234.png" x="1402" y="2040" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_235.png" x="1340" y="2102" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_236.png" x="1278" y="2164" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_244.png" x="1216" y="2226" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_245.png" x="1154" y="2288" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_246.png" x="1092" y="2350" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_247.png" x="1030" y="2412" w="52" h="54" refx="0" refy="0" />
+  <Image name="f_239.png" x="2930" y="779" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_240.png" x="3139" y="571" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_241.png" x="2038" y="1677" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_242.png" x="1976" y="1721" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_243.png" x="1914" y="1783" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_244.png" x="1852" y="1845" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_245.png" x="1790" y="1907" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_246.png" x="3350" y="370" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_247.png" x="1751" y="1969" w="37" h="38" refx="0" refy="0" />
+  <Image name="flag_239.png" x="2898" y="546" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_240.png" x="3080" y="354" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_241.png" x="3018" y="422" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_242.png" x="3278" y="174" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_243.png" x="3231" y="230" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_261.png" x="3177" y="292" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_262.png" x="3134" y="354" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_263.png" x="1016" y="2468" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_264.png" x="3006" y="484" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_265.png" x="3080" y="410" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_266.png" x="2952" y="540" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_267.png" x="2882" y="602" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_268.png" x="2820" y="670" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_269.png" x="2758" y="732" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_270.png" x="2696" y="794" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_271.png" x="2634" y="856" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_272.png" x="2572" y="918" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_273.png" x="2510" y="980" w="52" h="54" refx="0" refy="0" />
+  <Image name="f_248.png" x="3307" y="410" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_249.png" x="1698" y="2009" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_250.png" x="3095" y="626" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_251.png" x="1569" y="2148" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_252.png" x="1530" y="2195" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_253.png" x="1467" y="2236" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_254.png" x="1405" y="2298" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_255.png" x="1343" y="2360" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_256.png" x="1281" y="2422" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_257.png" x="1242" y="2484" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_258.png" x="2908" y="819" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_259.png" x="3179" y="549" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_260.png" x="1659" y="2071" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_261.png" x="1608" y="2111" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_262.png" x="3031" y="679" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_263.png" x="2015" y="1721" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_264.png" x="1953" y="1783" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_265.png" x="1891" y="1845" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_266.png" x="1829" y="1907" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_267.png" x="2100" y="1637" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_268.png" x="1790" y="1947" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_269.png" x="2823" y="899" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_270.png" x="2761" y="955" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_271.png" x="2699" y="1017" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_272.png" x="2637" y="1079" w="37" h="38" refx="0" refy="0" />
+  <Image name="f_273.png" x="2575" y="1141" w="37" h="38" refx="0" refy="0" />
+  <Image name="flag_248.png" x="2448" y="1042" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_249.png" x="2386" y="1104" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_250.png" x="2324" y="1166" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_251.png" x="2262" y="1228" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_252.png" x="2200" y="1290" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_253.png" x="2138" y="1352" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_254.png" x="2076" y="1414" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_255.png" x="2014" y="1476" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_256.png" x="1952" y="1538" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_257.png" x="1890" y="1600" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_258.png" x="1828" y="1662" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_259.png" x="1766" y="1724" w="52" h="54" refx="0" refy="0" />
+  <Image name="flag_260.png" x="1704" y="1786" w="52" h="54" refx="0" refy="0" />
+  <Image name="head_9.png" x="747" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_10.png" x="372" y="499" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_11.png" x="310" y="561" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_12.png" x="508" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_13.png" x="446" y="437" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_14.png" x="706" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_15.png" x="248" y="652" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_16.png" x="659" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_17.png" x="597" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_18.png" x="851" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_19.png" x="186" y="734" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_20.png" x="927" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_21.png" x="124" y="804" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_22.png" x="62" y="866" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_23.png" x="0" y="928" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_24.png" x="809" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_25.png" x="434" y="499" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_26.png" x="372" y="561" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_27.png" x="310" y="623" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_28.png" x="570" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_29.png" x="508" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_30.png" x="768" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_31.png" x="248" y="714" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_32.png" x="721" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_33.png" x="659" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_34.png" x="913" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_35.png" x="186" y="796" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_36.png" x="989" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_37.png" x="124" y="866" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_38.png" x="62" y="928" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_39.png" x="0" y="990" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_40.png" x="871" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_41.png" x="496" y="499" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_42.png" x="434" y="561" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_43.png" x="372" y="623" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_44.png" x="310" y="685" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_45.png" x="632" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_46.png" x="570" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_47.png" x="830" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_48.png" x="248" y="776" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_49.png" x="783" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_50.png" x="721" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_51.png" x="975" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_52.png" x="186" y="858" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_53.png" x="1051" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_54.png" x="124" y="928" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_55.png" x="62" y="990" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_56.png" x="0" y="1052" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_57.png" x="933" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_58.png" x="558" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_59.png" x="496" y="561" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_60.png" x="434" y="623" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_61.png" x="372" y="685" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_62.png" x="310" y="747" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_63.png" x="694" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_64.png" x="632" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_65.png" x="892" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_66.png" x="248" y="838" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_67.png" x="845" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_68.png" x="783" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_69.png" x="1037" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_70.png" x="186" y="920" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_71.png" x="1113" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_72.png" x="124" y="990" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_73.png" x="62" y="1052" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_74.png" x="0" y="1114" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_75.png" x="620" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_76.png" x="558" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_77.png" x="995" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_78.png" x="496" y="623" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_79.png" x="434" y="685" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_80.png" x="372" y="747" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_81.png" x="310" y="809" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_82.png" x="756" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_83.png" x="694" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_84.png" x="954" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_85.png" x="248" y="900" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_86.png" x="907" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_87.png" x="845" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_88.png" x="1099" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_89.png" x="186" y="982" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_90.png" x="1175" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_91.png" x="124" y="1052" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_92.png" x="62" y="1114" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_93.png" x="0" y="1176" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_94.png" x="682" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_95.png" x="620" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_96.png" x="558" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_97.png" x="1057" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_98.png" x="496" y="685" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_99.png" x="434" y="747" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_100.png" x="372" y="809" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_101.png" x="310" y="871" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_102.png" x="818" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_103.png" x="756" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_104.png" x="1016" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_105.png" x="248" y="962" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9009.png" x="969" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9010.png" x="907" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9011.png" x="1161" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9012.png" x="186" y="1044" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9013.png" x="1237" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9014.png" x="124" y="1114" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9015.png" x="62" y="1176" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9016.png" x="0" y="1238" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9017.png" x="744" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9018.png" x="682" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9019.png" x="620" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9020.png" x="558" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9021.png" x="1119" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9022.png" x="496" y="747" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9023.png" x="434" y="809" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9024.png" x="372" y="871" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9025.png" x="310" y="933" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9026.png" x="880" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9027.png" x="818" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9028.png" x="1078" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9029.png" x="248" y="1024" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9030.png" x="1031" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9031.png" x="969" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9032.png" x="1223" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9033.png" x="186" y="1106" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9034.png" x="1299" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9035.png" x="124" y="1176" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9036.png" x="62" y="1238" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9037.png" x="0" y="1300" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9038.png" x="806" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9039.png" x="744" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9040.png" x="682" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9041.png" x="620" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9042.png" x="558" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9043.png" x="1181" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9044.png" x="496" y="809" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9045.png" x="434" y="871" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9046.png" x="372" y="933" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9047.png" x="310" y="995" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9048.png" x="942" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9049.png" x="880" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9050.png" x="1140" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9051.png" x="248" y="1086" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9052.png" x="1093" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9053.png" x="1031" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9054.png" x="1285" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9055.png" x="186" y="1168" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9056.png" x="1361" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9057.png" x="124" y="1238" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9058.png" x="62" y="1300" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9059.png" x="0" y="1362" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9060.png" x="868" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9061.png" x="806" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9062.png" x="744" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9063.png" x="682" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9064.png" x="620" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_9065.png" x="558" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_A.Miles.png" x="1243" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_A.P.Hill.png" x="496" y="871" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_a.png" x="434" y="933" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_aa.png" x="372" y="995" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ab.png" x="310" y="1057" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Abbas II.png" x="1004" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_abc1.png" x="942" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_abc2.png" x="1202" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_abc3.png" x="248" y="1148" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_abc4.png" x="1155" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_abc5.png" x="1093" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_abc6.png" x="1347" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_abc7.png" x="186" y="1230" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_abc8.png" x="1423" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_abc9.png" x="124" y="1300" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_abc10.png" x="62" y="1362" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Abdul Kerim.png" x="0" y="1424" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Abrams.png" x="930" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_abu.png" x="868" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ac.png" x="806" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ad.png" x="744" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_adl.png" x="682" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_adlxsng.png" x="620" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ae.png" x="558" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_aer.png" x="1305" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_af.png" x="496" y="933" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_afhzxr.png" x="434" y="995" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_after.png" x="372" y="1057" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ag.png" x="310" y="1119" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_agst.png" x="1066" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_agtbl.png" x="1004" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_agtjst.png" x="1264" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_agtsj.png" x="248" y="1210" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ah.png" x="1217" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ai.png" x="1155" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_aimar.png" x="1409" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_aj.png" x="186" y="1292" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ak.png" x="1485" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_akigumo.png" x="124" y="1362" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_akishimo.png" x="62" y="1424" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_al.png" x="0" y="1486" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Alan Brooke.png" x="992" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Albert I.png" x="930" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Albert.png" x="868" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Alberto Bayo.png" x="806" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Albrecht.png" x="744" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_aleisi.png" x="682" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Aleksei Brusilov.png" x="620" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Aleksei Ermolaevich Evert.png" x="558" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Aleksey Kuropatkin.png" x="1367" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Aleksy Kuropatkin.png" x="496" y="995" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Alexander von Kluck.png" x="434" y="1057" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Alexander Yegorov.png" x="372" y="1119" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Alexander.png" x="310" y="1181" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Alexey Kaledin.png" x="1128" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Alfredo Acton.png" x="1066" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ali.png" x="1326" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_alic.png" x="248" y="1272" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_alr.png" x="1279" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_am.png" x="1217" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ambrose Burnside.png" x="1471" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_America.png" x="186" y="1354" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_an.png" x="1547" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Anders.png" x="124" y="1424" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Andrey Selivanov.png" x="62" y="1486" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_anlug.png" x="0" y="1548" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Anna.png" x="1054" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ansiruo.png" x="992" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ant.png" x="930" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Antoine de Mitry.png" x="868" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Anton Saltz.png" x="806" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Antonescu.png" x="744" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ao.png" x="682" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_aogu.png" x="620" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ap.png" x="558" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_aq.png" x="1429" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Arab.png" x="496" y="1057" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_arbnone.png" x="434" y="1119" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Archduke Eugen.png" x="372" y="1181" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Archduke Joseph.png" x="310" y="1243" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Archibald Paris.png" x="1190" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_arlwll.png" x="1128" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Armando Diaz.png" x="1388" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Armin.png" x="248" y="1334" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Arnim.png" x="1341" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Arnold.png" x="1279" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Arthur Aitken.png" x="1533" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Arthur Currie.png" x="186" y="1416" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_artn.png" x="1609" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_asabyhr.png" x="124" y="1486" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_asashimo.png" x="62" y="1548" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_asm1.png" x="0" y="1610" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_asm2.png" x="1116" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_asm3.png" x="1054" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_astw.png" x="992" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Auchinleck.png" x="930" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Auchinleck2.png" x="868" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Auffenberg.png" x="806" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Augusto Aubry.png" x="744" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_aust.png" x="682" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Averescu.png" x="620" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Aylmer.png" x="558" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Aymerich.png" x="1491" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_B.McPherson.png" x="496" y="1119" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Badoglio.png" x="434" y="1181" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bagramyan.png" x="372" y="1243" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bai.C.X.png" x="310" y="1305" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_baipiao.png" x="1252" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Balbo.png" x="1190" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_balei.png" x="1450" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bastico.png" x="248" y="1396" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bazaine.png" x="1403" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Beauregard.png" x="1341" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bebt.png" x="1595" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bely.png" x="186" y="1478" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Benedek.png" x="1671" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Benito Juarez.png" x="124" y="1548" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Benson.png" x="62" y="1610" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Beseler.png" x="0" y="1672" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bhutwo.png" x="1178" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bismarck.png" x="1116" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bitrich.png" x="1054" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bjly.png" x="992" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bjlylks.png" x="930" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bjlyt.png" x="868" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bjstzn.png" x="806" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bk.png" x="744" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bl.png" x="682" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Blamey.png" x="620" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_blang.png" x="558" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_blanm.png" x="1553" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_blans.png" x="496" y="1181" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bld.png" x="434" y="1243" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_blisr.png" x="372" y="1305" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_blk.png" x="310" y="1367" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bls.png" x="1314" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bm.png" x="1252" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bob.png" x="1512" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bock.png" x="248" y="1458" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bock2.png" x="1465" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bohm Ermolli.png" x="1403" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bojovic.png" x="1657" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Boris Shaposhnikov.png" x="186" y="1540" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Boris.png" x="1733" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Boroevic.png" x="124" y="1610" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_boruo.png" x="62" y="1672" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bothmer.png" x="0" y="1734" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Boyadzhiev.png" x="1240" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bozanovic.png" x="1178" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bradley.png" x="1116" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bradley2.png" x="1054" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Brauchitsch.png" x="992" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Braxton Bragg.png" x="930" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_British CO.png" x="868" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bruchmuller.png" x="806" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Brudermann.png" x="744" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bruno von Mudra.png" x="682" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bsy.png" x="620" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Budyonny.png" x="558" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Bukharin.png" x="1615" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bulu.png" x="496" y="1243" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bxsrjd.png" x="434" y="1305" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_bxwjs.png" x="372" y="1367" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Caie.png" x="310" y="1429" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Calixto Garcia.png" x="1376" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Camacho.png" x="1314" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Campioni.png" x="1574" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Caokun.png" x="248" y="1520" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Carden.png" x="1527" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Carlo Caneva.png" x="1465" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Carlos I.png" x="1719" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Carol I.png" x="186" y="1602" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Cary.png" x="1795" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Casado.png" x="124" y="1672" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Castelnau.png" x="62" y="1734" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Cavallero.png" x="0" y="1796" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ceuninck.png" x="1302" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_CG.png" x="1240" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_chaji.png" x="1178" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_chaogan.png" x="1116" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Charles Lanrezac.png" x="1054" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Charles Mangin.png" x="992" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Charles Yorke.png" x="930" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_chaxi.png" x="868" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Chen.S.K.png" x="806" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Chengbiguang.png" x="744" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Chennault.png" x="682" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Chernyakhovsky.png" x="620" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_China.png" x="558" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Choe.png" x="1677" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Christian.png" x="496" y="1305" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Chuikov.png" x="434" y="1367" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Chung.png" x="372" y="1429" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_chunqiao.png" x="310" y="1491" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Clark.png" x="1438" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Claude Buckle.png" x="1376" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Cobanli.png" x="1636" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_coc.png" x="248" y="1582" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Common.png" x="1589" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Constantine I.png" x="1527" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Costa.png" x="1781" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Crace.png" x="186" y="1664" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Crawford Caffin.png" x="1857" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Crerar.png" x="124" y="1734" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Cristescu.png" x="62" y="1796" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Cunningham.png" x="0" y="1858" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_CY.png" x="1364" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_CZX.png" x="1302" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_d.png" x="1240" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_DAL.png" x="1178" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dansitd.png" x="1116" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_daozi.png" x="1054" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_daqing.png" x="992" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Darlan.png" x="930" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_David Beatty.png" x="868" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_David Farragut.png" x="806" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_de Gaulle.png" x="744" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_de Gaulle2.png" x="682" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_de Olano.png" x="620" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_de Robeck.png" x="558" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_de.png" x="1739" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_de2.png" x="496" y="1367" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_de3.png" x="434" y="1429" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_death.png" x="372" y="1491" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Dempsey.png" x="310" y="1553" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Dengshichang.png" x="1500" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Denikin.png" x="1438" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Denta.png" x="1698" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_deu.png" x="248" y="1644" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Devers.png" x="1651" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dewj.png" x="1589" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Dill.png" x="1843" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Dingruchang.png" x="186" y="1726" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Dixmude.png" x="1919" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dkxusa.png" x="124" y="1796" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dlr.png" x="62" y="1858" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Dmitry Shcherbachev.png" x="0" y="1920" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Dobell.png" x="1426" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dobos.png" x="1364" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dongtiao.png" x="1302" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Donitz.png" x="1240" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Doolittle.png" x="1178" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Dorrien.png" x="1116" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Douglas Haig.png" x="1054" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Douglas MacArthur.png" x="992" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Dowding.png" x="930" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_DT.png" x="868" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Du.Y.M.png" x="806" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Duanqirui.png" x="744" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Duchene.png" x="682" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Duke of Aosta.png" x="620" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Duke of Tetuan.png" x="558" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Dumitrescu.png" x="1801" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_duolaliao.png" x="496" y="1429" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_duosuo.png" x="434" y="1491" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Dutra.png" x="372" y="1553" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz1.png" x="310" y="1615" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz2.png" x="1562" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz3.png" x="1500" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz4.png" x="1760" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz5.png" x="248" y="1706" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz6.png" x="1713" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz7.png" x="1651" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz8.png" x="1905" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz9.png" x="186" y="1788" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz10.png" x="1981" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz11.png" x="124" y="1858" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz12.png" x="62" y="1920" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz13.png" x="0" y="1982" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz14.png" x="1488" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz15.png" x="1426" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz16.png" x="1364" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz17.png" x="1302" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz18.png" x="1240" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz19.png" x="1178" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz20.png" x="1116" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz21.png" x="1054" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz22.png" x="992" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz23.png" x="930" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz24.png" x="868" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz25.png" x="806" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz26.png" x="744" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz27.png" x="682" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz28.png" x="620" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz29.png" x="558" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz30.png" x="1863" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz31.png" x="496" y="1491" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz32.png" x="434" y="1553" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz33.png" x="372" y="1615" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz34.png" x="310" y="1677" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz35.png" x="1624" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz36.png" x="1562" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz37.png" x="1822" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz38.png" x="248" y="1768" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz39.png" x="1775" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz40.png" x="1713" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz41.png" x="1967" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz42.png" x="186" y="1850" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_dyz43.png" x="2043" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ea.png" x="124" y="1920" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Eaker.png" x="62" y="1982" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_eb.png" x="0" y="2044" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ec.png" x="1550" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ed.png" x="1488" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_EDH.png" x="1426" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Edmund Allenby.png" x="1364" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ee.png" x="1302" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ef.png" x="1240" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_eg.png" x="1178" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_egdrfr.png" x="1116" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_eh.png" x="1054" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ei.png" x="992" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Eichelberger.png" x="930" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Eichhorn.png" x="868" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Einem.png" x="806" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Eisenhower.png" x="744" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Eisenhower2.png" x="682" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ej.png" x="620" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_el.png" x="558" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_els1.png" x="1925" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_em.png" x="496" y="1553" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Emile Dossin.png" x="434" y="1615" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Emile Fayolle.png" x="372" y="1677" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Emperor.png" x="310" y="1739" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_en.png" x="1686" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Enver.png" x="1624" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Eremia Grigorescu.png" x="1884" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ernesto Mombelli.png" x="248" y="1830" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Esperey.png" x="1837" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Estienne.png" x="1775" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Eugene Pottier.png" x="2029" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Europe.png" x="186" y="1912" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Evelyn Wood.png" x="2105" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Evert.png" x="124" y="1982" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Faik.png" x="62" y="2044" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Falkenhausen.png" x="0" y="2106" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Falkenhayn.png" x="1612" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Falkenhorst.png" x="1550" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_falwz.png" x="1488" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_fanlangs.png" x="1426" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_fanlanklao.png" x="1364" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_fanlann.png" x="1302" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_fanlanye.png" x="1240" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_felibin.png" x="1178" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Felix Graf von Luckner.png" x="1116" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Fengzicai.png" x="1054" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ferdinand Foch.png" x="992" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ferdinand I.png" x="930" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ferdinand.png" x="868" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Fevzi Cakmak.png" x="806" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_fg2.png" x="744" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_flbg.png" x="682" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Fletcher.png" x="620" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_flsf.png" x="558" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_flx1.png" x="1987" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_flz.png" x="496" y="1615" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Francis II.png" x="434" y="1677" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Franco.png" x="372" y="1739" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Francois Anthoine.png" x="310" y="1801" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Franz Joseph I.png" x="1748" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_French.png" x="1686" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Fritz von Below.png" x="1946" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Fuchida.png" x="248" y="1892" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_fujinami.png" x="1899" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_fulake.png" x="1837" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_fulongzhi.png" x="2091" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_fuyi.png" x="186" y="1974" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_fwles.png" x="2167" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_FYX.png" x="124" y="2044" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_FZY.png" x="62" y="2106" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_g.png" x="0" y="2168" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Gallwitz.png" x="1674" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Gamelin.png" x="1612" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_gandi.png" x="1550" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Garibaldi.png" x="1488" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Gariboldi.png" x="1426" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Garnet Wolseley.png" x="1364" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_geck.png" x="1302" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_General A.png" x="1240" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_General C.png" x="1178" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_General E.png" x="1116" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_General F.png" x="1054" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_General G.png" x="992" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_General I.png" x="930" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_General J.png" x="868" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_General S.png" x="806" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_General U.png" x="744" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_General X.png" x="682" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_General.png" x="620" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_George Dewey.png" x="558" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_George McClellan.png" x="2049" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_George Meade.png" x="496" y="1677" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_George Milne.png" x="434" y="1739" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_George White.png" x="372" y="1801" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Georgi Todorov.png" x="310" y="1863" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Gerard Leman.png" x="1810" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_German CO.png" x="1748" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Germany.png" x="2008" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_GESKF.png" x="248" y="1954" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Giraldi.png" x="1961" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Giulio Douhet.png" x="1899" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_gl.png" x="2153" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_glbwnk.png" x="186" y="2036" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_glbyal.png" x="2229" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_gmwx.png" x="124" y="2106" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Godley.png" x="62" y="2168" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Gomez.png" x="0" y="2230" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Goring.png" x="1736" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Gourko.png" x="1674" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Govorov.png" x="1612" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Govorov2.png" x="1550" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Graziani.png" x="1488" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Greim.png" x="1426" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Grossetti.png" x="1364" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Guderian.png" x="1302" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Guepratte.png" x="1240" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Guido Novak.png" x="1178" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_H.Cameron.png" x="1116" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Halil Kut.png" x="1054" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Halil Sami Bey.png" x="992" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Halsey.png" x="930" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Halsey2.png" x="868" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Hartmann.png" x="806" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Harvey Hill.png" x="744" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Hata.png" x="682" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_hayanami.png" x="620" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_hb.png" x="558" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_hcg.png" x="2111" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_hd.png" x="496" y="1739" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_hed.png" x="434" y="1801" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Heinrici.png" x="372" y="1863" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_helen.png" x="310" y="1925" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Helfrich.png" x="1872" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Henri Berthelot.png" x="1810" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Henri Gouraud.png" x="2070" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Henri Putz.png" x="248" y="2016" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Henry Halleck.png" x="2023" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Henry Horne.png" x="1961" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Herbert Plumer.png" x="2215" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Hermann Balck.png" x="186" y="2098" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Hermann Hoth.png" x="2291" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Hermann.png" x="124" y="2168" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Heydebreck.png" x="62" y="2230" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Higuchi.png" x="0" y="2292" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Hikonojo.png" x="1798" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Hindenburg.png" x="1736" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Hipper.png" x="1674" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_hit.png" x="1612" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Hitler.png" x="1550" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_HKC.png" x="1488" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_HL.png" x="1426" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_hlt.png" x="1364" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_hongbo.png" x="1302" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Horace Hood.png" x="1240" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Horii.png" x="1178" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Horthy.png" x="1116" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Horton.png" x="1054" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Hoskins.png" x="992" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Hotzendorf.png" x="930" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_hr.png" x="868" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_hs.png" x="806" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_hsr.png" x="744" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ht.png" x="682" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Hubert Gough.png" x="620" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Hulinyi.png" x="558" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Hunter Liggett.png" x="2173" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Hunter Weston.png" x="496" y="1801" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_hyq.png" x="434" y="1863" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_hzming.png" x="372" y="1925" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_HZN.png" x="310" y="1987" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ian Hamilton.png" x="1934" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Inonu.png" x="1872" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Inoue.png" x="2132" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ioan Culcer.png" x="248" y="2078" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Isakov.png" x="2085" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Itagaki.png" x="2023" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Italy.png" x="2277" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ivan Fichev.png" x="186" y="2160" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ivanov.png" x="2353" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_J.Hardee.png" x="124" y="2230" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ja.png" x="62" y="2292" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Jan Smuts.png" x="0" y="2354" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Japan.png" x="1860" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jb.png" x="1798" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jc.png" x="1736" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jd.png" x="1674" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_je.png" x="1612" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Jellicoe.png" x="1550" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jf.png" x="1488" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jfjzsl.png" x="1426" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jg.png" x="1364" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jh.png" x="1302" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ji.png" x="1240" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Jiangjieshi.png" x="1178" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Jiangzhongzheng.png" x="1116" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jinrc.png" x="1054" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jinzr.png" x="992" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jj.png" x="930" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jjs.png" x="868" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jk.png" x="806" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jl.png" x="744" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jld.png" x="682" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jm.png" x="620" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jn.png" x="558" y="1798" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jnd1.png" x="2235" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_jo.png" x="496" y="1863" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Johannes von Eben.png" x="434" y="1925" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_John Bell Hood.png" x="372" y="1987" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_John Buford.png" x="310" y="2049" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_John C.Pemberton.png" x="1996" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_John French.png" x="1934" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_John J.Pershing.png" x="2194" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_John Pope.png" x="248" y="2140" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_JosePessoa.png" x="2147" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Joseph Gallieni.png" x="2085" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Joseph Hooker.png" x="2339" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Joseph Joffre.png" x="186" y="2222" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Joseph Johnston.png" x="2415" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Joseph Watt.png" x="124" y="2292" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Juin.png" x="62" y="2354" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Jukums Vacietis.png" x="0" y="2416" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Julian Byng.png" x="1922" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Juliusz.png" x="1860" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_kaimoer.png" x="1798" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kamio Mitsuomi.png" x="1736" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_kamor.png" x="1674" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Katukov.png" x="1612" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_kazagumo.png" x="1550" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kazim Karabekir.png" x="1488" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Keitel.png" x="1426" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kesselring.png" x="1364" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_khr.png" x="1302" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kimmel.png" x="1240" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_King.png" x="1178" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kinkaid.png" x="1116" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_kishinami.png" x="1054" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kitchener.png" x="992" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_kiyoshimo.png" x="930" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_klbs.png" x="868" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kleist.png" x="806" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kliment Voroshilov.png" x="744" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_klqme.png" x="682" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kluge.png" x="620" y="1798" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kodama Gentaro.png" x="558" y="1860" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Koenig.png" x="2297" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Koga.png" x="496" y="1925" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Koiso.png" x="434" y="1987" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kolchak.png" x="372" y="2049" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kolemen Abdullah.png" x="310" y="2111" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kondo.png" x="2058" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Konev.png" x="1996" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kountouriotis.png" x="2256" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kovesshaza.png" x="248" y="2202" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Krasnik.png" x="2209" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_krcn.png" x="2147" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kressenstein.png" x="2401" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kretschmer.png" x="186" y="2284" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_krgmd.png" x="2477" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Krobatin.png" x="124" y="2354" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Krueger.png" x="62" y="2416" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_kstr.png" x="0" y="2478" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kuchler.png" x="1984" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kuribayashi.png" x="1922" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_kuro.png" x="1860" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kuroki Tamemoto.png" x="1798" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kuznetsov.png" x="1736" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Kuznetsov2.png" x="1674" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Lamarmora.png" x="1612" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_LB.png" x="1550" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_LBC.png" x="1488" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_lbtknd.png" x="1426" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ldys.png" x="1364" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Leberecht Maass.png" x="1302" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Leclerc.png" x="1240" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Lee.png" x="1178" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Leeb.png" x="1116" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_leen.png" x="1054" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_leiluo.png" x="992" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Leon Trotsky.png" x="930" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Leopold.png" x="868" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Leslie.png" x="806" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Lettow Vorbeck.png" x="744" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Lhagvasuren.png" x="682" y="1798" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_LHQ.png" x="620" y="1860" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Li.Z.R.png" x="558" y="1922" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Liang.X.C.png" x="2359" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_lichen.png" x="496" y="1987" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_lide.png" x="434" y="2049" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Lihongzhang.png" x="372" y="2111" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Lijinglin.png" x="310" y="2173" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Liliejun.png" x="2120" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Lin.B.png" x="2058" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Linares.png" x="2318" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_linliside.png" x="248" y="2264" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Linsingen.png" x="2271" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_lisa.png" x="2209" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_List.png" x="2463" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_lisun.png" x="186" y="2346" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Liu.B.C.png" x="2539" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Liumingchuan.png" x="124" y="2416" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Liyuanhong.png" x="62" y="2478" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_lm.png" x="2046" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_lmgj.png" x="1984" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_lmhiy.png" x="1922" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_lmplyn.png" x="1860" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_lmtt.png" x="1798" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Lochow.png" x="1736" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_lomer.png" x="1674" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Longstreet.png" x="1612" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Louis Ruquoy.png" x="1550" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_LRH.png" x="1488" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_LRQ.png" x="1426" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_lt.png" x="1364" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ltjn.png" x="1302" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ludendorff.png" x="1240" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ludwig II.png" x="1178" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Luigi Cadorna.png" x="1116" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Luigi Capello.png" x="1054" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Luigi.png" x="992" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_luofu.png" x="930" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_luosifu.png" x="868" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_luz.png" x="806" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_LXC.png" x="744" y="1798" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_LXN.png" x="682" y="1860" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_LXQ.png" x="620" y="1922" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_LXTHF.png" x="558" y="1984" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ly.png" x="2421" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_lyht.png" x="496" y="2049" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_lyni.png" x="434" y="2111" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_m.png" x="372" y="2173" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_MacArthur.png" x="310" y="2235" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Mackensen.png" x="2182" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Macmahon.png" x="2120" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Mahan.png" x="2380" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Mahdi.png" x="248" y="2326" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_makigumo.png" x="2333" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_makinami.png" x="2271" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Malinovsky.png" x="2525" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Mannerheim.png" x="186" y="2408" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Manstein.png" x="2601" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Manstein2.png" x="124" y="2478" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Manteuffel.png" x="2108" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Maria_Bochkareva.png" x="2046" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Marshall.png" x="1984" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Marshall2.png" x="1922" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Marwitz.png" x="1860" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Maurice Bailloud.png" x="1798" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Maurice Gamelin.png" x="1736" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Maurice Sarrail.png" x="1674" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Max Hoffmann.png" x="1612" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Max Looff.png" x="1550" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Max von Boehn.png" x="1488" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Max von Fabeck.png" x="1426" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Max von Hausen.png" x="1364" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_mbf.png" x="1302" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_McAuliffe.png" x="1240" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_McCain.png" x="1178" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_McCampbell.png" x="1116" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Meretskov.png" x="1054" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Messe.png" x="992" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Meyer.png" x="930" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Meyer-Waldeck.png" x="868" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Meza.png" x="806" y="1798" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Michel.png" x="744" y="1860" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Micis.png" x="682" y="1922" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Mihail Savov.png" x="620" y="1984" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Mikawa.png" x="558" y="2046" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Mikhail Alekseyev.png" x="2483" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Mikhail Diterikhs.png" x="496" y="2111" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Mikhail Frunze.png" x="434" y="2173" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Mikhail Tukhachevsky.png" x="372" y="2235" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Minister.png" x="310" y="2297" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Mitscher.png" x="2244" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Model.png" x="2182" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Model2.png" x="2442" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Moltke the Younger.png" x="248" y="2388" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Moltke.png" x="2395" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Monagas.png" x="2333" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Montgomery.png" x="2587" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Montojo.png" x="186" y="2470" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_mosuolini.png" x="2663" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Mountbatten.png" x="2170" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Muhammad IV.png" x="2108" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Muhammad.png" x="2046" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Muhtar.png" x="1984" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Murray.png" x="1922" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_mus.png" x="1860" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Mustafa Kemal.png" x="1798" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_mxgks.png" x="1736" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_MXR.png" x="1674" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_mzd.png" x="1612" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_mzd2.png" x="1550" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_mzs.png" x="1488" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nadir.png" x="1426" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_naganami.png" x="1364" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nagano.png" x="1302" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nagumo.png" x="1240" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Napoleon III.png" x="1178" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nashwa.png" x="1116" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nasira.png" x="1054" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nasser.png" x="992" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nenonen.png" x="930" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nicholas I.png" x="868" y="1798" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nicholas II.png" x="806" y="1860" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_nigula.png" x="744" y="1922" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_nihelu.png" x="682" y="1984" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nikola Zhekov.png" x="620" y="2046" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nikola_Ivanov.png" x="558" y="2108" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nikolaevich.png" x="2545" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nikolai Podvoisky.png" x="496" y="2173" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nikolai Ruzsky.png" x="434" y="2235" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nikolai Yudenich.png" x="372" y="2297" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nimitz.png" x="310" y="2359" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nimitz2.png" x="2306" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nogi Maresuke.png" x="2244" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Novikov.png" x="2504" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_NRZ.png" x="248" y="2450" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nunez.png" x="2457" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Nureddin.png" x="2395" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_oa.png" x="2649" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ob.png" x="2725" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_oc.png" x="2232" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_od.png" x="2170" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_oe.png" x="2108" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_of.png" x="2046" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_og.png" x="1984" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_oh.png" x="1922" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_oi.png" x="1860" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_oj.png" x="1798" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ok.png" x="1736" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Okamura.png" x="1674" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_okinami.png" x="1612" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ol.png" x="1550" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Olav.png" x="1488" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Olivera.png" x="1426" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Osborn1.png" x="1364" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Osborn2.png" x="1302" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Oskar von Hutier.png" x="1240" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Osman Nuri.png" x="1178" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Otto von Below.png" x="1116" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Oyama Lwao.png" x="1054" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ozawa.png" x="992" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Pahlevi.png" x="930" y="1798" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Panagiotis Danglis.png" x="868" y="1860" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Panos Koronaios.png" x="806" y="1922" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Papagos.png" x="744" y="1984" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Patton.png" x="682" y="2046" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Patton2.png" x="620" y="2108" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Paul Maistre.png" x="558" y="2170" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Paulus.png" x="2607" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Pavlov.png" x="496" y="2235" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_PDH.png" x="434" y="2297" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Peng.D.H.png" x="372" y="2359" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Percival.png" x="310" y="2421" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Petain.png" x="2368" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Peter Strasser.png" x="2306" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Phibun.png" x="2566" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Philip Sheridan.png" x="2519" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Philippe Petain.png" x="2457" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Pietro Frugoni.png" x="2711" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Plehwe.png" x="2787" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_plge.png" x="2294" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Portal.png" x="2232" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Potiorek.png" x="2170" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Pound.png" x="2108" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Prado.png" x="2046" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Prezan.png" x="1984" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Prince Karl Theodor.png" x="1922" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Prince Leopold.png" x="1860" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Prince Wilhelm.png" x="1798" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_puska.png" x="1736" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_puslc.png" x="1674" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Puyi.png" x="1612" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Qasim.png" x="1550" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_qbs.png" x="1488" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_qiaoz.png" x="1426" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_qiu.png" x="1364" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_qiyaruo.png" x="1302" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_qnmd.png" x="1240" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Quast.png" x="1178" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Rabbit.png" x="1116" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Radko Dimitriev.png" x="1054" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Radomir Putnik.png" x="992" y="1798" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Raeder.png" x="930" y="1860" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Randy.png" x="868" y="1922" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Rawlinson.png" x="806" y="1984" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_rdgw.png" x="744" y="2046" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Reginald Bacon.png" x="682" y="2108" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Reinhard Scheer.png" x="620" y="2170" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Rennenkampff.png" x="558" y="2232" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Revel.png" x="2669" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Riccardi.png" x="496" y="2297" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Richthofen.png" x="434" y="2359" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_rilin.png" x="372" y="2421" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ritter Frank.png" x="310" y="2483" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Robert E. Lee.png" x="2430" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Robert Nivelle.png" x="2368" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Robert Viren.png" x="2628" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Rocadas.png" x="2581" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Roger Keyes.png" x="2519" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Rokossovsky.png" x="2773" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Rokossovsky2.png" x="2849" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Rommel.png" x="2356" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ronarc'h.png" x="2294" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Roon.png" x="2232" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Rudolf.png" x="2170" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Rundstedt.png" x="2108" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Rundstedt2.png" x="2046" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Rupprecht.png" x="1984" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Rykov.png" x="1922" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_RZHF.png" x="1860" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sabulin.png" x="1798" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sadin.png" x="1736" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_saji.png" x="1674" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Sakharov.png" x="1612" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Samsonov.png" x="1550" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Sanders.png" x="1488" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Sapountzakis.png" x="1426" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Schmidhuber.png" x="1364" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Scholtz.png" x="1302" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Schorner.png" x="1240" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Schorner60s.png" x="1178" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_scjy.png" x="1116" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Seminario.png" x="1054" y="1798" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Semyon Uritsky.png" x="992" y="1860" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Senggelinqin.png" x="930" y="1922" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Sergei Scheidemann.png" x="868" y="1984" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Sergey Kamenev.png" x="806" y="2046" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Shafter.png" x="744" y="2108" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Shaposhnikov.png" x="682" y="2170" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Sherman.png" x="620" y="2232" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Shichiro.png" x="558" y="2294" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Sidney Johnston.png" x="2731" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Sikorski.png" x="496" y="2359" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Simo Hayha.png" x="434" y="2421" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Simonds.png" x="372" y="2483" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_SJSG.png" x="2492" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sk.png" x="2430" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Slim.png" x="2690" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Smigly.png" x="2643" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Smith.png" x="2581" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_smlme.png" x="2835" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sohaq.png" x="2911" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Sokolovsky.png" x="2418" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_souglr.png" x="2356" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Soviet Union.png" x="2294" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Spaatz.png" x="2232" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_spde.png" x="2170" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Spee.png" x="2108" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_spr.png" x="2046" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Spruance.png" x="1984" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sr.png" x="1922" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ssc.png" x="1860" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Stanley Maude.png" x="1798" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Stefan Nerezov.png" x="1736" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Stefan Toshev.png" x="1674" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Steinmetz.png" x="1612" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Stepan Makarov.png" x="1550" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Stepanovic.png" x="1488" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_stfbg.png" x="1426" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Stiliyan Kovachev.png" x="1364" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Stilwell.png" x="1302" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Stjepan Sarkotic.png" x="1240" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Stonewall Jackson.png" x="1178" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Straubenburg.png" x="1116" y="1798" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Stuart.png" x="1054" y="1860" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Student.png" x="992" y="1922" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Sturm.png" x="930" y="1984" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sua.png" x="868" y="2046" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Suarez.png" x="806" y="2108" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sub.png" x="744" y="2170" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_suc.png" x="682" y="2232" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sud.png" x="620" y="2294" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sue.png" x="558" y="2356" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_suf.png" x="2793" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sug.png" x="496" y="2421" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_suh.png" x="434" y="2483" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_suho.png" x="2554" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sui.png" x="2492" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_suj.png" x="2752" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_suk.png" x="2705" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sul.png" x="2643" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sum.png" x="2897" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Sun.L.R.png" x="2973" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sun.png" x="2480" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Sunzhongshan.png" x="2418" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_suo.png" x="2356" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sup.png" x="2294" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_suq.png" x="2232" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sur.png" x="2170" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sus.png" x="2108" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sut.png" x="2046" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_suu.png" x="1984" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_suv.png" x="1922" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_suw.png" x="1860" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_sux.png" x="1798" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_suy.png" x="1736" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_suz.png" x="1674" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_suzunami.png" x="1612" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_swell.png" x="1550" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_SY.png" x="1488" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_SZS.png" x="1426" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_SZY.png" x="1364" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Takagi.png" x="1302" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Tassigny.png" x="1240" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Tatanka.png" x="1178" y="1798" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_TEB.png" x="1116" y="1860" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Tegetthoff.png" x="1054" y="1922" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_teq2.png" x="992" y="1984" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Terauchi.png" x="930" y="2046" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_tfpyhsn.png" x="868" y="2108" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_TFYXE.png" x="806" y="2170" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Thimayya.png" x="744" y="2232" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Thomas Edward Lawrence.png" x="682" y="2294" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Thomas.png" x="620" y="2356" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_thqfsj.png" x="558" y="2418" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Timoshenko.png" x="2855" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Tirpitz.png" x="496" y="2483" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Tito.png" x="2616" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Tito2.png" x="2554" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_TLBK.png" x="2814" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_tlsk.png" x="2767" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Togo Heihachiro.png" x="2705" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Tokala.png" x="2959" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Tolbukhin.png" x="3035" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Tom von Prince.png" x="2542" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Tomosaburo.png" x="2480" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Townshend.png" x="2418" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Toyoda.png" x="2356" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_tp.png" x="2294" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_trcj.png" x="2232" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Trochu.png" x="2170" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_tshe.png" x="2108" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_tsxj.png" x="2046" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_TSZ.png" x="1984" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Tukha.png" x="1922" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_TY.png" x="1860" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Tyrwhitt.png" x="1798" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_TZ.png" x="1736" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_tzls.png" x="1674" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_UK.png" x="1612" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ulysses S.Grant.png" x="1550" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Umezu.png" x="1488" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Ushijima.png" x="1426" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Valeriano Weyler.png" x="1364" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Vasilevsky.png" x="1302" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Vasilevsky2.png" x="1240" y="1798" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Vasily.png" x="1178" y="1860" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Vatutin.png" x="1116" y="1922" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Victor d'Urbal.png" x="1054" y="1984" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Victor Franke.png" x="992" y="2046" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Viktor Dousmanis.png" x="930" y="2108" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Vladimir Vazov.png" x="868" y="2170" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Vojka.png" x="806" y="2232" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Von Francois.png" x="744" y="2294" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Voronov.png" x="682" y="2356" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Voroshilov.png" x="620" y="2418" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Wainwright.png" x="558" y="2480" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Wavell.png" x="2917" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_weicao.png" x="2678" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Weichs.png" x="2616" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Weidling.png" x="2876" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_weiktl.png" x="2829" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Weygand.png" x="2767" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_WG.png" x="3021" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_wgn.png" x="3097" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Wilhelm II.png" x="2604" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_William Birdwood.png" x="2542" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_William Rosecrans.png" x="2480" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_William T.Sampson.png" x="2418" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Wilson.png" x="2356" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Winckler.png" x="2294" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Wingate.png" x="2232" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Winkelman.png" x="2170" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Wittmann.png" x="2108" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Witzleben.png" x="2046" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_wjw2.png" x="1984" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Wladyslaw.png" x="1922" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_wlblk.png" x="1860" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_WLH.png" x="1798" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Wolfgang.png" x="1736" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_woziny.png" x="1674" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_wpf.png" x="1612" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_WSS.png" x="1550" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_WTM.png" x="1488" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Wupeifu.png" x="1426" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Wyatt Earp.png" x="1364" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_wyj.png" x="1302" y="1798" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_WYW.png" x="1240" y="1860" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_xbyglds.png" x="1178" y="1922" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_xbymr.png" x="1116" y="1984" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_xek.png" x="1054" y="2046" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_XGD.png" x="992" y="2108" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_XHD.png" x="930" y="2170" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_xiaohuang.png" x="868" y="2232" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_xiaowang.png" x="806" y="2294" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_xilin.png" x="744" y="2356" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_XJG.png" x="682" y="2418" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_xlkss.png" x="620" y="2480" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_xlmks.png" x="2979" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_xm.png" x="2740" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_xma.png" x="2678" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_xongsdl.png" x="2938" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_xongxd.png" x="2891" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_XTL.png" x="2829" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_XTLtwo.png" x="3083" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Xu.S.Y.png" x="3159" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Xu.X.Q.png" x="2666" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Xue.Y.png" x="2604" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Xushuzheng.png" x="2542" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_XXQ.png" x="2480" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_XXY.png" x="2418" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_xyl.png" x="2356" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_yali.png" x="2294" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Yamaguchi.png" x="2232" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Yamamoto.png" x="2170" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Yamashita.png" x="2108" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_yao.png" x="2046" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Yeryomenko.png" x="1984" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Yevgeni Alekseyev.png" x="1922" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_YF.png" x="1860" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_yg1.png" x="1798" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_yg2.png" x="1736" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_yhsms.png" x="1674" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Yiten.png" x="1612" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_YJY.png" x="1550" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ykre.png" x="1488" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_yod.png" x="1426" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_youlin.png" x="1364" y="1798" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_young Model.png" x="1302" y="1860" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_young Rommel.png" x="1240" y="1922" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_yq.png" x="1178" y="1984" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ysdnc.png" x="1116" y="2046" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ysgdla.png" x="1054" y="2108" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_yslsj.png" x="992" y="2170" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Yuanshikai.png" x="930" y="2232" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_yue.png" x="868" y="2294" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_yuren.png" x="806" y="2356" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Yusef.png" x="744" y="2418" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_yuugumo.png" x="682" y="2480" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_yvnhe.png" x="3041" y="124" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_yxs.png" x="2802" y="372" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_zala.png" x="2740" y="434" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ZAP.png" x="3000" y="186" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_zbl.png" x="2953" y="248" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ZD.png" x="2891" y="310" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ZEL.png" x="3145" y="62" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Zengguofan.png" x="3221" y="0" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ZGD.png" x="2728" y="496" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ZGH.png" x="2666" y="558" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Zhang.L.F.png" x="2604" y="620" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Zhang.Z.Z.png" x="2542" y="682" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Zhangxun.png" x="2480" y="744" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Zhangzhidong.png" x="2418" y="806" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Zhangzuolin.png" x="2356" y="868" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_zhe.png" x="2294" y="930" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Zhostov.png" x="2232" y="992" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Zhu.D.png" x="2170" y="1054" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Zhukov.png" x="2108" y="1116" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Zhukov2.png" x="2046" y="1178" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_zhwg.png" x="1984" y="1240" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Zinovy Rozhestvensky.png" x="1922" y="1302" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_zlbyer.png" x="1860" y="1364" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_zlplt.png" x="1798" y="1426" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_zombie.png" x="1736" y="1488" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Zuozongtang.png" x="1674" y="1550" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ZXL.png" x="1612" y="1612" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_Zymvrakakis.png" x="1550" y="1674" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ZYY.png" x="1488" y="1736" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_zzl.png" x="1426" y="1798" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_ZZR.png" x="1364" y="1860" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_zzx.png" x="1302" y="1922" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_1.png" x="1240" y="1984" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_2.png" x="1178" y="2046" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_3.png" x="1116" y="2108" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_4.png" x="1054" y="2170" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_5.png" x="992" y="2232" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_6.png" x="930" y="2294" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_7.png" x="868" y="2356" w="60" h="60" refx="0" refy="0" />
+  <Image name="head_8.png" x="806" y="2418" w="60" h="60" refx="0" refy="0" />
+  <Image name="f_9.png" x="2006" y="1579" w="38" h="38" refx="0" refy="0" />
+  <Image name="flag_01.png" x="1642" y="1848" w="52" h="54" refx="26" refy="27" />
+  <Image name="f_01.png" x="2513" y="1203" w="37" h="38" refx="18" refy="19" />
+  <Image name="flag_61.png" x="1580" y="1910" w="52" h="54" refx="26" refy="27" />
+  <Image name="f_61.png" x="2451" y="1265" w="37" h="38" refx="18" refy="19" />
+  <Image name="flag_4.png" x="1518" y="1972" w="52" h="54" refx="26" refy="27" />
+  <Image name="f_04.png" x="2389" y="1327" w="37" h="38" refx="18" refy="19" />
 </Images>

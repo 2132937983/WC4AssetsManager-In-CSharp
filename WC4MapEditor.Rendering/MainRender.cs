@@ -31,6 +31,12 @@ public class MainRender : IRenderEngine
         set => _activeEngine.EnableProvinceRender = value;
     }
 
+    public bool EnableProvinceCapitalRender
+    {
+        get => _activeEngine.EnableProvinceCapitalRender;
+        set => _activeEngine.EnableProvinceCapitalRender = value;
+    }
+
     public bool EnableBuildingRender
     {
         get => _activeEngine.EnableBuildingRender;
@@ -136,6 +142,11 @@ public class MainRender : IRenderEngine
         _activeEngine.InvalidateTerrainCache();
     }
 
+    public void InvalidateProvinceCache()
+    {
+        _activeEngine.InvalidateProvinceCache();
+    }
+
     public void InvalidateCoastCache(MapData mapData)
     {
         _activeEngine.InvalidateCoastCache(mapData);
@@ -188,6 +199,64 @@ public class MainRender : IRenderEngine
         _activeEngine.InvalidateViewLayerCache();
     }
 
+    public bool EnableLegionDomainRender
+    {
+        get => _activeEngine.EnableLegionDomainRender;
+        set => _activeEngine.EnableLegionDomainRender = value;
+    }
+
+    public bool EnableBelongFlagRender
+    {
+        get => _activeEngine.EnableBelongFlagRender;
+        set => _activeEngine.EnableBelongFlagRender = value;
+    }
+
+    public bool EnableReinforceNewRender
+    {
+        get => _activeEngine.EnableReinforceNewRender;
+        set => _activeEngine.EnableReinforceNewRender = value;
+    }
+
+    public bool EnableStrategicConstructionRender
+    {
+        get => _activeEngine.EnableStrategicConstructionRender;
+        set => _activeEngine.EnableStrategicConstructionRender = value;
+    }
+
+    public bool EnableAirForceRender
+    {
+        get => _activeEngine.EnableAirForceRender;
+        set => _activeEngine.EnableAirForceRender = value;
+    }
+
+    public bool EnableWeatherRender
+    {
+        get => _activeEngine.EnableWeatherRender;
+        set => _activeEngine.EnableWeatherRender = value;
+    }
+
+    public bool EnableMapCaseRender
+    {
+        get => _activeEngine.EnableMapCaseRender;
+        set => _activeEngine.EnableMapCaseRender = value;
+    }
+
+    public bool ShowBuildingNames
+    {
+        get => _activeEngine.ShowBuildingNames;
+        set => _activeEngine.ShowBuildingNames = value;
+    }
+
+    public void PreloadBelongFlagAtlas(MapData mapData)
+    {
+        _activeEngine.PreloadBelongFlagAtlas(mapData);
+    }
+
+    public void InitializeTacticalMapImageCache()
+    {
+        _activeEngine.InitializeTacticalMapImageCache();
+    }
+
     public bool ShowLayer2
     {
         get => _activeEngine.ShowLayer2;
@@ -202,8 +271,20 @@ public class MainRender : IRenderEngine
 
     public void CycleLabelMode() => _activeEngine.CycleLabelMode();
 
-    public Skia.GeoRulerRender? GeoRuler =>
-        (_activeEngine as Skia.SkiaRenderEngine)?.GeoRuler;
+    public void ReloadBuildingCityNames()
+    {
+        (_activeEngine as Skia.SkiaRenderEngine)?.ReloadBuildingCityNames();
+    }
+
+    public Skia.GeoRulerRender? GeoRuler
+    {
+        get => (_activeEngine as Skia.SkiaRenderEngine)?.GeoRuler;
+        set
+        {
+            if (_activeEngine is Skia.SkiaRenderEngine skia)
+                skia.GeoRuler = value;
+        }
+    }
 
     public IViewLayerImageProvider? ViewLayerImageProvider =>
         (_activeEngine as Skia.SkiaRenderEngine)?.ViewLayerImageProvider;

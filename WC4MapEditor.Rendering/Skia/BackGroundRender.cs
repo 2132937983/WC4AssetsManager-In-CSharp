@@ -282,6 +282,77 @@ public class BackGroundRender : IDisposable
         RenderHexLabels(canvas);
     }
 
+    // Renders the complete map (base textures, coastlines, rivers, terrain
+    // decorations, layer 2) to the canvas without any viewport caching.
+    // offsetX/offsetY are camera offsets: hex (0,0) center maps to (offsetX, offsetY).
+    public void RenderFullMap(SKCanvas canvas, MapData mapData, double offsetX, double offsetY,
+        double zoomLevel, int width, int height, bool showLayer2 = false, bool showGridLines = false)
+    {
+        if (canvas == null || mapData == null || width <= 0 || height <= 0) return;
+
+        MapWidth = mapData.MapWidth;
+        MapHeight = mapData.MapHeight;
+
+        SetCameraState(offsetX, offsetY, zoomLevel, width, height, true, true);
+        ShowGridLines = showGridLines;
+        ShowLayer2 = showLayer2;
+
+        PrepareCoastComposition();
+        PrecomputeCoastDecorations(mapData);
+
+        RenderCacheContent(canvas, mapData, offsetX, offsetY, zoomLevel, showGridLines, showLayer2,
+            true, true, width, height);
+
+        if (_hexLabelMode != HexLabelMode.Hidden)
+            RenderHexLabels(canvas);
+    }
+
+    // Ensures the coast atlas/mask/composition pipeline is ready synchronously,
+    // so off-screen renders (screenshots) are never missing coastline decorations.
+    public void PrepareCoastComposition()
+    {
+        if (_coastHelper == null || _coastMaskProcessor == null) return;
+
+        if (!_coastMaskProcessor.IsInitialized)
+            _coastMaskProcessor.Initialize(_coastHelper);
+
+        if (_landImage != null)
+            _coastMaskProcessor.SetLandTexture(_landImage);
+
+        if (!_coastMaskProcessor.HasFinalAtlas)
+            _coastMaskProcessor.BuildFinalCoastAtlas(_coastHelper);
+
+        _coastHelper.PreGenerateAllHexagonCoasts(null);
+    }
+
+    // Synchronously fills the coast decoration array for the whole map.
+    // Used by screenshot rendering so coastlines do not depend on the
+    // background precomputation task completing first.
+    public void PrecomputeCoastDecorations(MapData mapData)
+    {
+        int mapWidth = mapData.MapWidth;
+        int mapHeight = mapData.MapHeight;
+        if (mapWidth <= 0 || mapHeight <= 0) return;
+
+        lock (_coastTaskLock)
+            _coastCalculationCts?.Cancel();
+
+        var newArray = new byte[mapWidth, mapHeight];
+        for (int row = 0; row < mapHeight; row++)
+        {
+            for (int col = 0; col < mapWidth; col++)
+            {
+                if (mapData.GetTerrainAt(col, row).TileType1 == OCEAN_TILE_TYPE)
+                    newArray[col, row] = CoastMaskProcessor.CalculateCoastDecorationType(mapData, col, row);
+                else
+                    newArray[col, row] = 255;
+            }
+        }
+
+        lock (_arraySwapLock)
+            _coastDecorationArray = newArray;
+    }
+
     private void RenderFallbackBackground(SKCanvas canvas)
     {
         double offsetX, offsetY, zoomLevel;
@@ -396,7 +467,8 @@ public class BackGroundRender : IDisposable
         var cacheCanvas = _bgCacheSurfaceA!.Canvas;
         cacheCanvas.Clear(SKColors.Transparent);
         RenderCacheContent(cacheCanvas, mapData, offsetX + vpW * 0.5, offsetY + vpH * 0.5,
-            zoomLevel, showGridLines, showLayer2, enableBackgroundRender, enableTerrainsRender);
+            zoomLevel, showGridLines, showLayer2, enableBackgroundRender, enableTerrainsRender,
+            _cacheW, _cacheH);
         RefreshCacheSnapshot();
 
         float srcX2 = (float)(cacheW * 0.5 - vpW * 0.5);
@@ -458,6 +530,7 @@ public class BackGroundRender : IDisposable
             backCanvas.ClipRect(strip);
             RenderCacheContent(backCanvas, mapData, newCacheOffsetX, newCacheOffsetY,
                 zoomLevel, showGridLines, showLayer2, enableBackgroundRender, enableTerrainsRender,
+                _cacheW, _cacheH,
                 (int)strip.Left, (int)strip.Top, (int)strip.Width, (int)strip.Height);
             backCanvas.Restore();
         }
@@ -475,23 +548,23 @@ public class BackGroundRender : IDisposable
 
     private void RenderCacheContent(SKCanvas canvas, MapData mapData, double cacheOffsetX, double cacheOffsetY,
         double zoomLevel, bool showGridLines, bool showLayer2, bool enableBackgroundRender, bool enableTerrainsRender,
-        int clipX = 0, int clipY = 0, int clipW = 0, int clipH = 0)
+        int areaWidth, int areaHeight, int clipX = 0, int clipY = 0, int clipW = 0, int clipH = 0)
     {
         float hexSize = (float)(BASE_HEX_SIZE * zoomLevel);
         double hexSpacingX = HEX_HORIZONTAL_SPACING * zoomLevel;
         double hexSpacingY = HEX_VERTICAL_SPACING * zoomLevel;
 
-        if (clipW <= 0 || clipH <= 0) { clipX = 0; clipY = 0; clipW = _cacheW; clipH = _cacheH; }
+        if (clipW <= 0 || clipH <= 0) { clipX = 0; clipY = 0; clipW = areaWidth; clipH = areaHeight; }
 
         if (enableBackgroundRender && _seaPaint != null && _landPaint != null)
             RenderHexGridToCanvas(canvas, mapData, cacheOffsetX, cacheOffsetY, hexSize, hexSpacingX, hexSpacingY,
-                showGridLines, _cacheW, _cacheH, zoomLevel, clipX, clipY, clipW, clipH);
+                showGridLines, areaWidth, areaHeight, zoomLevel, clipX, clipY, clipW, clipH);
 
         if (enableTerrainsRender && _landTerrainsRender != null)
         {
             _landTerrainsRender.MapWidth = mapData.MapWidth;
             _landTerrainsRender.MapHeight = mapData.MapHeight;
-            _landTerrainsRender.SetCameraState(cacheOffsetX, cacheOffsetY, zoomLevel, _cacheW, _cacheH, showLayer2);
+            _landTerrainsRender.SetCameraState(cacheOffsetX, cacheOffsetY, zoomLevel, areaWidth, areaHeight, showLayer2);
             _landTerrainsRender.SetClipRect(clipX, clipY, clipW, clipH);
             _landTerrainsRender.Render(canvas, mapData);
             _landTerrainsRender.ClearClipRect();
@@ -839,6 +912,7 @@ public class BackGroundRender : IDisposable
     }
 
     public void SetLandTerrainsRender(LandTerrainsRender render) => _landTerrainsRender = render;
+    public LandTerrainsRender? GetLandTerrainsRender() => _landTerrainsRender;
 
     public void InvalidateCache()
     {

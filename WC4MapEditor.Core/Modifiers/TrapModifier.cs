@@ -6,17 +6,10 @@ public sealed class TrapModifier : ModifierBase
 {
     public override string Name => "trap";
     public override string DisplayName => "陷阱修改器";
-    public override string HelpText =>
-        "陷阱修改器快捷键:\n" +
-        "左键 - 选择陷阱\n" +
-        "右键 - 放置/编辑陷阱\n" +
-        "Delete - 删除选中陷阱\n" +
-        "C - 复制陷阱\n" +
-        "V - 粘贴陷阱\n" +
-        "Q - 选择军团";
 
     private Trap? _copiedTrap;
     private int _selectedLegionId;
+    private readonly Random _random = new();
 
     public int SelectedLegionId
     {
@@ -97,6 +90,8 @@ public sealed class TrapModifier : ModifierBase
         return true;
     }
 
+    #region 复制/粘贴
+
     public ModifierResult CopyTrap(int col, int row)
     {
         if (!IsValidCoord(col, row)) return ModifierResult.Fail("坐标超出范围");
@@ -113,6 +108,10 @@ public sealed class TrapModifier : ModifierBase
         return Apply(col, row, _copiedTrap);
     }
 
+    #endregion
+
+    #region 基础CRUD
+
     public ModifierResult UpdateTrap(Trap trap)
     {
         if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
@@ -127,4 +126,306 @@ public sealed class TrapModifier : ModifierBase
         MarkModified();
         return ModifierResult.Ok("已更新陷阱数据");
     }
+
+    public ModifierResult DeleteAllTraps()
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+
+        int count = _mapData.Traps.Count;
+        _mapData.Traps.Clear();
+        MarkModified();
+        return ModifierResult.Ok($"已删除所有陷阱，共 {count} 个");
+    }
+
+    #endregion
+
+    #region 随机化陷阱属性 (R键)
+
+    public ModifierResult RandomizeTrapAttributes(int col, int row)
+    {
+        if (!IsValidCoord(col, row)) return ModifierResult.Fail("坐标超出范围");
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+
+        int idx = _mapData.FindTrapIndex(col, row);
+        Trap trap;
+        if (idx >= 0)
+        {
+            trap = _mapData.Traps[idx];
+        }
+        else
+        {
+            trap = Trap.CreateDefault((short)(row * _mapData.MapWidth + col));
+        }
+
+        trap.Organization = (byte)_random.Next(1, 11);
+        trap.LegionId = (short)_random.Next(0, 256);
+        trap.Health = (byte)_random.Next(50, 101);
+
+        if (idx >= 0)
+            _mapData.ReplaceTrap(idx, trap);
+        else
+            _mapData.Traps.Add(trap);
+
+        MarkModified();
+        return ModifierResult.Ok($"已随机化陷阱: 编制={trap.Organization}, 军团={trap.LegionId}, 血量={trap.Health}");
+    }
+
+    #endregion
+
+    #region 随机化陷阱等级 (Ctrl+R)
+
+    public ModifierResult RandomizeTrapLevels(int legionValue, int probability)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+        if (probability < 1 || probability > 100) return ModifierResult.Fail("概率必须在1-100之间");
+
+        int modifiedCount;
+
+        if (legionValue == -1)
+        {
+            modifiedCount = 0;
+            var existingLegions = _mapData.Legions.Select(l => l.ActionId).Distinct();
+            foreach (var legionId in existingLegions)
+            {
+                modifiedCount += RandomizeTrapLevelsForSingleLegion(legionId, probability);
+            }
+        }
+        else
+        {
+            modifiedCount = RandomizeTrapLevelsForSingleLegion(legionValue, probability);
+        }
+
+        MarkModified();
+        return ModifierResult.Ok($"随机化陷阱等级完成: 修改了 {modifiedCount} 个陷阱");
+    }
+
+    private int RandomizeTrapLevelsForSingleLegion(int legionValue, int probability)
+    {
+        int modifiedCount = 0;
+
+        for (int i = 0; i < _mapData!.Traps.Count; i++)
+        {
+            var trap = _mapData.Traps[i];
+            if (trap.LegionId != legionValue) continue;
+
+            double[] weights = [probability, probability * 0.8, probability * 0.6, probability * 0.4];
+            for (int w = 0; w < weights.Length; w++)
+                weights[w] = Math.Max(weights[w], 1);
+
+            double totalWeight = weights.Sum();
+            double randValue = _random.NextDouble() * totalWeight;
+
+            int newLevel;
+            if (randValue <= weights[0])
+                newLevel = 1;
+            else if (randValue <= weights[0] + weights[1])
+                newLevel = 2;
+            else if (randValue <= weights[0] + weights[1] + weights[2])
+                newLevel = 3;
+            else
+                newLevel = 4;
+
+            trap.Organization = (byte)newLevel;
+            _mapData.ReplaceTrap(i, trap);
+            modifiedCount++;
+        }
+
+        return modifiedCount;
+    }
+
+    #endregion
+
+    #region 批量生成陷阱 (G键)
+
+    public ModifierResult BatchGenerateTraps(int probability)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+        if (probability < 0 || probability > 100) return ModifierResult.Fail("概率必须在0-100之间");
+
+        int generatedCount = 0;
+        var existingCoords = new HashSet<int>();
+        foreach (var trap in _mapData.Traps)
+            existingCoords.Add(trap.Coordinate);
+
+        for (int row = 0; row < _mapData.MapHeight; row++)
+        {
+            for (int col = 0; col < _mapData.MapWidth; col++)
+            {
+                if (_random.Next(0, 100) >= probability) continue;
+
+                int hexIndex = row * _mapData.MapWidth + col;
+                if (existingCoords.Contains(hexIndex)) continue;
+
+                var trap = Trap.CreateDefault((short)hexIndex);
+                trap.Organization = (byte)_random.Next(1, 6);
+                trap.LegionId = (short)_random.Next(0, 256);
+                trap.Health = (byte)_random.Next(50, 101);
+
+                _mapData.Traps.Add(trap);
+                existingCoords.Add(hexIndex);
+                generatedCount++;
+            }
+        }
+
+        MarkModified();
+        return ModifierResult.Ok($"已生成 {generatedCount} 个陷阱");
+    }
+
+    #endregion
+
+    #region 按归属批量生成陷阱 (Ctrl+G)
+
+    public ModifierResult GenerateTrapsByBelong(int belongValue, int probability)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+        if (probability < 0 || probability > 100) return ModifierResult.Fail("概率必须在0-100之间");
+
+        int totalTrapsCreated;
+
+        if (belongValue == -1)
+        {
+            totalTrapsCreated = 0;
+            var existingLegions = _mapData.Legions.Select(l => l.ActionId).Distinct();
+            foreach (var legionId in existingLegions)
+            {
+                totalTrapsCreated += GenerateTrapsForSingleBelong(legionId, probability);
+            }
+        }
+        else
+        {
+            totalTrapsCreated = GenerateTrapsForSingleBelong(belongValue, probability);
+        }
+
+        MarkModified();
+        return ModifierResult.Ok($"批量生成陷阱完成: 生成了 {totalTrapsCreated} 个陷阱");
+    }
+
+    private int GenerateTrapsForSingleBelong(int belongValue, int probability)
+    {
+        int trapsCreated = 0;
+        var existingCoords = new HashSet<int>();
+        foreach (var trap in _mapData!.Traps)
+            existingCoords.Add(trap.Coordinate);
+
+        for (int row = 0; row < _mapData.MapHeight; row++)
+        {
+            for (int col = 0; col < _mapData.MapWidth; col++)
+            {
+                int hexIndex = row * _mapData.MapWidth + col;
+                int cellBelong = _mapData.GetBelongValue(col, row);
+
+                if (cellBelong != belongValue) continue;
+                if (existingCoords.Contains(hexIndex)) continue;
+                if (_random.Next(0, 100) >= probability) continue;
+
+                var trap = Trap.CreateDefault((short)hexIndex);
+                trap.LegionId = (short)belongValue;
+                trap.Organization = (byte)_random.Next(1, 6);
+                trap.Health = (byte)_random.Next(50, 101);
+
+                _mapData.Traps.Add(trap);
+                existingCoords.Add(hexIndex);
+                trapsCreated++;
+            }
+        }
+
+        return trapsCreated;
+    }
+
+    #endregion
+
+    #region 按省区批量生成陷阱 (Ctrl+I)
+
+    public ModifierResult GenerateTrapsByProvince(int probability)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+        if (probability < 0 || probability > 100) return ModifierResult.Fail("概率必须在0-100之间");
+        if (_mapData.Provinces == null || _mapData.Provinces.Count == 0)
+            return ModifierResult.Fail("没有省区数据");
+
+        int generatedCount = 0;
+        var existingCoords = new HashSet<int>();
+        foreach (var trap in _mapData.Traps)
+            existingCoords.Add(trap.Coordinate);
+
+        var provinceMap = new Dictionary<int, List<int>>();
+        for (int i = 0; i < _mapData.Provinces.Count; i++)
+        {
+            int pv = _mapData.Provinces[i].ProvinceValue;
+            if (!provinceMap.ContainsKey(pv))
+                provinceMap[pv] = new List<int>();
+            provinceMap[pv].Add(i);
+        }
+
+        foreach (var kvp in provinceMap)
+        {
+            if (_random.Next(0, 100) >= probability) continue;
+
+            var hexIndices = kvp.Value;
+            int selectedIndex = hexIndices[_random.Next(0, hexIndices.Count)];
+
+            if (!existingCoords.Contains(selectedIndex))
+            {
+                var trap = Trap.CreateDefault((short)selectedIndex);
+                trap.Organization = (byte)_random.Next(1, 6);
+                trap.LegionId = (short)_random.Next(0, 256);
+                trap.Health = (byte)_random.Next(50, 101);
+
+                _mapData.Traps.Add(trap);
+                existingCoords.Add(selectedIndex);
+                generatedCount++;
+            }
+        }
+
+        MarkModified();
+        return ModifierResult.Ok($"已按省区生成 {generatedCount} 个陷阱");
+    }
+
+    #endregion
+
+    #region 查找陷阱 (F键)
+
+    public ModifierResult FindTrapByOrganization(int targetLevel)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+
+        var foundTraps = new List<(int Index, Trap Trap)>();
+        for (int i = 0; i < _mapData.Traps.Count; i++)
+        {
+            if (_mapData.Traps[i].Organization == targetLevel)
+                foundTraps.Add((i, _mapData.Traps[i]));
+        }
+
+        if (foundTraps.Count > 0)
+        {
+            var first = foundTraps[0];
+            var coord = HexCoord.FromIndex(first.Trap.Coordinate, _mapData.MapWidth);
+            return ModifierResult.Ok($"找到 {foundTraps.Count} 个编制为 {targetLevel} 的陷阱，第一个在 ({coord.Col}, {coord.Row})");
+        }
+
+        return ModifierResult.Fail($"没有找到编制为 {targetLevel} 的陷阱");
+    }
+
+    #endregion
+
+    #region 查询
+
+    public IReadOnlyList<Trap> GetAllTraps()
+    {
+        return _mapData?.Traps ?? [];
+    }
+
+    public Trap? GetTrapAt(int col, int row)
+    {
+        if (_mapData == null) return null;
+        int idx = _mapData.FindTrapIndex(col, row);
+        return idx >= 0 ? _mapData.Traps[idx] : null;
+    }
+
+    public int GetTrapCount()
+    {
+        return _mapData?.Traps.Count ?? 0;
+    }
+
+    #endregion
 }

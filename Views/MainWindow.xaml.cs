@@ -10,6 +10,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using WC4MapEditor.Core.Input;
+using WC4MapEditor.Core.SceneManagement;
 using WC4MapEditor.Views;
 
 namespace WC4MapEditor.Views;
@@ -80,6 +81,8 @@ public partial class MainWindow : Window
 
     private void MainWindow_Loaded(object? sender, RoutedEventArgs e)
     {
+        RenderSceneManager.Instance.SceneSwitchRequested += OnSceneSwitchRequested;
+
         double targetTop = Top;
         double screenHeight = SystemParameters.PrimaryScreenHeight;
         Top = screenHeight;
@@ -383,24 +386,149 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnSceneSwitchRequested(object? sender, SceneSwitchRequestEventArgs e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            var newScene = CreateRenderScene(e.TargetSceneType, e.MapFilePath);
+            if (newScene != null)
+            {
+                newScene.AssignSceneId(e.TargetSceneId);
+                RenderSceneManager.Instance.ActivateScene(e.TargetSceneId);
+                SetCurrentScene(newScene);
+            }
+        });
+    }
+
+    private RenderSceneBase? CreateRenderScene(RenderSceneType sceneType, string mapFilePath)
+    {
+        return sceneType switch
+        {
+            RenderSceneType.Test => new MapRenderScene(this, mapFilePath),
+            RenderSceneType.Stage => new StageRenderScene(this, mapFilePath),
+            RenderSceneType.Conquest => new ConquestRenderScene(this, mapFilePath),
+            RenderSceneType.Campaign => new StageRenderScene(this, mapFilePath),
+            _ => null
+        };
+    }
+
     public void SetCurrentScene(UserControl scene)
     {
         if (_currentScene != null)
         {
-            FadeOutScene(() =>
+            // 如果是渲染场景（战役/征服等），显示加载画面
+            if (scene is RenderSceneBase)
             {
-                _mainGrid.Children.Remove(_currentScene);
-                if (_currentScene is IDisposable d) d.Dispose();
-                _currentScene = scene;
-                _mainGrid.Children.Add(scene);
-                FadeInScene(scene);
-            });
+                ShowLoadingAndSwitchScene(scene);
+            }
+            else
+            {
+                FadeOutScene(() =>
+                {
+                    _mainGrid.Children.Remove(_currentScene);
+                    if (_currentScene is IDisposable d) d.Dispose();
+                    _currentScene = scene;
+                    _mainGrid.Children.Add(scene);
+                    FadeInScene(scene);
+                });
+            }
         }
         else
         {
             _currentScene = scene;
             _mainGrid.Children.Add(scene);
             FadeInScene(scene);
+        }
+    }
+
+    private void ShowLoadingAndSwitchScene(UserControl newScene)
+    {
+        // 显示加载图像
+        string loadingImagePath = ConfigManager.Instance.GetLoadingBackgroundImagePath();
+        Image? loadingImage = null;
+
+        if (!string.IsNullOrEmpty(loadingImagePath) && System.IO.File.Exists(loadingImagePath))
+        {
+            try
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.UriSource = new Uri(loadingImagePath, UriKind.Absolute);
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.EndInit();
+                bitmap.Freeze();
+
+                loadingImage = new Image
+                {
+                    Source = bitmap,
+                    Stretch = Stretch.UniformToFill,
+                    Opacity = 0
+                };
+                _mainGrid.Children.Add(loadingImage);
+                loadingImage.BeginAnimation(UIElement.OpacityProperty,
+                    new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200)));
+            }
+            catch { }
+        }
+
+        // 淡出当前场景
+        if (_currentScene != null)
+        {
+            var fo = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(200));
+            fo.Completed += (s, e) =>
+            {
+                _mainGrid.Children.Remove(_currentScene);
+                if (_currentScene is IDisposable d) d.Dispose();
+
+                // 切换到新场景（先隐藏）
+                newScene.Opacity = 0;
+                _currentScene = newScene;
+                _mainGrid.Children.Add(newScene);
+
+                // 给新场景一点加载时间，然后淡出加载画面，显示新场景
+                var loadTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+                loadTimer.Tick += (s2, e2) =>
+                {
+                    loadTimer.Stop();
+
+                    // 淡入新场景
+                    newScene.BeginAnimation(UIElement.OpacityProperty,
+                        new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300)));
+
+                    // 淡出并移除加载图像
+                    if (loadingImage != null)
+                    {
+                        var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(300));
+                        fadeOut.Completed += (s3, e3) =>
+                        {
+                            if (_mainGrid.Children.Contains(loadingImage))
+                                _mainGrid.Children.Remove(loadingImage);
+                        };
+                        loadingImage.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+                    }
+                };
+                loadTimer.Start();
+            };
+            _currentScene.BeginAnimation(UIElement.OpacityProperty, fo);
+        }
+        else
+        {
+            newScene.Opacity = 0;
+            _currentScene = newScene;
+            _mainGrid.Children.Add(newScene);
+            newScene.BeginAnimation(UIElement.OpacityProperty,
+                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300)));
+
+            if (loadingImage != null)
+            {
+                var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(300));
+                fadeOut.Completed += (s3, e3) =>
+                {
+                    if (_mainGrid.Children.Contains(loadingImage))
+                        _mainGrid.Children.Remove(loadingImage);
+                };
+                loadingImage.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+            }
         }
     }
 
@@ -422,6 +550,23 @@ public partial class MainWindow : Window
     public void MinimizeWindow() => WindowState = WindowState.Minimized;
     public void ToggleMaximize() => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
     public void ReturnToMainScene() => SwitchToBeginScene();
+
+    /// <summary>
+    /// 从 TacticalMapEditScene 返回：有来源目录（= 从资源管理器打开）就回资源管理器，否则回主场景
+    /// </summary>
+    public void ReturnFromTacticalEditor(string? sourceDirectory)
+    {
+        if (!string.IsNullOrEmpty(sourceDirectory))
+        {
+            // 来源是资源管理器：新建 AssetBrowserScene（自动默认定位到上次/对应分类即可，因为缓存已是全局的 AssetManager.Default）
+            var scene = new AssetBrowserScene(this);
+            SetCurrentScene(scene);
+        }
+        else
+        {
+            ReturnToMainScene();
+        }
+    }
 
     private static Color ColorFromInt(int val) =>
         Color.FromRgb(

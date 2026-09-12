@@ -6,17 +6,10 @@ public sealed class ReinforcementModifier : ModifierBase
 {
     public override string Name => "reinforcement";
     public override string DisplayName => "援军修改器";
-    public override string HelpText =>
-        "援军修改器快捷键:\n" +
-        "左键 - 选择援军\n" +
-        "右键 - 放置/编辑援军\n" +
-        "Delete - 删除选中援军\n" +
-        "C - 复制援军\n" +
-        "V - 粘贴援军\n" +
-        "Q - 选择军团";
 
     private Reinforcement? _copiedReinforcement;
     private int _selectedLegionId;
+    private readonly Random _random = new();
 
     public int SelectedLegionId
     {
@@ -98,6 +91,8 @@ public sealed class ReinforcementModifier : ModifierBase
         return true;
     }
 
+    #region 复制/粘贴
+
     public ModifierResult CopyReinforcement(int col, int row)
     {
         if (!IsValidCoord(col, row)) return ModifierResult.Fail("坐标超出范围");
@@ -107,12 +102,40 @@ public sealed class ReinforcementModifier : ModifierBase
         return ModifierResult.Ok("已复制援军数据");
     }
 
-    public ModifierResult PasteReinforcement(int col, int row)
+    public ModifierResult PasteReinforcement(int col, int row, int provinceBelong = -1)
     {
         if (!IsValidCoord(col, row)) return ModifierResult.Fail("坐标超出范围");
         if (_copiedReinforcement == null) return ModifierResult.Fail("没有已复制的援军数据");
-        return Apply(col, row, _copiedReinforcement);
+
+        var copied = _copiedReinforcement.Value;
+        var reinforcement = new Reinforcement
+        {
+            Coordinate = copied.Coordinate,
+            UnitType = copied.UnitType,
+            Level = copied.Level,
+            Organization = copied.Organization,
+            Direction = copied.Direction,
+            General = copied.General,
+            Rank = copied.Rank,
+            Quality = copied.Quality,
+            Skill1Level = copied.Skill1Level,
+            Skill2Level = copied.Skill2Level,
+            Skill3Level = copied.Skill3Level,
+            Skill4Level = copied.Skill4Level,
+            Skill5Level = copied.Skill5Level,
+            Badge1 = copied.Badge1,
+            Badge2 = copied.Badge2,
+            Badge3 = copied.Badge3,
+            OwnerCountry = provinceBelong > 0 ? provinceBelong : copied.OwnerCountry,
+            SpawnRound = copied.SpawnRound
+        };
+
+        return Apply(col, row, reinforcement);
     }
+
+    #endregion
+
+    #region 基础CRUD
 
     public ModifierResult UpdateReinforcement(Reinforcement reinforcement)
     {
@@ -128,4 +151,175 @@ public sealed class ReinforcementModifier : ModifierBase
         MarkModified();
         return ModifierResult.Ok("已更新援军数据");
     }
+
+    public ModifierResult DeleteAllReinforcements()
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+
+        int count = _mapData.Reinforcements.Count;
+        _mapData.Reinforcements.Clear();
+        MarkModified();
+        return ModifierResult.Ok($"已删除所有援军，共 {count} 个");
+    }
+
+    public ModifierResult DeleteReinforcement(int index)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+        if (index < 0 || index >= _mapData.Reinforcements.Count) return ModifierResult.Fail("援军索引超出范围");
+
+        _mapData.Reinforcements.RemoveAt(index);
+        MarkModified();
+        return ModifierResult.Ok("已删除援军");
+    }
+
+    #endregion
+
+    #region 按归属添加援军到格子
+
+    public ModifierResult AddBelongToReinforcementCells(int belongValue)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+
+        int addedCount = 0;
+        var existingCoords = new HashSet<int>();
+        foreach (var r in _mapData.Reinforcements)
+            existingCoords.Add(r.Coordinate);
+
+        for (int row = 0; row < _mapData.MapHeight; row++)
+        {
+            for (int col = 0; col < _mapData.MapWidth; col++)
+            {
+                int hexIndex = row * _mapData.MapWidth + col;
+                int cellBelong = _mapData.GetBelongValue(col, row);
+
+                if (cellBelong != belongValue) continue;
+                if (existingCoords.Contains(hexIndex)) continue;
+
+                var reinforcement = Reinforcement.CreateDefault();
+                reinforcement.Coordinate = hexIndex;
+                reinforcement.OwnerCountry = belongValue;
+
+                _mapData.Reinforcements.Add(reinforcement);
+                existingCoords.Add(hexIndex);
+                addedCount++;
+            }
+        }
+
+        if (addedCount > 0) MarkModified();
+        return ModifierResult.Ok($"已为归属 {belongValue} 的格子添加 {addedCount} 个援军");
+    }
+
+    #endregion
+
+    #region 随机化援军属性
+
+    public ModifierResult RandomizeReinforcementAttributes(int col, int row)
+    {
+        if (!IsValidCoord(col, row)) return ModifierResult.Fail("坐标超出范围");
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+
+        int idx = _mapData.FindReinforcementIndex(col, row);
+        if (idx < 0) return ModifierResult.Fail("该位置没有援军");
+
+        var reinforcement = _mapData.Reinforcements[idx];
+        reinforcement.Level = (byte)_random.Next(1, 6);
+        reinforcement.Organization = (byte)_random.Next(1, 11);
+        reinforcement.Quality = (byte)_random.Next(0, 6);
+        reinforcement.Rank = (byte)_random.Next(0, 6);
+
+        _mapData.ReplaceReinforcement(idx, reinforcement);
+        MarkModified();
+        return ModifierResult.Ok($"已随机化援军属性: 等级={reinforcement.Level}, 编制={reinforcement.Organization}");
+    }
+
+    #endregion
+
+    #region 按归属批量随机化援军
+
+    public ModifierResult RandomizeReinforcementsByBelong(int belongValue)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+
+        int modifiedCount = 0;
+        for (int i = 0; i < _mapData.Reinforcements.Count; i++)
+        {
+            var reinforcement = _mapData.Reinforcements[i];
+            if (belongValue != -1 && reinforcement.OwnerCountry != belongValue) continue;
+
+            reinforcement.Level = (byte)_random.Next(1, 6);
+            reinforcement.Organization = (byte)_random.Next(1, 11);
+            reinforcement.Quality = (byte)_random.Next(0, 6);
+            reinforcement.Rank = (byte)_random.Next(0, 6);
+
+            _mapData.ReplaceReinforcement(i, reinforcement);
+            modifiedCount++;
+        }
+
+        MarkModified();
+        return ModifierResult.Ok($"已随机化 {modifiedCount} 个援军属性 (归属={belongValue})");
+    }
+
+    #endregion
+
+    #region 按概率批量生成援军
+
+    public ModifierResult GenerateReinforcementsByProbability(int belongValue, int probability)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+        if (probability < 0 || probability > 100) return ModifierResult.Fail("概率必须在0-100之间");
+
+        int generatedCount = 0;
+        var existingCoords = new HashSet<int>();
+        foreach (var r in _mapData.Reinforcements)
+            existingCoords.Add(r.Coordinate);
+
+        for (int row = 0; row < _mapData.MapHeight; row++)
+        {
+            for (int col = 0; col < _mapData.MapWidth; col++)
+            {
+                if (_random.Next(0, 100) >= probability) continue;
+
+                int hexIndex = row * _mapData.MapWidth + col;
+                int cellBelong = _mapData.GetBelongValue(col, row);
+
+                if (belongValue != -1 && cellBelong != belongValue) continue;
+                if (existingCoords.Contains(hexIndex)) continue;
+
+                var reinforcement = Reinforcement.CreateDefault();
+                reinforcement.Coordinate = hexIndex;
+                reinforcement.OwnerCountry = cellBelong;
+                reinforcement.Level = (byte)_random.Next(1, 6);
+                reinforcement.Organization = (byte)_random.Next(1, 11);
+
+                _mapData.Reinforcements.Add(reinforcement);
+                existingCoords.Add(hexIndex);
+                generatedCount++;
+            }
+        }
+
+        MarkModified();
+        return ModifierResult.Ok($"已生成 {generatedCount} 个援军 (归属={belongValue}, 概率={probability}%)");
+    }
+
+    #endregion
+
+    #region 查询
+
+    public IReadOnlyList<Reinforcement> GetAllReinforcements()
+    {
+        return _mapData?.Reinforcements ?? [];
+    }
+
+    public Reinforcement? GetReinforcement(int index)
+    {
+        if (_mapData == null || index < 0 || index >= _mapData.Reinforcements.Count) return null;
+        return _mapData.Reinforcements[index];
+    }
+
+    public int GetReinforcementCount()
+    {
+        return _mapData?.Reinforcements.Count ?? 0;
+    }
+
+    #endregion
 }

@@ -41,6 +41,7 @@ public sealed class DebugConsole : IDisposable
 
     private bool _isVisible;
     private bool _cursorVisible = true;
+    private bool _batchMode;
     private System.Threading.Timer? _cursorTimer;
 
     private SKPaint? _backgroundPaint;
@@ -74,6 +75,11 @@ public sealed class DebugConsole : IDisposable
     /// 控制台可见性变化事件 - 参数为是否可见
     /// </summary>
     public event Action<bool>? VisibilityChanged;
+
+    /// <summary>
+    /// 当前关联的WPF窗口（Assist窗口模式）
+    /// </summary>
+    private System.Windows.Window? _window;
 
     private DebugConsole()
     {
@@ -201,8 +207,9 @@ public sealed class DebugConsole : IDisposable
 
     public void WriteLine(string message)
     {
-        string timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
-        string formattedMessage = $"[{timestamp}] {message}";
+        string formattedMessage = _batchMode
+            ? message
+            : $"[{DateTime.Now:HH:mm:ss.fff}] {message}";
 
         int maxCharsPerLine = 100;
         if (formattedMessage.Length > maxCharsPerLine)
@@ -215,11 +222,21 @@ public sealed class DebugConsole : IDisposable
             _logLines.Add(formattedMessage);
         }
 
-        while (_logLines.Count > _maxLogLines)
-            _logLines.RemoveAt(0);
+        if (_logLines.Count > _maxLogLines)
+            _logLines.RemoveRange(0, _logLines.Count - _maxLogLines);
 
-        if (_isVisible)
+        if (!_batchMode && _isVisible)
             InvalidateCallback?.Invoke();
+    }
+
+    public void BeginBatchMode()
+    {
+        _batchMode = true;
+    }
+
+    public void EndBatchMode()
+    {
+        _batchMode = false;
     }
 
     private static List<string> WrapText(string text, int maxCharsPerLine)
@@ -305,6 +322,10 @@ public sealed class DebugConsole : IDisposable
         _cursorPosition = 0;
         InvalidateCallback?.Invoke();
         VisibilityChanged?.Invoke(false);
+
+        var window = _window;
+        _window = null;
+        window?.Close();
     }
 
     public void Toggle()
@@ -312,6 +333,113 @@ public sealed class DebugConsole : IDisposable
         if (_isVisible) HideConsole();
         else ShowConsole();
     }
+
+    /// <summary>
+    /// 设置当前输入文本（由WPF窗口调用）
+    /// </summary>
+    public void SetCurrentInput(string text)
+    {
+        _currentInput = text;
+        _cursorPosition = text.Length;
+    }
+
+    /// <summary>
+    /// 执行输入的命令（由WPF窗口调用）
+    /// </summary>
+    public void ExecuteInput(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return;
+
+        WriteLine($"> {input}");
+        _commandHistory.Add(input);
+        if (_commandHistory.Count > 50)
+            _commandHistory.RemoveAt(0);
+        _historyIndex = _commandHistory.Count;
+
+        ExecuteCommandInternal(input);
+
+        _currentInput = "";
+        _cursorPosition = 0;
+    }
+
+    public void BatchExecuteInput(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return;
+
+        var result = CommandManager.Instance.ExecuteCommand(input);
+        if (!result.Success)
+        {
+            var cliResult = Core.Commands.CliCommandHost.Instance.Execute(input);
+            if (cliResult != 0)
+            {
+                var (errors, cmdName, cmdDesc) = Core.Commands.CliCommandHost.Instance.GetParseErrors(input);
+                if (errors.Count > 0)
+                {
+                    WriteLine("[错误] 命令格式不正确:");
+                    foreach (var error in errors)
+                        WriteLine($"  {error}");
+                }
+            }
+        }
+    }
+
+    private void ExecuteCommandInternal(string input)
+    {
+        var result = CommandManager.Instance.ExecuteCommand(input);
+        if (!result.Success)
+        {
+            var cliResult = Core.Commands.CliCommandHost.Instance.Execute(input);
+            if (cliResult != 0)
+            {
+                var (errors, cmdName, cmdDesc) = Core.Commands.CliCommandHost.Instance.GetParseErrors(input);
+                if (errors.Count > 0)
+                {
+                    WriteLine("[错误] 命令格式不正确:");
+                    foreach (var error in errors)
+                        WriteLine($"  {error}");
+                    if (!string.IsNullOrEmpty(cmdName) && !string.IsNullOrEmpty(cmdDesc))
+                        WriteLine($"  用法: {cmdName} - {cmdDesc}");
+                }
+                else
+                {
+                    var cliHost = Core.Commands.CliCommandHost.Instance;
+                    var helpText = cliHost.GetHelp();
+                    if (!string.IsNullOrEmpty(helpText))
+                    {
+                        var lines = helpText.Split('\n');
+                        foreach (var line in lines)
+                            WriteLine(line.TrimEnd('\r'));
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 导航历史记录（由WPF窗口调用）
+    /// </summary>
+    public string? NavigateHistory(int direction)
+    {
+        if (_commandHistory.Count == 0) return null;
+
+        _historyIndex += direction;
+        _historyIndex = Math.Clamp(_historyIndex, 0, _commandHistory.Count);
+
+        if (_historyIndex < _commandHistory.Count)
+            return _commandHistory[_historyIndex];
+
+        return null;
+    }
+
+    /// <summary>
+    /// 获取所有日志行（由WPF窗口调用）
+    /// </summary>
+    public IReadOnlyList<string> GetLogLines() => _logLines;
+
+    /// <summary>
+    /// 设置关联的WPF窗口
+    /// </summary>
+    public void SetWindow(System.Windows.Window? window) => _window = window;
 
     public bool HandleKeyDown(int keyCode, int nativeKey)
     {
@@ -423,26 +551,25 @@ public sealed class DebugConsole : IDisposable
             _commandHistory.RemoveAt(0);
         _historyIndex = _commandHistory.Count;
 
-        CommandManager.Instance.ExecuteCommand(_currentInput);
+        var result = CommandManager.Instance.ExecuteCommand(_currentInput);
+        if (!result.Success)
+        {
+            var cliResult = Core.Commands.CliCommandHost.Instance.Execute(_currentInput);
+            if (cliResult != 0)
+            {
+                var cliHost = Core.Commands.CliCommandHost.Instance;
+                var helpText = cliHost.GetHelp();
+                if (!string.IsNullOrEmpty(helpText))
+                {
+                    var lines = helpText.Split('\n');
+                    foreach (var line in lines)
+                        WriteLine(line.TrimEnd('\r'));
+                }
+            }
+        }
 
         _currentInput = "";
         _cursorPosition = 0;
-        InvalidateCallback?.Invoke();
-    }
-
-    private void NavigateHistory(int direction)
-    {
-        if (_commandHistory.Count == 0) return;
-
-        _historyIndex += direction;
-        _historyIndex = Math.Clamp(_historyIndex, 0, _commandHistory.Count);
-
-        if (_historyIndex < _commandHistory.Count)
-            _currentInput = _commandHistory[_historyIndex];
-        else
-            _currentInput = "";
-
-        _cursorPosition = _currentInput.Length;
         InvalidateCallback?.Invoke();
     }
 
