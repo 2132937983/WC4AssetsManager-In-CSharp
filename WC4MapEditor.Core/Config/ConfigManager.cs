@@ -4,7 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using WC4MapEditor.Core.Parsers;
-using WC4MapEditor.Models;
+using WC4MapEditor.Core.Models;
 
 namespace WC4MapEditor.Core.Config;
 
@@ -47,7 +47,6 @@ public sealed class ConfigManager
     private List<GeneralSpecialtyTemplate>? _generalSpecialtyTemplates;
     private TacticalMapParser? _tacticalMapParser;
     private StringTableParser? _stringTableParser;
-    private SkiaSharp.SKBitmap? _flagOverlayImage;
 
     private ConfigManager() { }
 
@@ -64,7 +63,6 @@ public sealed class ConfigManager
         LoadDataFiles();
         LoadTerrainTypes();
         LoadTacticalMap();
-        LoadFlagOverlay();
 
         _isInitialized = true;
         Debug.WriteLine("[ConfigManager] Configuration initialized");
@@ -621,40 +619,8 @@ public sealed class ConfigManager
         _settingData = null;
         _stringTableParser = null;
         _tacticalMapParser = null;
-        _flagOverlayImage?.Dispose();
-        _flagOverlayImage = null;
         Core.Parsers.TacticalMapParser.ClearCache();
         Initialize();
-    }
-
-    private void LoadFlagOverlay()
-    {
-        try
-        {
-            string path = IOPath.Combine(_resourcePath, "Texture", "FlagOverlay", "flagoverlay.png");
-            if (!File.Exists(path))
-            {
-                Debug.WriteLine($"[ConfigManager] flagoverlay.png 不存在: {path}");
-                return;
-            }
-
-            using var stream = File.OpenRead(path);
-            _flagOverlayImage = SkiaSharp.SKBitmap.Decode(stream);
-            Debug.WriteLine($"[ConfigManager] 加载 flagoverlay.png: {_flagOverlayImage?.Width}x{_flagOverlayImage?.Height}");
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ConfigManager] 加载 flagoverlay.png 失败: {ex.Message}");
-        }
-    }
-
-    public SkiaSharp.SKBitmap? FlagOverlayImage
-    {
-        get
-        {
-            if (!_isInitialized) Initialize();
-            return _flagOverlayImage;
-        }
     }
 
     private void LoadTacticalMap()

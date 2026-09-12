@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.IO;
-using WC4MapEditor.Models;
-using WC4MapEditor.Parsers.BTL;
+using WC4MapEditor.Core.Models;
+using WC4MapEditor.Core.Parsers.BTL;
 
-namespace WC4MapEditor.Parsers.BTL;
+namespace WC4MapEditor.Core.Parsers.BTL;
 
 /// <summary>
 /// BTL 文件解析主入口。

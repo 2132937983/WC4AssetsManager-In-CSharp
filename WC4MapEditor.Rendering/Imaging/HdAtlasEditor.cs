@@ -1,8 +1,9 @@
 using System.Diagnostics;
 using System.Xml;
 using SkiaSharp;
+using WC4MapEditor.Core.Assets;
 
-namespace WC4MapEditor.Core.Parsers;
+namespace WC4MapEditor.Rendering.Imaging;
 
 /// <summary>
 /// HD图集编辑器：管理HD国旗图集的读取、修改和保存
@@ -79,7 +80,7 @@ public class HdAtlasEditor
     /// <summary>
     /// 从AssetManager加载HD图集
     /// </summary>
-    public bool LoadFromAssetManager(Assets.AssetManager am)
+    public bool LoadFromAssetManager(AssetManager am)
     {
         try
         {

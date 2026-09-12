@@ -1,8 +1,9 @@
 using System.Diagnostics;
 using System.Xml;
 using SkiaSharp;
+using WC4MapEditor.Core.Parsers;
 
-namespace WC4MapEditor.Core.Parsers;
+namespace WC4MapEditor.Rendering.Imaging;
 
 public class OrthographicCamera
 {

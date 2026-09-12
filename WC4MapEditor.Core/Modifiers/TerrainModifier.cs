@@ -2,7 +2,7 @@ using System.IO;
 using WC4MapEditor.Core.Brush;
 using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Services;
-using WC4MapEditor.Models;
+using WC4MapEditor.Core.Models;
 
 namespace WC4MapEditor.Core.Modifiers;
 

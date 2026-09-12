@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace WC4MapEditor.Models;
+namespace WC4MapEditor.Core.Models;
 
 public class BTLHeader
 {

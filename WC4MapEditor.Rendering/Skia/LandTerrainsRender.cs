@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using SkiaSharp;
-using WC4MapEditor.Models;
+using WC4MapEditor.Core.Models;
 using WC4MapEditor.Rendering.Helpers;
 
 namespace WC4MapEditor.Rendering.Skia;

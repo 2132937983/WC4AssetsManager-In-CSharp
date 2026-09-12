@@ -5,7 +5,7 @@ using SkiaSharp;
 using WC4MapEditor.Core.Assets;
 using WC4MapEditor.Core.Parsers;
 
-namespace WC4MapEditor.Core.Services;
+namespace WC4MapEditor.Rendering.Imaging;
 
 public class FlagImageService : IFlagImageService
 {

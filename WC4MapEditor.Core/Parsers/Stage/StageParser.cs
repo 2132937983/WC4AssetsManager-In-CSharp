@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using WC4MapEditor.Models;
-using WC4MapEditor.Parsers.BTL;
+using WC4MapEditor.Core.Models;
+using WC4MapEditor.Core.Parsers.BTL;
 
-namespace WC4MapEditor.Parsers.Stage;
+namespace WC4MapEditor.Core.Parsers.Stage;
 
 /// <summary>
 /// 战役关卡解析器。

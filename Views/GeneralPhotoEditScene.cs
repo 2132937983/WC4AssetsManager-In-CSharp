@@ -9,6 +9,7 @@ using Microsoft.Win32;
 using SkiaSharp;
 using WC4MapEditor.Core.Parsers.General;
 using WC4MapEditor.Core.Services;
+using WC4MapEditor.Rendering.Imaging;
 
 namespace WC4MapEditor.Views;
 

@@ -6,7 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using WC4MapEditor.Core.Config;
-using WC4MapEditor.Models;
+using WC4MapEditor.Core.Models;
 
 namespace WC4MapEditor.Views.Assist;
 

@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using WC4MapEditor.Core.Config;
 
-namespace WC4MapEditor.Models;
+namespace WC4MapEditor.Core.Models;
 
 /// <summary>
 /// 地形数据结构 (16字节) - 使用结构体减少内存开销

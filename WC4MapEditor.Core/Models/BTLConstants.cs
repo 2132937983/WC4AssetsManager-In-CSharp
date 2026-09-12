@@ -1,4 +1,4 @@
-namespace WC4MapEditor.Models;
+namespace WC4MapEditor.Core.Models;
 
 public enum BTLBuildingType { City = 0, CountyTown = 1, Port = 2, Pass = 3, Fortress = 4 }
 public enum BTLKeyPointType { None = 0, RedCircle = 1, GreenCircle = 2 }

@@ -1,4 +1,4 @@
-namespace WC4MapEditor.Models.Modules;
+namespace WC4MapEditor.Core.Models.Modules;
 
 /// <summary>
 /// 地形修改模块 - 直接操作Terrain结构体数组

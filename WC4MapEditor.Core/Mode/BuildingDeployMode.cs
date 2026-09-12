@@ -1,7 +1,7 @@
 using WC4MapEditor.Core.Input;
 using WC4MapEditor.Core.Modifiers;
 using WC4MapEditor.Core.Selection;
-using WC4MapEditor.Models;
+using WC4MapEditor.Core.Models;
 
 namespace WC4MapEditor.Core.Mode;
 

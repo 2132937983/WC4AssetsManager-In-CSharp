@@ -1,4 +1,4 @@
-namespace WC4MapEditor.Parsers.Conquest;
+namespace WC4MapEditor.Core.Parsers.Conquest;
 
 /// <summary>
 /// 征服模式偏移量计算器。

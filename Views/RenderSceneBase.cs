@@ -18,10 +18,10 @@ using WC4MapEditor.Core.Modifiers;
 using WC4MapEditor.Core.SceneManagement;
 using WC4MapEditor.Core.Selection;
 using WC4MapEditor.Core.Services;
-using WC4MapEditor.Models;
-using WC4MapEditor.Parsers.Stage;
-using WC4MapEditor.Parsers.World;
-using WC4MapEditor.Parsers.Conquest;
+using WC4MapEditor.Core.Models;
+using WC4MapEditor.Core.Parsers.Stage;
+using WC4MapEditor.Core.Parsers.World;
+using WC4MapEditor.Core.Parsers.Conquest;
 using WC4MapEditor.Rendering.Helpers;
 using WC4MapEditor.Rendering.Skia;
 using WC4MapEditor.Views.Assist;
@@ -629,7 +629,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             _debugConsole.ShowConsole();
             var ownerWindow = System.Windows.Window.GetWindow(this);
             var window = new DebugConsoleWindow(_debugConsole, ownerWindow);
-            _debugConsole.SetWindow(window);
+            _debugConsole.SetHostWindow(window.Close);
             window.Show();
         }
     }

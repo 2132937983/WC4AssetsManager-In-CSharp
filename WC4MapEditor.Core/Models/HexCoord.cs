@@ -1,4 +1,4 @@
-namespace WC4MapEditor.Models;
+namespace WC4MapEditor.Core.Models;
 
 public readonly struct HexCoord(int col, int row)
 {

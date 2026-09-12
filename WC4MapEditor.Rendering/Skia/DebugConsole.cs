@@ -66,6 +66,17 @@ public sealed class DebugConsole : IDisposable
 
     public Action? InvalidateCallback { get; set; }
 
+    private ICommandHost? _commandHost;
+
+    /// <summary>
+    /// 命令宿主。默认使用 Core 提供的内置实现，宿主层可注入自定义实现。
+    /// </summary>
+    public ICommandHost CommandHost
+    {
+        get => _commandHost ??= CommandHostProvider.Default;
+        set => _commandHost = value;
+    }
+
     /// <summary>
     /// 用于在 UI 线程执行回调的委托 - 由 GUI 层注入（如 WPF 的 Dispatcher.Invoke）
     /// </summary>
@@ -77,9 +88,10 @@ public sealed class DebugConsole : IDisposable
     public event Action<bool>? VisibilityChanged;
 
     /// <summary>
-    /// 当前关联的WPF窗口（Assist窗口模式）
+    /// 宿主窗口的关闭回调 - 由 GUI 层注入（例如 WPF 窗口的 Close 方法）。
+    /// 渲染库不依赖任何 UI 框架类型。
     /// </summary>
-    private System.Windows.Window? _window;
+    private Action? _closeHostAction;
 
     private DebugConsole()
     {
@@ -323,9 +335,9 @@ public sealed class DebugConsole : IDisposable
         InvalidateCallback?.Invoke();
         VisibilityChanged?.Invoke(false);
 
-        var window = _window;
-        _window = null;
-        window?.Close();
+        var closeHost = _closeHostAction;
+        _closeHostAction = null;
+        closeHost?.Invoke();
     }
 
     public void Toggle()
@@ -369,10 +381,11 @@ public sealed class DebugConsole : IDisposable
         var result = CommandManager.Instance.ExecuteCommand(input);
         if (!result.Success)
         {
-            var cliResult = Core.Commands.CliCommandHost.Instance.Execute(input);
+            var commandHost = CommandHost;
+            var cliResult = commandHost.Execute(input);
             if (cliResult != 0)
             {
-                var (errors, cmdName, cmdDesc) = Core.Commands.CliCommandHost.Instance.GetParseErrors(input);
+                var (errors, cmdName, cmdDesc) = commandHost.GetParseErrors(input);
                 if (errors.Count > 0)
                 {
                     WriteLine("[错误] 命令格式不正确:");
@@ -388,10 +401,11 @@ public sealed class DebugConsole : IDisposable
         var result = CommandManager.Instance.ExecuteCommand(input);
         if (!result.Success)
         {
-            var cliResult = Core.Commands.CliCommandHost.Instance.Execute(input);
+            var commandHost = CommandHost;
+            var cliResult = commandHost.Execute(input);
             if (cliResult != 0)
             {
-                var (errors, cmdName, cmdDesc) = Core.Commands.CliCommandHost.Instance.GetParseErrors(input);
+                var (errors, cmdName, cmdDesc) = commandHost.GetParseErrors(input);
                 if (errors.Count > 0)
                 {
                     WriteLine("[错误] 命令格式不正确:");
@@ -402,8 +416,7 @@ public sealed class DebugConsole : IDisposable
                 }
                 else
                 {
-                    var cliHost = Core.Commands.CliCommandHost.Instance;
-                    var helpText = cliHost.GetHelp();
+                    var helpText = commandHost.GetHelp();
                     if (!string.IsNullOrEmpty(helpText))
                     {
                         var lines = helpText.Split('\n');
@@ -437,9 +450,9 @@ public sealed class DebugConsole : IDisposable
     public IReadOnlyList<string> GetLogLines() => _logLines;
 
     /// <summary>
-    /// 设置关联的WPF窗口
+    /// 设置宿主窗口的关闭回调（由 GUI 层调用，例如传入 WPF 窗口的 Close 方法）
     /// </summary>
-    public void SetWindow(System.Windows.Window? window) => _window = window;
+    public void SetHostWindow(Action? closeAction) => _closeHostAction = closeAction;
 
     public bool HandleKeyDown(int keyCode, int nativeKey)
     {
@@ -554,11 +567,11 @@ public sealed class DebugConsole : IDisposable
         var result = CommandManager.Instance.ExecuteCommand(_currentInput);
         if (!result.Success)
         {
-            var cliResult = Core.Commands.CliCommandHost.Instance.Execute(_currentInput);
+            var commandHost = CommandHost;
+            var cliResult = commandHost.Execute(_currentInput);
             if (cliResult != 0)
             {
-                var cliHost = Core.Commands.CliCommandHost.Instance;
-                var helpText = cliHost.GetHelp();
+                var helpText = commandHost.GetHelp();
                 if (!string.IsNullOrEmpty(helpText))
                 {
                     var lines = helpText.Split('\n');

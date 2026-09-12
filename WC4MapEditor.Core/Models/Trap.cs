@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace WC4MapEditor.Models;
+namespace WC4MapEditor.Core.Models;
 
 /// <summary>
 /// 陷阱数据结构 (12字节) - 使用结构体减少内存开销

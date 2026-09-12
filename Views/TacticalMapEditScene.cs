@@ -14,6 +14,7 @@ using SkiaSharp;
 using SkiaSharp.Views.Desktop;
 using SkiaSharp.Views.WPF;
 using WC4MapEditor.Core.Parsers;
+using WC4MapEditor.Rendering.Imaging;
 
 namespace WC4MapEditor.Views;
 

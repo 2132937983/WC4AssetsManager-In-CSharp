@@ -3,7 +3,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using WC4MapEditor.Core.Services;
-using WC4MapEditor.Models;
+using WC4MapEditor.Core.Models;
 using WC4MapEditor.Views.Dialogs;
 using WC4MapEditor.Views.Assist;
 

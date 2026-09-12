@@ -2,7 +2,7 @@ using System.Diagnostics;
 using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Helpers;
 using WC4MapEditor.Core.Services;
-using WC4MapEditor.Models;
+using WC4MapEditor.Core.Models;
 
 namespace WC4MapEditor.Core.Modifiers;
 

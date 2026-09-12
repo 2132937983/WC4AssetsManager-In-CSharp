@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace WC4MapEditor.Models;
+namespace WC4MapEditor.Core.Models;
 
 public class CountryGeneralsConfig
 {

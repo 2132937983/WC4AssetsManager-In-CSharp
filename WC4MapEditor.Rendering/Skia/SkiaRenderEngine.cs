@@ -1,21 +1,18 @@
 using SkiaSharp;
-using SkiaSharp.Views.WPF;
 using WC4MapEditor.Core.Helpers;
-using WC4MapEditor.Models;
+using WC4MapEditor.Core.Models;
 using WC4MapEditor.Rendering.Helpers;
 
 namespace WC4MapEditor.Rendering.Skia;
 
-public interface ISkiaRenderer : IDisposable
+public class SkiaRenderEngine : IRenderEngine
 {
-    void Initialize(SKElement skElement);
-    void Resize(int width, int height);
-    void Render(SKCanvas canvas, MapData mapData, Camera camera);
-}
+    /// <summary>
+    /// 请求重绘的回调。由宿主（WPF 层）注入，例如绑定到 SKElement.InvalidateVisual。
+    /// 渲染库本身不依赖任何 UI 框架，未注入时为空操作。
+    /// </summary>
+    public Action? InvalidateCallback { get; set; }
 
-public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
-{
-    private SKElement? _skElement;
     private bool _disposed;
 
     private BackGroundRender? _backgroundRender;
@@ -197,12 +194,6 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
     {
     }
 
-    public void Initialize(SKElement skElement)
-    {
-        _skElement = skElement;
-        InitializeTerrainRenderers();
-    }
-
     private void InitializeTerrainRenderers()
     {
         if (_backgroundRender != null) return;
@@ -260,8 +251,7 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
 
     public void Render(MapData mapData, Camera camera)
     {
-        if (_skElement == null) return;
-        _skElement.InvalidateVisual();
+        Invalidate();
     }
 
     public void PreloadBelongFlagAtlas(MapData mapData)
@@ -412,7 +402,7 @@ public class SkiaRenderEngine : IRenderEngine, ISkiaRenderer
 
     public void Invalidate()
     {
-        _skElement?.InvalidateVisual();
+        InvalidateCallback?.Invoke();
     }
 
     public bool LoadViewLayerImage(string imagePath)

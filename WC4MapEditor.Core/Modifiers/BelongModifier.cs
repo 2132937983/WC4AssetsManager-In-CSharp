@@ -1,5 +1,5 @@
 using WC4MapEditor.Core.Brush;
-using WC4MapEditor.Models;
+using WC4MapEditor.Core.Models;
 
 namespace WC4MapEditor.Core.Modifiers;
 

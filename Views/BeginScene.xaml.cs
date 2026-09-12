@@ -8,9 +8,9 @@ using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
-using WC4MapEditor.Parsers.Stage;
-using WC4MapEditor.Parsers.Conquest;
-using WC4MapEditor.Parsers.World;
+using WC4MapEditor.Core.Parsers.Stage;
+using WC4MapEditor.Core.Parsers.Conquest;
+using WC4MapEditor.Core.Parsers.World;
 using WC4MapEditor.Views.Dialogs;
 
 namespace WC4MapEditor.Views;

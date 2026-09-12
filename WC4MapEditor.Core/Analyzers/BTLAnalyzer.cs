@@ -1,9 +1,9 @@
 using System.Text;
-using WC4MapEditor.Models;
-using WC4MapEditor.Parsers.BTL;
-using WC4MapEditor.Parsers.Conquest;
-using WC4MapEditor.Parsers.Stage;
-using WC4MapEditor.Parsers.World;
+using WC4MapEditor.Core.Models;
+using WC4MapEditor.Core.Parsers.BTL;
+using WC4MapEditor.Core.Parsers.Conquest;
+using WC4MapEditor.Core.Parsers.Stage;
+using WC4MapEditor.Core.Parsers.World;
 
 namespace WC4MapEditor.Core.Analyzers;
 

@@ -1,4 +1,4 @@
-namespace WC4MapEditor.Models;
+namespace WC4MapEditor.Core.Models;
 
 public static class BTLSize
 {

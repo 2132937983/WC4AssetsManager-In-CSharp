@@ -1,6 +1,6 @@
 using Microsoft.Win32;
-using WC4MapEditor.Models;
-using WC4MapEditor.Parsers.World;
+using WC4MapEditor.Core.Models;
+using WC4MapEditor.Core.Parsers.World;
 
 namespace WC4MapEditor.Views;
 

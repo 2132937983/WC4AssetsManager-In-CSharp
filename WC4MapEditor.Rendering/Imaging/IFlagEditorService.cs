@@ -1,6 +1,6 @@
 using SkiaSharp;
 
-namespace WC4MapEditor.Core.Services;
+namespace WC4MapEditor.Rendering.Imaging;
 
 public interface IFlagEditorService
 {

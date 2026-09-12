@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.IO;
-using WC4MapEditor.Models;
+using WC4MapEditor.Core.Models;
 
-namespace WC4MapEditor.Parsers.World;
+namespace WC4MapEditor.Core.Parsers.World;
 
 /// <summary>
 /// 世界地图解析器。

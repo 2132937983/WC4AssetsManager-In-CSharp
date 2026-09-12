@@ -1,11 +1,11 @@
 using System.CommandLine;
 using WC4MapEditor.Core.Config;
-using WC4MapEditor.Models;
+using WC4MapEditor.Core.Models;
 using WC4MapEditor.Core.Modifiers;
 
 namespace WC4MapEditor.Core.Commands;
 
-public sealed class CliCommandHost
+public sealed class CliCommandHost : ICommandHost
 {
     private static readonly object _lock = new();
     private static CliCommandHost? _instance;

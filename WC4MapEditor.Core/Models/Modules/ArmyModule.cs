@@ -1,4 +1,4 @@
-namespace WC4MapEditor.Models.Modules;
+namespace WC4MapEditor.Core.Models.Modules;
 
 /// <summary>
 /// 部队数据修改器。

@@ -8,6 +8,7 @@ using Microsoft.Win32;
 using SkiaSharp;
 using WC4MapEditor.Core.Parsers.Country;
 using WC4MapEditor.Core.Services;
+using WC4MapEditor.Rendering.Imaging;
 using Path = System.IO.Path;
 
 namespace WC4MapEditor.Views;

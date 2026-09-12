@@ -1,6 +1,6 @@
 using WC4MapEditor.Core.Config;
 
-namespace WC4MapEditor.Models;
+namespace WC4MapEditor.Core.Models;
 
 public enum HexInfoDisplayMode
 {

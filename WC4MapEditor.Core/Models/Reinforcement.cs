@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace WC4MapEditor.Models;
+namespace WC4MapEditor.Core.Models;
 
 /// <summary>
 /// 增援数据结构 (80字节) - 使用结构体减少内存开销

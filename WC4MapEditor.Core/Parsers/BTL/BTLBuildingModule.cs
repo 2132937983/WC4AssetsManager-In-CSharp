@@ -1,7 +1,7 @@
 using System.Diagnostics;
-using WC4MapEditor.Models;
+using WC4MapEditor.Core.Models;
 
-namespace WC4MapEditor.Parsers.BTL;
+namespace WC4MapEditor.Core.Parsers.BTL;
 
 /// <summary>
 /// BTL 建筑数据解析模块。

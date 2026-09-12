@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using SkiaSharp.Views.WPF;
 using WC4MapEditor.Core.Parsers;
+using WC4MapEditor.Rendering.Imaging;
 
 namespace WC4MapEditor.Views.Dialogs;
 

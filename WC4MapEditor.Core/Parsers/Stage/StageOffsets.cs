@@ -1,4 +1,4 @@
-namespace WC4MapEditor.Parsers.Stage;
+namespace WC4MapEditor.Core.Parsers.Stage;
 
 /// <summary>
 /// 战役模式偏移量计算器。

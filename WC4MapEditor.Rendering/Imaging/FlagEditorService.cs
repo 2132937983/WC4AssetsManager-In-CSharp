@@ -1,14 +1,48 @@
 using System.Diagnostics;
 using SkiaSharp;
+using WC4MapEditor.Core.Assets;
 using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Parsers;
 using WC4MapEditor.Core.Parsers.Country;
 
-namespace WC4MapEditor.Core.Services;
+namespace WC4MapEditor.Rendering.Imaging;
 
 public class FlagEditorService : IFlagEditorService
 {
     private static readonly SKSamplingOptions HighQuality = new(SKFilterMode.Linear, SKMipmapMode.Linear);
+
+    private SKBitmap? _flagOverlayImage;
+    private bool _flagOverlayLoaded;
+
+    /// <summary>
+    /// 懒加载 Texture/FlagOverlay/flagoverlay.png。
+    /// 原先由 ConfigManager 承载，因涉及 SkiaSharp 类型已下沉到成像层。
+    /// </summary>
+    private SKBitmap? GetFlagOverlayImage()
+    {
+        if (_flagOverlayLoaded) return _flagOverlayImage;
+        _flagOverlayLoaded = true;
+
+        try
+        {
+            string path = Path.Combine(ConfigManager.Instance.GetTexturePath("FlagOverlay"), "flagoverlay.png");
+            if (!File.Exists(path))
+            {
+                Debug.WriteLine($"[FlagEditorService] flagoverlay.png 不存在: {path}");
+                return null;
+            }
+
+            using var stream = File.OpenRead(path);
+            _flagOverlayImage = SKBitmap.Decode(stream);
+            Debug.WriteLine($"[FlagEditorService] 加载 flagoverlay.png: {_flagOverlayImage?.Width}x{_flagOverlayImage?.Height}");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[FlagEditorService] 加载 flagoverlay.png 失败: {ex.Message}");
+        }
+
+        return _flagOverlayImage;
+    }
 
     public SKBitmap? LoadSourceImage(string path)
     {
@@ -445,7 +479,7 @@ public class FlagEditorService : IFlagEditorService
             {
                 // 步骤2: 创建52x54透明画布，贴circle47到(3,2)，贴overlay到(0,0)
                 Debug.WriteLine($"[FlagEditorService] 步骤2: 创建52x54透明画布，贴circle47到(3,2)，贴overlay到(0,0)");
-                var overlay = ConfigManager.Instance.FlagOverlayImage;
+                var overlay = GetFlagOverlayImage();
                 if (overlay == null)
                 {
                     result.ErrorMessage = "flagoverlay.png 未加载";
@@ -575,7 +609,7 @@ public class FlagEditorService : IFlagEditorService
         string? imagePath = null;
         string? xmlPath = null;
 
-        var am = Assets.AssetManager.Default;
+        var am = AssetManager.Default;
         if (am.IsLoaded)
         {
             var imgEntry = am.Find("tacticalmap.webp") ?? am.Find("tacticalmap.png");

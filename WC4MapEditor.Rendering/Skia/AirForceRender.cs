@@ -3,7 +3,7 @@ using System.IO;
 using SkiaSharp;
 using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Helpers;
-using WC4MapEditor.Models;
+using WC4MapEditor.Core.Models;
 
 namespace WC4MapEditor.Rendering.Skia;
 

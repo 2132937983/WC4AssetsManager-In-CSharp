@@ -8,6 +8,7 @@ using WC4MapEditor.Core.Models;
 using WC4MapEditor.Core.Parsers;
 using WC4MapEditor.Core.Parsers.Country;
 using WC4MapEditor.Core.Services;
+using WC4MapEditor.Rendering.Imaging;
 
 namespace WC4MapEditor.Views;
 

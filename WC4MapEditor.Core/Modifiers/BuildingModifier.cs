@@ -1,4 +1,4 @@
-using WC4MapEditor.Models;
+using WC4MapEditor.Core.Models;
 using WC4MapEditor.Core.Selection;
 using WC4MapEditor.Core.Config;
 
