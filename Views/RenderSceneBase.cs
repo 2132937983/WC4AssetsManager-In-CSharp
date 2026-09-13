@@ -1485,6 +1485,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             return coord => _mapData.GetBelongValue(coord.Col, coord.Row) != 0xFF;
         }
+        if (_editModeManager.CurrentMode == EditMode.ArmyDeploy)
+        {
+            // 单位部署模式：框选只命中存在单位的格子（v1 或 v3 均算）。
+            return coord => _mapData.GetArmyAt(coord.Col, coord.Row) != null
+                         || _mapData.GetArmyV3At(coord.Col, coord.Row) != null;
+        }
         return null;
     }
 
@@ -2604,17 +2610,26 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _renderEngine.EnableProvinceRender = mode == EditMode.ProvinceEdit;
         _renderEngine.EnableProvinceCapitalRender = mode == EditMode.ProvinceEdit;
 
-        // 地形编辑模式下显示建筑但不显示建筑名称
-        _renderEngine.EnableBuildingRender = mode == EditMode.BuildingDeploy || mode == EditMode.BelongEdit || mode == EditMode.TerrainPaint;
+        // 单位部署、建筑部署、归属编辑、地形绘制都需要看到建筑
+        _renderEngine.EnableBuildingRender = mode == EditMode.BuildingDeploy
+                                          || mode == EditMode.BelongEdit
+                                          || mode == EditMode.TerrainPaint
+                                          || mode == EditMode.ArmyDeploy;
         _renderEngine.ShowBuildingNames = mode != EditMode.TerrainPaint;
 
-        _renderEngine.EnableArmyRender = false;
-        _renderEngine.EnableTrapRender = false;
+        // 单位部署模式下显示部队与陷阱（该模式的快捷键包含陷阱创建/批量生成/随机等级，
+        // 不显示陷阱就无法编辑）。
+        _renderEngine.EnableArmyRender = mode == EditMode.ArmyDeploy;
+        _renderEngine.EnableTrapRender = mode == EditMode.ArmyDeploy;
 
-        _renderEngine.EnableLegionDomainRender = mode == EditMode.BuildingDeploy || mode == EditMode.BelongEdit;
-        _renderEngine.EnableBelongFlagRender = mode == EditMode.BuildingDeploy || mode == EditMode.BelongEdit;
+        // 单位部署、建筑部署、归属编辑都依赖归属着色与旗帜标记
+        var needsDomain = mode == EditMode.BuildingDeploy
+                       || mode == EditMode.BelongEdit
+                       || mode == EditMode.ArmyDeploy;
+        _renderEngine.EnableLegionDomainRender = needsDomain;
+        _renderEngine.EnableBelongFlagRender = needsDomain;
 
-        if ((mode == EditMode.BuildingDeploy || mode == EditMode.BelongEdit) && _mapData != null)
+        if (needsDomain && _mapData != null)
         {
             _renderEngine.PreloadBelongFlagAtlas(_mapData);
         }

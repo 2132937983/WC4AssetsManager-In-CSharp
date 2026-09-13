@@ -1,13 +1,11 @@
 using System.Diagnostics;
 using System.IO;
 using WC4MapEditor.Core.Models;
-// 注意：本文件位于 WPF 项目内，隐式全局 using 会引入 System.Windows.Shapes（含 Path 类），
-// 与 System.IO.Path 冲突，因此统一使用 IOPath 别名（项目已全局定义）。
 using WC4MapEditor.Core.Parsers.Conquest;
 using WC4MapEditor.Core.Parsers.Stage;
 using WC4MapEditor.Core.Parsers.World;
 
-namespace WC4MapEditor.Services;
+namespace WC4MapEditor.Core.SceneManagement;
 
 public enum RenderSceneType
 {
@@ -77,11 +75,11 @@ public sealed class RenderSceneManager
 
     public static RenderSceneType GetSceneTypeByFilePath(string filePath)
     {
-        var ext = IOPath.GetExtension(filePath).ToLowerInvariant();
+        var ext = Path.GetExtension(filePath).ToLowerInvariant();
         if (ext is ".bin" or ".dat") return RenderSceneType.Test;
         if (ext == ".btl")
         {
-            var name = IOPath.GetFileNameWithoutExtension(filePath).ToLowerInvariant();
+            var name = Path.GetFileNameWithoutExtension(filePath).ToLowerInvariant();
             if (name.StartsWith("conquest")) return RenderSceneType.Conquest;
             return RenderSceneType.Stage;
         }
@@ -119,7 +117,7 @@ public sealed class RenderSceneManager
     private static string InitializeCacheDirectory()
     {
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        var cachePath = IOPath.Combine(baseDir, "Cache", "Scenes");
+        var cachePath = Path.Combine(baseDir, "Cache", "Scenes");
         if (!Directory.Exists(cachePath))
         {
             Directory.CreateDirectory(cachePath);
@@ -156,7 +154,7 @@ public sealed class RenderSceneManager
                 SceneName = string.IsNullOrEmpty(sceneName) ? $"场景 {_sceneIdCounter}" : sceneName,
                 MapFilePath = mapFilePath,
                 SceneType = sceneType,
-                CacheFilePath = IOPath.Combine(_cacheDirectory, $"scene_{_sceneIdCounter}.cache")
+                CacheFilePath = Path.Combine(_cacheDirectory, $"scene_{_sceneIdCounter}.cache")
             };
             _scenes[_sceneIdCounter] = scene;
             Debug.WriteLine($"[SceneManager] 创建场景 {scene.SceneId}: {scene.SceneName}");
@@ -207,7 +205,7 @@ public sealed class RenderSceneManager
 
             try
             {
-                var cacheDir = IOPath.GetDirectoryName(scene.CacheFilePath);
+                var cacheDir = Path.GetDirectoryName(scene.CacheFilePath);
                 if (!string.IsNullOrEmpty(cacheDir) && !Directory.Exists(cacheDir))
                     Directory.CreateDirectory(cacheDir);
 

@@ -38,6 +38,15 @@ public class BuildingRender : IDisposable
     private Dictionary<string, SKSize> _facilityOriginalSize = new();
     private Dictionary<string, SKSize> _cityLevelOriginalSize = new();
 
+    // 每帧复用的绘制批处理容器。原实现每帧新建 5 个 List，并在 CollectFacilities 中
+    // 为每个建筑再新建一个 List；这些容器只在渲染线程使用，Clear 后即可复用。
+    private readonly List<BuildingDrawCall> _buildingBatch = new();
+    private readonly List<FacilityDrawCall> _facilityBatch = new();
+    private readonly List<KeyPointDrawCall> _keyPointList = new();
+    private readonly List<NameDrawCall> _nameList = new();
+    private readonly List<CityLevelDrawCall> _cityLevelList = new();
+    private readonly List<(string Type, int Level)> _facilityScratch = new();
+
     private readonly SKFont _buildingNameFont;
     private readonly SKFont _facilityLevelFont;
     private readonly SKPaint _redKeyPointPaint;
@@ -232,11 +241,11 @@ public class BuildingRender : IDisposable
         int buildingImageSize = (int)(scaledHexSize * BUILDING_IMAGE_SCALE);
         int facilityImageSize = (int)(scaledHexSize * FACILITY_IMAGE_SCALE);
 
-        var buildingBatch = new List<BuildingDrawCall>();
-        var facilityBatch = new List<FacilityDrawCall>();
-        var keyPointList = new List<KeyPointDrawCall>();
-        var nameList = new List<NameDrawCall>();
-        var cityLevelList = new List<CityLevelDrawCall>();
+        _buildingBatch.Clear();
+        _facilityBatch.Clear();
+        _keyPointList.Clear();
+        _nameList.Clear();
+        _cityLevelList.Clear();
 
         foreach (var building in _mapData.Buildings)
         {
@@ -252,24 +261,24 @@ public class BuildingRender : IDisposable
 
             if (building.KeyPoint == 1 || building.KeyPoint == 2)
             {
-                keyPointList.Add(new KeyPointDrawCall(sx, sy, building.KeyPoint, scaledHexSize));
+                _keyPointList.Add(new KeyPointDrawCall(sx, sy, building.KeyPoint, scaledHexSize));
             }
 
             string cacheKey = GetBuildingCacheKey(building);
             if (_buildingAtlasMap.ContainsKey(cacheKey))
             {
-                buildingBatch.Add(new BuildingDrawCall(sx, sy, buildingImageSize, cacheKey, building, false));
+                _buildingBatch.Add(new BuildingDrawCall(sx, sy, buildingImageSize, cacheKey, building, false));
             }
             else
             {
-                buildingBatch.Add(new BuildingDrawCall(sx, sy, buildingImageSize, "default", building, true));
+                _buildingBatch.Add(new BuildingDrawCall(sx, sy, buildingImageSize, "default", building, true));
             }
 
             if (showFacilities)
-                CollectFacilities(building, sx, sy, scaledHexSize, facilityImageSize, facilityBatch);
+                CollectFacilities(building, sx, sy, scaledHexSize, facilityImageSize, _facilityBatch);
 
             if (_showBuildingNames && building.Name != 0 && building.Name != -1)
-                nameList.Add(new NameDrawCall(sx, sy, building, buildingImageSize));
+                _nameList.Add(new NameDrawCall(sx, sy, building, buildingImageSize));
 
             if (building.BuildingType >= 11 && building.BuildingType <= 15)
             {
@@ -278,21 +287,22 @@ public class BuildingRender : IDisposable
                 if (_cityLevelAtlasMap.ContainsKey(cityLevelCacheKey))
                 {
                     int cityLevelImageSize = (int)(facilityImageSize * 1.2);
-                    cityLevelList.Add(new CityLevelDrawCall(sx, sy, cityLevelImageSize, cityLevelCacheKey));
+                    _cityLevelList.Add(new CityLevelDrawCall(sx, sy, cityLevelImageSize, cityLevelCacheKey));
                 }
             }
         }
 
-        DrawKeyPoints(canvas, keyPointList);
-        DrawBuildingsAtlas(canvas, buildingBatch);
-        DrawFacilitiesBatch(canvas, facilityBatch);
-        DrawCityLevelsBatch(canvas, cityLevelList);
-        DrawBuildingNames(canvas, nameList);
+        DrawKeyPoints(canvas, _keyPointList);
+        DrawBuildingsAtlas(canvas, _buildingBatch);
+        DrawFacilitiesBatch(canvas, _facilityBatch);
+        DrawCityLevelsBatch(canvas, _cityLevelList);
+        DrawBuildingNames(canvas, _nameList);
     }
 
     private void CollectFacilities(Building building, float screenX, float screenY, float scaledHexSize, int imageSize, List<FacilityDrawCall> batch)
     {
-        var facilities = new List<(string Type, int Level)>();
+        var facilities = _facilityScratch;
+        facilities.Clear();
 
         if (building.FactoryLevel > 0) facilities.Add(("factory", building.FactoryLevel));
         if (building.ResearchLevel > 0) facilities.Add(("lab", building.ResearchLevel));

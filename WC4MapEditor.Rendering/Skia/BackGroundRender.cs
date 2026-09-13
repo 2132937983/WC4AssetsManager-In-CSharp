@@ -677,20 +677,22 @@ public class BackGroundRender : IDisposable
                 var terrain = mapData.GetTerrainAt(col, row);
                 if (terrain.RiverValue == 0) continue;
 
-                var v = new SKPoint[6];
-                v[0] = new SKPoint((float)(centerX - halfSize), (float)(centerY - height));
-                v[1] = new SKPoint((float)(centerX + halfSize), (float)(centerY - height));
-                v[2] = new SKPoint((float)(centerX + hexSize), (float)centerY);
-                v[3] = new SKPoint((float)(centerX + halfSize), (float)(centerY + height));
-                v[4] = new SKPoint((float)(centerX - halfSize), (float)(centerY + height));
-                v[5] = new SKPoint((float)(centerX - hexSize), (float)centerY);
+                // 六边形六个顶点用局部变量（SKPoint 是 struct，栈上分配），
+                // 替代原先每个河流格子每帧 new SKPoint[6]。
+                var p0 = new SKPoint((float)(centerX - halfSize), (float)(centerY - height));
+                var p1 = new SKPoint((float)(centerX + halfSize), (float)(centerY - height));
+                var p2 = new SKPoint((float)(centerX + hexSize), (float)centerY);
+                var p3 = new SKPoint((float)(centerX + halfSize), (float)(centerY + height));
+                var p4 = new SKPoint((float)(centerX - halfSize), (float)(centerY + height));
+                var p5 = new SKPoint((float)(centerX - hexSize), (float)centerY);
 
-                if ((terrain.RiverValue & 0x01) > 0) canvas.DrawLine(v[0], v[1], _riverPaint);
-                if ((terrain.RiverValue & 0x02) > 0) canvas.DrawLine(v[1], v[2], _riverPaint);
-                if ((terrain.RiverValue & 0x04) > 0) canvas.DrawLine(v[2], v[3], _riverPaint);
-                if ((terrain.RiverValue & 0x08) > 0) canvas.DrawLine(v[3], v[4], _riverPaint);
-                if ((terrain.RiverValue & 0x10) > 0) canvas.DrawLine(v[4], v[5], _riverPaint);
-                if ((terrain.RiverValue & 0x20) > 0) canvas.DrawLine(v[5], v[0], _riverPaint);
+                int river = terrain.RiverValue;
+                if ((river & 0x01) > 0) canvas.DrawLine(p0, p1, _riverPaint);
+                if ((river & 0x02) > 0) canvas.DrawLine(p1, p2, _riverPaint);
+                if ((river & 0x04) > 0) canvas.DrawLine(p2, p3, _riverPaint);
+                if ((river & 0x08) > 0) canvas.DrawLine(p3, p4, _riverPaint);
+                if ((river & 0x10) > 0) canvas.DrawLine(p4, p5, _riverPaint);
+                if ((river & 0x20) > 0) canvas.DrawLine(p5, p0, _riverPaint);
             }
         }
     }

@@ -334,6 +334,80 @@ public sealed class TrapModifier : ModifierBase
 
     #endregion
 
+    #region 按概率自由生成陷阱 (Ctrl+G)
+
+    /// <summary>
+    /// 按概率在地图上自由生成陷阱：跳过海洋/空地以及已有建筑的格子，其余格子按概率随机生成。
+    /// 与 GenerateTrapsByBelong 不同，该方法不按归属筛选。
+    /// </summary>
+    public ModifierResult GenerateTrapsFree(int probability)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+        if (probability < 0 || probability > 100) return ModifierResult.Fail("概率必须在0-100之间");
+
+        int generatedCount = 0;
+
+        // 预先收集所有需要排除的格子：避免在双重循环里逐格做线性查找
+        // （FindBuildingIndex / FindArmyIndex 都是遍历整个集合，大地图上会非常慢）。
+        var excluded = new HashSet<int>();
+
+        // 已有陷阱
+        foreach (var trap in _mapData.Traps)
+            excluded.Add(trap.Coordinate);
+
+        // 已有建筑
+        foreach (var building in _mapData.Buildings)
+            excluded.Add(building.Coordinate);
+
+        // 已有单位（v1 与 v3 都算）
+        foreach (var army in _mapData.Armies)
+            excluded.Add(army.Coordinate);
+        foreach (var army in _mapData.ArmiesV3)
+            excluded.Add(army.Coordinate);
+
+        for (int row = 0; row < _mapData.MapHeight; row++)
+        {
+            for (int col = 0; col < _mapData.MapWidth; col++)
+            {
+                int hexIndex = row * _mapData.MapWidth + col;
+
+                // 已有陷阱 / 建筑 / 单位的格子都不生成
+                if (excluded.Contains(hexIndex)) continue;
+
+                // 排除海洋与空地：TileType1 为 0 或 1 时地形层不绘制陆地（OCEAN_TILE_TYPE = 1）
+                var terrain = _mapData.GetTerrainAt(col, row);
+                if (terrain.TileType1 == 0 || terrain.TileType1 == 1) continue;
+
+                if (_random.Next(0, 100) >= probability) continue;
+
+                // 确定陷阱的所属军团（Trap.LegionId）：
+                // 优先用该格自身的归属值；该格无归属（0xFF）时回退到所在省份「省会格子」的归属值；
+                // 两者都取不到则跳过该格 —— 否则会生成 LegionId 无效（255）的陷阱，
+                // 渲染层找不到对应国家，国旗会画成灰色方块。
+                int cellBelong = _mapData.GetBelongValue(col, row);
+                int legionId = (cellBelong >= 0 && cellBelong != 0xFF)
+                    ? cellBelong
+                    : _mapData.GetProvinceCapitalBelong(col, row);
+
+                if (legionId < 0 || legionId >= 0xFF) continue;
+
+                var newTrap = Trap.CreateDefault((short)hexIndex);
+                newTrap.LegionId = (short)legionId;
+                newTrap.Organization = (byte)_random.Next(1, 6);
+                newTrap.Health = (byte)_random.Next(50, 101);
+
+                _mapData.Traps.Add(newTrap);
+                excluded.Add(hexIndex);
+                generatedCount++;
+            }
+        }
+
+        MarkModified();
+        return ModifierResult.Ok($"已生成 {generatedCount} 个陷阱");
+    }
+
+    #endregion
+
     #region 按省区批量生成陷阱 (Ctrl+I)
 
     public ModifierResult GenerateTrapsByProvince(int probability)

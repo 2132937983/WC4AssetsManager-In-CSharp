@@ -38,6 +38,7 @@ public class LandTerrainsRender : IDisposable
     private readonly List<TerrainDrawCall> _batch = new();
     private readonly Dictionary<long, List<TerrainDrawCall>> _groups = new();
     private readonly List<long> _groupKeys = new();
+    private readonly Stack<List<TerrainDrawCall>> _groupPool = new();
 
     // Optional render clip (strip) in surface coordinates; empty = full area.
     private int _clipX, _clipY, _clipW, _clipH;
@@ -191,10 +192,9 @@ public class LandTerrainsRender : IDisposable
 
     private bool EnsureTerrainSource(long cacheKey, int terrainType, int decorationIndex)
     {
-        lock (_sourceLock)
-        {
-            if (_terrainSource.ContainsKey(cacheKey)) return true;
-        }
+        // 快速路径不加锁：条目一旦写入就不会被移除，且渲染与 Dispose 都发生在 UI 线程。
+        // 原实现为可视范围内的每一格都取一次锁，在逐格循环里开销显著。
+        if (_terrainSource.ContainsKey(cacheKey)) return true;
 
         SKBitmap? owned = null;
         lock (_terrainHelperLock)
@@ -237,14 +237,19 @@ public class LandTerrainsRender : IDisposable
         if (_batch.Count == 0) return;
 
         _groupKeys.Clear();
-        foreach (var g in _groups.Values) g.Clear();
+        // 分组容器回收到池中复用，避免每帧为每种地形类型重新分配 List。
+        foreach (var g in _groups.Values)
+        {
+            g.Clear();
+            _groupPool.Push(g);
+        }
         _groups.Clear();
 
         foreach (var dc in _batch)
         {
             if (!_groups.TryGetValue(dc.CacheKey, out var list))
             {
-                list = new List<TerrainDrawCall>();
+                list = _groupPool.Count > 0 ? _groupPool.Pop() : new List<TerrainDrawCall>();
                 _groups[dc.CacheKey] = list;
                 _groupKeys.Add(dc.CacheKey);
             }

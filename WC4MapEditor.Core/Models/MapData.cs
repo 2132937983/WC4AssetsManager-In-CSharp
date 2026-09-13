@@ -509,6 +509,25 @@ public class MapData : INotifyPropertyChanged
         return null;
     }
 
+    /// <summary>
+    /// 获取指定格子所在省份的「省会格子」归属值。
+    /// ProvinceValue 即省会格子的地图索引；无省区或越界时返回 -1。
+    /// 放置单位、放置陷阱、批量生成陷阱都依赖它确定归属。
+    /// </summary>
+    public int GetProvinceCapitalBelong(int col, int row)
+    {
+        if (col < 0 || col >= _mapWidth || row < 0 || row >= _mapHeight) return -1;
+
+        var province = GetProvinceRef(col, row);
+        if (province.ProvinceValue == 0 || province.ProvinceValue == 0xFFFF) return -1;
+
+        int capitalIndex = province.ProvinceValue;
+        if (capitalIndex < 0 || capitalIndex >= _mapWidth * _mapHeight) return -1;
+
+        var capitalCoord = HexCoord.FromIndex(capitalIndex, MapWidth);
+        return GetBelongValue(capitalCoord.Col, capitalCoord.Row);
+    }
+
     public void AddBuilding(Building building)
     {
         HexCoord coord = HexCoord.FromIndex(building.Coordinate, MapWidth);

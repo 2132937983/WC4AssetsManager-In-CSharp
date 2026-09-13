@@ -9,6 +9,12 @@ public sealed class ArmyModifier : ModifierBase
     public override string DisplayName => "单位修改器";
 
     private Army? _copiedArmy;
+
+    // 多选复制的单位组：key = col * 10000 + row，配合左上角偏移还原相对布局。
+    private Dictionary<int, Army>? _copiedArmyGroup;
+    private int _copiedArmyGroupMinCol;
+    private int _copiedArmyGroupMinRow;
+
     private readonly Random _random = new();
 
     #region 基础CRUD
@@ -95,6 +101,8 @@ public sealed class ArmyModifier : ModifierBase
         int idx = _mapData!.FindArmyIndex(col, row);
         if (idx < 0) return ModifierResult.Fail("该位置没有单位");
         _copiedArmy = _mapData.Armies[idx];
+        // 单选复制会覆盖掉多选缓冲区，与建筑模式 CopyBuilding 的行为一致。
+        _copiedArmyGroup = null;
         return ModifierResult.Ok("已复制单位数据");
     }
 
@@ -104,6 +112,62 @@ public sealed class ArmyModifier : ModifierBase
         if (_copiedArmy == null) return ModifierResult.Fail("没有已复制的单位数据");
         return Apply(col, row, _copiedArmy);
     }
+
+    /// <summary>
+    /// 多选复制：把选区中所有存在单位的格子记录为「相对布局」，返回复制到的单位数量。
+    /// </summary>
+    public int CopyArmyGroup(IReadOnlySet<HexCoord> selectedHexes)
+    {
+        if (_mapData == null) return 0;
+
+        _copiedArmyGroup = new Dictionary<int, Army>();
+        _copiedArmyGroupMinCol = int.MaxValue;
+        _copiedArmyGroupMinRow = int.MaxValue;
+
+        foreach (var coord in selectedHexes)
+        {
+            int idx = _mapData.FindArmyIndex(coord.Col, coord.Row);
+            if (idx < 0) continue;
+
+            var army = _mapData.Armies[idx];
+            _copiedArmyGroupMinCol = Math.Min(_copiedArmyGroupMinCol, coord.Col);
+            _copiedArmyGroupMinRow = Math.Min(_copiedArmyGroupMinRow, coord.Row);
+            _copiedArmyGroup[coord.Col * 10000 + coord.Row] = army;
+        }
+
+        _copiedArmy = null;
+        return _copiedArmyGroup.Count;
+    }
+
+    /// <summary>
+    /// 多选粘贴：以 (targetCol, targetRow) 作为选区左上角，按原相对布局批量放置。
+    /// 返回实际写入的格子坐标，调用方可据此实现撤销。
+    /// </summary>
+    public List<HexCoord> PasteArmyGroup(int targetCol, int targetRow)
+    {
+        var pasted = new List<HexCoord>();
+        if (_mapData == null) return pasted;
+        if (_copiedArmyGroup == null || _copiedArmyGroup.Count == 0) return pasted;
+
+        foreach (var (key, army) in _copiedArmyGroup)
+        {
+            int relCol = key / 10000 - _copiedArmyGroupMinCol;
+            int relRow = key % 10000 - _copiedArmyGroupMinRow;
+            int destCol = targetCol + relCol;
+            int destRow = targetRow + relRow;
+
+            if (destCol < 0 || destCol >= _mapData.MapWidth ||
+                destRow < 0 || destRow >= _mapData.MapHeight)
+                continue;
+
+            Apply(destCol, destRow, army);
+            pasted.Add(new HexCoord(destCol, destRow));
+        }
+
+        return pasted;
+    }
+
+    public bool HasCopiedArmyGroup => _copiedArmyGroup != null && _copiedArmyGroup.Count > 0;
 
     #endregion
 
