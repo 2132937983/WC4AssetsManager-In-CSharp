@@ -348,6 +348,22 @@ public sealed class DebugConsole : IDisposable
     }
 
     /// <summary>
+    /// 宿主窗口被外部直接关闭（点 ✕ 等）时同步隐藏状态。
+    /// 与 <see cref="HideConsole"/> 的区别：不会回调关闭宿主窗口，避免递归关闭。
+    /// </summary>
+    public void NotifyHostClosed()
+    {
+        if (!_isVisible) return;
+
+        _isVisible = false;
+        _cursorTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+        _currentInput = "";
+        _cursorPosition = 0;
+        _closeHostAction = null;
+        VisibilityChanged?.Invoke(false);
+    }
+
+    /// <summary>
     /// 设置当前输入文本（由WPF窗口调用）
     /// </summary>
     public void SetCurrentInput(string text)

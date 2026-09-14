@@ -954,8 +954,9 @@ public class TacticalMapEditor
                     Name = name,
                     Width = image.Width,
                     Height = image.Height,
-                    RefX = image.Width / 2,
-                    RefY = image.Height / 2
+                    // 新增图片的参考点保持 (0,0)，不自动取图片中心
+                    RefX = 0,
+                    RefY = 0
                 };
                 AddOrReplaceObject(newObj, preserveExistingPosition: true);
             }

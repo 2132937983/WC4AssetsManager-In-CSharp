@@ -15,7 +15,10 @@ namespace WC4MapEditor.Views.Assist;
 public sealed class LegionBelongListWindow : Window
 {
     private readonly List<Legion> _legionList;
-    private readonly Dictionary<int, BitmapImage> _flagCache = new();
+    private readonly Dictionary<int, BitmapSource> _flagCache = new();
+    private readonly Dictionary<int, string> _countryNameCache = new();
+    private SKBitmap? _tacticalSurfaceBitmap;
+    private bool _tacticalSurfaceLoadAttempted;
     private ListBox? _listBox;
     private int _selectedIndex = -1;
     private bool _confirmed;
@@ -66,7 +69,7 @@ public sealed class LegionBelongListWindow : Window
         }
     }
 
-    private BitmapImage? LoadFlagImage(int countryId)
+    private BitmapSource? LoadFlagImage(int countryId)
     {
         try
         {
@@ -74,9 +77,11 @@ public sealed class LegionBelongListWindow : Window
             if (tacticalMapParser != null)
             {
                 var imageDef = tacticalMapParser.GetImageDef($"flag_{countryId}.png");
-                if (imageDef != null && tacticalMapParser.SurfaceData != null)
+                if (imageDef != null)
                 {
-                    return ExtractFlagFromTacticalMap(tacticalMapParser, imageDef);
+                    var surfaceBitmap = GetTacticalSurfaceBitmap(tacticalMapParser);
+                    if (surfaceBitmap != null)
+                        return ExtractFlagFromTacticalMap(surfaceBitmap, imageDef);
                 }
             }
 
@@ -100,39 +105,63 @@ public sealed class LegionBelongListWindow : Window
         return null;
     }
 
-    private BitmapImage? ExtractFlagFromTacticalMap(TacticalMapParser parser, TacticalMapImageDef imageDef)
+    /// <summary>
+    /// 惰性解码战术地图大图，**整张图只解码一次**供所有国旗裁剪复用。
+    /// <para>
+    /// 原实现对每个国家都执行一次 MemoryStream + SKBitmap.Decode（都是整张大图），
+    /// 国家数量上百时会让窗口弹出前卡顿数秒。
+    /// </para>
+    /// </summary>
+    private SKBitmap? GetTacticalSurfaceBitmap(TacticalMapParser parser)
+    {
+        if (_tacticalSurfaceLoadAttempted) return _tacticalSurfaceBitmap;
+        _tacticalSurfaceLoadAttempted = true;
+
+        var surfaceData = parser.SurfaceData;
+        if (surfaceData == null) return null;
+
+        try
+        {
+            using var stream = new System.IO.MemoryStream(surfaceData);
+            _tacticalSurfaceBitmap = SKBitmap.Decode(stream);
+        }
+        catch
+        {
+            _tacticalSurfaceBitmap = null;
+        }
+
+        return _tacticalSurfaceBitmap;
+    }
+
+    /// <summary>
+    /// 从战术地图大图上裁剪出指定国旗。
+    /// 直接用 Bgra8888 像素构造 <see cref="BitmapSource"/>，跳过 PNG 编解码
+    /// （每个国家一面旗、数量可达数百，PNG 编解码会成为主要开销）。
+    /// </summary>
+    private static BitmapSource? ExtractFlagFromTacticalMap(SKBitmap surfaceBitmap, TacticalMapImageDef imageDef)
     {
         try
         {
-            var surfaceData = parser.SurfaceData;
-            if (surfaceData == null) return null;
-
-            using var stream = new System.IO.MemoryStream(surfaceData);
-            using var surfaceBitmap = SKBitmap.Decode(stream);
-            if (surfaceBitmap == null) return null;
-
             int x = imageDef.X;
             int y = imageDef.Y;
             int w = Math.Min(imageDef.Width, surfaceBitmap.Width - x);
             int h = Math.Min(imageDef.Height, surfaceBitmap.Height - y);
 
-            if (w <= 0 || h <= 0) return null;
+            if (x < 0 || y < 0 || w <= 0 || h <= 0) return null;
 
-            using var subsetBitmap = new SKBitmap(w, h);
+            // 预乘 Bgra8888 的内存布局与 WPF 的 Pbgra32 一致
+            var info = new SKImageInfo(w, h, SKColorType.Bgra8888, SKAlphaType.Premul);
+            using var subsetBitmap = new SKBitmap(info);
             using (var canvas = new SKCanvas(subsetBitmap))
             {
+                canvas.Clear(SKColors.Transparent);
                 canvas.DrawBitmap(surfaceBitmap, -x, -y);
             }
 
-            using var skImage = SKImage.FromBitmap(subsetBitmap);
-            using var encoded = skImage.Encode(SKEncodedImageFormat.Png, 100);
-            using var pngStream = encoded.AsStream();
-
-            var result = new BitmapImage();
-            result.BeginInit();
-            result.CacheOption = BitmapCacheOption.OnLoad;
-            result.StreamSource = pngStream;
-            result.EndInit();
+            var result = BitmapSource.Create(
+                w, h, 96, 96,
+                PixelFormats.Pbgra32, null,
+                subsetBitmap.GetPixels(), h * subsetBitmap.RowBytes, subsetBitmap.RowBytes);
             result.Freeze();
             return result;
         }
@@ -314,14 +343,20 @@ public sealed class LegionBelongListWindow : Window
 
     private string GetCountryName(int countryId)
     {
+        if (_countryNameCache.TryGetValue(countryId, out var cached))
+            return cached;
+
+        var name = $"国家{countryId}";
         try
         {
             var value = ConfigManager.Instance.GetStringTableValue($"country_{countryId}");
             if (!string.IsNullOrEmpty(value))
-                return value;
+                name = value;
         }
         catch { }
-        return $"国家{countryId}";
+
+        _countryNameCache[countryId] = name;
+        return name;
     }
 
     private StackPanel CreateButtonPanel()
@@ -461,5 +496,15 @@ public sealed class LegionBelongListWindow : Window
         var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(100));
         fadeOut.Completed += (_, _) => Close();
         BeginAnimation(OpacityProperty, fadeOut);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        // 释放复用的战术地图位图（_flagCache 中的 BitmapImage 已 Freeze，无需手动释放）
+        _tacticalSurfaceBitmap?.Dispose();
+        _tacticalSurfaceBitmap = null;
+        _flagCache.Clear();
+        _countryNameCache.Clear();
+        base.OnClosed(e);
     }
 }

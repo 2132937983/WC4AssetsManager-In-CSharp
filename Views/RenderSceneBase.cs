@@ -387,6 +387,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _editModeManager.SetGeoCalculateCallback(OnGeoCalculateAsync);
         _editModeManager.SetGeoExportRefCallback(OnGeoExportRefAsync);
         _editModeManager.SetGeoImportRefCallback(OnGeoImportRefAsync);
+        _editModeManager.SetGeoExportGridCallback(OnGeoExportGridAsync);
         _editModeManager.SetAddGeoRefCallback(OnAddGeoRefAsync);
         _editModeManager.SetGetFocusHexCallback(GetFocusHex);
         _editModeManager.ModeChanged += OnEditModeChanged;
@@ -394,6 +395,16 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _editModeManager.DataModified += OnEditModeDataModified;
         _editModeManager.BrushToggled += OnBrushToggled;
         _editModeManager.BrushSizeChanged += OnBrushSizeChanged;
+        _editModeManager.DomainToggled += OnDomainToggled;
+        _editModeManager.BuildingNamesToggled += OnBuildingNamesToggled;
+        _editModeManager.CaptureLegionScreenshotRequested += OnCaptureLegionScreenshotRequested;
+        _editModeManager.OpenLegionSettingRequested += OnOpenLegionSettingRequested;
+        _editModeManager.OpenLegionListRequested += OnOpenLegionListRequested;
+        _editModeManager.OpenHeaderSettingRequested += OnOpenHeaderSettingRequested;
+        _editModeManager.UpdateConquerSettingsRequested += OnUpdateConquerSettingsRequested;
+        _editModeManager.MoveCameraToHexRequested += OnMoveCameraToHexRequested;
+        _editModeManager.BuildingMoveToolToggled += OnBuildingMoveToolToggled;
+        _editModeManager.RecognizeTextBuildingsRequested += OnRecognizeTextBuildingsRequested;
 
         _fileStateManager.OpenFile(_mapData, _mapData.FilePath, SceneType);
         _editModeManager.SetSceneType(SceneType);
@@ -511,6 +522,16 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _editModeManager.DataModified -= OnEditModeDataModified;
         _editModeManager.BrushToggled -= OnBrushToggled;
         _editModeManager.BrushSizeChanged -= OnBrushSizeChanged;
+        _editModeManager.DomainToggled -= OnDomainToggled;
+        _editModeManager.BuildingNamesToggled -= OnBuildingNamesToggled;
+        _editModeManager.CaptureLegionScreenshotRequested -= OnCaptureLegionScreenshotRequested;
+        _editModeManager.OpenLegionSettingRequested -= OnOpenLegionSettingRequested;
+        _editModeManager.OpenLegionListRequested -= OnOpenLegionListRequested;
+        _editModeManager.OpenHeaderSettingRequested -= OnOpenHeaderSettingRequested;
+        _editModeManager.UpdateConquerSettingsRequested -= OnUpdateConquerSettingsRequested;
+        _editModeManager.MoveCameraToHexRequested -= OnMoveCameraToHexRequested;
+        _editModeManager.BuildingMoveToolToggled -= OnBuildingMoveToolToggled;
+        _editModeManager.RecognizeTextBuildingsRequested -= OnRecognizeTextBuildingsRequested;
         _editModeManager.Deinitialize();
 
         RenderSceneManager.Instance.SceneListChanged -= OnSceneListChanged;
@@ -531,6 +552,49 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _renderEngine.UpdateHelpFadeAnimation();
         _renderEngine.Render(canvas, _mapData, _camera);
     }
+
+    #region 相机控制
+
+    /// <summary>
+    /// 把相机中心移动到指定格子（行列坐标）。
+    /// </summary>
+    /// <param name="col">格子列号</param>
+    /// <param name="row">格子行号</param>
+    /// <returns>是否移动成功（坐标越界或相机未就绪时返回 false）</returns>
+    public bool MoveCameraToHex(int col, int row)
+    {
+        if (_camera == null || _mapData == null || _skElement == null) return false;
+        if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight) return false;
+
+        _camera.ViewportWidth = _skElement.ActualWidth;
+        _camera.ViewportHeight = _skElement.ActualHeight;
+
+        _camera.CenterOnHex(col, row);
+        _skElement.InvalidateVisual();
+        return true;
+    }
+
+    /// <summary>
+    /// 把相机中心移动到指定格子（格子序号 = row * MapWidth + col）。
+    /// </summary>
+    /// <param name="hexIndex">格子序号</param>
+    /// <returns>是否移动成功（序号越界或相机未就绪时返回 false）</returns>
+    public bool MoveCameraToHexIndex(int hexIndex)
+    {
+        if (_camera == null || _mapData == null || _skElement == null) return false;
+
+        int totalCells = _mapData.MapWidth * _mapData.MapHeight;
+        if (hexIndex < 0 || hexIndex >= totalCells) return false;
+
+        int col = hexIndex % _mapData.MapWidth;
+        int row = hexIndex / _mapData.MapWidth;
+        return MoveCameraToHex(col, row);
+    }
+
+    /// <summary>处理模式层发来的相机移动请求（建筑编辑模式 Enter 键循环选中建筑）</summary>
+    private void OnMoveCameraToHexRequested(int col, int row) => MoveCameraToHex(col, row);
+
+    #endregion
 
     #region Keyboard Bridge
 
@@ -881,6 +945,20 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         return tcs.Task;
     }
 
+    /// <summary>
+    /// 建筑名称显示开关（建筑编辑模式 U 键触发）。
+    /// 全局生效且跨模式保持：关闭后切换到任何模式都不再显示建筑名称。
+    /// </summary>
+    private bool _buildingNamesVisible = true;
+
+    /// <summary>建筑移动工具是否开启（建筑编辑模式 K 键触发，状态由 GUI 层持有）。</summary>
+    private bool _buildingMoveToolActive;
+
+    /// <summary>右键拖拽移动建筑时的源格坐标（-1 表示当前未在拖拽）。</summary>
+    private int _dragBuildingSourceCol = -1;
+    private int _dragBuildingSourceRow = -1;
+    private bool _isDraggingBuilding;
+
     private readonly GeoCoordinateCalculator _geoCalculator = new();
 
     private async Task OnAddGeoRefAsync()
@@ -1071,6 +1149,41 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         }
     }
 
+    /// <summary>
+    /// 导出格子网格数据（不含经纬度），对应地形编辑模式的 F10。
+    /// 与 F7 的经纬度导出同源，但无需设置参考点、不做经纬度换算，
+    /// 输出结构中去掉 coordinate（经纬度）与 referencePoints。
+    /// </summary>
+    private async Task OnGeoExportGridAsync()
+    {
+        if (_mapData == null)
+        {
+            MessageBox.Show("地图数据未加载", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        var saveDialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "JSON文件 (*.json)|*.json|所有文件 (*.*)|*.*",
+            Title = "导出格子数据（不含经纬度）",
+            FileName = $"grid_data_{DateTime.Now:yyyyMMddHHmmss}.json"
+        };
+
+        if (saveDialog.ShowDialog() != true) return;
+
+        try
+        {
+            await Task.Run(() => _geoCalculator.ExportGridOnly(_mapData, saveDialog.FileName));
+            MessageBox.Show($"格子数据已保存到:\n{saveDialog.FileName}", "成功",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"导出失败: {ex.Message}", "错误",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void OnToggleHexInfo()
     {
         if (_hexInfoWindow != null)
@@ -1104,6 +1217,10 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
     private async void OnEscPressed()
     {
+        // 有子窗口（军团编辑器 / 调色板 / 输入框等）处于活动状态时，Esc 归该子窗口处理。
+        // 否则会在关闭子窗口的同时触发"返回主场景"，把整个编辑场景一起关掉。
+        if (IsAnyOwnedWindowActive()) return;
+
         if (_debugConsole.IsVisible)
         {
             _debugConsole.HideConsole();
@@ -1112,6 +1229,18 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         Debug.WriteLine("[Keyboard] Esc pressed - showing return confirm dialog");
         if (_confirmDialogShowing) return;
         await ShowReturnConfirmDialog();
+    }
+
+    /// <summary>当前是否有本程序的其他窗口（子窗口）处于活动状态</summary>
+    private bool IsAnyOwnedWindowActive()
+    {
+        var main = Window;
+        foreach (Window w in Application.Current.Windows)
+        {
+            if (ReferenceEquals(w, main)) continue;
+            if (w.IsActive) return true;
+        }
+        return false;
     }
 
     private void RestoreFocus()
@@ -1134,6 +1263,11 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             _brushSettingsWindow.PlayFadeOutAndHide();
             _brushSettingsWindow = null;
+        }
+        if (_legionSettingWindow != null)
+        {
+            _legionSettingWindow.Close();
+            _legionSettingWindow = null;
         }
         if (_debugConsole.IsVisible)
         {
@@ -1343,19 +1477,24 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 HandleZoom(e);
                 break;
             case MouseActionKind.DragStart when e.Button == MouseButtons.Right:
+                if (TryStartBuildingDrag(e)) break;
                 if (TryStartBrushDrag(e)) break;
                 HandleSelectionRectStart(e);
                 break;
             case MouseActionKind.DragMove when e.Button == MouseButtons.Right:
+                if (TryContinueBuildingDrag(e)) break;
                 if (TryContinueBrushDrag(e)) break;
                 HandleSelectionRectMove(e);
                 break;
             case MouseActionKind.DragEnd when e.Button == MouseButtons.Right:
+                if (TryEndBuildingDrag(e)) break;
                 if (TryEndBrushDrag(e)) break;
                 HandleSelectionRectEnd(e);
                 break;
             case MouseActionKind.Click when e.Button == MouseButtons.Right:
                 if (TryBrushClick(e)) break;
+                if (TrySetBelongAtRightClick(e)) break;
+                if (TryShowLegionInfoAtRightClick(e)) break;
                 HandleRightClickSelect(e);
                 break;
         }
@@ -1474,6 +1613,66 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         }
     }
 
+    /// <summary>
+    /// 归属编辑模式下右键单击：为光标所在格子设置归属。
+    /// 对齐 VB 版 BelongModifier.HandleMouseDown 的右键分支 —— 归属值优先取「复制的归属」，
+    /// 未复制过时回退到当前选中的国家ID。
+    /// 仅在非画笔模式下生效（画笔模式右键用于绘制），右键拖动仍用于框选多选。
+    /// </summary>
+    private bool TrySetBelongAtRightClick(MouseActionEventArgs e)
+    {
+        if (_editModeManager.CurrentMode != EditMode.BelongEdit) return false;
+        if (_mapData == null || _camera == null) return false;
+
+        var belong = _editModeManager.GetModifier<BelongModifier>();
+        if (belong == null) return false;
+
+        var (col, row) = _camera.ScreenToHex(e.Position.X, e.Position.Y);
+        if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight) return false;
+
+        byte countryId = belong.ResolveBrushCountryId();
+
+        _editModeManager.RecordBelongChange(col, row, $"设置归属 ({col},{row})",
+            () => belong.SetBelongByCountryId(col, row, countryId));
+
+        _editModeManager.RaiseStatusMessage($"已设置归属 ({col},{row}) = {countryId}");
+        _skElement.InvalidateVisual();
+        return true;
+    }
+
+    /// <summary>
+    /// 军团编辑模式下右键查看该格军团信息（对齐 VB 版 LegionModifier.HandleMouseDown 右键分支）。
+    /// </summary>
+    private bool TryShowLegionInfoAtRightClick(MouseActionEventArgs e)
+    {
+        if (_editModeManager.CurrentMode != EditMode.LegionEdit) return false;
+        if (_mapData == null || _camera == null) return false;
+
+        var (col, row) = _camera.ScreenToHex(e.Position.X, e.Position.Y);
+        if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight) return false;
+
+        int belong = _mapData.GetBelongValue(col, row);
+        if (belong == 0xFF)
+        {
+            _editModeManager.RaiseStatusMessage($"({col},{row}) 没有军团信息");
+            return true;
+        }
+
+        int index = _mapData.FindLegionIndex(belong);
+        if (index < 0)
+        {
+            _editModeManager.RaiseStatusMessage($"({col},{row}) 归属值 {belong} 未匹配到军团");
+            return true;
+        }
+
+        var legion = _mapData.Legions[index];
+        _editModeManager.RaiseStatusMessage(
+            $"军团信息: ActionId={legion.ActionId}, CountryId={legion.CountryId}, " +
+            $"颜色=0x{legion.ColorR:X2}{legion.ColorG:X2}{legion.ColorB:X2}, " +
+            $"初始经济={legion.InitialEconomy}, 阵营={legion.Camp}");
+        return true;
+    }
+
     protected virtual Func<HexCoord, bool>? GetSelectionFilter()
     {
         if (_mapData == null) return null;
@@ -1483,7 +1682,13 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         }
         if (_editModeManager.CurrentMode == EditMode.BelongEdit)
         {
-            return coord => _mapData.GetBelongValue(coord.Col, coord.Row) != 0xFF;
+            // 归属编辑引入了建筑/单位/陷阱/归属四个模块，框选多选需同时覆盖这四类目标：
+            // 有归属值、或有建筑、或有单位（v1/v3）、或有陷阱的格子都算命中。
+            return coord => _mapData.GetBelongValue(coord.Col, coord.Row) != 0xFF
+                         || _mapData.FindBuildingIndex(coord.Col, coord.Row) >= 0
+                         || _mapData.GetArmyAt(coord.Col, coord.Row) != null
+                         || _mapData.GetArmyV3At(coord.Col, coord.Row) != null
+                         || _mapData.FindTrapIndex(coord.Col, coord.Row) >= 0;
         }
         if (_editModeManager.CurrentMode == EditMode.ArmyDeploy)
         {
@@ -2615,12 +2820,18 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                                           || mode == EditMode.BelongEdit
                                           || mode == EditMode.TerrainPaint
                                           || mode == EditMode.ArmyDeploy;
-        _renderEngine.ShowBuildingNames = mode != EditMode.TerrainPaint;
+        // 名称显示 = 全局开关（建筑编辑模式 U 键，跨模式保持） 且 非地形绘制模式
+        // （地形绘制模式按既有设计始终不显示名称）
+        _renderEngine.ShowBuildingNames = _buildingNamesVisible && mode != EditMode.TerrainPaint;
 
         // 单位部署模式下显示部队与陷阱（该模式的快捷键包含陷阱创建/批量生成/随机等级，
         // 不显示陷阱就无法编辑）。
-        _renderEngine.EnableArmyRender = mode == EditMode.ArmyDeploy;
-        _renderEngine.EnableTrapRender = mode == EditMode.ArmyDeploy;
+        // 归属编辑模式同样需要看到部队与陷阱：归属值要与驻地实体互相核对，只显示建筑不够
+        // （对齐 VB 版归属模式：国家领域/建筑/单位/陷阱/归属国旗层全开）。
+        _renderEngine.EnableArmyRender = mode == EditMode.ArmyDeploy
+                                      || mode == EditMode.BelongEdit;
+        _renderEngine.EnableTrapRender = mode == EditMode.ArmyDeploy
+                                      || mode == EditMode.BelongEdit;
 
         // 单位部署、建筑部署、归属编辑都依赖归属着色与旗帜标记
         var needsDomain = mode == EditMode.BuildingDeploy
@@ -2718,6 +2929,629 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         }
 
         return (0, 0);
+    }
+
+    /// <summary>
+    /// 切换国家领域（归属着色 + 归属国旗）显示，对齐 VB 归属模式的 L 键。
+    /// </summary>
+    private void OnDomainToggled(object? sender, EventArgs e)
+    {
+        bool enable = !_renderEngine.EnableLegionDomainRender;
+        _renderEngine.EnableLegionDomainRender = enable;
+        _renderEngine.EnableBelongFlagRender = enable;
+
+        if (enable && _mapData != null)
+            _renderEngine.PreloadBelongFlagAtlas(_mapData);
+
+        _editModeManager.RaiseStatusMessage(enable ? "国家领域显示: 开启" : "国家领域显示: 关闭");
+        _skElement.InvalidateVisual();
+    }
+
+    /// <summary>
+    /// 切换建筑名称显示，对应建筑编辑模式的 U 键。
+    /// </summary>
+    private void OnBuildingNamesToggled(object? sender, EventArgs e)
+    {
+        // 全局开关：关闭后切换到任何模式都不再显示建筑名称
+        _buildingNamesVisible = !_buildingNamesVisible;
+        _renderEngine.ShowBuildingNames = _buildingNamesVisible
+                                       && _editModeManager.CurrentMode != EditMode.TerrainPaint;
+
+        _editModeManager.RaiseStatusMessage(_buildingNamesVisible ? "建筑名称: 显示" : "建筑名称: 隐藏");
+        _skElement.InvalidateVisual();
+    }
+
+    /// <summary>建筑移动工具开关切换（建筑编辑模式 K 键）</summary>
+    private void OnBuildingMoveToolToggled(object? sender, EventArgs e)
+    {
+        _buildingMoveToolActive = !_buildingMoveToolActive;
+
+        if (!_buildingMoveToolActive)
+        {
+            // 关闭工具时结束进行中的拖拽
+            _isDraggingBuilding = false;
+            _dragBuildingSourceCol = -1;
+            _dragBuildingSourceRow = -1;
+            _hexSelector.ClearSelection();
+        }
+
+        _skElement.InvalidateVisual();
+    }
+
+    /// <summary>
+    /// 建筑编辑模式 P 键：文字识别生成建筑。
+    /// 流程：选择地图图片 → OCR 识别地名 → 导出当前地图网格（地形编辑模式 F10 的能力）
+    /// → 生成 zme 建筑脚本 → 批量放置建筑。
+    /// </summary>
+    private async void OnRecognizeTextBuildingsRequested(object? sender, EventArgs e)
+    {
+        if (_mapData == null)
+        {
+            MessageBox.Show("地图数据未加载", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        if (!Core.Services.ExternalToolRunner.IsOcrAvailable ||
+            !Core.Services.ExternalToolRunner.IsGenBuildingsAvailable)
+        {
+            MessageBox.Show(
+                "未找到 Lib 目录下的 ocr_map.exe / gen_buildings_zme.exe。\n" +
+                "请确认它们位于程序目录的 Lib 子目录中。",
+                "缺少外部工具", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        // 1. 选择用于识别的地图图片
+        var openDialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "选择用于文字识别的地图图片",
+            Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.webp|所有文件|*.*"
+        };
+        if (openDialog.ShowDialog() != true) return;
+        string imagePath = openDialog.FileName;
+
+        // 2. 读取图片像素尺寸（比例映射的依据，必须是原图像素尺寸而非地图格数）
+        int imageWidth, imageHeight;
+        try
+        {
+            using var bitmap = SkiaSharp.SKBitmap.Decode(imagePath);
+            if (bitmap == null)
+            {
+                MessageBox.Show("无法解码所选图片", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+            imageWidth = bitmap.Width;
+            imageHeight = bitmap.Height;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"读取图片失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        // 3. 选择建筑类型
+        var dialogService = new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!);
+        var typeInput = await dialogService.ShowInputDialogAsync(
+            "文字识别生成建筑",
+            $"图片尺寸 {imageWidth} x {imageHeight}\n建筑类型（11=一级城 ... 15=五级城）：",
+            "11", 11, 15);
+        if (typeInput == null || !int.TryParse(typeInput, out int buildingType)) return;
+
+        // 4. 中间产物与图片同目录
+        string workDir = System.IO.Path.GetDirectoryName(imagePath) ?? AppContext.BaseDirectory;
+        string baseName = System.IO.Path.GetFileNameWithoutExtension(imagePath);
+        string placesJson = System.IO.Path.Combine(workDir, baseName + "_places.json");
+        string mapJson = System.IO.Path.Combine(workDir, baseName + "_map.json");
+        string zmePath = System.IO.Path.Combine(workDir, baseName + "_buildings.zme");
+
+        try
+        {
+            // 5. OCR 识别（大图可能需要数分钟）
+            _editModeManager.RaiseStatusMessage($"正在识别 {System.IO.Path.GetFileName(imagePath)} 的地名，请稍候...");
+            var ocr = await Core.Services.ExternalToolRunner.RunOcrAsync(imagePath, placesJson);
+            if (!ocr.Ok)
+            {
+                MessageBox.Show(ocr.Message, "OCR 识别失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                _editModeManager.RaiseStatusMessage("OCR 识别失败");
+                return;
+            }
+
+            // 6. 导出当前地图网格数据（复用地形编辑模式 F10 的实现）
+            _editModeManager.RaiseStatusMessage("正在导出地图网格数据...");
+            _geoCalculator.ExportGridOnly(_mapData, mapJson);
+
+            // 7. 按比例映射生成 zme 建筑脚本
+            _editModeManager.RaiseStatusMessage("正在生成建筑脚本...");
+            var gen = await Core.Services.ExternalToolRunner.RunGenBuildingsAsync(
+                mapJson, placesJson, imageWidth, imageHeight, zmePath, buildingType);
+            if (!gen.Ok)
+            {
+                MessageBox.Show(gen.Message, "生成建筑脚本失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                _editModeManager.RaiseStatusMessage("生成建筑脚本失败");
+                return;
+            }
+
+            // 8. 执行 zme，批量放置建筑
+            _editModeManager.RaiseStatusMessage("正在放置建筑...");
+            Core.Commands.CliCommandHost.Instance.Execute($"run \"{zmePath}\"");
+
+            _skElement.InvalidateVisual();
+            _editModeManager.RaiseStatusMessage($"文字识别生成建筑完成（类型 {buildingType}）");
+            MessageBox.Show(
+                "文字识别生成建筑完成。\n\n" +
+                $"地名 JSON：{System.IO.Path.GetFileName(placesJson)}\n" +
+                $"地图网格：{System.IO.Path.GetFileName(mapJson)}\n" +
+                $"建筑脚本：{System.IO.Path.GetFileName(zmePath)}\n\n" +
+                gen.Message,
+                "完成", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"文字识别生成建筑失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>建筑移动工具：右键按下开始拖拽建筑</summary>
+    private bool TryStartBuildingDrag(MouseActionEventArgs e)
+    {
+        if (!_buildingMoveToolActive) return false;
+        if (_editModeManager.CurrentMode != EditMode.BuildingDeploy) return false;
+        if (_mapData == null || _camera == null) return false;
+
+        var (col, row) = _camera.ScreenToHex(e.Position.X, e.Position.Y);
+        if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight) return false;
+
+        var building = _mapData.GetBuildingAt(col, row);
+        if (building == null) return false;
+
+        _isDraggingBuilding = true;
+        _dragBuildingSourceCol = col;
+        _dragBuildingSourceRow = row;
+
+        // 用选区高亮源格，提供视觉反馈
+        _hexSelector.ClearSelection();
+        _hexSelector.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
+
+        _editModeManager.RaiseStatusMessage($"正在移动建筑: {building.Value.GetBuildingTypeName()}，拖到目标格后松开右键");
+        _skElement.InvalidateVisual();
+        return true;
+    }
+
+    /// <summary>建筑移动工具：拖动过程中高亮当前目标格</summary>
+    private bool TryContinueBuildingDrag(MouseActionEventArgs e)
+    {
+        if (!_isDraggingBuilding) return false;
+        if (_mapData == null || _camera == null) return true;
+
+        var (col, row) = _camera.ScreenToHex(e.Position.X, e.Position.Y);
+        if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight) return true;
+
+        if (col != _dragBuildingSourceCol || row != _dragBuildingSourceRow)
+        {
+            _hexSelector.ClearSelection();
+            _hexSelector.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
+            _skElement.InvalidateVisual();
+        }
+        return true;
+    }
+
+    /// <summary>建筑移动工具：松开右键完成移动</summary>
+    private bool TryEndBuildingDrag(MouseActionEventArgs e)
+    {
+        if (!_isDraggingBuilding) return false;
+
+        int fromCol = _dragBuildingSourceCol;
+        int fromRow = _dragBuildingSourceRow;
+
+        _isDraggingBuilding = false;
+        _dragBuildingSourceCol = -1;
+        _dragBuildingSourceRow = -1;
+
+        if (_mapData == null || _camera == null) return true;
+
+        var (col, row) = _camera.ScreenToHex(e.Position.X, e.Position.Y);
+        if (col >= 0 && col < _mapData.MapWidth && row >= 0 && row < _mapData.MapHeight)
+        {
+            var modifier = _editModeManager.GetModifier<BuildingModifier>();
+            if (modifier != null)
+            {
+                var result = modifier.MoveBuilding(fromCol, fromRow, col, row);
+                _editModeManager.RaiseStatusMessage(result.Message ?? "已移动建筑");
+            }
+        }
+
+        _hexSelector.ClearSelection();
+        _skElement.InvalidateVisual();
+        return true;
+    }
+
+    // ==================== 军团编辑模式（对齐 VB LegionModifier） ====================
+
+    private Views.Assist.LegionSettingWindow? _legionSettingWindow;
+
+    /// <summary>打开军团设置窗口（军团编辑模式 Q 键）</summary>
+    private void OnOpenLegionSettingRequested(object? sender, EventArgs e)
+    {
+        if (_mapData == null) return;
+
+        var modifier = _editModeManager.GetModifier<LegionModifier>();
+        if (modifier == null) return;
+
+        if (_legionSettingWindow != null)
+        {
+            _legionSettingWindow.Activate();
+            return;
+        }
+
+        var window = new Views.Assist.LegionSettingWindow(_mapData, modifier);
+        var owner = Window;
+        if (owner != null) window.Owner = owner;
+
+        window.DataModified += OnLegionSettingDataModified;
+        window.Closed += (_, _) =>
+        {
+            if (_legionSettingWindow != null)
+                _legionSettingWindow.DataModified -= OnLegionSettingDataModified;
+            _legionSettingWindow = null;
+        };
+
+        _legionSettingWindow = window;
+        window.Show();
+        // 显式激活，确保键盘焦点落在子窗口上，避免 Esc 被主窗口的全局绑定接走
+        window.Activate();
+    }
+
+    /// <summary>军团设置窗口数据修改 - 军团颜色/归属变化会影响领域层与国旗层</summary>
+    private void OnLegionSettingDataModified(object? sender, EventArgs e)
+    {
+        _renderEngine.InvalidateViewLayerCache();
+        _skElement.InvalidateVisual();
+    }
+
+    /// <summary>打开头部数据编辑窗口（军团编辑模式 E 键）</summary>
+    private void OnOpenHeaderSettingRequested(object? sender, EventArgs e)
+    {
+        var header = _mapData?.Header;
+        if (header == null)
+        {
+            MessageBox.Show("头部数据不可用", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (Views.Assist.HeaderSettingWindow.ShowDialog(Window, header))
+        {
+            _skElement.InvalidateVisual();
+            _editModeManager.RaiseStatusMessage("头部数据已更新");
+        }
+    }
+
+    /// <summary>打开军团列表窗口（军团编辑模式 F 键）</summary>
+    private void OnOpenLegionListRequested(object? sender, EventArgs e)
+    {
+        if (_mapData == null) return;
+
+        var legions = _mapData.Legions.ToList();
+        if (legions.Count == 0)
+        {
+            _editModeManager.RaiseStatusMessage("没有可用的军团数据");
+            return;
+        }
+
+        var window = new Views.Assist.LegionBelongListWindow(legions);
+        var owner = Window;
+        if (owner != null) window.Owner = owner;
+
+        window.ShowDialog();
+
+        if (window.IsConfirmed && window.SelectedActionId.HasValue)
+        {
+            var modifier = _editModeManager.GetModifier<LegionModifier>();
+            if (modifier != null)
+            {
+                var legion = modifier.GetLegionByActionId(window.SelectedActionId.Value);
+                if (legion.HasValue)
+                    modifier.SelectedLegionId = legion.Value.CountryId;
+            }
+
+            _editModeManager.RaiseStatusMessage($"已选择军团 ActionId={window.SelectedActionId.Value}");
+        }
+
+        _skElement.InvalidateVisual();
+    }
+
+    /// <summary>更新征服国家设置（军团编辑模式 F6 键）</summary>
+    private async void OnUpdateConquerSettingsRequested(object? sender, EventArgs e)
+    {
+        if (_mapData == null) return;
+
+        var modifier = _editModeManager.GetModifier<LegionModifier>();
+        if (modifier == null) return;
+
+        var settings = WC4MapEditor.Core.Config.ConfigManager.Instance.GetConquerCountrySettingsData();
+        if (settings.Count == 0)
+        {
+            _editModeManager.RaiseStatusMessage("未加载征服国家配置 ConquerCountrySettings.json");
+            return;
+        }
+
+        var dialogService = new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!);
+        var input = await dialogService.ShowInputDialogAsync(
+            "更新征服国家设置", "请输入征服参数 (ConquerId)：", "1", 1, 999);
+        if (string.IsNullOrWhiteSpace(input) || !int.TryParse(input, out int conquerId)) return;
+
+        try
+        {
+            var result = modifier.UpdateConquerCountrySettings(conquerId, settings);
+            _editModeManager.RaiseStatusMessage(result.Message ?? "已更新征服国家设置");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"更新征服国家设置失败: {ex.Message}", "错误",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>军团范围截图（军团编辑模式 P 键）</summary>
+    private async void OnCaptureLegionScreenshotRequested(object? sender, EventArgs e)
+    {
+        if (_mapData == null) return;
+
+        try
+        {
+            _editModeManager.RaiseStatusMessage("正在生成军团范围截图...");
+            string path = await Task.Run(() => CaptureLegionScreenshot(_mapData));
+            MessageBox.Show($"军团地图截图已保存：\n{path}", "截图完成",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"军团截图失败: {ex.Message}", "错误",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>
+    /// 读取 setting.txt 的 screenshot_resolution 并换算为缩放系数（对齐 VB 版）。
+    /// </summary>
+    private static double GetScreenshotScaleFactor()
+    {
+        var resolutionMap = new Dictionary<string, double>
+        {
+            ["1x"] = 1.0, ["2x"] = 0.5, ["4x"] = 0.25, ["8x"] = 0.125,
+            ["16x"] = 0.0625, ["32x"] = 0.03125, ["64x"] = 0.015625
+        };
+
+        string key = "1x";
+        try
+        {
+            string path = "setting.txt";
+            if (!System.IO.File.Exists(path))
+                path = System.IO.Path.Combine(AppContext.BaseDirectory, "setting.txt");
+
+            if (System.IO.File.Exists(path))
+            {
+                foreach (var line in System.IO.File.ReadAllLines(path))
+                {
+                    if (!line.StartsWith("screenshot_resolution", StringComparison.Ordinal)) continue;
+
+                    var parts = line.Split('=');
+                    if (parts.Length == 2)
+                    {
+                        string value = parts[1].Trim();
+                        if (resolutionMap.ContainsKey(value)) key = value;
+                    }
+                    break;
+                }
+            }
+        }
+        catch { }
+
+        return resolutionMap.TryGetValue(key, out double factor) ? factor : 1.0;
+    }
+
+    /// <summary>
+    /// 离屏渲染军团范围图并保存为 PNG。
+    /// 对齐 VB 版 LegionModifier.CaptureLegionScreenshot：按省区着色、
+    /// 省会格绘制国旗、被裁剪格绘制红十字，输出到程序目录 screenshots 下。
+    /// </summary>
+    private static string CaptureLegionScreenshot(MapData mapData)
+    {
+        double scaleFactor = GetScreenshotScaleFactor();
+
+        int startCol = mapData.Header?.MapClipX ?? 0;
+        int startRow = mapData.Header?.MapClipY ?? 0;
+        int cols = mapData.MapWidth - startCol;
+        int rows = mapData.MapHeight - startRow;
+
+        if (cols <= 0 || rows <= 0)
+        {
+            startCol = 0;
+            startRow = 0;
+            cols = mapData.MapWidth;
+            rows = mapData.MapHeight;
+        }
+
+        int imageWidth = Math.Max(1, (int)(cols * 54 * scaleFactor));
+        int imageHeight = Math.Max(1, (int)((rows + 2) * 62 * scaleFactor));
+        double cellWidth = (double)imageWidth / cols;
+        double cellHeight = (double)imageHeight / (rows + 2);
+        float hexSize = (float)(cellHeight / Math.Sqrt(3));
+
+        var emptyColor = new SKColor(240, 240, 240);
+
+        // 省区索引 → 该省区颜色（取自省会格所属军团的颜色）
+        var provinceColors = new Dictionary<int, SKColor>();
+        var hexToProvince = new Dictionary<int, int>();
+        var capitalCells = new HashSet<int>();
+        int totalTiles = mapData.MapWidth * mapData.MapHeight;
+
+        for (int row = 0; row < mapData.MapHeight; row++)
+        {
+            for (int col = 0; col < mapData.MapWidth; col++)
+            {
+                int index = row * mapData.MapWidth + col;
+                int provinceValue = mapData.GetProvinceRef(col, row).ProvinceValue;
+                if (provinceValue == 0 || provinceValue == 0xFFFF) continue;
+                if (provinceValue < 0 || provinceValue >= totalTiles) continue;
+
+                hexToProvince[index] = provinceValue;
+                if (provinceValue == index) capitalCells.Add(index);
+
+                if (provinceColors.ContainsKey(provinceValue)) continue;
+
+                int capitalCol = provinceValue % mapData.MapWidth;
+                int capitalRow = provinceValue / mapData.MapWidth;
+                int belong = mapData.GetBelongValue(capitalCol, capitalRow);
+                if (belong == 0xFF) continue;
+
+                int legionIndex = mapData.FindLegionIndex(belong);
+                if (legionIndex < 0) continue;
+
+                var legion = mapData.Legions[legionIndex];
+                provinceColors[provinceValue] = new SKColor(legion.ColorR, legion.ColorG, legion.ColorB);
+            }
+        }
+
+        string stageMarkPath = WC4MapEditor.Core.Config.ConfigManager.Instance.GetStageMarkPath();
+        var flagCache = new Dictionary<int, SKBitmap?>();
+
+        using var surface = SKSurface.Create(new SKImageInfo(imageWidth, imageHeight));
+        var canvas = surface.Canvas;
+        canvas.Clear(emptyColor);
+
+        for (int rowIdx = 0; rowIdx < rows; rowIdx++)
+        {
+            int actualRow = startRow + rowIdx;
+            if (actualRow >= mapData.MapHeight) break;
+
+            for (int colIdx = 0; colIdx < cols; colIdx++)
+            {
+                int actualCol = startCol + colIdx;
+                if (actualCol >= mapData.MapWidth) break;
+
+                float x = (float)(actualCol * cellWidth + cellWidth / 2);
+                float y = (float)((rowIdx + 1) * cellHeight + cellHeight / 2);
+                if (actualCol % 2 == 1) y += (float)(cellHeight / 2);
+
+                int index = actualRow * mapData.MapWidth + actualCol;
+                bool clipped = IsTileClipped(mapData, actualCol, actualRow);
+
+                SKColor color = emptyColor;
+                if (!clipped
+                    && hexToProvince.TryGetValue(index, out int provinceIdx)
+                    && provinceColors.TryGetValue(provinceIdx, out var provinceColor))
+                {
+                    color = provinceColor;
+                }
+
+                DrawFlatTopHexagon(canvas, x, y, hexSize, color);
+
+                if (clipped)
+                {
+                    DrawClippedCross(canvas, x, y, hexSize);
+                    continue;
+                }
+
+                // 省会格 → 绘制国旗
+                if (capitalCells.Contains(index))
+                {
+                    int belong = mapData.GetBelongValue(actualCol, actualRow);
+                    if (belong == 0xFF) continue;
+
+                    int legionIndex = mapData.FindLegionIndex(belong);
+                    if (legionIndex < 0) continue;
+
+                    var legion = mapData.Legions[legionIndex];
+                    int flagSize = Math.Max(4, (int)(hexSize * 0.8f));
+                    DrawCapitalFlag(canvas, x, y, stageMarkPath, legion.CountryId, flagSize, flagCache);
+                }
+            }
+        }
+
+        foreach (var bitmap in flagCache.Values)
+            bitmap?.Dispose();
+
+        string dir = System.IO.Path.Combine(AppContext.BaseDirectory, "screenshots");
+        System.IO.Directory.CreateDirectory(dir);
+        string filePath = System.IO.Path.Combine(dir,
+            $"legion_map_screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png");
+
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using var stream = System.IO.File.OpenWrite(filePath);
+        data.SaveTo(stream);
+
+        return filePath;
+    }
+
+    private static bool IsTileClipped(MapData mapData, int col, int row)
+    {
+        int clipX = mapData.Header?.MapClipX ?? 0;
+        int clipY = mapData.Header?.MapClipY ?? 0;
+        if (clipY > 0 && row < clipY) return true;
+        if (clipX > 0 && col < clipX) return true;
+        return false;
+    }
+
+    private static void DrawFlatTopHexagon(SKCanvas canvas, float x, float y, float size, SKColor color)
+    {
+        using var path = new SKPath();
+        for (int i = 0; i < 6; i++)
+        {
+            double angle = Math.PI / 3 * i;
+            float px = x + size * (float)Math.Cos(angle);
+            float py = y + size * (float)Math.Sin(angle);
+            if (i == 0) path.MoveTo(px, py);
+            else path.LineTo(px, py);
+        }
+        path.Close();
+
+        using var fill = new SKPaint { Color = color, IsAntialias = true, Style = SKPaintStyle.Fill };
+        canvas.DrawPath(path, fill);
+
+        using var stroke = new SKPaint
+        {
+            Color = new SKColor(200, 200, 200),
+            StrokeWidth = 1,
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke
+        };
+        canvas.DrawPath(path, stroke);
+    }
+
+    private static void DrawClippedCross(SKCanvas canvas, float x, float y, float hexSize)
+    {
+        float len = hexSize * 0.6f;
+        using var paint = new SKPaint { Color = SKColors.Red, StrokeWidth = 4, IsAntialias = true };
+        canvas.DrawLine(x - len / 2, y - len / 2, x + len / 2, y + len / 2, paint);
+        canvas.DrawLine(x - len / 2, y + len / 2, x + len / 2, y - len / 2, paint);
+    }
+
+    private static void DrawCapitalFlag(SKCanvas canvas, float x, float y, string stageMarkPath,
+        int countryId, int flagSize, Dictionary<int, SKBitmap?> cache)
+    {
+        if (!cache.TryGetValue(countryId, out var bitmap))
+        {
+            bitmap = null;
+            try
+            {
+                string basePath = System.IO.Path.Combine(stageMarkPath, "CountryFlag");
+                string path = System.IO.Path.Combine(basePath, $"flag_{countryId}.png");
+                if (!System.IO.File.Exists(path) && (countryId == 0 || countryId == 255))
+                    path = System.IO.Path.Combine(basePath, "flag_1.png");
+
+                if (System.IO.File.Exists(path))
+                    bitmap = SKBitmap.Decode(path);
+            }
+            catch { }
+
+            cache[countryId] = bitmap;
+        }
+
+        if (bitmap == null) return;
+
+        float half = flagSize / 2f;
+        canvas.DrawBitmap(bitmap, new SKRect(x - half, y - half, x + half, y + half));
     }
 
     private void OnBrushToggled(object? sender, EventArgs e)
@@ -3016,6 +3850,20 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _editModeManager.StatusMessageChanged -= OnEditModeStatusMessageChanged;
         _editModeManager.DataModified -= OnEditModeDataModified;
         _editModeManager.BrushToggled -= OnBrushToggled;
+
+        // 场景销毁时关闭随本场景打开的子窗口，避免切换场景后残留
+        try
+        {
+            _legionSettingWindow?.Close();
+            _hexInfoWindow?.Close();
+            _brushSettingsWindow?.Hide();
+        }
+        catch { }
+        _legionSettingWindow = null;
+        _hexInfoWindow = null;
+        _brushSettingsWindow = null;
+        if (_debugConsole.IsVisible) _debugConsole.HideConsole();
+
         _renderEngine?.Dispose();
     }
 }

@@ -420,8 +420,8 @@ public sealed class CliCommandHost : ICommandHost
             WithModifiers((mapData, mgr) =>
             {
                 var building = mgr.GetModifier<BuildingModifier>()!;
-                int count = building.RandomizeNamedBuildingTypes();
-                _output.WriteLine($"已随机 {count} 个有名称建筑");
+                var result = building.RandomizeNamedBuildingTypes(useCondition: false);
+                _output.WriteLine(result.Message ?? "已完成");
             });
         });
 
@@ -431,8 +431,8 @@ public sealed class CliCommandHost : ICommandHost
             WithModifiers((mapData, mgr) =>
             {
                 var building = mgr.GetModifier<BuildingModifier>()!;
-                int count = building.RandomizeUnnamedBuildingTypes();
-                _output.WriteLine($"已随机 {count} 个无名称建筑");
+                var result = building.RandomizeUnnamedBuildingTypes(useCondition: false);
+                _output.WriteLine(result.Message ?? "已完成");
             });
         });
 

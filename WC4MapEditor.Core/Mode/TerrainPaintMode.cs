@@ -35,6 +35,7 @@ public sealed class TerrainPaintMode : IModeHandler
         "F7 - 经纬度换算并导出\n" +
         "F8 - 导出参考点配置\n" +
         "F9 - 导入参考点配置\n" +
+        "F10 - 导出格子数据（不含经纬度）\n" +
         "Q - 添加经纬度参考点\n" +
         "T - 连接建筑（平地连接11-15类型建筑）\n" +
         "G - 按比例缩放地图（0.1-10.0）\n" +
@@ -98,6 +99,7 @@ public sealed class TerrainPaintMode : IModeHandler
             new ModeKeyBinding("TP_F7", KeyCodes.F7, KeyModifiers.None, "geo_calculate", "经纬度换算并导出"),
             new ModeKeyBinding("TP_F8", KeyCodes.F8, KeyModifiers.None, "geo_export_ref", "导出参考点配置"),
             new ModeKeyBinding("TP_F9", KeyCodes.F9, KeyModifiers.None, "geo_import_ref", "导入参考点配置"),
+            new ModeKeyBinding("TP_F10", KeyCodes.F10, KeyModifiers.None, "geo_export_grid", "导出格子数据（不含经纬度）"),
         };
     }
 
@@ -284,6 +286,10 @@ public sealed class TerrainPaintMode : IModeHandler
             case "geo_import_ref":
                 if (context.GeoImportRefCallback != null)
                     await context.GeoImportRefCallback();
+                return true;
+            case "geo_export_grid":
+                if (context.GeoExportGridCallback != null)
+                    await context.GeoExportGridCallback();
                 return true;
             case "add_geo_ref":
                 if (context.AddGeoRefCallback != null)

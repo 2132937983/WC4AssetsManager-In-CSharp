@@ -40,6 +40,19 @@ public static class SettingTxtParser
             ParseBySection(key, value, sectionContext, data);
         }
 
+        // 将各 section 解析出的配置对象回填到结果中。
+        // 解析时配置写在 SectionContext 上（TrySwitchSection 会 new 新实例），
+        // 若不回填，data 上这些属性会一直是构造时的空对象，
+        // 导致 ConfigManager.GetBuildingConfig() 等永远拿到空配置。
+        if (sectionContext.BuildingConfig != null) data.BuildingConfig = sectionContext.BuildingConfig;
+        if (sectionContext.ArmyEditConfig != null) data.ArmyEditConfig = sectionContext.ArmyEditConfig;
+        if (sectionContext.LegionEditConfig != null) data.LegionEditConfig = sectionContext.LegionEditConfig;
+        if (sectionContext.WordCloudConfig != null) data.WordCloudConfig = sectionContext.WordCloudConfig;
+        if (sectionContext.EventEditConfig != null) data.EventEditConfig = sectionContext.EventEditConfig;
+        if (sectionContext.AirForceEditConfig != null) data.AirForceEditConfig = sectionContext.AirForceEditConfig;
+        if (sectionContext.CaseEditConfig != null) data.CaseEditConfig = sectionContext.CaseEditConfig;
+        if (sectionContext.WeatherEditConfig != null) data.WeatherEditConfig = sectionContext.WeatherEditConfig;
+
         Debug.WriteLine($"[SettingTxtParser] 解析完成: {data.TextConfig.Count} 个文本配置项");
         return data;
     }
@@ -251,78 +264,82 @@ public static class SettingTxtParser
         try
         {
             if (!value.StartsWith('[') || !value.EndsWith(']')) return result;
-            value = value[1..^1].Trim();
 
-            int depth = 0;
-            var elements = new List<string>();
-            string current = "";
-            foreach (char c in value)
+            // 形如：(11,12),[(5,6),11],[(4,8),12]...
+            // 先按顶层逗号切分（括号/方括号深度为 0 处的逗号）。
+            // 不能用同一个 depth 同时跟踪 [] 与 ()，否则遇到 [(5,6),11] 这类嵌套会错乱。
+            var elements = SplitTopLevel(value[1..^1]);
+
+            foreach (var raw in elements)
             {
-                if (c == '[') { depth++; current += c; }
-                else if (c == ']')
+                var elem = raw.Trim();
+                if (elem.Length == 0) continue;
+
+                if (elem.StartsWith('[') && elem.EndsWith(']'))
                 {
-                    depth--;
-                    current += c;
-                    if (depth == 0)
+                    // [(5,6),11] → 检测范围 (5,6)，建筑类型 11
+                    var body = elem[1..^1];
+                    int closeParen = body.IndexOf(')');
+                    if (closeParen < 0) continue;
+
+                    var rangePart = body[..(closeParen + 1)];
+                    var typePart = body[(closeParen + 1)..].TrimStart(',', ' ').Trim();
+
+                    if (TryParseRange(rangePart, out var range) &&
+                        int.TryParse(typePart, out int buildingType))
                     {
-                        var trimmed = current.TrimStart(',', ' ');
-                        if (!string.IsNullOrEmpty(trimmed)) elements.Add(trimmed);
-                        current = "";
+                        result.Rules.Add((range, buildingType));
                     }
                 }
-                else if (c == '(' && depth == 0)
+                else if (elem.StartsWith('(') && TryParseRange(elem, out var defaultRange))
                 {
-                    if (!string.IsNullOrEmpty(current.Trim(',', ' ')))
-                        elements.Add(current.Trim(',', ' '));
-                    current = "" + c;
-                    depth = 1;
-                    bool foundClose = false;
-                    continue;
-                }
-                else if (c == ')' && depth == 1)
-                {
-                    current += c;
-                    elements.Add(current.Trim());
-                    current = "";
-                    depth = 0;
-                    continue;
-                }
-                else
-                {
-                    current += c;
-                }
-            }
-
-            for (int i = 0; i < elements.Count; i++)
-            {
-                var elem = elements[i].Trim();
-                if (elem.StartsWith('(') && elem.EndsWith(')') && i == 0)
-                {
-                    var nums = elem[1..^1].Split(',');
-                    if (nums.Length >= 2 && int.TryParse(nums[0].Trim(), out int min) && int.TryParse(nums[1].Trim(), out int max))
-                        result.DefaultRange = (min, max);
-                }
-                else if (elem.StartsWith('[') && elem.EndsWith(']'))
-                {
-                    var inner = elem[1..^1].Trim();
-                    if (inner.StartsWith('(') && inner.Contains(')'))
-                    {
-                        int closeParen = inner.IndexOf(')');
-                        var rangePart = inner.Substring(0, closeParen + 1);
-                        var rest = inner.Substring(closeParen + 1).Trim(',', ' ');
-
-                        var rangeNums = rangePart[1..^1].Split(',');
-                        if (rangeNums.Length >= 2 && int.TryParse(rangeNums[0].Trim(), out int rMin) && int.TryParse(rangeNums[1].Trim(), out int rMax))
-                        {
-                            if (int.TryParse(rest.Trim(), out int bType))
-                                result.Rules.Add(((rMin, rMax), bType));
-                        }
-                    }
+                    // (11,12) → 默认随机范围
+                    result.DefaultRange = defaultRange;
                 }
             }
         }
         catch { }
         return result;
+    }
+
+    /// <summary>按顶层逗号切分（忽略括号与方括号内部的逗号）</summary>
+    private static List<string> SplitTopLevel(string s)
+    {
+        var list = new List<string>();
+        int depth = 0;
+        int start = 0;
+
+        for (int i = 0; i < s.Length; i++)
+        {
+            char c = s[i];
+            if (c == '(' || c == '[') depth++;
+            else if (c == ')' || c == ']') depth--;
+            else if (c == ',' && depth == 0)
+            {
+                list.Add(s[start..i]);
+                start = i + 1;
+            }
+        }
+        list.Add(s[start..]);
+        return list;
+    }
+
+    /// <summary>解析 "(min,max)" 形式的范围</summary>
+    private static bool TryParseRange(string s, out (int Min, int Max) range)
+    {
+        range = default;
+        s = s.Trim();
+        if (s.Length < 2 || !s.StartsWith('(') || !s.EndsWith(')')) return false;
+
+        var nums = s[1..^1].Split(',');
+        if (nums.Length >= 2 &&
+            int.TryParse(nums[0].Trim(), out int min) &&
+            int.TryParse(nums[1].Trim(), out int max))
+        {
+            range = (min, max);
+            return true;
+        }
+        return false;
     }
 
     private static List<int> ParseIntList(string value)

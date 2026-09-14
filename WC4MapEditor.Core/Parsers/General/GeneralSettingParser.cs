@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Globalization;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.Unicode;
 using System.Xml;
 using System.Xml.Linq;
@@ -51,7 +53,10 @@ public class GeneralSettingParser
         Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
         PropertyNameCaseInsensitive = true,
         AllowTrailingCommas = true,
-        ReadCommentHandling = JsonCommentHandling.Skip
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        // 数值字段容错：允许 "1019" / null / 1019.0 等非标准写法
+        NumberHandling = JsonNumberHandling.AllowReadingFromString,
+        Converters = { new SafeInt32Converter(), new SafeIntListConverter() }
     };
 
     private GeneralSettingParser()
@@ -123,7 +128,22 @@ public class GeneralSettingParser
                 return;
             }
             var json = File.ReadAllText(ConfigPath);
-            _data = JsonSerializer.Deserialize<List<GeneralSettingData>>(json, JsonOpts) ?? new List<GeneralSettingData>();
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                _data = new List<GeneralSettingData>();
+                return;
+            }
+
+            try
+            {
+                _data = JsonSerializer.Deserialize<List<GeneralSettingData>>(json, JsonOpts) ?? new List<GeneralSettingData>();
+            }
+            catch (Exception ex)
+            {
+                // 整体解析失败时降级为逐条解析，只丢弃损坏的条目，避免"一条坏数据清空全部"
+                Debug.WriteLine($"[GeneralSettingParser] 整体解析失败，降级为逐条解析: {ex.Message}");
+                _data = DeserializeTolerant(json);
+            }
             Debug.WriteLine($"[GeneralSettingParser] 已加载 {_data.Count} 个将领配置");
         }
         catch (Exception ex)
@@ -131,6 +151,51 @@ public class GeneralSettingParser
             Debug.WriteLine($"[GeneralSettingParser] 加载 GeneralSettings.json 失败: {ex.Message}");
             _data = new List<GeneralSettingData>();
         }
+    }
+
+    /// <summary>
+    /// 逐条反序列化：损坏的条目单独跳过，其余条目正常加载
+    /// </summary>
+    private List<GeneralSettingData> DeserializeTolerant(string json)
+    {
+        var result = new List<GeneralSettingData>();
+        try
+        {
+            using var doc = JsonDocument.Parse(json, new JsonDocumentOptions
+            {
+                AllowTrailingCommas = true,
+                CommentHandling = JsonCommentHandling.Skip
+            });
+
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                Debug.WriteLine("[GeneralSettingParser] 根节点不是数组，无法解析");
+                return result;
+            }
+
+            int index = 0;
+            foreach (var el in doc.RootElement.EnumerateArray())
+            {
+                try
+                {
+                    var item = el.Deserialize<GeneralSettingData>(JsonOpts);
+                    if (item != null) result.Add(item);
+                }
+                catch (Exception ex)
+                {
+                    var raw = string.Empty;
+                    try { raw = el.GetRawText(); } catch { /* 忽略 */ }
+                    if (raw.Length > 200) raw = raw.Substring(0, 200) + "...";
+                    Debug.WriteLine($"[GeneralSettingParser] 第 {index} 条将领数据损坏已跳过: {ex.Message} | 内容: {raw}");
+                }
+                index++;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[GeneralSettingParser] 逐条解析也失败: {ex.Message}");
+        }
+        return result;
     }
 
     public GeneralSettingData? GetById(int id) => _data.FirstOrDefault(g => g.Id == id);
@@ -323,5 +388,95 @@ public class GeneralSettingParser
         if (File.Exists(f1)) return f1;
         var f2 = Path.Combine(HeadsDir, $"general_circle_{ename}.png");
         return File.Exists(f2) ? f2 : null;
+    }
+}
+
+/// <summary>
+/// 宽松的 int 读取转换器：容忍 null、字符串数字、浮点数、布尔等非常规写法
+/// </summary>
+public sealed class SafeInt32Converter : JsonConverter<int>
+{
+    public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Number:
+                if (reader.TryGetInt32(out var i)) return i;
+                if (reader.TryGetDouble(out var d)) return Clamp(d);
+                return 0;
+
+            case JsonTokenType.String:
+                var s = reader.GetString();
+                if (string.IsNullOrWhiteSpace(s)) return 0;
+                if (int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var si)) return si;
+                if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var sd)) return Clamp(sd);
+                return 0;
+
+            case JsonTokenType.True:
+                return 1;
+            case JsonTokenType.False:
+                return 0;
+            default:
+                return 0;
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options)
+        => writer.WriteNumberValue(value);
+
+    private static int Clamp(double d)
+    {
+        if (double.IsNaN(d) || double.IsInfinity(d)) return 0;
+        if (d >= int.MaxValue) return int.MaxValue;
+        if (d <= int.MinValue) return int.MinValue;
+        return (int)Math.Round(d);
+    }
+}
+
+/// <summary>
+/// 宽松的 List&lt;int&gt; 读取转换器：容忍 null、单个数字、逗号分隔字符串等写法
+/// </summary>
+public sealed class SafeIntListConverter : JsonConverter<List<int>>
+{
+    private static readonly SafeInt32Converter IntReader = new();
+
+    public override List<int> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        var list = new List<int>();
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Number:
+                list.Add(IntReader.Read(ref reader, typeof(int), options));
+                return list;
+
+            case JsonTokenType.String:
+                var s = reader.GetString();
+                if (!string.IsNullOrWhiteSpace(s))
+                {
+                    foreach (var part in s.Split(',', ';', '|', ' ', '\t'))
+                    {
+                        if (int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
+                            list.Add(v);
+                    }
+                }
+                return list;
+
+            case JsonTokenType.StartArray:
+                while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+                {
+                    list.Add(IntReader.Read(ref reader, typeof(int), options));
+                }
+                return list;
+
+            default:
+                return list;
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, List<int> value, JsonSerializerOptions options)
+    {
+        writer.WriteStartArray();
+        foreach (var v in value) writer.WriteNumberValue(v);
+        writer.WriteEndArray();
     }
 }

@@ -32,6 +32,7 @@ public partial class App : Application
         AllocConsole();
         Console.WriteLine("=== WC4MapEditor GUI 启动 ===");
         Trace.Listeners.Add(new ConsoleTraceListener());
+        Trace.AutoFlush = true;
 
         // 注册全局异常处理
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;

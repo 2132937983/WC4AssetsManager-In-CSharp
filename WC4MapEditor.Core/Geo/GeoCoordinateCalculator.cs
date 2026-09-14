@@ -200,6 +200,48 @@ public sealed class GeoCoordinateCalculator
     }
 
     /// <summary>
+    /// 直接导出格子网格数据，**不含经纬度**，因此也不需要参考点与换算。
+    /// <para>
+    /// 输出结构与 <see cref="CalculateAndExport"/> 一致，只是去掉了 cells 的 coordinate
+    /// （经纬度）字段与 referencePoints（参考点同样是经纬度数据），其余字段保持相同。
+    /// </para>
+    /// </summary>
+    public void ExportGridOnly(MapData mapData, string filePath)
+    {
+        if (mapData == null) throw new ArgumentNullException(nameof(mapData));
+        if (string.IsNullOrEmpty(filePath)) throw new ArgumentNullException(nameof(filePath));
+
+        int mapWidth = mapData.MapWidth;
+        int mapHeight = mapData.MapHeight;
+        int total = mapWidth * mapHeight;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("{");
+        sb.AppendLine($"  \"mapWidth\": {mapWidth},");
+        sb.AppendLine($"  \"mapHeight\": {mapHeight},");
+        sb.AppendLine("  \"cells\": [");
+
+        int written = 0;
+        for (int row = 0; row < mapHeight; row++)
+        {
+            for (int col = 0; col < mapWidth; col++)
+            {
+                var terrain = mapData.GetTerrain(col, row);
+                bool isOcean = terrain.TileType1 == OCEAN_TILE_TYPE;
+
+                written++;
+                string comma = written < total ? "," : "";
+                sb.AppendLine($"    {{\"position\": [{col}, {row}], \"isOcean\": {(isOcean ? "true" : "false")}}}{comma}");
+            }
+        }
+
+        sb.AppendLine("  ]");
+        sb.AppendLine("}");
+
+        File.WriteAllText(filePath, sb.ToString());
+    }
+
+    /// <summary>
     /// 仅导出参考点到 JSON 文件（不包含 cells 数据）。
     /// 用于保存参考点配置，下次可直接导入复用。
     /// </summary>

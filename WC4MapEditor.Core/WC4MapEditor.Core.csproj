@@ -4,14 +4,26 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>WC4MapEditor.Core</RootNamespace>
-    <AssemblyName>WC4MapEditor.Core</AssemblyName>
-    <NoWarn>NU1701</NoWarn>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
+       <RootNamespace>WC4MapEditor.Core</RootNamespace>
+       <AssemblyName>WC4MapEditor.Core</AssemblyName>
+       <NoWarn>NU1701</NoWarn>
+       <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+       <!-- 让 Debug.WriteLine 等调试信息在 Release / publish 之后仍保留 -->
+       <DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
+    </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta5.25277.114" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lib 下的外部工具（ocr_map.exe / gen_buildings_zme.exe）随程序复制到输出目录 -->
+    <None Update="Lib\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

@@ -16,9 +16,14 @@
     <PublishReadyToRun>false</PublishReadyToRun>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
+          <Nullable>enable</Nullable>
+          <ImplicitUsings>enable</ImplicitUsings>
+       </PropertyGroup>
+
+        <!-- 让 Debug.WriteLine 等调试信息在 Release / publish 之后仍保留，并输出到控制台 -->
+       <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+          <DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
+       </PropertyGroup>
 
   <ItemGroup>
     <Compile Remove="WC4MapEditor.Core\**\*.cs" />

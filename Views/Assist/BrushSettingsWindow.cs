@@ -103,7 +103,9 @@ public sealed class BrushSettingsWindow : Window
         sb.Completed += (_, _) =>
         {
             _isClosing = false;
-            Visibility = Visibility.Collapsed;
+            // 淡出过程中若又被重新显示，就不要再把它收起来
+            if (!_isExplicitlyShown)
+                Visibility = Visibility.Collapsed;
         };
         sb.Begin();
     }
@@ -113,6 +115,16 @@ public sealed class BrushSettingsWindow : Window
         _isExplicitlyShown = true;
         if (Visibility != Visibility.Visible)
             Visibility = Visibility.Visible;
+
+        // 本窗口是复用实例（关闭时只是隐藏），Loaded 只在首次显示时触发，
+        // 因此每次显示都要主动停掉可能仍在跑的淡出动画并重新淡入。
+        // 否则窗口会停留在上一次淡出后的 Opacity=0 状态：
+        // 表现为第一次能打开、第二次能关闭，之后按 H 键就再也看不到窗口。
+        BeginAnimation(OpacityProperty, null);
+        _isClosing = false;
+        Opacity = 0;
+        PlayFadeInAnimation();
+
         base.Show();
     }
 

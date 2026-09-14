@@ -582,6 +582,24 @@ public partial class MainWindow : Window
         _currentScene.BeginAnimation(UIElement.OpacityProperty, fo);
     }
 
+    #region 相机控制（转发到当前渲染场景）
+
+    /// <summary>
+    /// 把当前渲染场景的相机中心移动到指定格子（行列坐标）。
+    /// 当前不是渲染场景、或坐标越界时返回 false。
+    /// </summary>
+    public bool MoveCameraToHex(int col, int row)
+        => _currentScene is RenderSceneBase scene && scene.MoveCameraToHex(col, row);
+
+    /// <summary>
+    /// 把当前渲染场景的相机中心移动到指定格子（格子序号 = row * MapWidth + col）。
+    /// 当前不是渲染场景、或序号越界时返回 false。
+    /// </summary>
+    public bool MoveCameraToHexIndex(int hexIndex)
+        => _currentScene is RenderSceneBase scene && scene.MoveCameraToHexIndex(hexIndex);
+
+    #endregion
+
     public void CloseApplication() => Close();
     public void MinimizeWindow() => WindowState = WindowState.Minimized;
     public void ToggleMaximize() => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;

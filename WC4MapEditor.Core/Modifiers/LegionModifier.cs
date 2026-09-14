@@ -1,3 +1,8 @@
+using System.Diagnostics;
+using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using WC4MapEditor.Core.Assets;
 using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Models;
 
@@ -86,10 +91,55 @@ public sealed class LegionModifier : ModifierBase
         return ModifierResult.Ok($"已更新军团 {legion.CountryId}");
     }
 
+    /// <summary>
+    /// 按列表索引更新军团（编辑界面专用）。
+    /// <para>
+    /// 不能用 <see cref="UpdateLegion"/>：它按 CountryId 查表定位，
+    /// 一旦用户把 CountryId 改成了地图里不存在的值，就会被当成新军团插入，
+    /// 表现就是"编辑已有军团反而多出一个新军团"。
+    /// </para>
+    /// </summary>
+    public ModifierResult UpdateLegionAt(int index, Legion legion)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+        if (index < 0 || index >= _mapData.Legions.Count)
+            return ModifierResult.Fail("军团索引超出范围");
+
+        _mapData.ReplaceLegion(index, legion);
+        MarkModified();
+        return ModifierResult.Ok($"已更新军团 {index + 1}");
+    }
+
     public Legion? GetLegion(int legionId)
     {
         int idx = _mapData?.FindLegionIndex(legionId) ?? -1;
         return idx >= 0 ? _mapData!.Legions[idx] : null;
+    }
+
+    /// <summary>
+    /// 新增一个军团（对齐 VB 版 LegionSetting 的"+"按钮：默认所有字段为 0）。
+    /// </summary>
+    public ModifierResult AddLegion(Legion? legion = null)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+
+        _mapData.Legions.Add(legion ?? new Legion());
+        MarkModified();
+        return ModifierResult.Ok($"已新增军团，当前共 {_mapData.Legions.Count} 个");
+    }
+
+    /// <summary>
+    /// 删除指定索引的军团（对齐 VB 版 LegionSetting 的"-"按钮）。
+    /// </summary>
+    public ModifierResult RemoveLegionAt(int index)
+    {
+        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+        if (index < 0 || index >= _mapData.Legions.Count)
+            return ModifierResult.Fail("军团索引超出范围");
+
+        _mapData.Legions.RemoveAt(index);
+        MarkModified();
+        return ModifierResult.Ok($"已删除军团，当前共 {_mapData.Legions.Count} 个");
     }
 
     public Legion? GetLegionByActionId(int actionId)
@@ -605,26 +655,75 @@ public sealed class LegionModifier : ModifierBase
             if (nonMatching[i].ConquerId < conquerId)
                 insertIndex = i + 1;
         }
+        insertIndex = Math.Clamp(insertIndex, 0, nonMatching.Count);
 
+        // 对齐 VB：countrySettings.InsertRange(insertIndex, matchingObjects)
+        // 只有一处插入点，避免"循环内插入 + 循环外兜底"造成重复
         countrySettings.Clear();
-        for (int i = 0; i < nonMatching.Count; i++)
-        {
-            countrySettings.Add(nonMatching[i]);
-            if (i + 1 == insertIndex)
-            {
-                foreach (var obj in matchingObjects)
-                    countrySettings.Add(obj);
-            }
-        }
+        countrySettings.AddRange(nonMatching.Take(insertIndex));
+        countrySettings.AddRange(matchingObjects);
+        countrySettings.AddRange(nonMatching.Skip(insertIndex));
 
-        if (insertIndex >= nonMatching.Count)
-        {
-            foreach (var obj in matchingObjects)
-                countrySettings.Add(obj);
-        }
+        // 写回 json（对齐 VB LegionModifier.UpdateConquerCountrySettings 的保存步骤）
+        bool saved = TrySaveConquerCountrySettings(countrySettings, out var savePath, out var saveError);
 
         MarkModified();
-        return ModifierResult.Ok($"已更新征服国家配置 (征服参数={conquerId})，共更新 {legions.Count} 个对象");
+        return saved
+            ? ModifierResult.Ok($"已更新征服国家配置 (征服参数={conquerId})，共 {legions.Count} 个对象 -> {savePath}")
+            : ModifierResult.Fail($"征服国家配置已更新，但写回 json 失败: {saveError}");
+    }
+
+    /// <summary>
+    /// 写回 ConquerCountrySettings.json。
+    /// 路径优先由 AssetManager 解析（AssetEntry.FullPath），并兜底用 AssetsRoot 拼接。
+    /// 输出格式与 VB 一致：数组内每个对象占一行、无缩进。
+    /// </summary>
+    private static bool TrySaveConquerCountrySettings(
+        List<ConquerCountryConfig> countrySettings, out string path, out string error)
+    {
+        path = string.Empty;
+        error = string.Empty;
+        try
+        {
+            const string relativePath = "json/ConquerCountrySettings.json";
+
+            var manager = AssetManager.Default;
+            path = manager.Find(relativePath)?.FullPath ?? string.Empty;
+
+            if (string.IsNullOrEmpty(path) && !string.IsNullOrEmpty(manager.AssetsRoot))
+                path = Path.Combine(manager.AssetsRoot, "json", "ConquerCountrySettings.json");
+
+            if (string.IsNullOrEmpty(path))
+            {
+                error = "未找到 ConquerCountrySettings.json 路径";
+                return false;
+            }
+
+            var opts = new JsonSerializerOptions
+            {
+                WriteIndented = false,
+                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            };
+
+            var sb = new StringBuilder();
+            sb.AppendLine("[");
+            for (int i = 0; i < countrySettings.Count; i++)
+            {
+                sb.Append(JsonSerializer.Serialize(countrySettings[i], opts));
+                sb.AppendLine(i < countrySettings.Count - 1 ? "," : string.Empty);
+            }
+            sb.AppendLine("]");
+
+            File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+            Debug.WriteLine($"[LegionModifier] 已写回 {countrySettings.Count} 条征服国家配置 -> {path}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            Debug.WriteLine($"[LegionModifier] 写回 ConquerCountrySettings.json 失败: {ex.Message}");
+            return false;
+        }
     }
 
     private static List<(int, int)> GetGiftRanges(

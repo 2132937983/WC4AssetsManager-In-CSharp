@@ -68,6 +68,14 @@ public interface IDialogService
     Task<(bool confirmed, Army_3 army3)> ShowArmySettingV3DialogAsync(Army_3 army3, bool isNew = false);
 
     /// <summary>
+    /// 显示陷阱编辑对话框 - 用于 F 键创建/修改陷阱（编制、所属军团、血量）
+    /// </summary>
+    /// <param name="trap">陷阱数据</param>
+    /// <param name="isNew">是否为新陷阱</param>
+    /// <returns>是否确认，以及编辑后的陷阱数据</returns>
+    Task<(bool confirmed, Trap trap)> ShowTrapSettingDialogAsync(Trap trap, bool isNew = false);
+
+    /// <summary>
     /// 显示归属列表对话框 - 用于选择归属值（Q键）
     /// </summary>
     /// <param name="legions">军团列表</param>

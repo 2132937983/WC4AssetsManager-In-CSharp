@@ -1936,8 +1936,8 @@ public class Program
             ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
             {
                 var building = modifiers.GetModifier<BuildingModifier>()!;
-                int count = building.RandomizeNamedBuildingTypes();
-                Console.WriteLine($"已随机 {count} 个有名称建筑");
+                var result = building.RandomizeNamedBuildingTypes(useCondition: false);
+                Console.WriteLine(result.Message ?? "已完成");
             });
         });
 
@@ -1947,8 +1947,8 @@ public class Program
             ExecuteModify(parseResult, fileArg, fileType, (mapData, modifiers) =>
             {
                 var building = modifiers.GetModifier<BuildingModifier>()!;
-                int count = building.RandomizeUnnamedBuildingTypes();
-                Console.WriteLine($"已随机 {count} 个无名称建筑");
+                var result = building.RandomizeUnnamedBuildingTypes(useCondition: false);
+                Console.WriteLine(result.Message ?? "已完成");
             });
         });
 

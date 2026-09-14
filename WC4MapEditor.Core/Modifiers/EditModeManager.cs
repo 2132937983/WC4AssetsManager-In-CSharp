@@ -84,6 +84,7 @@ public sealed class EditModeManager
     private Func<Task>? _geoCalculateCallback;
     private Func<Task>? _geoExportRefCallback;
     private Func<Task>? _geoImportRefCallback;
+    private Func<Task>? _geoExportGridCallback;
     private Func<Task>? _addGeoRefCallback;
     private Func<(int col, int row)>? _getFocusHexCallback;
     private string _currentSceneType = "stage";
@@ -93,6 +94,35 @@ public sealed class EditModeManager
     public event EventHandler? DataModified;
     public event EventHandler? BrushToggled;
     public event EventHandler? BrushSizeChanged;
+    /// <summary>国家领域（归属着色 + 归属国旗）显示开关被切换</summary>
+    public event EventHandler? DomainToggled;
+
+    /// <summary>建筑名称显示开关被切换（建筑编辑模式 U 键）</summary>
+    public event EventHandler? BuildingNamesToggled;
+
+    /// <summary>请求把相机中心移动到指定格子（建筑编辑模式 Enter 键循环选中）</summary>
+    public event Action<int, int>? MoveCameraToHexRequested;
+
+    /// <summary>建筑移动工具开/关被切换（建筑编辑模式 K 键）</summary>
+    public event EventHandler? BuildingMoveToolToggled;
+
+    /// <summary>文字识别生成建筑被请求（建筑编辑模式 P 键）</summary>
+    public event EventHandler? RecognizeTextBuildingsRequested;
+
+    /// <summary>军团范围截图被请求（军团编辑模式 P 键）</summary>
+    public event EventHandler? CaptureLegionScreenshotRequested;
+
+    /// <summary>军团设置窗口被请求（军团编辑模式 Q 键）</summary>
+    public event EventHandler? OpenLegionSettingRequested;
+
+    /// <summary>军团列表窗口被请求（军团编辑模式 F 键）</summary>
+    public event EventHandler? OpenLegionListRequested;
+
+    /// <summary>头部数据编辑窗口被请求（军团编辑模式 E 键）</summary>
+    public event EventHandler? OpenHeaderSettingRequested;
+
+    /// <summary>更新征服国家设置被请求（军团编辑模式 F6 键）</summary>
+    public event EventHandler? UpdateConquerSettingsRequested;
 
     /// <summary>供依赖注入使用的公开构造（替代单例入口）</summary>
     public EditModeManager()
@@ -170,6 +200,12 @@ public sealed class EditModeManager
         if (_isInitialized) RebuildModeContext();
     }
 
+    public void SetGeoExportGridCallback(Func<Task> callback)
+    {
+        _geoExportGridCallback = callback;
+        if (_isInitialized) RebuildModeContext();
+    }
+
     public void SetAddGeoRefCallback(Func<Task> callback)
     {
         _addGeoRefCallback = callback;
@@ -201,6 +237,14 @@ public sealed class EditModeManager
 
     public void Deinitialize()
     {
+        // 退出场景前注销按键绑定，否则会残留到下一个场景。
+        // 这里遍历所有模式而非只注销当前模式：_currentMode 可能已被置为 None，
+        // 此时按当前模式查不到 handler，残留的绑定就清不掉。
+        foreach (var registered in _modeHandlers.Values)
+        {
+            UnregisterModeKeyBindings(registered);
+        }
+
         _currentMode = EditMode.None;
         foreach (var modifier in _modifiers.Values)
             modifier.Deinitialize();
@@ -267,11 +311,16 @@ public sealed class EditModeManager
         try
         {
 
-        // 注销旧模式的按键绑定，并处理选择器交接
+        // 注销按键绑定，并处理选择器交接
+        // 这里遍历所有已注册模式，而不是只按 previousMode 注销：
+        // 跨场景切换时旧场景的 Deinitialize 会把 _currentMode 置为 None，
+        // 此时 previousMode 为 None，只按它注销会让上个场景的模式绑定残留在键盘上，
+        // 导致新场景按同名键时两个模式的功能被同时触发。
         IModeHandler? oldHandler = null;
-        if (previousMode != EditMode.None && _modeHandlers.TryGetValue(previousMode, out oldHandler))
+        _modeHandlers.TryGetValue(previousMode, out oldHandler);
+        foreach (var registered in _modeHandlers.Values)
         {
-            UnregisterModeKeyBindings(oldHandler);
+            UnregisterModeKeyBindings(registered);
         }
 
         // 旧模式离开时，如果它持有选择器则清空选区
@@ -779,6 +828,53 @@ public sealed class EditModeManager
         _undoManager.Record(command);
     }
 
+    /// <summary>
+    /// 记录单格归属变更的撤销命令。
+    /// <para>
+    /// 归属编辑模式的单格操作（右键设置归属、粘贴、删除、选择军团）必须使用本方法：
+    /// <see cref="RecordProvinceChange"/> 比较的是 Province，归属值变化不会产生差异，
+    /// 因此用它记录会导致归属修改无法撤销。
+    /// </para>
+    /// </summary>
+    public void RecordBelongChange(int col, int row, string description, Action applyChange)
+    {
+        if (_mapData == null || _undoManager == null)
+        {
+            applyChange();
+            return;
+        }
+
+        byte before = (byte)_mapData.GetBelongValue(col, row);
+        applyChange();
+        byte after = (byte)_mapData.GetBelongValue(col, row);
+
+        if (before == after) return;
+
+        _undoManager.Record(new BelongChangeCommand(_mapData, description,
+            new[] { (col, row, before, after) }));
+    }
+
+    /// <summary>
+    /// 记录多格归属变更的撤销命令，供归属编辑模式的批量操作使用
+    /// （清理所有归属、随机化归属、批量更改归属）。
+    /// </summary>
+    public void RecordMultiCellBelongChange(string description, Action applyChange)
+    {
+        if (_mapData == null || _undoManager == null)
+        {
+            applyChange();
+            return;
+        }
+
+        var beforeSnapshot = new byte[_mapData.MapWidth * _mapData.MapHeight];
+        for (int i = 0; i < beforeSnapshot.Length; i++)
+            beforeSnapshot[i] = (byte)_mapData.GetBelongValueByIndex(i);
+
+        applyChange();
+
+        RecordBelongChangesFromSnapshot(description, beforeSnapshot);
+    }
+
     public void RecordEntityChange(string description, Action execute, Action undo)
     {
         if (_undoManager == null)
@@ -868,12 +964,23 @@ public sealed class EditModeManager
             NotifyDataModified = () => DataModified?.Invoke(this, EventArgs.Empty),
             NotifyBrushToggled = () => BrushToggled?.Invoke(this, EventArgs.Empty),
             NotifyBrushSizeChanged = () => BrushSizeChanged?.Invoke(this, EventArgs.Empty),
+            NotifyToggleDomain = () => DomainToggled?.Invoke(this, EventArgs.Empty),
+            NotifyToggleBuildingNames = () => BuildingNamesToggled?.Invoke(this, EventArgs.Empty),
+            NotifyCaptureLegionScreenshot = () => CaptureLegionScreenshotRequested?.Invoke(this, EventArgs.Empty),
+            NotifyOpenLegionSetting = () => OpenLegionSettingRequested?.Invoke(this, EventArgs.Empty),
+            NotifyOpenLegionList = () => OpenLegionListRequested?.Invoke(this, EventArgs.Empty),
+            NotifyOpenHeaderSetting = () => OpenHeaderSettingRequested?.Invoke(this, EventArgs.Empty),
+            NotifyUpdateConquerSettings = () => UpdateConquerSettingsRequested?.Invoke(this, EventArgs.Empty),
+            NotifyMoveCameraToHex = (col, row) => MoveCameraToHexRequested?.Invoke(col, row),
+            NotifyToggleBuildingMoveTool = () => BuildingMoveToolToggled?.Invoke(this, EventArgs.Empty),
+            NotifyRecognizeTextBuildings = () => RecognizeTextBuildingsRequested?.Invoke(this, EventArgs.Empty),
             DialogService = _dialogService,
             CliCommandExecutor = _cliCommandExecutor,
             RecognizeTerrainCallback = _recognizeTerrainCallback,
             GeoCalculateCallback = _geoCalculateCallback,
             GeoExportRefCallback = _geoExportRefCallback,
             GeoImportRefCallback = _geoImportRefCallback,
+            GeoExportGridCallback = _geoExportGridCallback,
             AddGeoRefCallback = _addGeoRefCallback
         };
     }

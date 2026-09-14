@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using WC4MapEditor.Core.Input;
 using WC4MapEditor.Core.Modifiers;
 using WC4MapEditor.Core.Selection;
@@ -7,11 +8,16 @@ namespace WC4MapEditor.Core.Mode;
 
 public sealed class BuildingDeployMode : IModeHandler
 {
-    private bool _showBuildingNames = true;
     private bool _moveToolActive;
-    private int _currentBuildingIndex = -1;
+    // 上次通过 Enter 选中的建筑所在格子序号（-1 表示尚未选中）。
+    // 用坐标而非列表索引递推，避免"新增建筑被追加到列表末尾"打乱遍历顺序。
+    private int _lastSelectedBuildingCoord = -1;
     private bool _copiedLevelsOnly;
     private readonly Random _random = new();
+
+    // 按格子序号升序的建筑列表缓存；Buildings 集合增删改时通过 CollectionChanged 失效
+    private List<Building>? _sortedBuildingsCache;
+    private MapData? _sortedBuildingsSource;
 
     public EditMode Mode => EditMode.BuildingDeploy;
     public string DisplayName => "建筑部署";
@@ -38,7 +44,6 @@ public sealed class BuildingDeployMode : IModeHandler
         "H - 随机化有名称的建筑类型\n" +
         "Ctrl+H - 随机化无名称的建筑类型\n" +
         "Q - 打开建筑创建窗口\n" +
-        "Ctrl+Q - 设置建筑占领触发事件ID\n" +
         "I - 按归属概率生成建筑\n" +
         "T - 在省会格子上随机生成建筑\n" +
         "G - 智能设置建筑外观值\n" +
@@ -66,7 +71,6 @@ public sealed class BuildingDeployMode : IModeHandler
             new ModeKeyBinding("BD_H", KeyCodes.H, KeyModifiers.None, "random_named_type", "随机化有名称的建筑类型"),
             new ModeKeyBinding("BD_CH", KeyCodes.H, KeyModifiers.Ctrl, "random_unnamed_type", "随机化无名称的建筑类型"),
             new ModeKeyBinding("BD_Q", KeyCodes.Q, KeyModifiers.None, "open_create", "打开建筑创建窗口"),
-            new ModeKeyBinding("BD_CQ", KeyCodes.Q, KeyModifiers.Ctrl, "set_event_id", "设置建筑占领触发事件ID"),
             new ModeKeyBinding("BD_I", KeyCodes.I, KeyModifiers.None, "gen_by_probability", "按归属概率生成建筑"),
             new ModeKeyBinding("BD_T", KeyCodes.T, KeyModifiers.None, "random_on_capitals", "在省会格子上随机生成建筑"),
             new ModeKeyBinding("BD_G", KeyCodes.G, KeyModifiers.None, "smart_appearance", "智能设置建筑外观值"),
@@ -113,8 +117,9 @@ public sealed class BuildingDeployMode : IModeHandler
                 }
 
             case "toggle_names":
-                _showBuildingNames = !_showBuildingNames;
-                context.RaiseStatusMessage?.Invoke($"建筑名称已{(_showBuildingNames ? "显示" : "隐藏")}");
+                // 名称开关的实际状态由渲染层持有（模式切换时会按模式重置），
+                // 这里只负责触发切换，状态提示由渲染层给出。
+                context.NotifyToggleBuildingNames?.Invoke();
                 return true;
 
             case "copy":
@@ -269,17 +274,30 @@ public sealed class BuildingDeployMode : IModeHandler
                         context.RaiseStatusMessage?.Invoke("已设置占领触发事件为1");
                         return true;
                     }
+
+                    var currentBuilding = mapData?.GetBuildingAt(col, row);
+                    if (currentBuilding == null)
+                    {
+                        context.RaiseStatusMessage?.Invoke("当前格子没有建筑");
+                        return false;
+                    }
+
                     var input = await context.DialogService.ShowInputDialogAsync(
-                        "设置占领触发事件", "输入事件ID:", "1", 0, 255);
+                        "设置占领触发事件", "输入事件ID (序号):",
+                        currentBuilding.Value.OccupationEvent.ToString(), 0, 255);
                     if (input == null) return false;
+
                     if (int.TryParse(input, out int eventId))
                     {
                         building.SetOccupationEvent(col, row, eventId);
                         context.RaiseStatusMessage?.Invoke($"已设置占领触发事件为 {eventId}");
-                        return true;
+                        modified = true;
                     }
-                    context.RaiseStatusMessage?.Invoke("请输入有效的事件ID");
-                    return false;
+                    else
+                    {
+                        context.RaiseStatusMessage?.Invoke("请输入有效的事件ID");
+                    }
+                    break;
                 }
 
             case "mark_event_redcircle":
@@ -293,19 +311,33 @@ public sealed class BuildingDeployMode : IModeHandler
 
             case "random_named_type":
                 {
-                    if (mapData == null) return false;
-                    var count = building.RandomizeNamedBuildingTypes();
-                    context.RaiseStatusMessage?.Invoke($"已随机化 {count} 个有名称的建筑类型");
-                    modified = count > 0;
+                    if (mapData == null || context.DialogService == null) return false;
+
+                    var input = await context.DialogService.ShowInputDialogAsync(
+                        "随机化有名称建筑的建筑类型",
+                        "1 = 条件判断（按周围建筑密度分配类型）\n2 = 默认随机（在配置范围内随机）",
+                        "2", 1, 2);
+                    if (input == null || !int.TryParse(input, out int namedMode)) return false;
+
+                    var result = building.RandomizeNamedBuildingTypes(useCondition: namedMode == 1);
+                    context.RaiseStatusMessage?.Invoke(result.Message ?? "已完成");
+                    modified = result.Success;
                     break;
                 }
 
             case "random_unnamed_type":
                 {
-                    if (mapData == null) return false;
-                    var count = building.RandomizeUnnamedBuildingTypes();
-                    context.RaiseStatusMessage?.Invoke($"已随机化 {count} 个无名称的建筑类型");
-                    modified = count > 0;
+                    if (mapData == null || context.DialogService == null) return false;
+
+                    var input = await context.DialogService.ShowInputDialogAsync(
+                        "随机化没有名称建筑的建筑类型",
+                        "1 = 条件判断（按周围建筑密度分配类型）\n2 = 默认随机（在配置范围内随机）",
+                        "2", 1, 2);
+                    if (input == null || !int.TryParse(input, out int unnamedMode)) return false;
+
+                    var result = building.RandomizeUnnamedBuildingTypes(useCondition: unnamedMode == 1);
+                    context.RaiseStatusMessage?.Invoke(result.Message ?? "已完成");
+                    modified = result.Success;
                     break;
                 }
 
@@ -313,39 +345,30 @@ public sealed class BuildingDeployMode : IModeHandler
                 OpenBuildingCreateWindow(context, col, row);
                 return true;
 
-            case "set_event_id":
+            case "gen_by_probability":
                 {
-                    if (context.DialogService == null)
+                    if (context.DialogService == null) return false;
+
+                    var (confirmed, belongText, probText) = await context.DialogService.ShowDoubleInputDialogAsync(
+                        "按归属概率生成建筑", "归属ID(-1为全部):", "概率(0-100):", "-1", "50");
+                    if (!confirmed) return false;
+
+                    if (!int.TryParse(belongText, out int targetBelongId))
                     {
-                        context.RaiseStatusMessage?.Invoke("对话框服务未初始化");
+                        context.RaiseStatusMessage?.Invoke("输入的归属ID无效");
                         return false;
                     }
-                    var currentBuilding = mapData?.GetBuildingAt(col, row);
-                    if (currentBuilding == null)
+                    if (!int.TryParse(probText, out int probability))
                     {
-                        context.RaiseStatusMessage?.Invoke("当前格子没有建筑");
+                        context.RaiseStatusMessage?.Invoke("输入的概率无效");
                         return false;
                     }
-                    var input = await context.DialogService.ShowInputDialogAsync(
-                        "设置占领触发事件ID", "输入事件ID (序号):",
-                        currentBuilding.Value.OccupationEvent.ToString(), 0, 255);
-                    if (input == null) return false;
-                    if (int.TryParse(input, out int eventId))
-                    {
-                        building.SetOccupationEvent(col, row, eventId);
-                        context.RaiseStatusMessage?.Invoke($"已设置建筑占领事件为 {eventId}");
-                        modified = true;
-                    }
-                    else
-                    {
-                        context.RaiseStatusMessage?.Invoke("请输入有效的事件ID");
-                    }
+
+                    var result = building.GenerateBuildingsByBelongProbability(targetBelongId, probability);
+                    context.RaiseStatusMessage?.Invoke(result.Message ?? "已完成");
+                    modified = result.Success;
                     break;
                 }
-
-            case "gen_by_probability":
-                context.RaiseStatusMessage?.Invoke("按归属概率生成建筑 - 功能开发中");
-                return true;
 
             case "random_by_belong":
                 {
@@ -391,7 +414,7 @@ public sealed class BuildingDeployMode : IModeHandler
                 {
                     if (mapData == null) return false;
                     var count = building.RandomizeBuildingsOnCapitals(mapData);
-                    context.RaiseStatusMessage?.Invoke($"已在 {count} 个省会格子上生成建筑");
+                    context.RaiseStatusMessage?.Invoke($"已在 {count} 个省会格子上随机生成建筑");
                     modified = count > 0;
                     break;
                 }
@@ -400,7 +423,7 @@ public sealed class BuildingDeployMode : IModeHandler
                 {
                     if (mapData == null) return false;
                     var count = building.SmartSetBuildingAppearance(mapData);
-                    context.RaiseStatusMessage?.Invoke($"已智能设置 {count} 个建筑外观值");
+                    context.RaiseStatusMessage?.Invoke($"已为 {count} 个需要方向的建筑智能设置外观值");
                     modified = count > 0;
                     break;
                 }
@@ -413,16 +436,35 @@ public sealed class BuildingDeployMode : IModeHandler
                 }
 
             case "gen_coastal":
-                context.RaiseStatusMessage?.Invoke("海岸线建筑生成 - 功能开发中");
-                return true;
+                {
+                    if (context.DialogService == null) return false;
+
+                    var input = await context.DialogService.ShowInputDialogAsync(
+                        "海岸线港口生成概率", "生成概率(%):", "50", 0, 100);
+                    if (input == null) return false;
+
+                    if (!int.TryParse(input, out int coastalProbability))
+                    {
+                        context.RaiseStatusMessage?.Invoke("输入的概率无效");
+                        return false;
+                    }
+
+                    var result = building.GenerateBuildingsOnCoastalHexes(coastalProbability);
+                    context.RaiseStatusMessage?.Invoke(result.Message ?? "已完成");
+                    modified = result.Success;
+                    break;
+                }
 
             case "toggle_move_tool":
                 _moveToolActive = !_moveToolActive;
+                // 通知 GUI 层同步拖拽工具状态（鼠标拖拽由 GUI 处理）
+                context.NotifyToggleBuildingMoveTool?.Invoke();
                 context.RaiseStatusMessage?.Invoke($"建筑移动工具已{(_moveToolActive ? "开启" : "关闭")} - 右键拖拽建筑进行移动");
                 return true;
 
             case "recognize_text":
-                context.RaiseStatusMessage?.Invoke("文字识别生成建筑 - 功能开发中");
+                // 完整流程（选图 → OCR → 导出地图网格 → 生成 zme → 放置建筑）由 GUI 层实现
+                context.NotifyRecognizeTextBuildings?.Invoke();
                 return true;
 
             case "remove":
@@ -478,6 +520,28 @@ public sealed class BuildingDeployMode : IModeHandler
         return -1;
     }
 
+    /// <summary>
+    /// 获取按格子序号升序排列的建筑列表（带缓存）。
+    /// 建筑集合发生增删改时自动失效重建；切换地图时重新订阅事件。
+    /// </summary>
+    private List<Building> GetSortedBuildings(MapData mapData)
+    {
+        if (!ReferenceEquals(_sortedBuildingsSource, mapData))
+        {
+            if (_sortedBuildingsSource != null)
+                _sortedBuildingsSource.Buildings.CollectionChanged -= OnBuildingsCollectionChanged;
+
+            mapData.Buildings.CollectionChanged += OnBuildingsCollectionChanged;
+            _sortedBuildingsSource = mapData;
+            _sortedBuildingsCache = null;
+        }
+
+        return _sortedBuildingsCache ??= mapData.Buildings.OrderBy(b => b.Coordinate).ToList();
+    }
+
+    private void OnBuildingsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        => _sortedBuildingsCache = null;
+
     private void CycleSelectBuilding(ModeContext context, MapData mapData)
     {
         if (mapData.Buildings.Count == 0)
@@ -486,14 +550,17 @@ public sealed class BuildingDeployMode : IModeHandler
             return;
         }
 
-        var buildingCount = mapData.Buildings.Count;
+        // 按格子序号升序取建筑：Buildings 列表顺序会受新增建筑影响（新建筑被追加到末尾），
+        // 直接按列表索引递推会导致遍历顺序与坐标顺序不一致。
+        var ordered = GetSortedBuildings(mapData);
 
-        if (_currentBuildingIndex < 0 || _currentBuildingIndex >= buildingCount)
-            _currentBuildingIndex = 0;
-        else
-            _currentBuildingIndex = (_currentBuildingIndex + 1) % buildingCount;
+        // 取上一个选中格之后的下一个；已到末尾则回到第一个
+        int pos = ordered.FindIndex(b => b.Coordinate > _lastSelectedBuildingCoord);
+        if (pos < 0) pos = 0;
 
-        var selectedBuilding = mapData.Buildings[_currentBuildingIndex];
+        var selectedBuilding = ordered[pos];
+        _lastSelectedBuildingCoord = selectedBuilding.Coordinate;
+
         var col = selectedBuilding.Coordinate % mapData.MapWidth;
         var row = selectedBuilding.Coordinate / mapData.MapWidth;
 
@@ -501,9 +568,14 @@ public sealed class BuildingDeployMode : IModeHandler
         selector.ClearSelection();
         selector.Select(col, row, mapData.MapWidth, mapData.MapHeight);
 
-        var buildingName = selectedBuilding.Name == 0 ? "无名建筑" : selectedBuilding.Name.ToString();
+        // 移动视角到该建筑（对齐 VB：_mapRenderer.Camera.CenterOnHex）
+        context.NotifyMoveCameraToHex?.Invoke(col, row);
+
+        var buildingName = selectedBuilding.Name == 0 || selectedBuilding.Name == -1
+            ? "无名建筑"
+            : selectedBuilding.Name.ToString();
         context.RaiseStatusMessage?.Invoke(
-            $"已选中建筑 {_currentBuildingIndex + 1}/{buildingCount}: {buildingName} (类型: {selectedBuilding.GetBuildingTypeName()})");
+            $"已选中建筑 {pos + 1}/{ordered.Count}: {buildingName} (类型: {selectedBuilding.GetBuildingTypeName()})");
     }
 
     private async void OpenBuildingCreateWindow(ModeContext context, int col, int row)
@@ -522,7 +594,7 @@ public sealed class BuildingDeployMode : IModeHandler
         // 检查当前格子是否已有建筑，有则编辑现有建筑，无则创建新建筑
         var existingBuilding = mapData.GetBuildingAt(col, row);
         bool isNew = existingBuilding == null;
-        var building = isNew ? Building.CreateDefault((short)coord) : existingBuilding.Value;
+        var building = isNew ? Building.CreateDefault(coord) : existingBuilding.Value;
 
         var (confirmed, resultBuilding) = await context.DialogService.ShowBuildingSettingDialogAsync(building, isNew: isNew);
         if (confirmed)

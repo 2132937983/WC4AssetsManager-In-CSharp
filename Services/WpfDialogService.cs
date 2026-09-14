@@ -131,6 +131,22 @@ public sealed class WpfDialogService : IDialogService
         return Task.FromResult((dialog.Confirmed, dialog.ResultArmy3));
     }
 
+    public Task<(bool confirmed, Trap trap)> ShowTrapSettingDialogAsync(Trap trap, bool isNew = false)
+    {
+        var window = _getOwnerWindow();
+        if (window == null)
+            return Task.FromResult((false, trap));
+
+        var dialog = new TrapSettingWindow(trap, isNew)
+        {
+            Owner = window
+        };
+        dialog.ShowDialog();
+        RestoreFocusToSkElement(window);
+
+        return Task.FromResult((dialog.Confirmed, dialog.ResultTrap));
+    }
+
     public Task<(bool confirmed, int belongValue)> ShowBelongListDialogAsync(List<Legion> legions)
     {
         var window = _getOwnerWindow();

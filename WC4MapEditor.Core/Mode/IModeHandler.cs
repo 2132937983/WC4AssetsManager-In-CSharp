@@ -20,6 +20,7 @@ public static class KeyCodes
     public const int F7 = 96;
     public const int F8 = 97;
     public const int F9 = 98;
+    public const int F10 = 99;
     public const int H = 51;
     public const int C = 46;
     public const int V = 65;

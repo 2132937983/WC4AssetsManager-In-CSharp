@@ -70,6 +70,8 @@ public sealed class DebugConsoleWindow : Window
         Closing += (_, e) =>
         {
             _cursorTimer.Stop();
+            // 同步控制台可见状态，避免窗口被直接关闭后状态残留
+            _console.NotifyHostClosed();
             // 移除父窗口事件监听
             if (Owner != null)
             {

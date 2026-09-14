@@ -5,10 +5,15 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <RootNamespace>WC4MapEditor.Rendering</RootNamespace>
-    <AssemblyName>WC4MapEditor.Rendering</AssemblyName>
-    <NoWarn>NU1701</NoWarn>
-  </PropertyGroup>
+       <RootNamespace>WC4MapEditor.Rendering</RootNamespace>
+       <AssemblyName>WC4MapEditor.Rendering</AssemblyName>
+       <NoWarn>NU1701</NoWarn>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+       <!-- 让 Debug.WriteLine 等调试信息在 Release / publish 之后仍保留 -->
+       <DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
+    </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="SkiaSharp" Version="3.119.2" />
