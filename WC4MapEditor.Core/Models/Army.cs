@@ -143,7 +143,9 @@ public struct Army
         Mobility = 0,
         BuiltRound = 0,
         Experience = 0,
-        HealthBonus = 0,
+        // HealthBonus 的基准值是 100（=100%）。填 0 会让血量上限失效、血条显示异常，
+        // 这里与 Army_3.CreateDefault 保持一致。
+        HealthBonus = 100,
         CurrentHealth = 100,
         MaxHealth = 100,
         General = 0,

@@ -520,8 +520,11 @@ public class StageParser
         mapData.MapHeight = mapHeight;
         mapData.InitializeTerrain(mapWidth, mapHeight);
 
+        // MapData 构造函数已预置 8 个默认军团（对齐 VB 的 MapData 构造），
+        // 这里必须先清空，否则新战役会多出一批军团。
+        mapData.Legions.Clear();
         for (int i = 0; i < numLegions; i++)
-            mapData.Legions.Add(Legion.CreateDefault(i + 1));
+            mapData.Legions.Add(Legion.CreateForNewMap(i));
 
         for (int i = 0; i < totalTiles; i++)
             mapData.SetProvince(i, Province.Create(0xFFFF));
@@ -581,8 +584,19 @@ public class StageParser
         foreach (var sc in mapData.StrategyConstructions) { var buf = new byte[16]; sc.ToBytes(buf, 0); resultData.AddRange(buf); }
         foreach (var asup in mapData.AirSupports) { var buf = new byte[16]; asup.ToBytes(buf, 0); resultData.AddRange(buf); }
 
-        try { File.WriteAllBytes(outputPath, resultData.ToArray()); Debug.WriteLine($"[StageParser] 成功保存到: {outputPath} ({resultData.Count} 字节)"); return true; }
-        catch (Exception ex) { Debug.WriteLine($"[StageParser] 保存失败: {ex.Message}"); return false; }
+        try
+        {
+            File.WriteAllBytes(outputPath, resultData.ToArray());
+            Debug.WriteLine($"[StageParser] 成功保存到: {outputPath} ({resultData.Count} 字节)");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            // 原样抛出，让调用方拿到真实原因（文件被 Excel 等程序锁定 / 无写权限 / 磁盘空间不足）。
+            // 只 return false 的话，上层只能提示无信息的"保存失败！"，无从排查。
+            Trace.WriteLine($"[StageParser] 保存失败: {outputPath}{Environment.NewLine}  {ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
     }
 
     #endregion
@@ -632,7 +646,7 @@ public class StageParser
             UnitPlaces.Clear(); Capitals.Clear(); StrategyConstructions.Clear(); AirSupports.Clear();
 
             for (int i = 0; i < numLegions; i++)
-                Legions.Add(Legion.CreateDefault(i + 1));
+                Legions.Add(Legion.CreateForNewMap(i));
             for (int i = 0; i < totalTiles; i++)
                 Terrains.Add(new Terrain { TileType1 = 0, TileType2 = 0x3F, DecorationType2 = 0xFF, TileType3 = 0x3F, DecorationType3 = 0xFF });
             for (int i = 0; i < totalTiles; i++)

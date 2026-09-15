@@ -34,7 +34,11 @@ public sealed class ModeContext
     /// <summary>打开军团设置窗口（Q 键）- 由 GUI 层实现并注入</summary>
     public Action? NotifyOpenLegionSetting { get; init; }
 
-    /// <summary>打开军团列表窗口（F 键）- 由 GUI 层实现并注入</summary>
+    /// <summary>
+    /// 打开军团列表窗口 - 由 GUI 层实现并注入。
+    /// 军团编辑模式原来的 F 键已让给首都编辑模块，该窗口改由归属编辑模式使用
+    /// （对齐 VB 中 LegionBelongList「用于编辑归属模式的 Q 键」的定位）。
+    /// </summary>
     public Action? NotifyOpenLegionList { get; init; }
 
     /// <summary>打开头部数据编辑窗口（E 键）- 由 GUI 层实现并注入</summary>

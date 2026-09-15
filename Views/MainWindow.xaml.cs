@@ -396,6 +396,10 @@ public partial class MainWindow : Window
 
     private void MainWindow_PreviewKeyDown(object? sender, KeyEventArgs e)
     {
+        // 对话框覆盖层打开时按模态处理：窗口级快捷键让位给对话框自身的输入，
+        // 这样 Tab 才能在输入框之间切换焦点，而不是触发“查看格子信息”。
+        if (IsDialogOverlayOpen()) return;
+
         if (e.Key == Key.F3)
         {
             KeyboardManager.ProcessKeyDown((int)Key.F3);
@@ -410,6 +414,8 @@ public partial class MainWindow : Window
 
     private void MainWindow_PreviewKeyUp(object? sender, KeyEventArgs e)
     {
+        if (IsDialogOverlayOpen()) return;
+
         if (e.Key == Key.F3)
         {
             KeyboardManager.ProcessKeyUp((int)Key.F3);
@@ -420,6 +426,30 @@ public partial class MainWindow : Window
             KeyboardManager.ProcessKeyUp((int)Key.Tab);
             e.Handled = true;
         }
+    }
+
+    /// <summary>
+    /// 当前是否有叠加在主窗口内的对话框覆盖层。
+    /// <para>
+    /// DoubleInputDialog / SingleInputDialog / ObjectPropertiesDialog / NotificationDialog /
+    /// ConfirmDialog 都是把 Border 挂进主窗口根面板的“伪对话框”，不是独立 Window。
+    /// 因此它们内部控件的 Tab 焦点切换会被窗口级 PreviewKeyDown 抢先拦截，
+    /// 需要在这里临时放行。各对话框统一以 ZIndex = 9999 挂载，以此作为判定依据。
+    /// </para>
+    /// </summary>
+    private bool IsDialogOverlayOpen()
+    {
+        Panel? rootPanel = Content as Panel;
+        if (rootPanel == null && Content is FrameworkElement contentElement)
+            rootPanel = contentElement.Parent as Panel;
+
+        if (rootPanel == null) return false;
+
+        foreach (UIElement child in rootPanel.Children)
+        {
+            if (Panel.GetZIndex(child) >= 9999) return true;
+        }
+        return false;
     }
 
     private void OnSceneSwitchRequested(object? sender, SceneSwitchRequestEventArgs e)

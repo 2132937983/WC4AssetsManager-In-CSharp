@@ -49,6 +49,8 @@ public sealed class ConfirmDialog : IDisposable
         };
         _overlay.KeyDown += Overlay_KeyDown;
         Panel.SetZIndex(_overlay, 9999);
+        // Tab 在对话框内部循环切换焦点（按钮之间），避免焦点跑到覆盖层外面落到主界面的控件上
+        KeyboardNavigation.SetTabNavigation(_overlay, KeyboardNavigationMode.Cycle);
 
         rootPanel.Children.Add(_overlay);
 

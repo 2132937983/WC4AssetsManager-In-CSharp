@@ -117,15 +117,51 @@ public sealed class LegionModifier : ModifierBase
     }
 
     /// <summary>
-    /// 新增一个军团（对齐 VB 版 LegionSetting 的"+"按钮：默认所有字段为 0）。
+    /// 新增一个军团（对应 VB 版 LegionSetting 的"+"按钮）。
+    /// <para>
+    /// 行动顺序、国家 ID 各自取现有最大值 +1（列表为空时从 0 / 1 开始），
+    /// 其余字段取 <see cref="Legion.CreateDefault"/> 的默认值：
+    /// 初始经济 1000、初始工业 100、初始科技 50、国家血率 1.0、国家税率 0.1、
+    /// 颜色白色(FFFFFF)、阵营 0。
+    /// </para>
+    /// <para>
+    /// 注意：VB 原版的"+"按钮是逐字段置 0 的模板，新增出来的军团完全不可用，
+    /// 这里改为带默认值（本项目其余创建军团的路径同样使用 CreateDefault）。
+    /// </para>
     /// </summary>
     public ModifierResult AddLegion(Legion? legion = null)
     {
         if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
 
-        _mapData.Legions.Add(legion ?? new Legion());
+        var added = legion ?? CreateAppendedLegion(_mapData);
+        _mapData.Legions.Add(added);
         MarkModified();
-        return ModifierResult.Ok($"已新增军团，当前共 {_mapData.Legions.Count} 个");
+        return ModifierResult.Ok($"已新增军团（国家 {added.CountryId}），当前共 {_mapData.Legions.Count} 个");
+    }
+
+    /// <summary>
+    /// 构造"追加到列表末尾"的新军团：行动顺序、国家 ID 各自取现有最大值 +1，
+    /// 避免与已有军团冲突（直接用 0 会与第一个军团撞号）。
+    /// </summary>
+    private static Legion CreateAppendedLegion(MapData mapData)
+    {
+        int actionId = 0;
+        int countryId = 1;
+
+        for (int i = 0; i < mapData.Legions.Count; i++)
+        {
+            var existing = mapData.Legions[i];
+            if (existing.ActionId >= actionId) actionId = existing.ActionId + 1;
+            if (existing.CountryId >= countryId) countryId = existing.CountryId + 1;
+        }
+
+        var legion = Legion.CreateDefault(countryId);
+        legion.ActionId = actionId;
+        // CreateDefault 把阵营设成国家 ID，新增军团统一从 0（无阵营）开始
+        legion.Camp = 0;
+        // VB 的 CreateDefault 不含初始科技等级（保持 0），新增军团给 1 才有可玩的起点
+        legion.InitialTechLevel = 1;
+        return legion;
     }
 
     /// <summary>
@@ -413,7 +449,21 @@ public sealed class LegionModifier : ModifierBase
 
     #endregion
 
-    #region 首都编辑 (X键)
+    #region 首都编辑（F 键 / X 键：在当前选中格子添加/删除）
+
+    /// <summary>取指定格子上的首都，没有则返回 null（对齐 VB GetCapitalAtPosition）</summary>
+    public Capital? GetCapitalAtPosition(int hexIndex)
+    {
+        if (_mapData == null) return null;
+
+        for (int i = 0; i < _mapData.Capitals.Count; i++)
+        {
+            if (_mapData.Capitals[i].Coordinate == hexIndex)
+                return _mapData.Capitals[i];
+        }
+
+        return null;
+    }
 
     public ModifierResult AddCapital(int hexIndex)
     {

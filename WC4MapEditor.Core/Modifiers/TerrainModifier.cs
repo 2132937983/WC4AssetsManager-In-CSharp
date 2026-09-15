@@ -1170,6 +1170,24 @@ public sealed class TerrainModifier : ModifierBase, IBrushTarget
         foreach (var kvp in tempProvinces)
             _mapData.GetProvinceRef(kvp.Key.Item1, kvp.Key.Item2) = kvp.Value;
 
+        // 同 ResizeMap：ProvinceValue 是省会格子的线性序号，缩放后必须按同一比例重算，
+        // 否则省区会指向错误格子。换算公式与下方建筑/陷阱/单位保持一致。
+        for (int row = 0; row < newHeight; row++)
+        {
+            for (int col = 0; col < newWidth; col++)
+            {
+                ref var province = ref _mapData.GetProvinceRef(col, row);
+                ushort capitalIndex = province.ProvinceValue;
+
+                if (capitalIndex == 0 || capitalIndex == 0xFFFF) continue;
+
+                int capitalCol = Math.Min((int)((capitalIndex % oldWidth) * scale), newWidth - 1);
+                int capitalRow = Math.Min((int)((capitalIndex / oldWidth) * scale), newHeight - 1);
+
+                province.ProvinceValue = (ushort)(capitalRow * newWidth + capitalCol);
+            }
+        }
+
         var buildingsToUpdate = _mapData.Buildings.ToList();
         _mapData.Buildings.Clear();
         for (int bi = 0; bi < buildingsToUpdate.Count; bi++)
@@ -1282,6 +1300,33 @@ public sealed class TerrainModifier : ModifierBase, IBrushTarget
             _mapData.GetTerrainRef(kvp.Key.Item1, kvp.Key.Item2) = kvp.Value;
         foreach (var kvp in tempProvinces)
             _mapData.GetProvinceRef(kvp.Key.Item1, kvp.Key.Item2) = kvp.Value;
+
+        // ProvinceValue 存的是「省会格子的线性序号」(row * 宽度 + col)，地图尺寸一变就整体错位。
+        // 上面只搬移了 Province 本身，这里必须按 旧索引 -> 新索引 重算，
+        // 否则省区绘制、以及按省会归属放置建筑/单位都会指向错误的格子。
+        for (int row = 0; row < newHeight; row++)
+        {
+            for (int col = 0; col < newWidth; col++)
+            {
+                ref var province = ref _mapData.GetProvinceRef(col, row);
+                ushort capitalIndex = province.ProvinceValue;
+
+                // 0 与 0xFFFF 都表示该格不隶属于任何省区
+                if (capitalIndex == 0 || capitalIndex == 0xFFFF) continue;
+
+                int capitalCol = capitalIndex % oldWidth + offsetCol;
+                int capitalRow = capitalIndex / oldWidth + offsetRow;
+
+                if (capitalCol < 0 || capitalCol >= newWidth || capitalRow < 0 || capitalRow >= newHeight)
+                {
+                    // 省会格被裁到地图之外，该省区随之失效
+                    province.ProvinceValue = 0xFFFF;
+                    continue;
+                }
+
+                province.ProvinceValue = (ushort)(capitalRow * newWidth + capitalCol);
+            }
+        }
 
         if (offsetCol != 0 || offsetRow != 0)
         {

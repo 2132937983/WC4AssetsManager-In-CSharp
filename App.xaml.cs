@@ -31,6 +31,10 @@ public partial class App : Application
     {
         AllocConsole();
         Console.WriteLine("=== WC4MapEditor GUI 启动 ===");
+
+        // 把诊断日志接到控制台。
+        // 注意 .NET Core 的 Debug.WriteLine 既没有 Listeners 属性、也不会转发到 Trace.Listeners，
+        // 因此关键日志（如"保存失败: ..."）统一用 Trace.WriteLine 输出，才能在这里被看到。
         Trace.Listeners.Add(new ConsoleTraceListener());
         Trace.AutoFlush = true;
 

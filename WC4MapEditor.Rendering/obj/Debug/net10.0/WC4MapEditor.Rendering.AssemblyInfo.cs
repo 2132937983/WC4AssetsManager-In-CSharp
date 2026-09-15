@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("WC4MapEditor.Rendering")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ce2a3d1176b699e71681824b1018aea342e754ad")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3db481e378dd414e0c654f897a29372db99d7ab3")]
 [assembly: System.Reflection.AssemblyProductAttribute("WC4MapEditor.Rendering")]
 [assembly: System.Reflection.AssemblyTitleAttribute("WC4MapEditor.Rendering")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

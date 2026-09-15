@@ -491,8 +491,11 @@ public class ConquestParser
         mapData.MapHeight = mapHeight;
         mapData.InitializeTerrain(mapWidth, mapHeight);
 
+        // MapData 构造函数已预置 8 个默认军团（对齐 VB 的 MapData 构造），
+        // 这里必须先清空，否则新征服会多出一批军团。
+        mapData.Legions.Clear();
         for (int i = 0; i < numLegions; i++)
-            mapData.Legions.Add(Legion.CreateDefault(i + 1));
+            mapData.Legions.Add(Legion.CreateForNewMap(i));
 
         for (int i = 0; i < totalTiles; i++)
             mapData.SetProvince(i, Province.Create(0xFFFF));
@@ -678,8 +681,10 @@ public class ConquestParser
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[ConquestParser] 保存失败: {ex.Message}");
-            return false;
+            // 原样抛出，让调用方拿到真实原因（文件被 Excel 等程序锁定 / 无写权限 / 磁盘空间不足）。
+            // 只 return false 的话，上层只能提示无信息的"保存失败！"，无从排查。
+            Trace.WriteLine($"[ConquestParser] 保存失败: {outputPath}{Environment.NewLine}  {ex.GetType().Name}: {ex.Message}");
+            throw;
         }
     }
 
@@ -730,7 +735,7 @@ public class ConquestParser
             UnitPlaces.Clear(); Capitals.Clear(); StrategyConstructions.Clear(); AirSupports.Clear();
 
             for (int i = 0; i < numLegions; i++)
-                Legions.Add(Legion.CreateDefault(i + 1));
+                Legions.Add(Legion.CreateForNewMap(i));
             for (int i = 0; i < totalTiles; i++)
                 Provinces.Add(Province.Create(0xFFFF));
             for (int i = 0; i < totalTiles; i++)

@@ -15,7 +15,14 @@
     <PublishTrimmed>false</PublishTrimmed>
     <PublishReadyToRun>false</PublishReadyToRun>
     <PublishSingleFile>true</PublishSingleFile>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!--
+      原生库不内嵌到单文件里。若设为 true，程序每次启动都要把原生库
+      （libSkiaSharp / wpfgfx_cor3 / PresentationNative_cor3 等）解压到
+      %TEMP%\.net\<app>\<hash>\；该目录不可写（杀软拦截、权限、磁盘空间）时
+      会直接失败，报 "I/O failure when writing extracted files"。
+      放在 exe 同目录最稳，也不需要任何解压。
+    -->
+    <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
           <Nullable>enable</Nullable>
           <ImplicitUsings>enable</ImplicitUsings>
        </PropertyGroup>

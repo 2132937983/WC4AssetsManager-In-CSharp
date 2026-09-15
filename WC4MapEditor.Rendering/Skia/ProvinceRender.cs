@@ -394,7 +394,8 @@ public class ProvinceRender : IDisposable
 
     private static int? GetCapitalBelongValue(int provinceValue, List<string>? belongs)
     {
-        if (provinceValue == 0xFFFF) return null;
+        // 0 与 0xFFFF 都表示无省区（扩展地图产生的旧数据里可能是 0）
+        if (provinceValue == 0 || provinceValue == 0xFFFF) return null;
 
         int capitalIndex = provinceValue;
         if (belongs == null || capitalIndex < 0 || capitalIndex >= belongs.Count) return null;

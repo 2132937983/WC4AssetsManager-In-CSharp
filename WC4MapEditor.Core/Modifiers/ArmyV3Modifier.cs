@@ -29,6 +29,17 @@ public sealed class ArmyV3Modifier : ModifierBase
         else
         {
             army = Army_3.CreateDefault(coordIndex);
+
+            // 放置时该格的归属还没写入（由调用方随后设置），因此用省会归属推断所在军团，
+            // 让新单位直接符合军团强度档位，而不是统一的无加成满血。
+            int legionId = _mapData.GetProvinceCapitalBelong(col, row);
+            if (legionId < 0) legionId = _mapData.GetBelongValue(col, row);
+
+            var strengthByBelong = BuildStrengthConfigByLegion();
+            if (strengthByBelong.TryGetValue(legionId, out var strengthCfg))
+            {
+                ApplyLegionLevelConfig(ref army, strengthCfg);
+            }
         }
 
         int idx = _mapData.FindArmyV3Index(col, row);
@@ -231,6 +242,24 @@ public sealed class ArmyV3Modifier : ModifierBase
             }
         }
 
+        // 对齐 VB ModifyLegionStrength：军团列表 v1/v3 共用，同样要写回军团自身的 Rate/Blood
+        if (belongValue >= 0)
+        {
+            UpdateLegionAttributes(belongValue, config);
+        }
+        else
+        {
+            // Legion 是 struct，必须经 ReplaceLegion 写回；这里用索引遍历，
+            // 否则在 foreach 中修改集合会抛 InvalidOperationException。
+            for (int i = 0; i < _mapData.Legions.Count; i++)
+            {
+                var legion = _mapData.Legions[i];
+                legion.CountryHpRate = (float)config.Blood;
+                legion.CountryTaxRate = (float)config.Rate;
+                _mapData.ReplaceLegion(i, legion);
+            }
+        }
+
         MarkModified();
         return ModifierResult.Ok($"已修改 {modifiedCount} 个v3单位的强度 (等级: {config.Name})");
     }
@@ -248,6 +277,14 @@ public sealed class ArmyV3Modifier : ModifierBase
             int variation = _random.Next(config.ArmyHpBonus[0], config.ArmyHpBonus[1] + 1);
             army.HealthBonus = (short)(100 + variation);
         }
+        else
+        {
+            army.HealthBonus = 100;
+        }
+
+        // HealthBonus 抬高的是实际血量上限，而 CurrentHealth 是绝对值。
+        // 若不同步缩放，会出现“上限提高但血量没提高”的血条不满现象。
+        army.CurrentHealth = (short)(army.MaxHealth * army.HealthBonus / 100);
 
         if (config.ArmyNumMax > 0)
         {
@@ -258,6 +295,27 @@ public sealed class ArmyV3Modifier : ModifierBase
 
         if (army.General > 0)
             army.Rank = (byte)_random.Next(config.GeneralHpMin, config.GeneralHpMax + 1);
+    }
+
+    /// <summary>
+    /// 按 actionId 写回军团自身的血量/税率系数。
+    /// Legion 是 struct，必须经 ReplaceLegion 写回，直接改副本会被静默丢弃。
+    /// </summary>
+    private void UpdateLegionAttributes(int actionId, LegionLevelConfig config)
+    {
+        if (_mapData == null) return;
+
+        for (int i = 0; i < _mapData.Legions.Count; i++)
+        {
+            var legion = _mapData.Legions[i];
+            if (legion.ActionId == actionId)
+            {
+                legion.CountryHpRate = (float)config.Blood;
+                legion.CountryTaxRate = (float)config.Rate;
+                _mapData.ReplaceLegion(i, legion);
+                break;
+            }
+        }
     }
 
     public ModifierResult AutoAdjustLegionStrengthByCountry(int targetBelongValue)
@@ -291,8 +349,10 @@ public sealed class ArmyV3Modifier : ModifierBase
         int processedCount = 0;
         int totalModifiedCount = 0;
 
-        foreach (var legion in _mapData.Legions)
+        // 用索引遍历：循环内要写回 Legion（struct），在 foreach 中修改集合会抛异常
+        for (int legionIndex = 0; legionIndex < _mapData.Legions.Count; legionIndex++)
         {
+            var legion = _mapData.Legions[legionIndex];
             int actionId = legion.ActionId;
             int countryId = legion.CountryId;
 
@@ -316,6 +376,11 @@ public sealed class ArmyV3Modifier : ModifierBase
                     modifiedCount++;
                 }
             }
+
+            // 原地写回军团自身的 Rate/Blood（v1/v3 共用同一份军团列表）
+            legion.CountryHpRate = (float)config.Blood;
+            legion.CountryTaxRate = (float)config.Rate;
+            _mapData.ReplaceLegion(legionIndex, legion);
 
             totalModifiedCount += modifiedCount;
             processedCount++;
@@ -738,6 +803,50 @@ public sealed class ArmyV3Modifier : ModifierBase
 
     #endregion
 
+    /// <summary>
+    /// 构建「军团 ActionId → 强度配置」映射，供生成单位时直接套用所在军团的强度档位。
+    /// 分档规则与 <see cref="AutoAdjustLegionStrengthByCountry"/> 保持一致：
+    /// 军团的国家ID → setting.txt 的强弱分档取一个单位等级ID → LegionLvSetting.json 的具体配置。
+    /// </summary>
+    private Dictionary<int, LegionLevelConfig> BuildStrengthConfigByLegion()
+    {
+        var result = new Dictionary<int, LegionLevelConfig>();
+        if (_mapData == null) return result;
+
+        var cfg = ConfigManager.Instance;
+        var armyConfig = cfg.GetArmyEditConfig();
+        var legionConfig = cfg.GetLegionEditConfig();
+
+        var countryLevel = new Dictionary<int, int>();
+
+        foreach (int countryId in legionConfig.LowStrengthCountry)
+        {
+            if (armyConfig.LowStrengthArmy.Count > 0)
+                countryLevel[countryId] = armyConfig.LowStrengthArmy[_random.Next(armyConfig.LowStrengthArmy.Count)];
+        }
+
+        foreach (int countryId in legionConfig.MediumStrengthCountry)
+        {
+            if (armyConfig.MediumStrengthArmy.Count > 0)
+                countryLevel[countryId] = armyConfig.MediumStrengthArmy[_random.Next(armyConfig.MediumStrengthArmy.Count)];
+        }
+
+        foreach (int countryId in legionConfig.HighStrengthCountry)
+        {
+            if (armyConfig.HighStrengthArmy.Count > 0)
+                countryLevel[countryId] = armyConfig.HighStrengthArmy[_random.Next(armyConfig.HighStrengthArmy.Count)];
+        }
+
+        foreach (var legion in _mapData.Legions)
+        {
+            if (!countryLevel.TryGetValue(legion.CountryId, out int levelId)) continue;
+            var config = cfg.GetLegionLevelConfig(levelId);
+            if (config != null) result[legion.ActionId] = config;
+        }
+
+        return result;
+    }
+
     #region 按概率生成v3单位 (I键)
 
     public ModifierResult GenerateArmiesByProbability(int belongValue, int probability)
@@ -757,6 +866,9 @@ public sealed class ArmyV3Modifier : ModifierBase
             existingCoords.Add(army.Coordinate);
 
         var validProvinces = GetValidProvinces(belongValue);
+
+        // 预构建军团强度映射：新单位直接按所在军团的强度档位生成
+        var strengthByBelong = BuildStrengthConfigByLegion();
 
         int newArmyCount = 0;
         int totalCells = _mapData.MapWidth * _mapData.MapHeight;
@@ -816,6 +928,19 @@ public sealed class ArmyV3Modifier : ModifierBase
             army3.LevelMarkDisplay = 1;
             if (actualBelongValue >= 0)
                 army3.LegionId = actualBelongValue;
+
+            // 直接套用所在军团的强度档位（血量/等级/编制），新单位生成即为满血；
+            // 找不到军团配置时兜底为满血，避免随机血量导致血条不满。
+            if (strengthByBelong.TryGetValue(actualBelongValue, out var strengthCfg))
+            {
+                ApplyLegionLevelConfig(ref army3, strengthCfg);
+            }
+            else
+            {
+                army3.HealthBonus = 100;
+                army3.CurrentHealth = army3.MaxHealth;
+            }
+
             _mapData.ArmiesV3.Add(army3);
 
             newArmyCount++;
@@ -904,6 +1029,13 @@ public sealed class ArmyV3Modifier : ModifierBase
             int variation = _random.Next(strengthConfig.ArmyHpBonus[0], strengthConfig.ArmyHpBonus[1] + 1);
             army.HealthBonus = (short)(100 + variation);
         }
+        else
+        {
+            army.HealthBonus = 100;
+        }
+
+        // 同上：HealthBonus 抬高的是上限，当前血量必须同步缩放，否则血条显示不满
+        army.CurrentHealth = (short)(army.MaxHealth * army.HealthBonus / 100);
 
         if (terrainType == 1)
         {

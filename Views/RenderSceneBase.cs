@@ -110,9 +110,14 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                     return false;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            return false;
+            // 关键：不要在这里把异常吞掉！调用方（OnQuickSave / 保存对话框）靠捕获异常
+            // 才能把"文件被 Excel 等程序锁定 / 无写权限 / 磁盘空间不足"等真实原因展示出来。
+            // 之前 return false 导致外层 catch 永远不触发，界面只显示无信息的"保存失败！"，无从排查。
+            System.Diagnostics.Trace.WriteLine($"[RenderSceneBase] 保存失败: {filePath}{Environment.NewLine}" +
+                                               $"  {ex.GetType().Name}: {ex.Message}");
+            throw;
         }
     }
 
@@ -461,6 +466,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             else { _debugConsole.WriteLine("无法重做"); }
         }, "重做上一步操作");
         RegisterTerrainCliCommands();
+        RegisterCameraCliCommands();
         HexInfoService.Instance.SetMapData(_mapData);
 
         _skElement.Focus();
@@ -491,6 +497,13 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         }
 
         Debug.WriteLine($"[Timing] 命令注册/场景登记等: {sw.ElapsedMilliseconds}ms");
+
+        // 主动同步一次渲染层开关。InitializeRenderers() 会把 EnableSelectionRender 等预设为 false，
+        // 而负责刷新它们的 UpdateRenderLayersByMode 只挂在 ModeChanged 事件上；
+        // 若本场景的初始模式与切换前相同（同类场景之间切换时很常见），事件不会触发，
+        // 选区渲染就会一直停留在关闭状态，表现为"切换场景后选区高光消失"。
+        UpdateRenderLayersByMode(_editModeManager.CurrentMode);
+
         _skElement.InvalidateVisual();
         Debug.WriteLine($"[Timing] ===== OnLoaded 总计: {swTotal.ElapsedMilliseconds}ms =====");
     }
@@ -1532,6 +1545,10 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         }
 
         _hexSelector.SetSelectionMoving(false, 0, 0, null);
+
+        // 选区变化后必须主动重绘：单击后鼠标通常不再移动，否则选区高光要等到
+        // 下一次重绘（例如切换模式）才会出现。
+        _skElement.InvalidateVisual();
     }
 
     private void HandleZoom(MouseActionEventArgs e)
@@ -1585,6 +1602,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             {
                 _hexSelector.SetSelection(matched);
             }
+
+            // 框选结束后同样主动重绘，确保高光立即出现
+            _skElement.InvalidateVisual();
         }
     }
 
@@ -1611,7 +1631,10 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             _hexSelector.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
         }
-    }
+
+        // 选区变化后主动重绘，保证高光立即出现
+        _skElement.InvalidateVisual();
+        }
 
     /// <summary>
     /// 归属编辑模式下右键单击：为光标所在格子设置归属。
@@ -2378,6 +2401,188 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             _keyboardManager.UnregisterBinding(def.Id);
     }
 
+    /// <summary>
+    /// 注册摄像机跳转相关命令。与编辑模式无关，任何模式下都能用。
+    /// 建筑名取自字符串表（同 BuildingRender 的城市名表：Building.Name 即 nameId）。
+    /// </summary>
+    private void RegisterCameraCliCommands()
+    {
+        var cm = _commandManager;
+
+        cm.RegisterCommand("goto", args =>
+        {
+            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+
+            if (args.Length < 2)
+            {
+                _debugConsole.WriteLine("用法: goto <col> <row>");
+                _debugConsole.WriteLine("  例: goto 12 30");
+                return;
+            }
+
+            if (!int.TryParse(args[0], out int col) || !int.TryParse(args[1], out int row))
+            {
+                _debugConsole.WriteLine("坐标必须是整数");
+                return;
+            }
+
+            if (MoveCameraToHex(col, row))
+                _debugConsole.WriteLine($"相机已移动到 ({col}, {row})");
+            else
+                _debugConsole.WriteLine($"坐标越界：地图尺寸 {_mapData.MapWidth}x{_mapData.MapHeight}");
+        }, "移动相机到指定格子", "<col> <row>");
+
+        cm.RegisterCommand("goto_building", args =>
+        {
+            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            if (_mapData.Buildings.Count == 0) { _debugConsole.WriteLine("当前地图没有建筑"); return; }
+
+            if (args.Length < 1)
+            {
+                _debugConsole.WriteLine("用法: goto_building <建筑名关键字>");
+                _debugConsole.WriteLine("  例: goto_building 柏林");
+                _debugConsole.WriteLine("  也可用 #<nameId> 按字符串表 ID 精确跳转，如: goto_building #1234");
+                _debugConsole.WriteLine("  用 list_buildings 查看地图上的建筑名称");
+                return;
+            }
+
+            string keyword = string.Join(" ", args);
+
+            // #<nameId> 形式：按字符串表 ID 精确匹配
+            if (keyword.StartsWith('#') && int.TryParse(keyword.AsSpan(1), out int nameId))
+            {
+                bool found = false;
+                for (int i = 0; i < _mapData.Buildings.Count; i++)
+                {
+                    var b = _mapData.Buildings[i];
+                    if (b.Name != nameId) continue;
+
+                    JumpToBuildingCoord(b.Coordinate, $"#{nameId}");
+                    found = true;
+                    break;
+                }
+                if (!found) _debugConsole.WriteLine($"没有 NameID = {nameId} 的建筑");
+                return;
+            }
+
+            var cityNames = GetCityNameTable();
+            var matches = new List<(string name, int coord)>();
+
+            for (int i = 0; i < _mapData.Buildings.Count; i++)
+            {
+                var b = _mapData.Buildings[i];
+                if (!cityNames.TryGetValue(b.Name, out string? name) || string.IsNullOrEmpty(name)) continue;
+                if (name.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                    matches.Add((name, b.Coordinate));
+            }
+
+            if (matches.Count == 0)
+            {
+                _debugConsole.WriteLine($"没有名称包含「{keyword}」的建筑（用 list_buildings 查看可用的名称）");
+                return;
+            }
+
+            // 名称完全一致的优先，避免"柏林"被"柏林郊区"这类前缀更长的名字抢先
+            int targetIndex = matches.FindIndex(m => string.Equals(m.name, keyword, StringComparison.OrdinalIgnoreCase));
+            if (targetIndex < 0) targetIndex = 0;
+
+            var (targetName, targetCoord) = matches[targetIndex];
+            JumpToBuildingCoord(targetCoord, targetName);
+
+            if (matches.Count > 1)
+            {
+                _debugConsole.WriteLine($"共有 {matches.Count} 个匹配，已跳到第 1 个；其他匹配：");
+                const int MaxListed = 10;
+                for (int i = 0; i < matches.Count && i <= MaxListed; i++)
+                {
+                    if (i == targetIndex) continue;
+                    var (n, c) = matches[i];
+                    _debugConsole.WriteLine($"  {n} ({c % _mapData.MapWidth}, {c / _mapData.MapWidth})");
+                }
+                if (matches.Count > MaxListed + 1)
+                    _debugConsole.WriteLine($"  …还有 {matches.Count - MaxListed - 1} 个，可用更完整的关键字缩小范围");
+            }
+        }, "移动相机到指定名称的建筑", "<关键字|#nameId>");
+
+        cm.RegisterCommand("list_buildings", args =>
+        {
+            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            if (_mapData.Buildings.Count == 0) { _debugConsole.WriteLine("当前地图没有建筑"); return; }
+
+            string keyword = args.Length > 0 ? string.Join(" ", args) : "";
+            var cityNames = GetCityNameTable();
+
+            var rows = new List<(string name, int coord, short nameId)>();
+            for (int i = 0; i < _mapData.Buildings.Count; i++)
+            {
+                var b = _mapData.Buildings[i];
+                if (!cityNames.TryGetValue(b.Name, out string? name) || string.IsNullOrEmpty(name)) continue;
+                if (keyword.Length > 0 && !name.Contains(keyword, StringComparison.OrdinalIgnoreCase)) continue;
+                rows.Add((name, b.Coordinate, b.Name));
+            }
+
+            if (rows.Count == 0)
+            {
+                _debugConsole.WriteLine(keyword.Length > 0
+                    ? $"没有名称包含「{keyword}」的建筑"
+                    : "地图上没有具名建筑（Name 为空或不在字符串表中）");
+                return;
+            }
+
+            rows.Sort((a, b) => a.coord.CompareTo(b.coord));
+
+            _debugConsole.WriteLine($"共 {rows.Count} 个具名建筑{(keyword.Length > 0 ? $"（筛选「{keyword}」）" : "")}，共 {_mapData.Buildings.Count} 个建筑：");
+
+            const int MaxRows = 40;
+            int shown = Math.Min(rows.Count, MaxRows);
+            for (int i = 0; i < shown; i++)
+            {
+                var (name, coord, nameId) = rows[i];
+                _debugConsole.WriteLine($"  {name} ({coord % _mapData.MapWidth}, {coord / _mapData.MapWidth})  名称ID={nameId}");
+            }
+
+            if (rows.Count > shown)
+                _debugConsole.WriteLine($"  …还有 {rows.Count - shown} 个，可加关键字缩小范围");
+        }, "列出地图上的具名建筑（含坐标与名称ID）", "[关键字]");
+    }
+
+    /// <summary>把相机移到建筑所在格并输出结果。</summary>
+    private void JumpToBuildingCoord(int coord, string displayName)
+    {
+        if (_mapData == null) return;
+
+        int col = coord % _mapData.MapWidth;
+        int row = coord / _mapData.MapWidth;
+
+        if (MoveCameraToHex(col, row))
+            _debugConsole.WriteLine($"相机已移动到建筑「{displayName}」({col}, {row})");
+        else
+            _debugConsole.WriteLine($"建筑「{displayName}」坐标越界: ({col}, {row})");
+    }
+
+    /// <summary>
+    /// 读取城市名表（nameId → 名称）。与 BuildingRender 使用同一数据源，
+    /// 供 goto_building / list_buildings 按名称查找建筑。
+    /// </summary>
+    private static Dictionary<int, string> GetCityNameTable()
+    {
+        var names = new Dictionary<int, string>();
+        try
+        {
+            var parser = Core.Config.ConfigManager.Instance.GetStringTableParser();
+            foreach (var kvp in parser.FindCityNames())
+            {
+                if (!string.IsNullOrEmpty(kvp.Value))
+                    names[kvp.Key] = kvp.Value;
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[CameraCliCommands] 读取城市名表失败: {ex.GetType().Name}: {ex.Message}");
+        }
+        return names;
+    }
+
     private void RegisterTerrainCliCommands()
     {
         var cm = _commandManager;
@@ -2804,6 +3009,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             _brushSettingsWindow.PlayFadeOutAndHide();
             _brushSettingsWindow = null;
         }
+
         UpdateOverlayFromEditMode();
         UpdateLayerInfoVisibility();
         UpdateRenderLayersByMode(e.CurrentMode);
@@ -2814,6 +3020,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         _renderEngine.EnableProvinceRender = mode == EditMode.ProvinceEdit;
         _renderEngine.EnableProvinceCapitalRender = mode == EditMode.ProvinceEdit;
+
+        // 首都国旗层：军团编辑模式需要看到各首都的位置与归属（对齐 VB 在军团编辑模式绘制首都国旗）
+        _renderEngine.EnableCapitalFlagRender = mode == EditMode.LegionEdit;
 
         // 单位部署、建筑部署、归属编辑、地形绘制都需要看到建筑
         _renderEngine.EnableBuildingRender = mode == EditMode.BuildingDeploy
@@ -2833,14 +3042,22 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _renderEngine.EnableTrapRender = mode == EditMode.ArmyDeploy
                                       || mode == EditMode.BelongEdit;
 
-        // 单位部署、建筑部署、归属编辑都依赖归属着色与旗帜标记
+        // 国家领域着色（按归属值给每个格子铺国家颜色）：单位部署、建筑部署、归属编辑、
+        // 军团编辑都需要 —— 军团编辑要看清每个军团的领域范围，以及与首都归属是否吻合。
         var needsDomain = mode == EditMode.BuildingDeploy
                        || mode == EditMode.BelongEdit
-                       || mode == EditMode.ArmyDeploy;
+                       || mode == EditMode.ArmyDeploy
+                       || mode == EditMode.LegionEdit;
         _renderEngine.EnableLegionDomainRender = needsDomain;
-        _renderEngine.EnableBelongFlagRender = needsDomain;
 
-        if (needsDomain && _mapData != null)
+        // 归属国旗层是"每格一张小国旗"，军团编辑模式已有领域色块 + 首都国旗，
+        // 再叠一层逐格国旗会互相干扰，所以只在其余三种模式打开。
+        var needsBelongFlag = mode == EditMode.BuildingDeploy
+                           || mode == EditMode.BelongEdit
+                           || mode == EditMode.ArmyDeploy;
+        _renderEngine.EnableBelongFlagRender = needsBelongFlag;
+
+        if (needsBelongFlag && _mapData != null)
         {
             _renderEngine.PreloadBelongFlagAtlas(_mapData);
         }

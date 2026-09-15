@@ -406,7 +406,7 @@ public sealed class ProvinceModifier : ModifierBase, IBrushTarget
                 int index = row * mapWidth + col;
                 ushort provinceValue = _mapData.GetProvinceRef(index).ProvinceValue;
 
-                if (provinceValue == index && provinceValue != 0xFFFF && !checkedProvinces.Contains(provinceValue))
+                if (provinceValue == index && provinceValue > 0 && provinceValue != 0xFFFF && !checkedProvinces.Contains(provinceValue))
                 {
                     checkedProvinces.Add(provinceValue);
 
@@ -479,7 +479,7 @@ public sealed class ProvinceModifier : ModifierBase, IBrushTarget
 
                         int neighborIndex = nr * mapWidth + nc;
                         if (IsSeaTerrain(neighborIndex)) continue;
-                        if (_mapData.GetProvinceRef(neighborIndex).ProvinceValue != 0xFFFF) continue;
+                        if (_mapData.GetProvinceRef(neighborIndex).IsValid) continue;
 
                         if (!expansionCandidates.ContainsKey(neighbor))
                             expansionCandidates[neighbor] = new List<int>();
@@ -534,7 +534,7 @@ public sealed class ProvinceModifier : ModifierBase, IBrushTarget
 
                         int neighborIndex = nr * mapWidth + nc;
                         if (IsSeaTerrain(neighborIndex)) continue;
-                        if (_mapData.GetProvinceRef(neighborIndex).ProvinceValue == 0xFFFF)
+                        if (!_mapData.GetProvinceRef(neighborIndex).IsValid)
                         {
                             hasEmptyNeighbor = true;
                             break;
@@ -557,10 +557,13 @@ public sealed class ProvinceModifier : ModifierBase, IBrushTarget
         int mapWidth = _mapData.MapWidth;
         int mapHeight = _mapData.MapHeight;
 
+        // 用 IsValid 而不是「!= 0xFFFF」：后者只认 0xFFFF 为空白，
+        // 会把扩展地图产生、以及旧数据里 ProvinceValue == 0 的格子误判成已分配省区，
+        // 结果就是扩展出来的新区域永远填不上省区。
         var assigned = new bool[mapHeight, mapWidth];
         for (int row = 0; row < mapHeight; row++)
             for (int col = 0; col < mapWidth; col++)
-                assigned[row, col] = _mapData.GetProvinceRef(col, row).ProvinceValue != 0xFFFF;
+                assigned[row, col] = _mapData.GetProvinceRef(col, row).IsValid;
 
         var provinceCapitals = new Dictionary<int, HexCoord>();
         for (int row = 0; row < mapHeight; row++)
@@ -568,8 +571,12 @@ public sealed class ProvinceModifier : ModifierBase, IBrushTarget
             for (int col = 0; col < mapWidth; col++)
             {
                 int index = row * mapWidth + col;
-                ushort provinceValue = _mapData.GetProvinceRef(index).ProvinceValue;
-                if (provinceValue == index && provinceValue != 0xFFFF)
+                ref var provinceRef = ref _mapData.GetProvinceRef(index);
+                ushort provinceValue = provinceRef.ProvinceValue;
+
+                // 用 IsValid 排除 0 与 0xFFFF；否则 index == 0 且 ProvinceValue == 0 的格子
+                // 会被误认成省会
+                if (provinceValue == index && provinceRef.IsValid)
                     provinceCapitals[provinceValue] = new HexCoord(col, row);
             }
         }

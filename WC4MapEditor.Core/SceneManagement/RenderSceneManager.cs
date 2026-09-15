@@ -355,8 +355,12 @@ public sealed class RenderSceneManager
             WorldParser.SaveToFile(mapData, filePath);
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            // 这里是场景缓存路径（非用户主动保存），不向上抛以免影响主流程，
+            // 但必须留痕，否则缓存静默失败后无从排查。
+            Trace.WriteLine($"[SceneManager] 保存失败: {filePath}{Environment.NewLine}" +
+                            $"  {ex.GetType().Name}: {ex.Message}");
             return false;
         }
     }

@@ -20,9 +20,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Lib 下的外部工具（ocr_map.exe / gen_buildings_zme.exe）随程序复制到输出目录 -->
+    <!--
+      Lib 下的外部工具（ocr_map.exe / gen_buildings_zme.exe）。
+      必须同时声明 CopyToOutputDirectory（build 输出）和 CopyToPublishDirectory（publish 输出），
+      两者互不继承：只写前者时 dotnet publish 不会带上它们，
+      程序按 AppContext.BaseDirectory\Lib 查找会失败（P 键功能报“缺少外部工具”）。
+    -->
     <None Update="Lib\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
   </ItemGroup>
 

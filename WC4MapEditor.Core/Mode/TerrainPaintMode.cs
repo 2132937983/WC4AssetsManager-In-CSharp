@@ -20,6 +20,8 @@ public sealed class TerrainPaintMode : IModeHandler
     public bool RequiresSelection => true;
 
     public string HelpText =>
+        "左键单击 - 选择格子（Shift 加选 / Ctrl 减选）\n" +
+        "左键拖动 - 平移视图\n" +
         "H - 使用画笔\n" +
         "C - 复制选中格子\n" +
         "V - 粘贴到选中格子\n" +

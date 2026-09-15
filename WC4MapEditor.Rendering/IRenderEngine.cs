@@ -44,6 +44,7 @@ public interface IRenderEngine : IDisposable
     void InvalidateViewLayerCache();
     bool EnableLegionDomainRender { get; set; }
     bool EnableBelongFlagRender { get; set; }
+    bool EnableCapitalFlagRender { get; set; }
     bool EnableReinforceNewRender { get; set; }
     bool EnableStrategicConstructionRender { get; set; }
     bool EnableAirForceRender { get; set; }

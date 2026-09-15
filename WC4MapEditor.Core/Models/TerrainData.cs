@@ -85,7 +85,15 @@ public struct Province
         data[offset + 1] = _highByte;
     }
 
-    public static Province CreateDefault() => new Province();
+    /// <summary>
+    /// 创建「不属于任何省区」的默认省区值。
+    /// <para>
+    /// 取 0xFFFF 而不是 0：地图扩展/缩放产生的新格子用的就是这个值，
+    /// 而代码中多处判定（ExpandAllProvincesToFillMap、GenerateProvincesForIsolatedCapitals、
+    /// 渲染层等）都以 0xFFFF 作为“空白省区”的标志。若返回 0，新格子会被误判为已分配省区。
+    /// </para>
+    /// </summary>
+    public static Province CreateDefault() => Create(0xFFFF);
 
     /// <summary>
     /// 创建指定省份值的省份

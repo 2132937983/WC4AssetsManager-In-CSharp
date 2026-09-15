@@ -264,7 +264,11 @@ public struct Legion
     }
 
     /// <summary>
-    /// 创建默认军团
+    /// 创建默认军团（对齐 VB Models/Legion.vb 的 CreateDefault）。
+    /// <para>
+    /// 只设置经济/工业/科技/玩家控制/阵营/血率/税率/颜色，<b>不含</b> InitialTechLevel
+    /// （VB 原版未设置该字段，保持 0）。
+    /// </para>
     /// </summary>
     public static Legion CreateDefault(int id) => new Legion
     {
@@ -280,7 +284,21 @@ public struct Legion
         CountryTaxRate = 0.1f,
         ColorR = 0xFF,
         ColorG = 0xFF,
-        ColorB = 0xFF,
+        ColorB = 0xFF
+    };
+
+    /// <summary>
+    /// 创建新建战役 / 新建征服时的默认军团（对齐 VB StageParser、ConquestParser 的逐字段初始化：
+    /// ActionId = 序号、CountryId = 序号 + 1、InitialTechLevel = 1，其余字段全 0）。
+    /// <para>
+    /// 注意与 <see cref="CreateDefault"/> 的区别：这里的 ActionId 从 0 开始，
+    /// 与归属数据 Belongs 里写入的军团序号（0 起）保持一致，不能传 id + 1。
+    /// </para>
+    /// </summary>
+    public static Legion CreateForNewMap(int index) => new Legion
+    {
+        ActionId = index,
+        CountryId = index + 1,
         InitialTechLevel = 1
     };
 

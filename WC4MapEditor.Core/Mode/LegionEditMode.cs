@@ -7,6 +7,8 @@ namespace WC4MapEditor.Core.Mode;
 /// 军团编辑模式 - 对齐 VB 版 Builder/LegionModifier。
 /// <para>
 /// 键位与 VB 的 GetLegionEditModeKeys 一致：P/Q/F/C/U/R/F6/E/I/X。
+/// 首都编辑属于本模式的一部分（对齐 VB LegionModifier 的首都编辑能力），
+/// F / X 键都直接对"当前选中格子"添加或删除首都，不设独立的首都编辑模式。
 /// 军团数据本身的读写由 <see cref="LegionModifier"/> 承担，
 /// 需要界面的部分（编辑器窗口、头部数据窗口、截图、征服配置）通过 ModeContext 回调交给 GUI 层。
 /// </para>
@@ -17,15 +19,17 @@ public sealed class LegionEditMode : IModeHandler
     public string DisplayName => "军团编辑";
     public ModifierKind PrimaryModifierKind => ModifierKind.Legion;
     public ModifierKind[] ModifierKinds => new[] { ModifierKind.Legion };
-    public bool RequiresSelection => false;
+    // 启用选择器：左键单击选择格子（Shift 加选 / Ctrl 减选），右键拖动框选多格。
+    // 对应 VB 版 LegionModifier.HandleMouseDown 左键设置 _selectedHex 的行为。
+    public bool RequiresSelection => true;
 
     public string HelpText =>
         "=== 军团编辑模式 ===\n" +
-        "左键 - 选择格子\n" +
-        "右键 - 查看军团信息\n" +
+        "左键 - 选择格子（Shift 加选 / Ctrl 减选）\n" +
+        "右键 - 查看军团信息；右键拖动 - 框选多格\n" +
         "P - 进行军团范围截图\n" +
         "Q - 打开军团编辑器\n" +
-        "F - 打开军团列表窗口\n" +
+        "F - 在当前选中格子添加/删除首都（同 X）\n" +
         "C - 应用默认颜色到所有军团\n" +
         "U - 从setting.txt匹配颜色应用到所有军团\n" +
         "R - 随机化所有军团等级与经济\n" +
@@ -42,7 +46,7 @@ public sealed class LegionEditMode : IModeHandler
         {
             new ModeKeyBinding("LE_P", KeyCodes.P, KeyModifiers.None, "capture_screenshot", "进行军团范围截图"),
             new ModeKeyBinding("LE_Q", KeyCodes.Q, KeyModifiers.None, "open_legion_setting", "打开军团编辑器"),
-            new ModeKeyBinding("LE_F", KeyCodes.F, KeyModifiers.None, "open_legion_list", "打开军团列表窗口"),
+            new ModeKeyBinding("LE_F", KeyCodes.F, KeyModifiers.None, "toggle_capital", "在当前选中格子添加/删除首都"),
             new ModeKeyBinding("LE_C", KeyCodes.C, KeyModifiers.None, "apply_default_colors", "应用默认颜色到所有军团"),
             new ModeKeyBinding("LE_U", KeyCodes.U, KeyModifiers.None, "apply_settings_colors", "从setting.txt匹配颜色应用到所有军团"),
             new ModeKeyBinding("LE_R", KeyCodes.R, KeyModifiers.None, "randomize_levels", "随机化所有军团等级与经济"),
@@ -130,6 +134,7 @@ public sealed class LegionEditMode : IModeHandler
 
             case "toggle_capital":
                 {
+                    // F / X 键：直接对当前选中格子添加或删除首都（col/row 来自选择器焦点格）。
                     if (context.MapData == null) return Task.FromResult(false);
                     int hexIndex = row * context.MapData.MapWidth + col;
                     var result = legion.ToggleCapital(hexIndex);

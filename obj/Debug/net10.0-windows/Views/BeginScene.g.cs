@@ -51,7 +51,7 @@ namespace WC4MapEditor.Views {
                 return;
             }
             _contentLoaded = true;
-            System.Uri resourceLocater = new System.Uri("/WC4MapEditor;component/views/beginscene.xaml", System.UriKind.Relative);
+            System.Uri resourceLocater = new System.Uri("/WC4MapEditor;V1.0.0.0;component/views/beginscene.xaml", System.UriKind.Relative);
             
             #line 1 "..\..\..\..\Views\BeginScene.xaml"
             System.Windows.Application.LoadComponent(this, resourceLocater);

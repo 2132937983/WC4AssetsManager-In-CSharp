@@ -211,6 +211,13 @@ public class MainRender : IRenderEngine
         set => _activeEngine.EnableBelongFlagRender = value;
     }
 
+    /// <summary>首都国旗层：军团编辑模式启用（对齐 VB 在军团编辑模式绘制首都国旗）</summary>
+    public bool EnableCapitalFlagRender
+    {
+        get => _activeEngine.EnableCapitalFlagRender;
+        set => _activeEngine.EnableCapitalFlagRender = value;
+    }
+
     public bool EnableReinforceNewRender
     {
         get => _activeEngine.EnableReinforceNewRender;

@@ -33,6 +33,7 @@ public class SkiaRenderEngine : IRenderEngine
     private GeoRulerRender? _geoRulerRender;
     private LegionDomainRender? _legionDomainRender;
     private BelongFlagRender? _belongFlagRender;
+    private CapitalFlagRender? _capitalFlagRender;
 
     public bool IsAvailable => true;
     public string EngineName => "SkiaSharp";
@@ -47,6 +48,7 @@ public class SkiaRenderEngine : IRenderEngine
     public bool EnableSelectionRender { get; set; } = true;
     public bool EnableLegionDomainRender { get; set; }
     public bool EnableBelongFlagRender { get; set; }
+    public bool EnableCapitalFlagRender { get; set; }
     public bool EnableReinforceNewRender { get; set; }
     public bool EnableStrategicConstructionRender { get; set; }
     public bool EnableAirForceRender { get; set; }
@@ -229,6 +231,7 @@ public class SkiaRenderEngine : IRenderEngine
         _geoRulerRender = Timed("GeoRulerRender", () => new GeoRulerRender());
         _legionDomainRender = Timed("LegionDomainRender", () => new LegionDomainRender());
         _belongFlagRender = Timed("BelongFlagRender", () => new BelongFlagRender());
+        _capitalFlagRender = Timed("CapitalFlagRender", () => new CapitalFlagRender());
 
         Debug.WriteLine($"[Timing] InitializeTerrainRenderers 总计: {total.ElapsedMilliseconds}ms");
     }
@@ -429,6 +432,19 @@ public class SkiaRenderEngine : IRenderEngine
             _selectionRender.ViewportHeight = (int)camera.ViewportHeight;
             _selectionRender.MapData = mapData;
             _selectionRender.Render(canvas, mapData.MapWidth, mapData.MapHeight);
+        }
+
+        // 首都国旗：画在实体与选区之上（对齐 VB 版 Modifier.DrawSkia 的最后绘制），
+        // 但仍位于帮助文字/模式名与经纬度标尺之下。
+        if (_capitalFlagRender != null)
+        {
+            _capitalFlagRender.EnableCapitalFlagRender = EnableCapitalFlagRender;
+            _capitalFlagRender.OffsetX = camera.OffsetX;
+            _capitalFlagRender.OffsetY = camera.OffsetY;
+            _capitalFlagRender.ZoomLevel = camera.ZoomLevel;
+            _capitalFlagRender.ViewportWidth = (int)camera.ViewportWidth;
+            _capitalFlagRender.ViewportHeight = (int)camera.ViewportHeight;
+            _capitalFlagRender.Render(canvas, mapData);
         }
 
         if (_overlayRender != null)
@@ -718,5 +734,6 @@ public class SkiaRenderEngine : IRenderEngine
         _geoRulerRender?.Dispose();
         _legionDomainRender?.Dispose();
         _belongFlagRender?.Dispose();
+        _capitalFlagRender?.Dispose();
     }
 }

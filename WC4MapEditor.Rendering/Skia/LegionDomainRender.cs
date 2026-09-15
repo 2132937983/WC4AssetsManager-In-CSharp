@@ -143,7 +143,7 @@ public class LegionDomainRender : IDisposable
                 int index = row * mapWidth + col;
 
                 ushort provinceValue = mapData.GetProvinceRef(index).ProvinceValue;
-                if (provinceValue == 0xFFFF) continue;
+                if (provinceValue == 0 || provinceValue == 0xFFFF) continue;
 
                 int capitalIndex = provinceValue;
                 if (capitalIndex < 0 || capitalIndex >= mapWidth * mapHeight) continue;

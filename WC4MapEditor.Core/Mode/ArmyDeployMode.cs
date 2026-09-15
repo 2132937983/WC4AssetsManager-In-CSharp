@@ -1,3 +1,4 @@
+using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Input;
 using WC4MapEditor.Core.Modifiers;
 using WC4MapEditor.Core.Models;
@@ -31,19 +32,19 @@ public sealed class ArmyDeployMode : IModeHandler
         "Q - 创建/修改单位\n" +
         "L - 按归属设置军团\n" +
         "Ctrl+Q - 多选时设置方案/单选时设置占领事件\n" +
-        "E - 按配置修改军团强度\n" +
-        "R - 随机化军团单位\n" +
-        "I - 按概率生成单位\n" +
-        "G - 自动分配将领(基于配置)\n" +
+        "E - 按配置修改军团强度(可指定归属与强度等级)\n" +
+        "R - 随机化军团单位(可指定归属)\n" +
+        "I - 按概率生成单位(可指定归属，-1为所有军团)\n" +
+        "G - 自动分配将领(可指定归属与将领数量)\n" +
         "T - 循环切换单位方案(0-4)\n" +
-        "Y - 按归属批量修改方案(-1为所有军团)\n" +
-        "Shift+Delete - 删除指定归属的所有单位\n" +
+        "Y - 批量修改单位方案(可指定归属与方案值)\n" +
+        "Shift+Delete - 删除指定归属的所有单位(可输入归属ID)\n" +
         "Ctrl+C - 复制单位/陷阱\n" +
         "Ctrl+V - 粘贴单位/陷阱\n" +
         "Ctrl+X - 删除单位/陷阱\n" +
         "F - 创建/修改陷阱\n" +
         "Ctrl+G - 按概率批量生成陷阱（跳过海洋与建筑格）\n" +
-        "Ctrl+R - 随机化陷阱等级";
+        "Ctrl+R - 随机化陷阱等级(可指定军团值)";
 
     public IEnumerable<ModeKeyBinding> GetKeyBindings()
     {
@@ -59,12 +60,12 @@ public sealed class ArmyDeployMode : IModeHandler
             new ModeKeyBinding("AD_X", KeyCodes.X, KeyModifiers.None, "remove", "删除单位（多选时批量删除）"),
             new ModeKeyBinding("AD_T", KeyCodes.T, KeyModifiers.None, "cycle_plan", "循环切换单位方案(0-4)"),
             new ModeKeyBinding("AD_CQ", KeyCodes.Q, KeyModifiers.Ctrl, "set_plan_or_event", "多选时设置方案/单选时设置占领事件"),
-            new ModeKeyBinding("AD_Y", KeyCodes.Y, KeyModifiers.None, "batch_plan_by_legion", "按归属批量修改方案(-1为所有军团)"),
-            new ModeKeyBinding("AD_E", KeyCodes.E, KeyModifiers.None, "legion_strength", "按配置修改军团强度"),
-            new ModeKeyBinding("AD_R", KeyCodes.R, KeyModifiers.None, "randomize_legion", "随机化军团单位"),
-            new ModeKeyBinding("AD_I", KeyCodes.I, KeyModifiers.None, "generate_by_probability", "按概率生成单位"),
-            new ModeKeyBinding("AD_G", KeyCodes.G, KeyModifiers.None, "auto_general", "自动分配将领(基于配置)"),
-            new ModeKeyBinding("AD_SDEL", KeyCodes.Delete, KeyModifiers.Shift, "remove_by_belong", "删除指定归属的所有单位"),
+            new ModeKeyBinding("AD_Y", KeyCodes.Y, KeyModifiers.None, "batch_plan_by_legion", "批量修改单位方案(可指定归属与方案值)"),
+            new ModeKeyBinding("AD_E", KeyCodes.E, KeyModifiers.None, "legion_strength", "按配置修改军团强度(可指定归属与强度等级)"),
+            new ModeKeyBinding("AD_R", KeyCodes.R, KeyModifiers.None, "randomize_legion", "随机化军团单位(可指定归属)"),
+            new ModeKeyBinding("AD_I", KeyCodes.I, KeyModifiers.None, "generate_by_probability", "按概率生成单位(-1为所有军团)"),
+            new ModeKeyBinding("AD_G", KeyCodes.G, KeyModifiers.None, "auto_general", "自动分配将领(可指定归属与将领数量)"),
+            new ModeKeyBinding("AD_SDEL", KeyCodes.Delete, KeyModifiers.Shift, "remove_by_belong", "删除指定归属的所有单位(可输入归属ID)"),
 
             // 陷阱编辑
             new ModeKeyBinding("AD_F", KeyCodes.F, KeyModifiers.None, "trap_place", "在光标格放置/修改陷阱"),
@@ -72,7 +73,7 @@ public sealed class ArmyDeployMode : IModeHandler
             new ModeKeyBinding("AD_CV", KeyCodes.V, KeyModifiers.Ctrl, "trap_paste", "粘贴陷阱"),
             new ModeKeyBinding("AD_CX", KeyCodes.X, KeyModifiers.Ctrl, "trap_remove", "删除光标格陷阱"),
             new ModeKeyBinding("AD_CG", KeyCodes.G, KeyModifiers.Ctrl, "trap_generate", "按概率批量生成陷阱（跳过海洋与建筑）"),
-            new ModeKeyBinding("AD_CR", KeyCodes.R, KeyModifiers.Ctrl, "trap_random_levels", "随机化该归属陷阱等级"),
+            new ModeKeyBinding("AD_CR", KeyCodes.R, KeyModifiers.Ctrl, "trap_random_levels", "随机化陷阱等级(可指定军团值)"),
         };
     }
 
@@ -352,76 +353,227 @@ public sealed class ArmyDeployMode : IModeHandler
             case "batch_plan_by_legion":
                 {
                     if (context.DialogService == null) return false;
-                    int targetBelong = ResolveTargetBelong(context, col, row);
 
-                    var input = await context.DialogService.ShowInputDialogAsync(
-                        "批量修改单位方案", $"归属 [{targetBelong}] 的方案值（0-4，-1=随机）：", "-1", -1, 4);
-                    if (input == null || !int.TryParse(input, out int planValue)) return false;
+                    // 对齐 VB BatchModifyArmyPlanByLegion 的双输入框：
+                    // 归属值 -1 表示所有军团，方案值 -1 表示随机
+                    int suggestedBelong = ResolveTargetBelong(context, col, row);
+
+                    var (confirmed, belongText, planText) = await context.DialogService.ShowDoubleInputDialogAsync(
+                        "批量修改单位方案",
+                        "归属值（-1 为所有军团）：",
+                        "方案值（0-4，-1 为随机）：",
+                        suggestedBelong.ToString(),
+                        "-1");
+                    if (!confirmed) return false;
+
+                    if (!int.TryParse(belongText, out int targetBelong))
+                    {
+                        context.RaiseStatusMessage?.Invoke("输入的归属值无效");
+                        return false;
+                    }
+                    if (!int.TryParse(planText, out int planValue))
+                    {
+                        context.RaiseStatusMessage?.Invoke("输入的方案值无效");
+                        return false;
+                    }
+
+                    // 原单输入框用 min=-1 / max=4 做过范围约束，双输入框没有该能力，这里补回
+                    if (planValue < -1 || planValue > 4)
+                    {
+                        context.RaiseStatusMessage?.Invoke("方案值需在 0-4 之间，或输入 -1（随机）");
+                        return false;
+                    }
 
                     var r = RunArmyOp(context, col, row,
                         m => m.BatchModifyArmyPlanByLegion(targetBelong, planValue),
                         m => m.BatchModifyArmyPlanByLegion(targetBelong, planValue));
 
                     context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke(r.Message);
+                    context.RaiseStatusMessage?.Invoke(targetBelong < 0
+                        ? $"所有军团 {r.Message}"
+                        : $"归属 [{targetBelong}] {r.Message}");
                     return r.Success;
                 }
             case "legion_strength":
                 {
-                    // levelId = -1 表示按国家配置自动调整强度
-                    int targetBelong = ResolveTargetBelong(context, col, row);
+                    if (context.DialogService == null) return false;
+
+                    // 强度等级范围从配置动态获取，对齐 VB 的 configs.Min(c => c.Id) / Max(c => c.Id)
+                    var levelConfigs = ConfigManager.Instance.GetAllLegionLevelConfigs();
+                    if (levelConfigs.Count == 0)
+                    {
+                        context.RaiseStatusMessage?.Invoke("没有找到军团强度配置");
+                        return false;
+                    }
+                    int minLevel = levelConfigs.Min(c => c.Id);
+                    int maxLevel = levelConfigs.Max(c => c.Id);
+
+                    // 归属默认取当前格推断结果；强度默认最低等级，-1 表示按国家配置自动调整
+                    int suggestedBelong = ResolveTargetBelong(context, col, row);
+
+                    var (confirmed, belongText, levelText) = await context.DialogService.ShowDoubleInputDialogAsync(
+                        "修改军团强度",
+                        "军团ID（-1 为全部）：",
+                        $"强度等级（{minLevel}-{maxLevel}，-1 为按国家配置自动调整）：",
+                        suggestedBelong.ToString(),
+                        minLevel.ToString());
+                    if (!confirmed) return false;
+
+                    if (!int.TryParse(belongText, out int targetBelong))
+                    {
+                        context.RaiseStatusMessage?.Invoke("输入的军团ID无效");
+                        return false;
+                    }
+                    if (!int.TryParse(levelText, out int levelId))
+                    {
+                        context.RaiseStatusMessage?.Invoke("输入的强度等级无效");
+                        return false;
+                    }
+
+                    // VB 原版的取值约束：归属 -1~255，等级 minLevel~maxLevel 外加特殊值 -1
+                    if (targetBelong < -1 || targetBelong > 255)
+                    {
+                        context.RaiseStatusMessage?.Invoke("军团ID需在 -1-255 之间");
+                        return false;
+                    }
+                    if (levelId != -1 && (levelId < minLevel || levelId > maxLevel))
+                    {
+                        // 对齐 VB：校验失败时列出全部可用等级，方便选择
+                        var availableLevels = string.Join(", ", levelConfigs.Select(c => $"{c.Id}={c.Name}"));
+                        context.RaiseStatusMessage?.Invoke(
+                            $"强度等级需在 {minLevel}-{maxLevel} 之间，或输入 -1。可用等级: {availableLevels}");
+                        return false;
+                    }
+
                     var r = RunArmyOp(context, col, row,
-                        m => m.ModifyLegionStrength(targetBelong, -1),
-                        m => m.ModifyLegionStrength(targetBelong, -1));
+                        m => m.ModifyLegionStrength(targetBelong, levelId),
+                        m => m.ModifyLegionStrength(targetBelong, levelId));
 
                     context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke($"归属 [{targetBelong}] {r.Message}");
+                    context.RaiseStatusMessage?.Invoke(targetBelong < 0
+                        ? $"所有军团 {r.Message}"
+                        : $"归属 [{targetBelong}] {r.Message}");
                     return r.Success;
                 }
             case "randomize_legion":
                 {
-                    int targetBelong = ResolveTargetBelong(context, col, row);
+                    if (context.DialogService == null) return false;
+
+                    // 对齐 VB RandomizeLegionArmies：该功能只有一个归属参数，故用单输入框（-1 为全部军团）
+                    int suggestedBelong = ResolveTargetBelong(context, col, row);
+
+                    var input = await context.DialogService.ShowInputDialogAsync(
+                        "随机化军团单位", "归属值（-1 为全部）：", suggestedBelong.ToString());
+                    if (input == null) return false;
+                    if (!int.TryParse(input, out int targetBelong))
+                    {
+                        context.RaiseStatusMessage?.Invoke("输入的归属值无效");
+                        return false;
+                    }
+
                     var r = RunArmyOp(context, col, row,
                         m => m.RandomizeLegionArmies(targetBelong),
                         m => m.RandomizeLegionArmies(targetBelong));
 
                     context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke($"归属 [{targetBelong}] {r.Message}");
+                    context.RaiseStatusMessage?.Invoke(targetBelong < 0
+                        ? $"所有军团 {r.Message}"
+                        : $"归属 [{targetBelong}] {r.Message}");
                     return r.Success;
                 }
             case "generate_by_probability":
                 {
                     if (context.DialogService == null) return false;
-                    int targetBelong = ResolveTargetBelong(context, col, row);
 
-                    var input = await context.DialogService.ShowInputDialogAsync(
-                        "按概率生成单位", $"归属 [{targetBelong}] 的生成概率（1-100）：", "50", 1, 100);
-                    if (input == null || !int.TryParse(input, out int probability)) return false;
+                    // 归属默认取当前格推断结果（省会归属优先，其次当前格归属），
+                    // 用户可手动改为 -1，表示对所有军团执行（底层 GetValidProvinces 已支持 -1）。
+                    int suggestedBelong = ResolveTargetBelong(context, col, row);
+
+                    var (confirmed, belongText, probText) = await context.DialogService.ShowDoubleInputDialogAsync(
+                        "按概率生成单位",
+                        "归属ID（-1 为所有军团）：",
+                        "生成概率（0-100）：",
+                        suggestedBelong.ToString(),
+                        "50");
+                    if (!confirmed) return false;
+
+                    if (!int.TryParse(belongText, out int targetBelong))
+                    {
+                        context.RaiseStatusMessage?.Invoke("输入的归属ID无效");
+                        return false;
+                    }
+                    if (!int.TryParse(probText, out int probability))
+                    {
+                        context.RaiseStatusMessage?.Invoke("输入的生成概率无效");
+                        return false;
+                    }
 
                     var r = RunArmyOp(context, col, row,
                         m => m.GenerateArmiesByProbability(targetBelong, probability),
                         m => m.GenerateArmiesByProbability(targetBelong, probability));
 
                     context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke(r.Message);
+                    context.RaiseStatusMessage?.Invoke(targetBelong < 0
+                        ? $"所有军团 {r.Message}"
+                        : $"归属 [{targetBelong}] {r.Message}");
                     return r.Success;
                 }
             case "auto_general":
                 {
-                    // requestedGeneralCount = -1 表示按可用将领数上限分配；adaptToUnits=true 按兵种适配
-                    int targetBelong = ResolveTargetBelong(context, col, row);
+                    if (context.DialogService == null) return false;
+
+                    // 对齐 VB AutoAssignGeneralsToArmies 的双输入框：归属值 + 将领数量。
+                    // 底层 requestedGeneralCount = -1 表示按可用将领数上限分配；adaptToUnits=true 按兵种适配
+                    int suggestedBelong = ResolveTargetBelong(context, col, row);
+
+                    var (confirmed, belongText, countText) = await context.DialogService.ShowDoubleInputDialogAsync(
+                        "自动分配将领",
+                        "归属值（-1 为所有军团）：",
+                        "将领数量（-1 为最大数量）：",
+                        suggestedBelong.ToString(),
+                        "-1");
+                    if (!confirmed) return false;
+
+                    if (!int.TryParse(belongText, out int targetBelong))
+                    {
+                        context.RaiseStatusMessage?.Invoke("输入的归属值无效");
+                        return false;
+                    }
+                    if (!int.TryParse(countText, out int requestedCount))
+                    {
+                        context.RaiseStatusMessage?.Invoke("输入的将领数量无效");
+                        return false;
+                    }
+
                     var r = RunArmyOp(context, col, row,
-                        m => m.AutoAssignGeneralsToArmies(targetBelong, -1, clearExisting: false, adaptToUnits: true),
-                        m => m.AutoAssignGeneralsToArmies3(targetBelong, -1, clearExisting: false, adaptToUnits: true));
+                        m => m.AutoAssignGeneralsToArmies(targetBelong, requestedCount, clearExisting: false, adaptToUnits: true),
+                        m => m.AutoAssignGeneralsToArmies3(targetBelong, requestedCount, clearExisting: false, adaptToUnits: true));
 
                     context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke($"归属 [{targetBelong}] {r.Message}");
+                    context.RaiseStatusMessage?.Invoke(targetBelong < 0
+                        ? $"所有军团 {r.Message}"
+                        : $"归属 [{targetBelong}] {r.Message}");
                     return r.Success;
                 }
             case "remove_by_belong":
                 {
                     if (context.DialogService == null) return false;
-                    int targetBelong = ResolveTargetBelong(context, col, row);
+
+                    // 对齐 VB DeleteArmiesByBelong：先输入归属ID（原版默认 0）。
+                    // 注意底层是按单位自身的 LegionId 精确匹配，-1 不对应任何单位（不是“全部”语义）。
+                    int defaultBelong = ResolveTargetBelong(context, col, row);
+                    if (defaultBelong < 0) defaultBelong = 0;
+
+                    var input = await context.DialogService.ShowInputDialogAsync(
+                        "删除指定归属的所有单位",
+                        "归属ID（按单位自身的军团归属精确匹配）：",
+                        defaultBelong.ToString());
+                    if (input == null) return false;
+                    if (!int.TryParse(input, out int targetBelong))
+                    {
+                        context.RaiseStatusMessage?.Invoke("输入的归属ID无效");
+                        return false;
+                    }
 
                     var confirmed = await context.DialogService.ShowConfirmDialogAsync(
                         "删除指定归属的所有单位",
@@ -552,13 +704,37 @@ public sealed class ArmyDeployMode : IModeHandler
                     var trap = context.GetModifier<TrapModifier>();
                     if (trap == null || context.DialogService == null) return false;
 
-                    var input = await context.DialogService.ShowInputDialogAsync(
-                        "随机化陷阱等级", "概率（1-100）：", "50", 1, 100);
-                    if (input == null || !int.TryParse(input, out int probability)) return false;
+                    // 对齐 VB RandomizeTrapLevels：原版是「军团值」+「随机概率」两次输入，
+                    // 这里合并成一个双输入框；军团值 -1 表示所有军团（底层已支持）。
+                    int suggestedLegion = GetProvinceCapitalBelong(col, row, context);
+                    if (suggestedLegion < 0) suggestedLegion = context.MapData?.GetBelongValue(col, row) ?? -1;
 
-                    // 归属筛选值同样取省会归属，与放置陷阱的规则一致
-                    int legionValue = GetProvinceCapitalBelong(col, row, context);
-                    if (legionValue < 0) legionValue = context.MapData?.GetBelongValue(col, row) ?? -1;
+                    var (confirmed, legionText, probText) = await context.DialogService.ShowDoubleInputDialogAsync(
+                        "随机化陷阱等级",
+                        "军团值（-1 为所有军团）：",
+                        "随机概率（1-100）：",
+                        suggestedLegion.ToString(),
+                        "50");
+                    if (!confirmed) return false;
+
+                    if (!int.TryParse(legionText, out int legionValue))
+                    {
+                        context.RaiseStatusMessage?.Invoke("输入的军团值无效");
+                        return false;
+                    }
+                    if (!int.TryParse(probText, out int probability))
+                    {
+                        context.RaiseStatusMessage?.Invoke("输入的随机概率无效");
+                        return false;
+                    }
+
+                    // 原单输入框用 min=1 / max=100 约束，双输入框没有该能力，这里补回
+                    if (probability < 1 || probability > 100)
+                    {
+                        context.RaiseStatusMessage?.Invoke("随机概率需在 1-100 之间");
+                        return false;
+                    }
+
                     var r = trap.RandomizeTrapLevels(legionValue, probability);
                     context.NotifyDataModified?.Invoke();
                     context.RaiseStatusMessage?.Invoke(r.Message);

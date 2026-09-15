@@ -47,8 +47,20 @@ public class MapRenderScene : RenderSceneBase
 
     protected override bool SaveMapData(MapData mapData, string outputPath)
     {
-        try { WorldParser.SaveToFile(mapData, outputPath); return true; }
-        catch { return false; }
+        try
+        {
+            WorldParser.SaveToFile(mapData, outputPath);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            // 不要静默吞掉：保存失败的原因（文件被 Excel 等程序锁定、无写权限、磁盘满等）
+            // 必须留下日志。用 Trace.WriteLine 而非 Debug.WriteLine：
+            // .NET Core 下 Debug 输出不会进 Trace.Listeners，控制台就看不到。
+            System.Diagnostics.Trace.WriteLine($"[MapRenderScene] 保存失败: {outputPath}{Environment.NewLine}" +
+                                               $"  {ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
     }
 
     protected override MapData? ReloadMapData(string filePath)

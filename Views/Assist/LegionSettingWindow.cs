@@ -534,7 +534,11 @@ public sealed class LegionSettingWindow : Window
         return name;
     }
 
-    /// <summary>新增军团（对齐 VB 版 "+" 按钮：新军团所有字段为 0）</summary>
+    /// <summary>
+    /// 新增军团。行动顺序 / 国家 ID 自动取现有最大值 +1，
+    /// 其余字段取 Legion.CreateDefault 的默认值（经济 1000 / 工业 100 / 科技 50 /
+    /// 血率 1.0 / 税率 0.1 / 颜色白色）。
+    /// </summary>
     private void OnAddLegion()
     {
         var result = _modifier.AddLegion();
