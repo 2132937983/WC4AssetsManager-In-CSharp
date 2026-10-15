@@ -1,0 +1,243 @@
+using System.Diagnostics;
+using System.IO;
+using SkiaSharp;
+using WC4MapEditor.Core.Config;
+using WC4MapEditor.Core.Models;
+using WC4MapEditor.Rendering.Skia;
+
+namespace WC4MapEditor.Rendering.Helpers;
+
+public class ScreenshotHelper : IDisposable
+{
+    private const double BASE_HEX_SIZE = 20.0;
+    private static readonly double HEX_WIDTH = BASE_HEX_SIZE * 2;
+    private static readonly double HEX_HEIGHT = BASE_HEX_SIZE * Math.Sqrt(3);
+    private static readonly double HEX_HORIZONTAL_SPACING = BASE_HEX_SIZE * 1.5;
+    private static readonly double HEX_VERTICAL_SPACING = BASE_HEX_SIZE * Math.Sqrt(3);
+
+    private BackGroundRender? _screenshotRender;
+
+    public ScreenshotHelper() { }
+
+    private static string GetScreenshotResolutionFromSetting()
+    {
+        try
+        {
+            var resolution = ConfigManager.Instance.GetText("screenshot_resolution", "1x").Trim();
+            string[] validResolutions = ["1x", "2x", "4x", "8x", "16x", "32x", "64x"];
+            if (validResolutions.Contains(resolution))
+            {
+                Debug.WriteLine("[ScreenshotHelper] ConfigManager resolution: " + resolution);
+                return resolution;
+            }
+            return "1x";
+        }
+        catch { return "1x"; }
+    }
+
+    private static double GetScaleFactorFromResolution(string resolution) => resolution switch
+    {
+        "1x" => 1.0, "2x" => 0.5, "4x" => 0.25, "8x" => 0.125,
+        "16x" => 0.0625, "32x" => 0.03125, "64x" => 0.015625, _ => 1.0
+    };
+
+    public bool CaptureMap(MapData mapData, string outputPath, double zoomLevel = 1.0,
+        bool showGridLines = false, bool showHexLabels = false, bool showLayer2 = false,
+        IProgress<(int current, int total, int row, int col, int percent)>? progress = null)
+    {
+        try
+        {
+            if (mapData == null)
+            {
+                Debug.WriteLine("[ScreenshotHelper] MapData is null");
+                return false;
+            }
+
+            int mapWidth = mapData.MapWidth;
+            int mapHeight = mapData.MapHeight;
+            int totalHexes = mapWidth * mapHeight;
+
+            var resolution = GetScreenshotResolutionFromSetting();
+            var resolutionScale = GetScaleFactorFromResolution(resolution);
+            double renderZoomLevel = Math.Max(0.1, zoomLevel);
+
+            int targetWidth = (int)(mapWidth * HEX_HORIZONTAL_SPACING * zoomLevel * resolutionScale + HEX_WIDTH * zoomLevel * resolutionScale);
+            int targetHeight = (int)(mapHeight * HEX_VERTICAL_SPACING * zoomLevel * resolutionScale + HEX_HEIGHT * zoomLevel * resolutionScale);
+            int renderWidth = (int)(mapWidth * HEX_HORIZONTAL_SPACING * renderZoomLevel + HEX_WIDTH * renderZoomLevel);
+            int renderHeight = (int)(mapHeight * HEX_VERTICAL_SPACING * renderZoomLevel + HEX_HEIGHT * renderZoomLevel);
+
+            const int maxDimension = 16384;
+            if (renderWidth > maxDimension || renderHeight > maxDimension)
+            {
+                double scale = Math.Min(maxDimension / (double)renderWidth, maxDimension / (double)renderHeight);
+                renderWidth = (int)(renderWidth * scale);
+                renderHeight = (int)(renderHeight * scale);
+                targetWidth = (int)(targetWidth * scale);
+                targetHeight = (int)(targetHeight * scale);
+                renderZoomLevel *= scale;
+            }
+
+            progress?.Report((0, totalHexes, 0, 0, 0));
+
+            Debug.WriteLine("[ScreenshotHelper] Target: " + targetWidth + "x" + targetHeight + ", Render: " + renderWidth + "x" + renderHeight);
+
+            _screenshotRender ??= new BackGroundRender();
+            // 设置地形渲染器，确保地形纹理能被渲染
+            if (_screenshotRender.GetLandTerrainsRender() == null)
+            {
+                var landTerrainsRender = new LandTerrainsRender();
+                _screenshotRender.SetLandTerrainsRender(landTerrainsRender);
+            }
+
+            using var bitmap = new SKBitmap(new SKImageInfo(targetWidth, targetHeight));
+            using (var canvas = new SKCanvas(bitmap))
+            {
+                canvas.Clear(SKColors.Transparent);
+
+                float scaleX = (float)(targetWidth / (double)renderWidth);
+                float scaleY = (float)(targetHeight / (double)renderHeight);
+                canvas.Scale(scaleX, scaleY);
+
+                _screenshotRender.ShowHexLabels = showHexLabels;
+                _screenshotRender.RenderFullMap(canvas, mapData,
+                    HEX_WIDTH * renderZoomLevel / 2, HEX_HEIGHT * renderZoomLevel / 2,
+                    renderZoomLevel, renderWidth, renderHeight, showLayer2, showGridLines);
+            }
+
+            progress?.Report((totalHexes, totalHexes, mapHeight - 1, mapWidth - 1, 50));
+
+            _screenshotRender.Dispose();
+            _screenshotRender = null;
+
+            var directory = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                Directory.CreateDirectory(directory);
+
+            using (var image = SKImage.FromBitmap(bitmap))
+            using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
+            using (var stream = File.OpenWrite(outputPath))
+            {
+                data.SaveTo(stream);
+            }
+
+            progress?.Report((totalHexes, totalHexes, mapHeight - 1, mapWidth - 1, 100));
+            Debug.WriteLine("[ScreenshotHelper] Screenshot saved: " + outputPath);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine("[ScreenshotHelper] Capture failed: " + ex.Message);
+            return false;
+        }
+    }
+
+    /// <summary>截图结果：像素尺寸 + 实际覆盖的格子范围（供 AI / 脚本按比例换算坐标）。</summary>
+    public readonly record struct ScreenshotCaptureInfo(
+        bool Ok, int PixelWidth, int PixelHeight,
+        int OriginCol, int OriginRow, int CellsW, int CellsH, double Zoom);
+
+    /// <summary>
+    /// 局部区域截图（整幅地图也算一种"区域"：传 mapWidth×mapHeight 即可）。
+    /// <para>
+    /// 自动定缩放：把长边填到 <paramref name="maxPixels"/>。区域越小格子在图上越大，
+    /// 所以 AI 想看细节就报小区域，想看全局就报整幅。
+    /// </para>
+    /// <para>
+    /// <c>RenderFullMap</c> 的 offsetX/offsetY 语义是"hex(0,0) 中心落在这个点"，
+    /// 所以传区域原点的负像素坐标，就等效于把相机移到区域左上角，区域以外的内容会被画布裁掉。
+    /// </para>
+    /// </summary>
+    public ScreenshotCaptureInfo CaptureRegion(MapData mapData, int centerCol, int centerRow,
+        int cellsW, int cellsH, string outputPath, int maxPixels = 1400,
+        bool showGridLines = false, bool showHexLabels = true, bool showLayer2 = false,
+        bool markCenter = true)
+    {
+        try
+        {
+            if (mapData == null || mapData.MapWidth <= 0 || mapData.MapHeight <= 0)
+                return new ScreenshotCaptureInfo(false, 0, 0, 0, 0, 0, 0, 1);
+
+            int w = Math.Clamp(cellsW <= 0 ? mapData.MapWidth : cellsW, 1, mapData.MapWidth);
+            int h = Math.Clamp(cellsH <= 0 ? mapData.MapHeight : cellsH, 1, mapData.MapHeight);
+            int originCol = Math.Clamp(centerCol - w / 2, 0, mapData.MapWidth - w);
+            int originRow = Math.Clamp(centerRow - h / 2, 0, mapData.MapHeight - h);
+
+            // 1x 下的自然尺寸 → 定缩放把长边填到上限（128~4096 像素，防止喂给模型过大）
+            double naturalW = w * HEX_HORIZONTAL_SPACING + HEX_WIDTH;
+            double naturalH = h * HEX_VERTICAL_SPACING + HEX_HEIGHT;
+            int cap = Math.Clamp(maxPixels, 128, 4096);
+            double zoom = Math.Clamp(Math.Min(cap / naturalW, cap / naturalH), 0.05, 8.0);
+
+            int pixelW = Math.Max(1, (int)(naturalW * zoom));
+            int pixelH = Math.Max(1, (int)(naturalH * zoom));
+
+            // 区域左上角格中心在"未平移"坐标里的位置（奇数列下移半格，与 Camera.HexToScreen 一致）
+            double originX = originCol * HEX_HORIZONTAL_SPACING * zoom;
+            double originY = originRow * HEX_VERTICAL_SPACING * zoom
+                             + (((originCol % 2) == 1) ? HEX_VERTICAL_SPACING / 2 * zoom : 0);
+
+            _screenshotRender ??= new BackGroundRender();
+            if (_screenshotRender.GetLandTerrainsRender() == null)
+                _screenshotRender.SetLandTerrainsRender(new LandTerrainsRender());
+            _screenshotRender.ShowHexLabels = showHexLabels;
+
+            using var bitmap = new SKBitmap(new SKImageInfo(pixelW, pixelH));
+            using (var canvas = new SKCanvas(bitmap))
+            {
+                canvas.Clear(SKColors.Transparent);
+                _screenshotRender.RenderFullMap(canvas, mapData, -originX, -originY, zoom,
+                    pixelW, pixelH, showLayer2, showGridLines);
+
+                if (markCenter)
+                {
+                    double cx = (centerCol - originCol) * HEX_HORIZONTAL_SPACING * zoom + HEX_WIDTH * zoom / 2;
+                    double cy = (centerRow - originRow) * HEX_VERTICAL_SPACING * zoom
+                                + (((centerCol % 2) == 1) ? 0 : 0) + HEX_HEIGHT * zoom / 2;
+
+                    using var paint = new SKPaint
+                    {
+                        Color = SKColors.Red,
+                        StrokeWidth = 2,
+                        IsAntialias = true,
+                        Style = SKPaintStyle.Stroke,
+                    };
+                    canvas.DrawCircle((float)cx, (float)cy, (float)(HEX_VERTICAL_SPACING * zoom * 0.45), paint);
+                    canvas.DrawLine((float)(cx - 10), (float)cy, (float)(cx + 10), (float)cy, paint);
+                    canvas.DrawLine((float)cx, (float)(cy - 10), (float)cx, (float)(cy + 10), paint);
+                }
+            }
+
+            _screenshotRender.Dispose();
+            _screenshotRender = null;
+
+            var directory = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                Directory.CreateDirectory(directory);
+
+            using (var image = SKImage.FromBitmap(bitmap))
+            using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
+            using (var stream = File.OpenWrite(outputPath))
+            {
+                data.SaveTo(stream);
+            }
+
+            Debug.WriteLine($"[ScreenshotHelper] 区域截图完成: {outputPath} {pixelW}x{pixelH}");
+            return new ScreenshotCaptureInfo(true, pixelW, pixelH, originCol, originRow, w, h, zoom);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine("[ScreenshotHelper] 区域截图失败: " + ex.Message);
+            _screenshotRender?.Dispose();
+            _screenshotRender = null;
+            return new ScreenshotCaptureInfo(false, 0, 0, 0, 0, 0, 0, 1);
+        }
+    }
+
+    public static string GenerateDefaultFileName() => "MapScreenshot_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".png";
+
+    public void Dispose()
+    {
+        _screenshotRender?.Dispose();
+        _screenshotRender = null;
+    }
+}

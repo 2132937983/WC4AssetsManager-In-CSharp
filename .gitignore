@@ -1,0 +1,15 @@
+**/bin/
+**/obj/
+**/WC4DATA
+**/Lib/*.exe
+publish/
+source/
+dist_small/
+dist/
+Cache/
+build/
+.codeartsdoer/
+Resource/
+!Resource/Texture/
+!Resource/Config/
+!Resource/Memory/
