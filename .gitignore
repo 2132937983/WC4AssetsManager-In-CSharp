@@ -1,15 +1,43 @@
+# ==================== 构建产物 ====================
 **/bin/
 **/obj/
-**/WC4DATA
-**/Lib/*.exe
 publish/
-source/
-dist_small/
-dist/
-Cache/
 build/
+dist/
+dist_small/
+source/
+Cache/
+TestResults/
+
+# ==================== IDE / 用户级文件 ====================
+.vs/
+.idea/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.sln.docstates
+
+# ==================== 运行期产物 ====================
+# 程序崩溃日志写在 <输出目录>/Logs
+Logs/
+*.log
+
+# ==================== Python ====================
+__pycache__/
+*.py[cod]
+
+# ==================== 外部工具 ====================
 .codeartsdoer/
-Resource/
+.kilo/
+
+# ==================== 游戏资源 ====================
+# Resource 下绝大多数素材不进仓库，只放开下列子目录。
+Resource/*
 !Resource/Texture/
 !Resource/Config/
 !Resource/Memory/
+
+# 大块数据与外部工具可执行文件，任何层级都排除
+**/WC4DATA
+**/Lib/*.exe

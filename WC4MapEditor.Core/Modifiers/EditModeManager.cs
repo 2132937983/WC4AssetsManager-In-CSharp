@@ -1100,6 +1100,7 @@ public sealed class EditModeManager
     {
         _modeContext = new ModeContext
         {
+            Owner = this,
             MapData = _mapData,
             UndoManager = _undoManager,
             RaiseStatusMessage = RaiseStatusMessage,

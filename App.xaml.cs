@@ -3,8 +3,10 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
+using Microsoft.Extensions.DependencyInjection;
 using WC4MapEditor.Core.Assets;
 using WC4MapEditor.Core.Commands;
+using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.ErrorHandling;
 // 与 WPF 的 System.Windows.Input.CommandManager 同名，使用别名消除歧义
 using CoreCommandManager = WC4MapEditor.Core.Commands.CommandManager;
@@ -15,8 +17,10 @@ using WC4MapEditor.Core.Parsers.General;
 using WC4MapEditor.Core.Selection;
 using WC4MapEditor.Core.Services;
 using WC4MapEditor.Rendering.Helpers;
-using WC4MapEditor.ViewModels;
-using WC4MapEditor.Views;
+using WC4MapEditor.Rendering.Skia;
+// 界面代码全部位于 WC4MapEditor.GUI 程序集，根项目只做组合根
+using WC4MapEditor.GUI.ViewModels;
+using WC4MapEditor.GUI.Views;
 
 namespace WC4MapEditor;
 

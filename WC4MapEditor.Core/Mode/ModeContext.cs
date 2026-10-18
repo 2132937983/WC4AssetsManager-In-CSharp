@@ -10,6 +10,16 @@ public sealed class ModeContext
 {
     public MapData? MapData { get; init; }
     public UndoManager? UndoManager { get; init; }
+
+    /// <summary>
+    /// 创建本上下文的编辑模式管理器。
+    /// <para>
+    /// 各模式内部的撤销记录必须回调它，而不是走 <see cref="EditModeManager.Instance"/>：
+    /// 单例只是过渡期的默认入口，换成别的实例（DI 新实例 / 单元测试）时，
+    /// 走单例会静默记录到错误的对象上。
+    /// </para>
+    /// </summary>
+    public required EditModeManager Owner { get; init; }
     public Action<string>? RaiseStatusMessage { get; init; }
     public Action? NotifyDataModified { get; init; }
     public Action? NotifyBrushToggled { get; init; }
@@ -91,22 +101,22 @@ public sealed class ModeContext
 
     public T? GetModifier<T>() where T : class, IModifier
     {
-        return EditModeManager.Instance.GetModifier<T>();
+        return Owner.GetModifier<T>();
     }
 
     public void RecordMultiCellChange(string description, Action applyChange)
     {
-        EditModeManager.Instance.RecordMultiCellChange(description, applyChange);
+        Owner.RecordMultiCellChange(description, applyChange);
     }
 
     public void RecordMultiCellProvinceChange(string description, Action applyChange)
     {
-        EditModeManager.Instance.RecordMultiCellProvinceChange(description, applyChange);
+        Owner.RecordMultiCellProvinceChange(description, applyChange);
     }
 
     public void RecordProvinceChange(int col, int row, string description, Action applyChange)
     {
-        EditModeManager.Instance.RecordProvinceChange(col, row, description, applyChange);
+        Owner.RecordProvinceChange(col, row, description, applyChange);
     }
 
     /// <summary>
@@ -114,7 +124,7 @@ public sealed class ModeContext
     /// </summary>
     public void RecordBelongChange(int col, int row, string description, Action applyChange)
     {
-        EditModeManager.Instance.RecordBelongChange(col, row, description, applyChange);
+        Owner.RecordBelongChange(col, row, description, applyChange);
     }
 
     /// <summary>
@@ -122,12 +132,12 @@ public sealed class ModeContext
     /// </summary>
     public void RecordMultiCellBelongChange(string description, Action applyChange)
     {
-        EditModeManager.Instance.RecordMultiCellBelongChange(description, applyChange);
+        Owner.RecordMultiCellBelongChange(description, applyChange);
     }
 
     public void RecordEntityChange(string description, Action execute, Action undo)
     {
-        EditModeManager.Instance.RecordEntityChange(description, execute, undo);
+        Owner.RecordEntityChange(description, execute, undo);
     }
 
     /// <summary>
@@ -136,7 +146,7 @@ public sealed class ModeContext
     /// </summary>
     public void RecordBuildingsSnapshot(string description, Action applyChange)
     {
-        EditModeManager.Instance.RecordBuildingsSnapshot(description, applyChange);
+        Owner.RecordBuildingsSnapshot(description, applyChange);
     }
 
     /// <summary>

@@ -12,6 +12,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WC4MapEditor.Core\WC4MapEditor.Core.csproj" />
+    <!-- AiBridge / AiToolRegistry 直接使用 WC4MapEditor.Scripting 的 ScriptResult -->
+    <ProjectReference Include="..\WC4MapEditor.Scripting\WC4MapEditor.Scripting.csproj" />
   </ItemGroup>
 
 </Project>

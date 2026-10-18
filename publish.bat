@@ -26,6 +26,8 @@ if exist "WC4MapEditor.Core\bin" rmdir /s /q "WC4MapEditor.Core\bin"
 if exist "WC4MapEditor.Core\obj" rmdir /s /q "WC4MapEditor.Core\obj"
 if exist "WC4MapEditor.Rendering\bin" rmdir /s /q "WC4MapEditor.Rendering\bin"
 if exist "WC4MapEditor.Rendering\obj" rmdir /s /q "WC4MapEditor.Rendering\obj"
+if exist "WC4MapEditor.GUI\bin" rmdir /s /q "WC4MapEditor.GUI\bin"
+if exist "WC4MapEditor.GUI\obj" rmdir /s /q "WC4MapEditor.GUI\obj"
 
 echo [2/4] 还原依赖...
 dotnet restore "%PROJECT%"

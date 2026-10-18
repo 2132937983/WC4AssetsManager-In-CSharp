@@ -1,0 +1,162 @@
+[
+    {
+        "id": 1,
+        "max_formation": 4
+    },
+    {
+        "id": 2,
+        "max_formation": 4
+    },
+    {
+        "id": 3,
+        "max_formation": 4
+    },
+    {
+        "id": 4,
+        "max_formation": 4
+    },
+    {
+        "id": 5,
+        "max_formation": 1
+    },
+    {
+        "id": 6,
+        "max_formation": 3
+    },
+    {
+        "id": 7,
+        "max_formation": 3
+    },
+    {
+        "id": 8,
+        "max_formation": 3
+    },
+    {
+        "id": 9,
+        "max_formation": 3
+    },
+    {
+        "id": 10,
+        "max_formation": 1
+    },
+    {
+        "id": 11,
+        "max_formation": 3
+    },
+    {
+        "id": 12,
+        "max_formation": 3
+    },
+    {
+        "id": 13,
+        "max_formation": 3
+    },
+    {
+        "id": 14,
+        "max_formation": 1
+    },
+    {
+        "id": 15,
+        "max_formation": 3
+    },
+    {
+        "id": 16,
+        "max_formation": 2
+    },
+    {
+        "id": 17,
+        "max_formation": 2
+    },
+    {
+        "id": 18,
+        "max_formation": 1
+    },
+    {
+        "id": 19,
+        "max_formation": 1
+    },
+   {
+        "id": 20,
+        "max_formation": 0
+   },
+   {
+        "id": 21,
+        "max_formation": 0
+   },
+   {
+        "id": 22,
+        "max_formation": 0
+   },
+   {
+        "id": 23,
+        "max_formation": 0
+   },
+   {
+        "id": 24,
+        "max_formation": 0
+   },
+   {
+        "id": 25,
+        "max_formation": 0
+   },
+   {
+        "id": 26,
+        "max_formation": 0
+   },
+   {
+        "id": 27,
+        "max_formation": 0
+   },
+   {
+        "id": 28,
+        "max_formation": 0
+   },
+   {
+        "id": 29,
+        "max_formation": 0
+   },
+   {
+        "id": 30,
+        "max_formation": 0
+   },
+   {
+        "id": 31,
+        "max_formation": 0
+   },
+   {
+        "id": 32,
+        "max_formation": 0
+   },
+   {
+        "id": 33,
+        "max_formation": 0
+   },
+   {
+        "id": 34,
+        "max_formation": 0
+   },
+   {
+        "id": 35,
+        "max_formation": 0
+   },
+   {
+        "id": 36,
+        "max_formation": 0
+   },
+   {
+        "id": 37,
+        "max_formation": 0
+   },
+   {
+        "id": 38,
+        "max_formation": 0
+   },
+   {
+        "id": 39,
+        "max_formation": 0
+   },
+   {
+        "id": 40,
+        "max_formation": 0
+   }
+]

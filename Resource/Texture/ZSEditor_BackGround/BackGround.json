@@ -1,0 +1,39 @@
+{
+  "backgrounds": [
+    {
+      "filename": "pic1.jpg",
+      "duration": 5000,
+      "transition": "fade"
+    },
+    {
+      "filename": "pic2.jpg",
+      "duration": 5000,
+      "transition": "fade"
+    },
+    {
+      "filename": "pic3.jpg",
+      "duration": 5000,
+      "transition": "fade"
+    },
+    {
+      "filename": "pic4.jpg",
+      "duration": 5000,
+      "transition": "fade"
+    },
+    {
+      "filename": "pic5.jpg",
+      "duration": 5000,
+      "transition": "fade"
+    },
+    {
+      "filename": "pic6.jpg",
+      "duration": 5000,
+      "transition": "fade"
+    }
+  ],
+  "settings": {
+    "random": false,
+    "loop": true,
+    "transitionDuration": 500
+  }
+}

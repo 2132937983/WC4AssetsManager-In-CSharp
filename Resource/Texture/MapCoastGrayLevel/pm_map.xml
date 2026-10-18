@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<TextureAtlas>
+<!-- x: 减小 向左  y: -->
+	<sprite n="grid_border1.png" refx="-10" refy="-10"/>
+	<sprite n="grid_border2.png" refx="40" refy="-10"/>
+	<sprite n="grid_border3.png" refx="100" refy="0"/>
+	<sprite n="grid_border4.png" refx="-15" refy="-65"/>
+	<sprite n="grid_border5.png" refx="0" refy="0"/>
+	<sprite n="grid_border6.png" refx="0" refy="0"/>
+	
+	
+	
+	<sprite n="border_1.png" refx="0" refy="0"/>
+	<sprite n="border_10.png" refx="0" refy="0"/>
+	<sprite n="border_11.png" refx="0" refy="0"/>
+	<sprite n="border_12.png" refx="0" refy="0"/>
+	<sprite n="border_13.png" refx="0" refy="0"/>
+	<sprite n="border_14.png" refx="0" refy="0"/>
+	<sprite n="border_15.png" refx="0" refy="0"/>
+	<sprite n="border_16.png" refx="0" refy="0"/>
+	<sprite n="border_17.png" refx="0" refy="0"/>
+	<sprite n="border_18.png" refx="0" refy="0"/>
+	<sprite n="border_19.png" refx="0" refy="0"/>
+	<sprite n="border_2.png" refx="0" refy="0"/>
+	<sprite n="border_20.png" refx="0" refy="0"/>
+	<sprite n="border_21.png" refx="0" refy="0"/>
+	<sprite n="border_22.png" refx="0" refy="0"/>
+	<sprite n="border_23.png" refx="0" refy="0"/>
+	<sprite n="border_24.png" refx="0" refy="0"/>
+	<sprite n="border_25.png" refx="0" refy="0"/>
+	<sprite n="border_26.png" refx="0" refy="0"/>
+	<sprite n="border_27.png" refx="0" refy="0"/>
+	<sprite n="border_28.png" refx="0" refy="0"/>
+	<sprite n="border_29.png" refx="0" refy="0"/>
+	<sprite n="border_3.png" refx="0" refy="0"/>
+	<sprite n="border_30.png" refx="0" refy="0"/>
+	<sprite n="border_31.png" refx="0" refy="0"/>
+	<sprite n="border_32.png" refx="0" refy="0"/>
+	<sprite n="border_33.png" refx="0" refy="0"/>
+	<sprite n="border_34.png" refx="0" refy="0"/>
+	<sprite n="border_35.png" refx="0" refy="0"/>
+	<sprite n="border_36.png" refx="0" refy="0"/>
+	<sprite n="border_37.png" refx="0" refy="0"/>
+	<sprite n="border_38.png" refx="0" refy="0"/>
+	<sprite n="border_39.png" refx="0" refy="0"/>
+	<sprite n="border_4.png" refx="0" refy="0"/>
+	<sprite n="border_40.png" refx="0" refy="0"/>
+	<sprite n="border_41.png" refx="0" refy="0"/>
+	<sprite n="border_42.png" refx="0" refy="0"/>
+	<sprite n="border_43.png" refx="0" refy="0"/>
+	<sprite n="border_44.png" refx="0" refy="0"/>
+	<sprite n="border_45.png" refx="0" refy="0"/>
+	<sprite n="border_46.png" refx="0" refy="0"/>
+	<sprite n="border_47.png" refx="0" refy="0"/>
+	<sprite n="border_48.png" refx="0" refy="0"/>
+	<sprite n="border_49.png" refx="0" refy="0"/>
+	<sprite n="border_5.png" refx="0" refy="0"/>
+	<sprite n="border_50.png" refx="0" refy="0"/>
+	<sprite n="border_51.png" refx="0" refy="0"/>
+	<sprite n="border_52.png" refx="0" refy="0"/>
+	<sprite n="border_53.png" refx="0" refy="0"/>
+	<sprite n="border_54.png" refx="0" refy="0"/>
+	<sprite n="border_55.png" refx="0" refy="0"/>
+	<sprite n="border_56.png" refx="0" refy="0"/>
+	<sprite n="border_57.png" refx="0" refy="0"/>
+	<sprite n="border_58.png" refx="0" refy="0"/>
+	<sprite n="border_59.png" refx="0" refy="0"/>
+	<sprite n="border_6.png" refx="0" refy="0"/>
+	<sprite n="border_60.png" refx="0" refy="0"/>
+	<sprite n="border_61.png" refx="0" refy="0"/>
+	<sprite n="border_62.png" refx="0" refy="0"/>
+	<sprite n="border_63.png" refx="0" refy="0"/>
+	<sprite n="border_7.png" refx="0" refy="0"/>
+	<sprite n="border_8.png" refx="0" refy="0"/>
+	<sprite n="border_9.png" refx="0" refy="0"/>
+	
+</TextureAtlas>
