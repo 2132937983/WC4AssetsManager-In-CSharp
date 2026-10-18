@@ -1,19 +1,13 @@
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
 using WC4MapEditor.Core.Services;
-using WC4MapEditor.Core.Models;
 
 namespace WC4MapEditor.GUI.Views.Assist;
 
+/// <summary>
+/// 格子信息浮窗：置顶、不抢焦点，跟着鼠标下的格子刷新内容；标题栏可拖动。
+/// 外观走 <see cref="EditorTheme"/>，分区标题 / 字段名 / 等宽 hex 都用主题里的样式。
+/// </summary>
 public sealed class HexInfoWindow : Window
 {
-    private readonly SolidColorBrush _textBrush;
-    private readonly SolidColorBrush _borderBrush;
-    private readonly Color _themeColor;
-
     private Border _mainBorder = null!;
     private StackPanel _contentStack = null!;
     private ScrollViewer _scrollViewer = null!;
@@ -27,26 +21,20 @@ public sealed class HexInfoWindow : Window
 
     public HexInfoWindow()
     {
-        _themeColor = Color.FromRgb(0x2D, 0x2D, 0x30);
-
-        double brightness = (_themeColor.R * 0.299 + _themeColor.G * 0.587 + _themeColor.B * 0.114) / 255;
-        _textBrush = brightness > 0.5 ? Brushes.Black : Brushes.White;
-        _borderBrush = new SolidColorBrush(brightness > 0.5
-            ? Color.FromArgb(100, 0, 0, 0)
-            : Color.FromArgb(100, 255, 255, 255));
-
+        EditorTheme.Apply(this);
         InitializeWindow();
     }
 
     private void InitializeWindow()
     {
-        Title = "格子信息";
+        Title = Loc.T("Assist.HexInfo.Title");
         Width = WindowWidth;
         Height = 500;
         WindowStartupLocation = WindowStartupLocation.Manual;
         WindowStyle = WindowStyle.None;
+        // 淡入淡出靠 Opacity 动画，无边框窗口只有开了 AllowsTransparency 时 Opacity 才生效
         AllowsTransparency = true;
-        Background = Brushes.Transparent;
+        Background = EditorTheme.Bg1;
         ResizeMode = ResizeMode.NoResize;
         Opacity = 0;
         ShowInTaskbar = false;
@@ -98,7 +86,7 @@ public sealed class HexInfoWindow : Window
         // 兜底：同一个属性上再起动画时，旧动画会被替换，它的 Completed **不会**触发，
         // 窗口就会永远留在屏幕上；而调用方这时已经把引用置 null 了 —— 结果再也关不掉。
         // 所以淡出开始后无条件再补一次关闭（CloseOnce 保证只关一次）。
-        var fallback = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+        var fallback = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromMilliseconds(400)
         };
@@ -112,61 +100,52 @@ public sealed class HexInfoWindow : Window
 
     private FrameworkElement CreateWindowContent()
     {
-        var outerGrid = new Grid();
+        var mainGrid = new Grid();
+        mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        _mainBorder = new Border
-        {
-            Width = WindowWidth - 20,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Top,
-            Background = new SolidColorBrush(Color.FromArgb(230, _themeColor.R, _themeColor.G, _themeColor.B)),
-            CornerRadius = new CornerRadius(10),
-            BorderBrush = _borderBrush,
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(10)
-        };
-
-        var mainStack = new StackPanel();
+        var dragHint = EditorTheme.Muted(Loc.T("Assist.HexInfo.DragHint"));
+        dragHint.HorizontalAlignment = HorizontalAlignment.Center;
+        dragHint.VerticalAlignment = VerticalAlignment.Center;
 
         var titleBar = new Border
         {
             Height = 30,
-            Background = new SolidColorBrush(Color.FromArgb(50, 0, 0, 0)),
-            CornerRadius = new CornerRadius(10, 10, 0, 0),
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.Border,
+            BorderThickness = new Thickness(0, 0, 0, 1),
             Cursor = Cursors.Hand,
-            Child = new TextBlock
-            {
-                Text = "格子信息 (按住拖动)",
-                FontSize = 12,
-                Foreground = new SolidColorBrush(Color.FromArgb(150,
-                    _textBrush.Color.R, _textBrush.Color.G, _textBrush.Color.B)),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            }
+            Child = dragHint
         };
 
         titleBar.MouseLeftButtonDown += TitleBar_MouseLeftButtonDown;
         titleBar.MouseLeftButtonUp += TitleBar_MouseLeftButtonUp;
         titleBar.MouseMove += TitleBar_MouseMove;
 
-        mainStack.Children.Add(titleBar);
+        Grid.SetRow(titleBar, 0);
+        mainGrid.Children.Add(titleBar);
 
         _scrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Background = Brushes.Transparent,
-            MaxHeight = 450
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
 
         _contentStack = new StackPanel { Margin = new Thickness(15) };
 
         _scrollViewer.Content = _contentStack;
-        mainStack.Children.Add(_scrollViewer);
-        _mainBorder.Child = mainStack;
-        outerGrid.Children.Add(_mainBorder);
+        Grid.SetRow(_scrollViewer, 1);
+        mainGrid.Children.Add(_scrollViewer);
 
-        return outerGrid;
+        // 无边框窗口描一圈边，浮在地图上时才看得出边界
+        _mainBorder = new Border
+        {
+            BorderBrush = EditorTheme.BorderStrong,
+            BorderThickness = new Thickness(1),
+            Child = mainGrid
+        };
+
+        return _mainBorder;
     }
 
     public void SetDisplayMode(HexInfoDisplayMode mode)
@@ -182,7 +161,7 @@ public sealed class HexInfoWindow : Window
         _currentCol = col;
         _currentRow = row;
         _currentMode = mode;
-        Title = $"格子信息 ({col}, {row})";
+        Title = Loc.F("Assist.HexInfo.TitleWithCoord", col, row);
 
         var info = HexInfoService.Instance.GetHexCellInfo(col, row, mode);
         if (info == null)
@@ -198,15 +177,8 @@ public sealed class HexInfoWindow : Window
     {
         _contentStack.Children.Clear();
 
-        var titleText = new TextBlock
-        {
-            Text = info.GetModeTitle(),
-            FontSize = 18,
-            FontWeight = FontWeights.Bold,
-            Foreground = _textBrush,
-            Margin = new Thickness(0, 0, 0, 15)
-        };
-        _contentStack.Children.Add(titleText);
+        // 模式标题与分区文字由 Core 的 HexCellInfo 给出
+        AddTitle(info.GetModeTitle());
 
         var sections = info.GetSectionsForMode();
         for (int i = 0; i < sections.Count; i++)
@@ -228,22 +200,29 @@ public sealed class HexInfoWindow : Window
             if (section.RawData != null && section.RawData.Length > 0)
             {
                 AddSeparator();
-                AddSectionHeader("16进制数据");
+                AddSectionHeader(Loc.T("Assist.HexInfo.HexData"));
                 AddHexDumpText(HexCellInfo.FormatHexDump(section.RawData));
             }
         }
     }
 
+    private void AddTitle(string text)
+    {
+        var titleText = new TextBlock
+        {
+            Text = text,
+            FontSize = 18,
+            FontWeight = FontWeights.Bold,
+            Margin = new Thickness(0, 0, 0, 15)
+        };
+        _contentStack.Children.Add(titleText);
+    }
+
     private void AddSectionHeader(string title)
     {
-        var header = new TextBlock
-        {
-            Text = title,
-            FontSize = 14,
-            FontWeight = FontWeights.Bold,
-            Foreground = _textBrush,
-            Margin = new Thickness(0, 10, 0, 5)
-        };
+        var header = EditorTheme.Section(title);
+        header.FontSize = 13;
+        header.Margin = new Thickness(0, 10, 0, 5);
         _contentStack.Children.Add(header);
     }
 
@@ -253,14 +232,7 @@ public sealed class HexInfoWindow : Window
         panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
         panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var labelText = new TextBlock
-        {
-            Text = label + ":",
-            FontSize = 12,
-            Foreground = new SolidColorBrush(Color.FromArgb(180,
-                _textBrush.Color.R, _textBrush.Color.G, _textBrush.Color.B)),
-            VerticalAlignment = VerticalAlignment.Center
-        };
+        var labelText = EditorTheme.FieldLabel(label + ":");
         Grid.SetColumn(labelText, 0);
         panel.Children.Add(labelText);
 
@@ -269,7 +241,6 @@ public sealed class HexInfoWindow : Window
             Text = value,
             FontSize = 12,
             FontWeight = FontWeights.SemiBold,
-            Foreground = _textBrush,
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap
         };
@@ -285,9 +256,8 @@ public sealed class HexInfoWindow : Window
         {
             Text = hexDump,
             FontSize = 11,
-            FontFamily = new FontFamily("Consolas"),
-            Foreground = new SolidColorBrush(Color.FromArgb(200,
-                _textBrush.Color.R, _textBrush.Color.G, _textBrush.Color.B)),
+            FontFamily = EditorTheme.MonoFontFamily,
+            Foreground = EditorTheme.TextMuted,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 5, 0, 10)
         };
@@ -299,8 +269,7 @@ public sealed class HexInfoWindow : Window
         var separator = new Border
         {
             Height = 1,
-            Background = new SolidColorBrush(Color.FromArgb(50,
-                _textBrush.Color.R, _textBrush.Color.G, _textBrush.Color.B)),
+            Background = EditorTheme.Border,
             Margin = new Thickness(0, 10, 0, 10)
         };
         _contentStack.Children.Add(separator);
@@ -312,16 +281,8 @@ public sealed class HexInfoWindow : Window
         _currentRow = -1;
 
         _contentStack.Children.Clear();
-        var titleText = new TextBlock
-        {
-            Text = "格子信息",
-            FontSize = 18,
-            FontWeight = FontWeights.Bold,
-            Foreground = _textBrush,
-            Margin = new Thickness(0, 0, 0, 15)
-        };
-        _contentStack.Children.Add(titleText);
-        AddInfoRow("坐标", "-");
+        AddTitle(Loc.T("Assist.HexInfo.Title"));
+        AddInfoRow(Loc.T("Assist.HexInfo.Coordinate"), "-");
     }
 
     #region Drag Support

@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
 using SkiaSharp;
@@ -22,7 +24,23 @@ public class StrategicConstructionRender : IDisposable
     private bool _initialized;
 
     private SKImage? _constructionIcon;
-    private readonly Dictionary<string, SKImage> _flagImageCache = new();
+    /// <summary>
+    /// 国家 Id → 国旗（源尺寸）。原先按 "{countryId}_{targetSize}" 缓存，每个缩放级别都重新缩放一张新图，
+    /// 既不淘汰也随缩放膨胀；现在每国只存一张源图，绘制时按目标矩形缩放。
+    /// Owned 标记该图是否归本类所有（来自 TacticalMapImageCache 的图块不归本类，不能 Dispose）。
+    /// 失效点：TacticalMapImageCache 就绪状态翻转时整体清空（见 GetFlagImage），以及 Dispose。
+    /// </summary>
+    private readonly Dictionary<int, (SKImage Image, bool Owned)> _flagImageCache = new();
+    private bool _flagCacheTacticalReady;
+    private const int DEFAULT_FLAG_SIZE = 32;
+
+    /// <summary>
+    /// 军团 ActionId → CountryId 的惰性映射。原先每个实体每帧线性扫描 Legions。
+    /// 失效点：订阅的 Legions.CollectionChanged（增删 / ReplaceLegion 写回）触发时置空；
+    /// 地图重载会整体替换 Legions 实例，GetLegionCountryMap 发现实例变化时换订阅并重建。
+    /// </summary>
+    private Dictionary<int, int>? _legionCountryMap;
+    private ObservableCollection<Legion>? _subscribedLegions;
 
     private readonly List<(SKPoint Position, float Size, SKImage? Image)> _constructionPositions = new();
     private readonly List<(SKPoint Position, string Text, float Size)> _codeTexts = new();
@@ -107,22 +125,26 @@ public class StrategicConstructionRender : IDisposable
         return surface.Snapshot();
     }
 
-    private SKImage GetFlagImage(int countryId, int targetSize)
+    private SKImage GetFlagImage(int countryId)
     {
-        string cacheKey = $"{countryId}_{targetSize}";
-        if (_flagImageCache.TryGetValue(cacheKey, out var cached)) return cached;
+        var tacticalCache = TacticalMapImageCache.Instance;
+        bool tacticalReady = tacticalCache.IsInitialized;
+        // 图块缓存在本缓存建立之后才就绪（或之后被清空）：旧条目要么是占位/文件图、要么已失效，整体丢弃重建。
+        if (tacticalReady != _flagCacheTacticalReady)
+        {
+            ClearFlagCache();
+            _flagCacheTacticalReady = tacticalReady;
+        }
+
+        if (_flagImageCache.TryGetValue(countryId, out var cached)) return cached.Image;
+
+        SKImage? flagImage = null;
+        bool owned = false;
 
         try
         {
-            SKImage? flagImage = null;
-
-            var tacticalCache = TacticalMapImageCache.Instance;
-            if (tacticalCache.IsInitialized)
-            {
-                var tacticalImage = tacticalCache.GetImage($"flag_{countryId}.png");
-                if (tacticalImage != null)
-                    flagImage = ResizeImage(tacticalImage, targetSize, targetSize);
-            }
+            if (tacticalReady)
+                flagImage = tacticalCache.GetImage($"flag_{countryId}.png");
 
             if (flagImage == null)
             {
@@ -134,33 +156,34 @@ public class StrategicConstructionRender : IDisposable
                 if (File.Exists(flagPath))
                 {
                     using var stream = File.OpenRead(flagPath);
-                    using var original = SKImage.FromEncodedData(stream);
-                    if (original != null)
-                        flagImage = ResizeImage(original, targetSize, targetSize);
+                    flagImage = SKImage.FromEncodedData(stream);
+                    owned = flagImage != null;
                 }
             }
-
-            flagImage ??= CreateDefaultFlagImage(targetSize);
-
-            _flagImageCache[cacheKey] = flagImage;
-            return flagImage;
         }
         catch
         {
-            return CreateDefaultFlagImage(targetSize);
+            if (owned) flagImage?.Dispose();
+            flagImage = null;
+            owned = false;
         }
+
+        if (flagImage == null)
+        {
+            // 占位图是纯色方块，任意尺寸缩放后外观一致。
+            flagImage = CreateDefaultFlagImage(DEFAULT_FLAG_SIZE);
+            owned = true;
+        }
+
+        _flagImageCache[countryId] = (flagImage, owned);
+        return flagImage;
     }
 
-    private static SKImage ResizeImage(SKImage source, int width, int height)
+    private void ClearFlagCache()
     {
-        using var surface = SKSurface.Create(new SKImageInfo(width, height));
-        var canvas = surface.Canvas;
-        canvas.Clear(SKColors.Transparent);
-        using var paint = new SKPaint { IsAntialias = true };
-        var srcRect = new SKRect(0, 0, source.Width, source.Height);
-        var dstRect = new SKRect(0, 0, width, height);
-        canvas.DrawImage(source, srcRect, dstRect, paint);
-        return surface.Snapshot();
+        foreach (var entry in _flagImageCache.Values)
+            if (entry.Owned) entry.Image.Dispose();
+        _flagImageCache.Clear();
     }
 
     private static SKImage CreateDefaultFlagImage(int size)
@@ -214,7 +237,7 @@ public class StrategicConstructionRender : IDisposable
                 }
 
                 int countryId = GetCountryIdFromLegionId(construction.LegionId);
-                var flagImage = GetFlagImage(countryId, (int)flagSize);
+                var flagImage = GetFlagImage(countryId);
                 float flagOffsetY = -(float)hexHeight * 0.4f;
                 _flagPositions.Add((new SKPoint(screenPos.Value.X, screenPos.Value.Y + flagOffsetY), flagSize, flagImage));
             }
@@ -275,10 +298,10 @@ public class StrategicConstructionRender : IDisposable
 
         foreach (var textInfo in _codeTexts)
         {
-            float fontSize = Math.Max(8, textInfo.Size);
-            using var font = new SKFont(SKTypeface.Default, fontSize);
-            canvas.DrawText(textInfo.Text, textInfo.Position.X + 1, textInfo.Position.Y + 1, SKTextAlign.Center, font, _codeShadowPaint);
-            canvas.DrawText(textInfo.Text, textInfo.Position.X, textInfo.Position.Y, SKTextAlign.Center, font, _codePaint);
+            // 复用字段字体、只改字号；原先每条文本每帧 new 一个 SKFont。
+            _codeFont.Size = Math.Max(8, textInfo.Size);
+            canvas.DrawText(textInfo.Text, textInfo.Position.X + 1, textInfo.Position.Y + 1, SKTextAlign.Center, _codeFont, _codeShadowPaint);
+            canvas.DrawText(textInfo.Text, textInfo.Position.X, textInfo.Position.Y, SKTextAlign.Center, _codeFont, _codePaint);
         }
     }
 
@@ -288,10 +311,9 @@ public class StrategicConstructionRender : IDisposable
 
         foreach (var textInfo in _roundTexts)
         {
-            float fontSize = Math.Max(8, textInfo.Size);
-            using var font = new SKFont(SKTypeface.Default, fontSize);
-            canvas.DrawText(textInfo.Text, textInfo.Position.X + 1, textInfo.Position.Y + 1, SKTextAlign.Center, font, _roundShadowPaint);
-            canvas.DrawText(textInfo.Text, textInfo.Position.X, textInfo.Position.Y, SKTextAlign.Center, font, _roundPaint);
+            _roundFont.Size = Math.Max(8, textInfo.Size);
+            canvas.DrawText(textInfo.Text, textInfo.Position.X + 1, textInfo.Position.Y + 1, SKTextAlign.Center, _roundFont, _roundShadowPaint);
+            canvas.DrawText(textInfo.Text, textInfo.Position.X, textInfo.Position.Y, SKTextAlign.Center, _roundFont, _roundPaint);
         }
     }
 
@@ -323,15 +345,39 @@ public class StrategicConstructionRender : IDisposable
 
     private int GetCountryIdFromLegionId(int legionId)
     {
-        if (_mapData?.Legions != null)
+        var map = GetLegionCountryMap();
+        return map != null && map.TryGetValue(legionId, out int countryId) ? countryId : 0;
+    }
+
+    private Dictionary<int, int>? GetLegionCountryMap()
+    {
+        var legions = _mapData?.Legions;
+        if (!ReferenceEquals(legions, _subscribedLegions))
         {
-            foreach (var legion in _mapData.Legions)
-            {
-                if (legion.ActionId == legionId)
-                    return legion.CountryId;
-            }
+            // Legions 实例被整体替换（地图重载）：旧订阅不再有效，换到新实例并丢弃映射。
+            if (_subscribedLegions != null)
+                _subscribedLegions.CollectionChanged -= OnLegionsCollectionChanged;
+            _subscribedLegions = legions;
+            if (legions != null)
+                legions.CollectionChanged += OnLegionsCollectionChanged;
+            _legionCountryMap = null;
         }
-        return 0;
+
+        if (legions == null) return null;
+
+        var map = _legionCountryMap;
+        if (map != null) return map;
+
+        map = new Dictionary<int, int>(legions.Count);
+        foreach (var legion in legions)
+            map.TryAdd(legion.ActionId, legion.CountryId); // 重复 ActionId 保留首个，与原线性查找一致
+        _legionCountryMap = map;
+        return map;
+    }
+
+    private void OnLegionsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        _legionCountryMap = null;
     }
 
     public void Dispose()
@@ -344,9 +390,13 @@ public class StrategicConstructionRender : IDisposable
             _constructionIcon?.Dispose();
             _constructionIcon = null;
 
-            foreach (var image in _flagImageCache.Values)
-                image?.Dispose();
-            _flagImageCache.Clear();
+            ClearFlagCache();
+        }
+
+        if (_subscribedLegions != null)
+        {
+            _subscribedLegions.CollectionChanged -= OnLegionsCollectionChanged;
+            _subscribedLegions = null;
         }
 
         _codeFont.Dispose();

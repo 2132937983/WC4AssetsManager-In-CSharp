@@ -39,6 +39,15 @@ public class GeneralSettingParser
     private List<GeneralSettingData> _data = new();
     public IReadOnlyList<GeneralSettingData> All => _data;
 
+    /// <summary>
+    /// Id → 将领 的惰性索引。渲染器每帧按 Id 查将领，原先的 FirstOrDefault 是对全表线性扫描。
+    /// 失效点：_data 被整体替换（LoadGeneralSettings）、增删（AddNewGeneral / DeleteGeneral）时置空，
+    /// 由 GetById 下次查询时重建；外部还可能直接改某个将领的 Id（编辑器属性面板），
+    /// 所以 GetById 命中后会核对 Id，不符时回退线性查找并丢弃索引自愈。
+    /// </summary>
+    private Dictionary<int, GeneralSettingData>? _idIndex;
+    private int _idIndexSourceCount = -1;
+
     public string ConfigPath { get; private set; }
     public string PortraitPosPath { get; private set; }
     public string GeneralPhotoDir { get; private set; }
@@ -119,6 +128,8 @@ public class GeneralSettingParser
     // ============================== GeneralSettings.json ==============================
     public void LoadGeneralSettings()
     {
+        // 下面所有分支都会替换 _data，索引一律作废。
+        _idIndex = null;
         try
         {
             if (!File.Exists(ConfigPath))
@@ -198,7 +209,33 @@ public class GeneralSettingParser
         return result;
     }
 
-    public GeneralSettingData? GetById(int id) => _data.FirstOrDefault(g => g.Id == id);
+    public GeneralSettingData? GetById(int id)
+    {
+        var index = _idIndex;
+        if (index == null || _idIndexSourceCount != _data.Count)
+            index = RebuildIdIndex();
+
+        if (index.TryGetValue(id, out var hit) && hit.Id == id)
+            return hit;
+
+        // 未命中、或命中项的 Id 已被外部改写：索引可能过期，回退到与原实现相同的线性查找。
+        // 线性查找有结果或命中项 Id 不符，都说明索引确实失效，丢弃以便下次重建。
+        var found = _data.FirstOrDefault(g => g.Id == id);
+        if (found != null || hit != null)
+            _idIndex = null;
+        return found;
+    }
+
+    private Dictionary<int, GeneralSettingData> RebuildIdIndex()
+    {
+        var index = new Dictionary<int, GeneralSettingData>(_data.Count);
+        foreach (var g in _data)
+            index.TryAdd(g.Id, g); // 重复 Id 保留首个，与 FirstOrDefault 语义一致
+        _idIndex = index;
+        _idIndexSourceCount = _data.Count;
+        return index;
+    }
+
     public GeneralSettingData? GetByEName(string ename) => _data.FirstOrDefault(g => string.Equals(g.EName, ename, StringComparison.OrdinalIgnoreCase));
 
     public int GetNextId() => _data.Count == 0 ? 1001 : _data.Max(g => g.Id) + 1;
@@ -327,6 +364,7 @@ public class GeneralSettingParser
             Medals = new List<int>()
         };
         _data.Add(g);
+        _idIndex = null;
 
         // 新增时 portraitpos = posx=-30, posy=40, scale=1.0
         var p = EnsurePortraitDefault(ename);
@@ -338,6 +376,7 @@ public class GeneralSettingParser
         var g = GetById(id);
         if (g == null) return false;
         _data.Remove(g);
+        _idIndex = null;
         if (!string.IsNullOrEmpty(g.EName)) RemovePortrait(g.EName);
         return true;
     }

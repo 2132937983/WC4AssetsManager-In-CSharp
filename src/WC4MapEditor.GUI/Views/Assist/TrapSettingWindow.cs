@@ -14,10 +14,6 @@ namespace WC4MapEditor.GUI.Views.Assist;
 /// </summary>
 public sealed class TrapSettingWindow : Window
 {
-    private readonly SolidColorBrush _textBrush = Brushes.White;
-    private readonly Color _themeColor = Color.FromRgb(0x2D, 0x2D, 0x30);
-    private readonly Color _buttonColor = Color.FromRgb(70, 130, 180);
-
     private readonly TextBox _organizationBox;
     private readonly TextBox _legionBox;
     private readonly TextBox _healthBox;
@@ -34,7 +30,8 @@ public sealed class TrapSettingWindow : Window
 
     public TrapSettingWindow(Trap trap, bool isNew = false)
     {
-        string titleText = isNew ? "创建陷阱" : "编辑陷阱";
+        EditorTheme.Apply(this);
+        string titleText = isNew ? Loc.T("Assist.Trap.TitleNew") : Loc.T("Assist.Trap.TitleEdit");
 
         Title = titleText;
         Width = 360;
@@ -42,11 +39,10 @@ public sealed class TrapSettingWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
+        // 无边框圆角卡片 + 投影需要窗口本身透明；主题底色放在内部卡片 Border 上
         Background = Brushes.Transparent;
         ResizeMode = ResizeMode.NoResize;
         Opacity = 0;
-        FontFamily = new FontFamily("Microsoft YaHei");
-        FontSize = 14;
 
         _resultTrap = trap;
         _organizationBox = CreateNumberBox(trap.Organization.ToString());
@@ -76,18 +72,18 @@ public sealed class TrapSettingWindow : Window
     {
         var outerBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(230, _themeColor.R, _themeColor.G, _themeColor.B)),
-            CornerRadius = new CornerRadius(12),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(100, 100, 100, 100)),
+            Background = EditorTheme.Bg2,
+            CornerRadius = new CornerRadius(8),
+            BorderBrush = EditorTheme.Border,
             BorderThickness = new Thickness(1),
             Margin = new Thickness(10),
             Effect = new DropShadowEffect
             {
-                Color = Colors.Black,
+                Color = EditorTheme.ColorOf(EditorTheme.Bg0),
                 Direction = 270,
-                ShadowDepth = 8,
+                ShadowDepth = 6,
                 BlurRadius = 20,
-                Opacity = 0.4
+                Opacity = 0.6
             }
         };
 
@@ -103,9 +99,9 @@ public sealed class TrapSettingWindow : Window
             Orientation = Orientation.Vertical,
             VerticalAlignment = VerticalAlignment.Center
         };
-        inputPanel.Children.Add(CreateInputRow("编制", _organizationBox, "1-255，决定陷阱图标数量"));
-        inputPanel.Children.Add(CreateInputRow("所属军团", _legionBox, "0-255，决定陷阱显示的国旗"));
-        inputPanel.Children.Add(CreateInputRow("血量", _healthBox, "0-255"));
+        inputPanel.Children.Add(CreateInputRow(Loc.T("Assist.Trap.Organization"), _organizationBox, Loc.T("Assist.Trap.OrganizationHint")));
+        inputPanel.Children.Add(CreateInputRow(Loc.T("Assist.Trap.Legion"), _legionBox, Loc.T("Assist.Trap.LegionHint")));
+        inputPanel.Children.Add(CreateInputRow(Loc.T("Assist.Trap.Health"), _healthBox, Loc.T("Assist.Trap.HealthHint")));
 
         Grid.SetRow(inputPanel, 1);
         mainGrid.Children.Add(inputPanel);
@@ -117,12 +113,14 @@ public sealed class TrapSettingWindow : Window
             Margin = new Thickness(0, 8, 0, 0)
         };
 
-        var cancelButton = CreateStyledButton("取消", new SolidColorBrush(Color.FromRgb(80, 80, 80)));
-        cancelButton.Click += (_, _) => CancelAndClose();
+        var cancelButton = EditorTheme.Button(Loc.T("Common.Cancel"), (_, _) => CancelAndClose());
+        cancelButton.Width = 120;
+        cancelButton.Margin = new Thickness(6, 3, 6, 3);
         buttonPanel.Children.Add(cancelButton);
 
-        var doneButton = CreateStyledButton("完成", new SolidColorBrush(_buttonColor));
-        doneButton.Click += (_, _) => ConfirmAndClose();
+        var doneButton = EditorTheme.PrimaryButton(Loc.T("Assist.Common.Done"), (_, _) => ConfirmAndClose());
+        doneButton.Width = 120;
+        doneButton.Margin = new Thickness(6, 3, 6, 3);
         buttonPanel.Children.Add(doneButton);
 
         Grid.SetRow(buttonPanel, 2);
@@ -138,35 +136,18 @@ public sealed class TrapSettingWindow : Window
         titleBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         titleBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
 
-        var titleLabel = new Label
-        {
-            Content = titleText,
-            FontSize = 18,
-            FontWeight = FontWeights.Bold,
-            Foreground = _textBrush,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Center
-        };
+        var titleLabel = EditorTheme.Title(titleText);
+        titleLabel.HorizontalAlignment = HorizontalAlignment.Left;
         Grid.SetColumn(titleLabel, 0);
         titleBar.Children.Add(titleLabel);
 
-        var closeButton = new Button
-        {
-            Content = "×",
-            Width = 32,
-            Height = 32,
-            FontSize = 18,
-            FontWeight = FontWeights.Bold,
-            Background = Brushes.Transparent,
-            Foreground = _textBrush,
-            BorderThickness = new Thickness(0),
-            Cursor = Cursors.Hand,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        closeButton.Click += (_, _) => CancelAndClose();
-        closeButton.MouseEnter += (_, _) => closeButton.Background = new SolidColorBrush(Colors.Red);
-        closeButton.MouseLeave += (_, _) => closeButton.Background = Brushes.Transparent;
+        var closeButton = EditorTheme.GhostButton("✕", (_, _) => CancelAndClose());
+        closeButton.Width = 28;
+        closeButton.Height = 28;
+        closeButton.Padding = new Thickness(0);
+        closeButton.ToolTip = Loc.T("Assist.Common.CloseEsc");
+        closeButton.HorizontalAlignment = HorizontalAlignment.Right;
+        closeButton.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(closeButton, 1);
         titleBar.Children.Add(closeButton);
 
@@ -186,61 +167,23 @@ public sealed class TrapSettingWindow : Window
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var labelBlock = new TextBlock
-        {
-            Text = label,
-            Foreground = _textBrush,
-            VerticalAlignment = VerticalAlignment.Center
-        };
+        var labelBlock = EditorTheme.FieldLabel(label);
         Grid.SetColumn(labelBlock, 0);
         row.Children.Add(labelBlock);
 
         var stack = new StackPanel { Orientation = Orientation.Vertical };
         stack.Children.Add(box);
-        stack.Children.Add(new TextBlock
-        {
-            Text = hint,
-            FontSize = 11,
-            Foreground = new SolidColorBrush(Color.FromRgb(150, 150, 150)),
-            Margin = new Thickness(0, 2, 0, 0)
-        });
+        var hintBlock = EditorTheme.Muted(hint);
+        hintBlock.FontSize = 11;
+        hintBlock.Margin = new Thickness(0, 2, 0, 0);
+        stack.Children.Add(hintBlock);
 
         Grid.SetColumn(stack, 1);
         row.Children.Add(stack);
         return row;
     }
 
-    private static TextBox CreateNumberBox(string value) => new()
-    {
-        Text = value,
-        Height = 30,
-        VerticalContentAlignment = VerticalAlignment.Center,
-        Background = new SolidColorBrush(Color.FromRgb(45, 45, 48)),
-        Foreground = Brushes.White,
-        BorderBrush = new SolidColorBrush(Color.FromRgb(90, 90, 90)),
-        BorderThickness = new Thickness(1),
-        Padding = new Thickness(6, 0, 0, 0),
-        FontSize = 14
-    };
-
-    private static Button CreateStyledButton(string text, Brush background)
-    {
-        var btn = new Button
-        {
-            Content = text,
-            Width = 120,
-            Height = 36,
-            Margin = new Thickness(6, 3, 6, 3),
-            Background = background,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontSize = 14,
-            Cursor = Cursors.Hand
-        };
-        btn.MouseEnter += (_, _) => btn.Opacity = 0.8;
-        btn.MouseLeave += (_, _) => btn.Opacity = 1.0;
-        return btn;
-    }
+    private static TextBox CreateNumberBox(string value) => new() { Text = value };
 
     private void ConfirmAndClose()
     {

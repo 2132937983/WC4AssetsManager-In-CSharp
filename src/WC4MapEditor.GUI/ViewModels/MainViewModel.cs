@@ -14,7 +14,7 @@ public partial class MainViewModel : ObservableObject
     private string _positionText = "(0, 0)";
 
     [ObservableProperty]
-    private string _sceneStatusText = "准备就绪";
+    private string _sceneStatusText = Loc.T("Main.ReadyStatus");
 
     public MainViewModel()
     {

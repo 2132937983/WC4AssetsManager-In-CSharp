@@ -32,7 +32,11 @@ public enum ModifierKind
     Trap = 6,
     Reinforcement = 7,
     /// <summary>首都编辑模块 - 独立模块，由需要它的编辑模式通过 ModifierKinds 引入</summary>
-    Capital = 8
+    Capital = 8,
+    /// <summary>v3 格式（BtlVersion ≥ 3）的单位修改器：与 Army 并存，由模式按版本选用</summary>
+    ArmyV3 = 9,
+    /// <summary>v3 格式的援军修改器</summary>
+    ReinforcementV3 = 10
 }
 
 public sealed class EditModeChangedEventArgs : EventArgs
@@ -143,6 +147,10 @@ public sealed class EditModeManager
         RegisterModifier(ModifierKind.Trap, new TrapModifier());
         RegisterModifier(ModifierKind.Reinforcement, new ReinforcementModifier());
         RegisterModifier(ModifierKind.Capital, new CapitalModifier());
+        // v3 修改器以前从未注册：模式里 GetModifier<ArmyV3Modifier>() 一直拿到 null，
+        // v3 地图上放单位 / 援军直接空引用。注册后与 v1 实例一样随 Initialize 一起就绪。
+        RegisterModifier(ModifierKind.ArmyV3, new ArmyV3Modifier());
+        RegisterModifier(ModifierKind.ReinforcementV3, new ReinforcementV3Modifier());
 
         RegisterModeHandler(new TerrainPaintMode());
         RegisterModeHandler(new BelongEditMode());

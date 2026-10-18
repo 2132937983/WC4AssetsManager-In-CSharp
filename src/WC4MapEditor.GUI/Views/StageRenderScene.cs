@@ -15,7 +15,7 @@ public class StageRenderScene : RenderSceneBase
         _isNew = isNew;
     }
 
-    protected override string SceneTitle => "战役地图";
+    protected override string SceneTitle => Loc.T("Render.SceneTitle.Stage");
     protected override string SceneType => "stage";
 
     protected override MapData? LoadMapData()
@@ -28,8 +28,8 @@ public class StageRenderScene : RenderSceneBase
         {
             var dlg = new OpenFileDialog
             {
-                Filter = "战役文件 (*.btl)|*.btl|所有文件 (*.*)|*.*",
-                Title = "打开战役地图文件"
+                Filter = $"{Loc.T("Render.File.StageFilter")} (*.btl)|*.btl|{Loc.T("Common.AllFiles")} (*.*)|*.*",
+                Title = Loc.T("Render.File.OpenStageTitle")
             };
             if (dlg.ShowDialog() != true) return null;
             path = dlg.FileName;

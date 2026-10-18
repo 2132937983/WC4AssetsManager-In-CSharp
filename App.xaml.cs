@@ -28,12 +28,21 @@ public partial class App : Application
 {
     public static IServiceProvider Services { get; private set; } = null!;
 
+
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool AllocConsole();
 
     protected override void OnStartup(StartupEventArgs e)
     {
         AllocConsole();
+        // 命令行 --scene <name>：启动后直接进入某个编辑场景（调试时省去每次点导航）
+        // --screenshot <png路径>：进入场景后把整个界面渲染成图并退出（无需窗口在前台，用于自动化检查界面）
+        for (int i = 0; i < e.Args.Length - 1; i++)
+        {
+            if (string.Equals(e.Args[i], "--scene", StringComparison.OrdinalIgnoreCase)) WC4MapEditor.GUI.Views.MainWindow.StartupScene = e.Args[i + 1];
+            else if (string.Equals(e.Args[i], "--screenshot", StringComparison.OrdinalIgnoreCase)) WC4MapEditor.GUI.Views.MainWindow.StartupScreenshot = e.Args[i + 1];
+            else if (string.Equals(e.Args[i], "--open", StringComparison.OrdinalIgnoreCase)) WC4MapEditor.GUI.Views.MainWindow.StartupOpenFile = e.Args[i + 1];
+        }
         Console.WriteLine("=== WC4MapEditor GUI 启动 ===");
 
         // 把诊断日志接到控制台。
@@ -87,6 +96,8 @@ public partial class App : Application
         Services.GetRequiredService<DebugConsole>().CommandHost = Services.GetRequiredService<ICommandHost>();
 
         ConfigManager.Instance.Initialize();
+        // 界面文本本地化（Resource/Lang/*.json），语言偏好读 setting.txt 的 Language 键
+        Loc.Initialize();
 
         var mainWindow = Services.GetRequiredService<MainWindow>();
         mainWindow.Show();
@@ -95,19 +106,19 @@ public partial class App : Application
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
     {
         var ex = e.ExceptionObject as Exception;
-        var message = $"[致命错误] 进程即将终止: {ex?.ToString() ?? "未知异常"}";
+        var message = Loc.F("Main.FatalErrorMessage", ex?.ToString() ?? Loc.T("Main.UnknownException"));
         Console.WriteLine(message);
         LogCrash(message);
-        MessageBox.Show(message, "致命错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        MessageBox.Show(message, Loc.T("Main.FatalError"), MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        var message = $"[UI线程错误] {e.Exception}";
+        var message = Loc.F("Main.UiThreadError", e.Exception);
         Console.WriteLine(message);
         LogCrash(message);
         e.Handled = true;
-        MessageBox.Show(message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        MessageBox.Show(message, Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
     private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)

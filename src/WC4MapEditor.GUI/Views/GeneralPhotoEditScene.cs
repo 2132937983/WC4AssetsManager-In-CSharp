@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -55,14 +56,15 @@ public class GeneralPhotoEditScene : UserControl
     private TextBox _canvasWBox = null!, _canvasHBox = null!;
     private TextBox _resize1WBox = null!, _resize1HBox = null!;
     private TextBox _resize2WBox = null!, _resize2HBox = null!;
-    private Button _dragBtn = null!;
+    // 拖动模式用主题的 ToggleButton 选中态表示，不再手动换背景色
+    private ToggleButton _dragBtn = null!;
     private Border _colorPreview = null!;
 
     public GeneralPhotoEditScene(MainWindow window, string? initialEName = null)
     {
+        EditorTheme.Apply(this);
         _window = window;
         _baseName = initialEName ?? "";
-        Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
         BuildUI();
         if (!string.IsNullOrEmpty(initialEName))
             TryLoadGeneralPhoto(initialEName);
@@ -71,10 +73,10 @@ public class GeneralPhotoEditScene : UserControl
     private void BuildUI()
     {
         _root = new Grid();
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(50) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
         _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
 
         BuildTopBar();
         BuildCanvasArea();
@@ -86,49 +88,27 @@ public class GeneralPhotoEditScene : UserControl
 
     private void BuildTopBar()
     {
-        var topBar = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 0, 0, 1)
-        };
+        _dragBtn = MakeToggle(Loc.T("GeneralPhoto.DragImage"), OnToggleDrag);
+
+        var topBar = EditorTheme.TopBar(Loc.T("GeneralPhoto.Title"), OnBack,
+            EditorTheme.Button(Loc.T("GeneralPhoto.OpenImage"), OnOpen),
+            _dragBtn,
+            EditorTheme.Button(Loc.T("GeneralPhoto.BgColor"), OnChooseColor),
+            EditorTheme.Button(Loc.T("GeneralPhoto.TransparentBg"), OnTransparentBg),
+            EditorTheme.PrimaryButton(Loc.T("Common.Save"), OnSave));
         Grid.SetRow(topBar, 0);
-
-        var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 12, 0) };
-
-        sp.Children.Add(MakeBtn("← 返回", OnBack, primary: false));
-        sp.Children.Add(MakeBtn("📂 打开图片", OnOpen, primary: false));
-        sp.Children.Add(MakeBtn("💾 保存", OnSave, primary: true));
-
-        _dragBtn = MakeBtn("✋ 拖动图片", OnToggleDrag, primary: false);
-        sp.Children.Add(_dragBtn);
-
-        sp.Children.Add(MakeBtn("🎨 背景颜色", OnChooseColor, primary: false));
-        sp.Children.Add(MakeBtn("🔲 透明背景", OnTransparentBg, primary: false));
-
-        var titleTb = new TextBlock
-        {
-            Text = "将领图片编辑",
-            Foreground = Brushes.White,
-            FontSize = 18,
-            FontWeight = FontWeights.Bold,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(20, 0, 0, 0)
-        };
-        sp.Children.Add(titleTb);
-
-        topBar.Child = sp;
         _root.Children.Add(topBar);
     }
 
     private void BuildCanvasArea()
     {
+        // 滚动区用最深底色，画布稍亮一级，这样画布边界在没铺满时也看得见
         var canvasBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x26)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
+            Background = EditorTheme.Bg0,
+            BorderBrush = EditorTheme.Border,
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(8, 4, 8, 4)
+            Margin = new Thickness(8, 8, 8, 4)
         };
         Grid.SetRow(canvasBorder, 1);
 
@@ -141,7 +121,7 @@ public class GeneralPhotoEditScene : UserControl
 
         _imageCanvas = new Canvas
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+            Background = EditorTheme.Bg1,
             Width = 800,
             Height = 600
         };
@@ -156,6 +136,7 @@ public class GeneralPhotoEditScene : UserControl
         Canvas.SetTop(_displayControl, 0);
         _imageCanvas.Children.Add(_displayControl);
 
+        // 选区框叠在任意图片上都要看得见，保留红色而不用主题色
         _selectionBorder = new Border
         {
             BorderBrush = Brushes.Red,
@@ -186,116 +167,60 @@ public class GeneralPhotoEditScene : UserControl
 
     private void BuildBottomInputs()
     {
-        var bottomBorder = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 1, 0, 0),
-            Padding = new Thickness(12, 6, 12, 6)
-        };
-        Grid.SetRow(bottomBorder, 2);
+        var panel = new WrapPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
 
-        var grid = new Grid();
-        for (int i = 0; i < 8; i++)
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = i % 2 == 0 ? GridLength.Auto : new GridLength(60) });
-
-        int col = 0;
-        AddInputRow(grid, ref col, "画布宽:", _canvasWidth.ToString(), out _canvasWBox);
-        AddInputRow(grid, ref col, "画布高:", _canvasHeight.ToString(), out _canvasHBox);
-        AddInputRow(grid, ref col, "圆形宽:", _resize1W.ToString(), out _resize1WBox);
-        AddInputRow(grid, ref col, "圆形高:", _resize1H.ToString(), out _resize1HBox);
-        AddInputRow(grid, ref col, "头像宽:", _resize2W.ToString(), out _resize2WBox);
-        AddInputRow(grid, ref col, "头像高:", _resize2H.ToString(), out _resize2HBox);
+        AddInput(panel, Loc.T("GeneralPhoto.CanvasW"), _canvasWidth.ToString(), out _canvasWBox);
+        AddInput(panel, Loc.T("GeneralPhoto.CanvasH"), _canvasHeight.ToString(), out _canvasHBox);
+        AddInput(panel, Loc.T("GeneralPhoto.CircleW"), _resize1W.ToString(), out _resize1WBox);
+        AddInput(panel, Loc.T("GeneralPhoto.CircleH"), _resize1H.ToString(), out _resize1HBox);
+        AddInput(panel, Loc.T("GeneralPhoto.HeadW"), _resize2W.ToString(), out _resize2WBox);
+        AddInput(panel, Loc.T("GeneralPhoto.HeadH"), _resize2H.ToString(), out _resize2HBox);
 
         _canvasWBox.TextChanged += (_, _) => OnCanvasSizeChanged();
         _canvasHBox.TextChanged += (_, _) => OnCanvasSizeChanged();
 
+        // 色块显示的是当前背景色（数据），初始为透明
         _colorPreview = new Border
         {
             Width = 20, Height = 20,
-            Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0)),
-            BorderBrush = Brushes.Gray,
+            Background = Brushes.Transparent,
+            BorderBrush = EditorTheme.BorderStrong,
             BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(12, 0, 0, 0)
         };
-        Grid.SetColumn(_colorPreview, col);
-        grid.Children.Add(_colorPreview);
+        panel.Children.Add(_colorPreview);
 
-        bottomBorder.Child = grid;
-        _root.Children.Add(bottomBorder);
+        var bottomBar = EditorTheme.ToolBar(panel);
+        bottomBar.BorderThickness = new Thickness(0, 1, 0, 0);
+        Grid.SetRow(bottomBar, 2);
+        _root.Children.Add(bottomBar);
     }
 
     private void BuildStatusBar()
     {
-        var statusBorder = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 1, 0, 0)
-        };
-        Grid.SetRow(statusBorder, 3);
-        _statusText = new TextBlock
-        {
-            Text = "就绪 - 打开图片或从将领编辑进入",
-            Foreground = Brushes.LightGray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 12, 0)
-        };
-        statusBorder.Child = _statusText;
-        _root.Children.Add(statusBorder);
+        var statusBar = EditorTheme.StatusBar(out _statusText, Loc.T("GeneralPhoto.StatusReady"));
+        Grid.SetRow(statusBar, 3);
+        _root.Children.Add(statusBar);
     }
 
-    private void AddInputRow(Grid grid, ref int col, string label, string defaultVal, out TextBox box)
+    private static void AddInput(Panel panel, string label, string defaultVal, out TextBox box)
     {
-        var tb = new TextBlock
-        {
-            Text = label,
-            Foreground = Brushes.LightGray,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(col == 0 ? 0 : 12, 0, 4, 0),
-            FontSize = 12
-        };
-        Grid.SetColumn(tb, col);
-        grid.Children.Add(tb);
-        col++;
+        var lbl = EditorTheme.FieldLabel(label);
+        lbl.Margin = new Thickness(panel.Children.Count == 0 ? 0 : 12, 0, 4, 0);
+        panel.Children.Add(lbl);
 
-        box = new TextBox
-        {
-            Text = defaultVal,
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 12,
-            Padding = new Thickness(4, 2, 4, 2),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            Width = 60,
-            CaretBrush = Brushes.White
-        };
-        Grid.SetColumn(box, col);
-        grid.Children.Add(box);
-        col++;
+        box = new TextBox { Text = defaultVal, Width = 60 };
+        panel.Children.Add(box);
     }
 
-    private Button MakeBtn(string text, RoutedEventHandler onClick, bool primary = false)
+    /// <summary>顶栏上的开关按钮：尺寸与主题 Button 对齐，选中态由主题 ToggleButton 样式绘制。</summary>
+    private static ToggleButton MakeToggle(string text, RoutedEventHandler onClick)
     {
-        var bg = primary ? new SolidColorBrush(Color.FromRgb(0x0E, 0x63, 0xC6)) : new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C));
-        var b = new Button
-        {
-            Content = text,
-            Background = bg,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(14, 7, 14, 7),
-            Margin = new Thickness(0, 0, 6, 0),
-            FontSize = 13,
-            Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        b.Click += onClick;
-        return b;
+        var t = new ToggleButton { Content = text, MinHeight = 28, FontSize = 13 };
+        t.Click += onClick;
+        return t;
     }
 
     private void SetStatus(string s)
@@ -310,11 +235,11 @@ public class GeneralPhotoEditScene : UserControl
         if (!string.IsNullOrEmpty(path))
         {
             LoadImage(path);
-            SetStatus($"已加载将领图片: {ename}");
+            SetStatus(Loc.F("GeneralPhoto.StatusLoadedGeneral", ename));
         }
         else
         {
-            SetStatus($"未找到将领 {ename} 的图片，请手动打开");
+            SetStatus(Loc.F("GeneralPhoto.StatusNotFound", ename));
         }
     }
 
@@ -327,7 +252,7 @@ public class GeneralPhotoEditScene : UserControl
         var loaded = _editorService.LoadSourceImage(path);
         if (loaded == null)
         {
-            SetStatus("图片加载失败");
+            SetStatus(Loc.T("GeneralPhoto.LoadFailed"));
             return;
         }
 
@@ -337,7 +262,7 @@ public class GeneralPhotoEditScene : UserControl
         ReadCanvasSize();
         ComposeCanvasImage();
         UpdateDisplay();
-        SetStatus($"已加载: {System.IO.Path.GetFileName(path)} ({loaded.Width}x{loaded.Height})");
+        SetStatus(Loc.F("GeneralPhoto.StatusLoaded", System.IO.Path.GetFileName(path), loaded.Width, loaded.Height));
     }
 
     private void ReadCanvasSize()
@@ -542,7 +467,7 @@ public class GeneralPhotoEditScene : UserControl
     private void OnCanvasMouseUp(object sender, MouseButtonEventArgs e)
     {
         _dragMode = false;
-        _dragBtn.Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C));
+        _dragBtn.IsChecked = false;
         _selecting = false;
         _movingSelection = false;
     }
@@ -575,7 +500,7 @@ public class GeneralPhotoEditScene : UserControl
         MapSelectionToImageCoords();
         UpdateDisplay();
         MapSelectionFromImageCoords();
-        SetStatus($"缩放: {_scaleFactor:P0}");
+        SetStatus(Loc.F("GeneralPhoto.StatusZoom", _scaleFactor));
         e.Handled = true;
     }
 
@@ -698,8 +623,8 @@ public class GeneralPhotoEditScene : UserControl
     {
         var dlg = new OpenFileDialog
         {
-            Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.webp;*.gif|所有文件|*.*",
-            Title = "选择将领图片"
+            Filter = $"{Loc.T("GeneralPhoto.ImageFilter")}|*.png;*.jpg;*.jpeg;*.bmp;*.webp;*.gif|{Loc.T("Common.AllFiles")}|*.*",
+            Title = Loc.T("GeneralPhoto.OpenDialogTitle")
         };
         if (dlg.ShowDialog() == true)
         {
@@ -714,12 +639,12 @@ public class GeneralPhotoEditScene : UserControl
     {
         if (_canvasImage == null)
         {
-            MessageBox.Show("请先加载图片", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.T("GeneralPhoto.LoadImageFirst"), Loc.T("Common.Info"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         if (_selectRect.Width <= 0 || _selectRect.Height <= 0)
         {
-            MessageBox.Show("请先在画布上拖动选择要裁剪的圆形区域", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.T("GeneralPhoto.SelectRegionFirst"), Loc.T("Common.Info"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -755,26 +680,24 @@ public class GeneralPhotoEditScene : UserControl
 
         if (result.Success)
         {
-            var msg = $"保存成功！\n\n";
-            if (result.GeneralPath != null) msg += $"半身像: {result.GeneralPath}\n";
-            if (result.CirclePath != null) msg += $"圆形头像: {result.CirclePath}\n";
-            if (result.HeadPath != null) msg += $"战术头像: {result.HeadPath}\n";
-            MessageBox.Show(msg, "保存成功", MessageBoxButton.OK, MessageBoxImage.Information);
-            SetStatus($"保存成功: {_baseName}");
+            var msg = Loc.T("GeneralPhoto.SavedHeader") + "\n\n";
+            if (result.GeneralPath != null) msg += Loc.F("GeneralPhoto.Path.General", result.GeneralPath) + "\n";
+            if (result.CirclePath != null) msg += Loc.F("GeneralPhoto.Path.Circle", result.CirclePath) + "\n";
+            if (result.HeadPath != null) msg += Loc.F("GeneralPhoto.Path.Head", result.HeadPath) + "\n";
+            MessageBox.Show(msg, Loc.T("Common.SaveSuccess"), MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus(Loc.F("GeneralPhoto.StatusSaved", _baseName));
         }
         else
         {
-            MessageBox.Show($"保存失败: {result.ErrorMessage}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            SetStatus($"保存失败: {result.ErrorMessage}");
+            MessageBox.Show(Loc.F("GeneralPhoto.SaveFailed", result.ErrorMessage), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            SetStatus(Loc.F("GeneralPhoto.SaveFailed", result.ErrorMessage));
         }
     }
 
     private void OnToggleDrag(object sender, RoutedEventArgs e)
     {
-        _dragMode = !_dragMode;
-        _dragBtn.Background = _dragMode
-            ? new SolidColorBrush(Color.FromRgb(0x0E, 0x63, 0xC6))
-            : new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C));
+        // ToggleButton 点击时 IsChecked 已经翻转，直接以它为准
+        _dragMode = _dragBtn.IsChecked == true;
         if (_dragMode)
         {
             _selectRect = new Rect();
@@ -801,7 +724,7 @@ public class GeneralPhotoEditScene : UserControl
     private void OnTransparentBg(object sender, RoutedEventArgs e)
     {
         _bgColor = SKColors.Transparent;
-        _colorPreview.Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
+        _colorPreview.Background = Brushes.Transparent;
         if (_sourceImage != null)
         {
             ComposeCanvasImage();
@@ -819,12 +742,13 @@ internal class WpfColorDialog : Window
 
     public WpfColorDialog()
     {
-        Title = "选择背景颜色";
+        EditorTheme.Apply(this);
+        Background = EditorTheme.Bg1;
+        Title = Loc.T("GeneralPhoto.ColorDialogTitle");
         Width = 320;
-        Height = 280;
+        SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.NoResize;
-        Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30));
 
         var panel = new StackPanel { Margin = new Thickness(16) };
 
@@ -833,7 +757,7 @@ internal class WpfColorDialog : Window
             Height = 40,
             CornerRadius = new CornerRadius(6),
             Margin = new Thickness(0, 0, 0, 12),
-            BorderBrush = Brushes.Gray,
+            BorderBrush = EditorTheme.BorderStrong,
             BorderThickness = new Thickness(1)
         };
         panel.Children.Add(_preview);
@@ -845,31 +769,15 @@ internal class WpfColorDialog : Window
         _aSlider.Value = 255;
 
         var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
-        var okBtn = new Button
-        {
-            Content = "确定",
-            Width = 80,
-            Margin = new Thickness(0, 0, 8, 0),
-            Background = new SolidColorBrush(Color.FromRgb(0x0E, 0x63, 0xC6)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(0, 6, 0, 6)
-        };
-        okBtn.Click += (_, _) =>
+        var okBtn = EditorTheme.PrimaryButton(Loc.T("Common.Ok"), (_, _) =>
         {
             SelectedColor = Color.FromArgb((byte)_aSlider.Value, (byte)_rSlider.Value, (byte)_gSlider.Value, (byte)_bSlider.Value);
             DialogResult = true;
-        };
-        var cancelBtn = new Button
-        {
-            Content = "取消",
-            Width = 80,
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(0, 6, 0, 6)
-        };
-        cancelBtn.Click += (_, _) => DialogResult = false;
+        });
+        okBtn.Width = 80;
+        okBtn.Margin = new Thickness(0, 0, 8, 0);
+        var cancelBtn = EditorTheme.Button(Loc.T("Common.Cancel"), (_, _) => DialogResult = false);
+        cancelBtn.Width = 80;
         btnPanel.Children.Add(okBtn);
         btnPanel.Children.Add(cancelBtn);
         panel.Children.Add(btnPanel);
@@ -888,7 +796,7 @@ internal class WpfColorDialog : Window
         var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var tb = new TextBlock { Text = label, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 };
+        var tb = EditorTheme.Text_(label);
         Grid.SetColumn(tb, 0);
         var slider = new Slider { Minimum = 0, Maximum = max, Value = 0, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(slider, 1);
@@ -900,6 +808,7 @@ internal class WpfColorDialog : Window
 
     private void UpdatePreview(object? sender, RoutedPropertyChangedEventArgs<double>? e)
     {
+        // 预览块显示的是用户正在选的颜色本身，属于数据而不是界面配色
         _preview.Background = new SolidColorBrush(Color.FromArgb(
             (byte)_aSlider.Value, (byte)_rSlider.Value, (byte)_gSlider.Value, (byte)_bSlider.Value));
     }

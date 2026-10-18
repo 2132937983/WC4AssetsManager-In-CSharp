@@ -19,3 +19,5 @@ global using WC4MapEditor.Rendering;
 global using WC4MapEditor.Rendering.Skia;
 global using WC4MapEditor.GUI.ViewModels;
 global using WC4MapEditor.GUI.Views;
+global using WC4MapEditor.GUI.Theme;
+global using WC4MapEditor.GUI.Controls;

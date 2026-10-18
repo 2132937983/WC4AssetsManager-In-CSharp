@@ -1,13 +1,12 @@
 using System.Globalization;
 using System.Linq;
-using System.Windows.Media.Imaging;
 using WC4MapEditor.Core.Parsers.Layout;
 using WC4MapEditor.GUI.Views.Assist;
 using WC4MapEditor.GUI.Views.Dialogs;
 
 namespace WC4MapEditor.GUI.Views;
 
-/// <summary>布局编辑器的右侧面板：控件树 / 属性面板 / 精灵图库。</summary>
+/// <summary>布局编辑器的右侧面板：控件树 / 属性面板（按 LayoutSchema 生成）/ 精灵图库。</summary>
 public partial class LayoutEditScene
 {
     // ---------- 精灵图库状态 ----------
@@ -15,11 +14,15 @@ public partial class LayoutEditScene
     private WrapPanel _spGrid = null!;
     private TextBox _spSearch = null!;
     private TextBlock _spCount = null!;
+    private TextBlock _spAssignHint = null!;
     private Button _spMore = null!;
     private StackPanel _spHits = null!;
     private int _spShown = 120;
     private string? _spAtlasFilter;
     private string? _spSelectedName;
+
+    /// <summary>图库处于"为某属性选图"模式时的目标（节点, 属性名）。</summary>
+    private (LayoutNode Node, string Key)? _assignTarget;
 
     // ---------- 属性面板 geo 卡 ----------
     private TextBlock? _geoX, _geoY, _geoW, _geoH;
@@ -27,67 +30,19 @@ public partial class LayoutEditScene
     // ---------- 图片使用位置反查 ----------
     private List<(string FormId, LayoutNode Form, LayoutNode Node, string Key, string Name)>? _usageMap;
 
-    private static readonly string[] AlignHOptions = { "left", "center", "right" };
-    private static readonly string[] AlignVOptions = { "top", "center", "bottom" };
-
-    private static readonly Dictionary<string, string> PropLabels = new(StringComparer.Ordinal)
+    private static string AttrLabel(string key)
     {
-        ["id"] = "标识",
-        ["margin"] = "边距",
-        ["halign"] = "水平对齐",
-        ["valign"] = "垂直对齐",
-        ["width"] = "宽度",
-        ["height"] = "高度",
-        ["minwidth"] = "最小宽",
-        ["minheight"] = "最小高",
-        ["maxwidth"] = "最大宽",
-        ["maxheight"] = "最大高",
-        ["drawmode"] = "填充方式",
-        ["visible"] = "可见性",
-        ["alpha"] = "不透明度",
-        ["color"] = "颜色",
-        ["scale"] = "缩放",
-        ["clipped"] = "裁剪溢出",
-        ["texture"] = "纹理",
-        ["image"] = "图片",
-        ["normal"] = "常态图",
-        ["res"] = "资源",
-        ["normalimage"] = "常态图片",
-        ["backimage"] = "背景图",
-        ["pressedimage"] = "按下图片",
-        ["disabledimage"] = "禁用图片",
-        ["checkedimage"] = "选中图片",
-        ["uncheckedimage"] = "未选图片",
-        ["barimage"] = "槽底图",
-        ["thumbimage"] = "滑块图",
-        ["text"] = "文本键",
-        ["string"] = "固定文本",
-        ["font"] = "字体",
-        ["htextalign"] = "文字横排",
-        ["vtextalign"] = "文字竖排",
-        ["breakwords"] = "自动换行",
-        ["gap"] = "间距",
-        ["hlayoutalign"] = "横向排列",
-        ["vlayoutalign"] = "纵向排列",
-        ["templateid"] = "模板 ID",
-        ["itemwidth"] = "单元宽",
-        ["itemheight"] = "单元高",
-        ["itemcount"] = "单元数量"
-    };
+        string k = "Layout.Attr." + key;
+        return Loc.Has(k) ? Loc.T(k) : key;
+    }
 
-    private static readonly string[] ImageTagList = { "Image", "Button", "CheckButton", "Label", "ProgressBar", "Slider", "Animation" };
-    private static readonly string[] TextTagList = { "Label", "TextBox", "EditBox", "Button" };
-    private static readonly string[] GapTagList = { "HGroup", "VGroup", "Repeater", "SlideList" };
+    private static string GroupLabel(string group) => Loc.T("Layout.Group." + group, group);
 
-    private static string OptLabel(string key, string v)
+    private static string OptLabel(string v)
     {
-        if (v == "") return "（默认）";
-        if (key == "drawmode") return v switch { "hextend" => "横向铺满", "vextend" => "纵向铺满", "extend" => "双向铺满", "stretch" => "拉伸填充", "tile" => "平铺", _ => v };
-        if (key.Contains("align")) return v switch { "left" => "左", "center" => "居中", "right" => "右", "top" => "上", "bottom" => "下", "middle" => "居中", _ => v };
-        if (key == "visible") return v switch { "true" => "显示", "false" => "隐藏", _ => v };
-        if (key == "clipped") return v switch { "true" => "裁剪子控件", "false" => "不裁剪", _ => v };
-        if (key == "breakwords") return v switch { "true" => "自动换行", "false" => "不换行", _ => v };
-        return v;
+        if (v == "") return Loc.T("Layout.Opt.Default");
+        string k = "Layout.Opt." + v;
+        return Loc.Has(k) ? Loc.T(k) : v;
     }
 
     // ============================================================= 控件树 =============================================================
@@ -95,94 +50,112 @@ public partial class LayoutEditScene
     {
         _treePanel.Children.Clear();
         if (_form == null) return;
-
-        _treePanel.Children.Add(MakeTreeNode(_form, 0, true));
-        if (!_form.Collapsed)
-            foreach (var c in _form.Children) _treePanel.Children.Add(MakeTreeNode(c, 1, false));
+        AppendTreeNode(_form, 0, true);
+        UpdateNodeButtons();
     }
 
-    private UIElement MakeTreeNode(LayoutNode n, int depth, bool isRoot)
+    private void AppendTreeNode(LayoutNode n, int depth, bool isRoot)
     {
+        _treePanel.Children.Add(MakeTreeRow(n, depth, isRoot));
+        if (n.Collapsed && !isRoot) return;
+        foreach (var c in n.Children) AppendTreeNode(c, depth + 1, false);
+    }
+
+    private UIElement MakeTreeRow(LayoutNode n, int depth, bool isRoot)
+    {
+        bool selected = ReferenceEquals(n, _selected);
+        bool hidden = LayoutDocument.IsHidden(n);
         var row = new Border
         {
-            Background = ReferenceEquals(n, _selected)
-                ? new SolidColorBrush(Color.FromRgb(0x2B, 0x6C, 0xB0))
-                : Brushes.Transparent,
+            Background = selected ? EditorTheme.Selection : Brushes.Transparent,
             Padding = new Thickness(6 + depth * 12, 2, 6, 2),
-            Cursor = Cursors.Hand
+            Cursor = Cursors.Hand,
+            CornerRadius = new CornerRadius(3),
+            Margin = new Thickness(4, 0, 4, 0)
         };
-        var sp = new StackPanel { Orientation = Orientation.Horizontal };
-        bool hasKids = n.Children.Count > 0;
+        row.MouseEnter += (_, _) => { if (!ReferenceEquals(n, _selected)) row.Background = EditorTheme.Hover; };
+        row.MouseLeave += (_, _) => { if (!ReferenceEquals(n, _selected)) row.Background = Brushes.Transparent; };
 
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(14) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        bool hasKids = n.Children.Count > 0;
         if (hasKids && !isRoot)
         {
             var glyph = new TextBlock
             {
                 Text = n.Collapsed ? "▶" : "▼",
-                Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
-                FontSize = 10,
-                Width = 12,
-                VerticalAlignment = VerticalAlignment.Center,
-                Cursor = Cursors.Hand
+                Foreground = EditorTheme.TextDim,
+                FontSize = 9,
+                VerticalAlignment = VerticalAlignment.Center
             };
-            glyph.MouseLeftButtonDown += (_, e) =>
-            {
-                n.Collapsed = !n.Collapsed;
-                e.Handled = true;
-                RefreshTree();
-            };
-            sp.Children.Add(glyph);
-        }
-        else
-        {
-            sp.Children.Add(new TextBlock { Text = " ", Width = 12, FontSize = 10 });
+            glyph.MouseLeftButtonDown += (_, e) => { n.Collapsed = !n.Collapsed; e.Handled = true; RefreshTree(); };
+            grid.Children.Add(glyph);
         }
 
-        sp.Children.Add(new TextBlock
+        var label = new TextBlock { FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Opacity = hidden ? 0.55 : 1 };
+        label.Inlines.Add(new System.Windows.Documents.Run(TagName(n.Tag)) { Foreground = selected ? Brushes.White : EditorTheme.Accent });
+        if (n.Get("id") is { Length: > 0 } id)
+            label.Inlines.Add(new System.Windows.Documents.Run(" #" + id) { Foreground = selected ? Brushes.White : EditorTheme.Text });
+        if (n.Tag == "Label")
         {
-            Text = TagCn(n.Tag),
-            Foreground = new SolidColorBrush(Color.FromRgb(0x7F, 0xD1, 0xB9)),
-            FontSize = 12
-        });
-        var idText = n.Get("id");
-        if (!string.IsNullOrEmpty(idText))
-        {
-            sp.Children.Add(new TextBlock
-            {
-                Text = " #" + idText,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
-                FontSize = 12
-            });
+            var t = LayoutEngine.TextOf(n, _ctx);
+            if (t.Length > 0) label.Inlines.Add(new System.Windows.Documents.Run("  “" + (t.Length > 14 ? t[..14] + "…" : t) + "”") { Foreground = EditorTheme.TextMuted });
         }
+        else if (LayoutDocument.ImageRefOf(n) is { } ir)
+        {
+            label.Inlines.Add(new System.Windows.Documents.Run("  " + ir.Ref) { Foreground = EditorTheme.TextDim });
+        }
+        Grid.SetColumn(label, 1);
+        grid.Children.Add(label);
 
-        // C2: eye 图标 — 切换可见性
         if (!isRoot && !n.IsVirtual)
         {
-            bool hidden = LayoutDocument.IsFalseValue(n.Get("visible") ?? "true") && n.Get("visible") != null;
             var eye = new TextBlock
             {
-                Text = hidden ? "○" : "●",
-                Foreground = hidden ? new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)) : new SolidColorBrush(Color.FromRgb(0x7F, 0xD1, 0xB9)),
+                Text = hidden ? "◌" : "●",
+                Foreground = hidden ? EditorTheme.TextDim : EditorTheme.Success,
                 FontSize = 10,
                 Width = 14,
+                TextAlignment = TextAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 Cursor = Cursors.Hand,
-                ToolTip = hidden ? "隐藏中（点击显示）" : "显示中（点击隐藏）"
+                ToolTip = hidden ? Loc.T("Layout.Tree.HiddenTip") : Loc.T("Layout.Tree.VisibleTip")
             };
             eye.MouseLeftButtonDown += (_, e) =>
             {
-                if (hidden) n.Set("visible", null);
-                else n.Set("visible", "false");
                 e.Handled = true;
-                Repaint();
+                SetAttr(n, "visible", hidden ? null : "false");
                 RefreshTree();
+                if (ReferenceEquals(n, _selected)) RenderProps();
             };
-            sp.Children.Add(eye);
+            Grid.SetColumn(eye, 2);
+            grid.Children.Add(eye);
         }
 
-        row.Child = sp;
-        row.MouseLeftButtonDown += (_, _) => SelectNode(n);
+        row.Child = grid;
+        row.MouseLeftButtonDown += (_, _) => { SelectNode(n); if (n.HasRect) CenterOnNodeIfOffscreen(n); };
         return row;
+    }
+
+    private void CenterOnNodeIfOffscreen(LayoutNode n)
+    {
+        double sx = _panX + n.X * _zoom, sy = _panY + n.Y * _zoom;
+        double ex = sx + n.W * _zoom, ey = sy + n.H * _zoom;
+        if (ex < 0 || ey < 0 || sx > _canvas.ActualWidth || sy > _canvas.ActualHeight) CenterOnNode(n);
+    }
+
+    private void UpdateNodeButtons()
+    {
+        bool has = _selected != null;
+        bool real = has && _selected!.Parent != null && !_selected.IsVirtual;
+        _btnAddChild.IsEnabled = _form != null;
+        _btnDup.IsEnabled = real;
+        _btnDel.IsEnabled = real;
+        _btnUp.IsEnabled = real && _selected!.Parent!.Children.IndexOf(_selected) > 0;
+        _btnDown.IsEnabled = real && _selected!.Parent!.Children.IndexOf(_selected) < _selected.Parent.Children.Count - 1;
     }
 
     // ============================================================= 属性面板 =============================================================
@@ -191,118 +164,154 @@ public partial class LayoutEditScene
         if (_propsPanel == null) return;
         _propsPanel.Children.Clear();
         _geoX = _geoY = _geoW = _geoH = null;
-
-        bool has = _selected != null;
-        _btnAddChild.IsEnabled = has;
-        _btnDup.IsEnabled = has && _selected?.Parent != null && !_selected.IsVirtual;
-        _btnDel.IsEnabled = _btnDup.IsEnabled;
+        UpdateNodeButtons();
 
         if (_selected is not { } n)
         {
-            _propsPanel.Children.Add(new TextBlock
-            {
-                Text = "未选中控件（点击画布或控件树选择）",
-                Foreground = Brushes.Gray,
-                FontSize = 12,
-                Margin = new Thickness(4, 6, 4, 6)
-            });
+            _propsPanel.Children.Add(EditorTheme.EmptyHint(Loc.T("Layout.NoSelection")));
             return;
         }
 
         _propsPanel.Children.Add(BuildInfoCard(n));
 
-        AddPropGroup(n, "标识", new[] { ("id", "text") });
-        AddPropGroup(n, "布局", new[]
+        if (n.IsVirtual)
         {
-            ("margin", "margin"), ("_align", "grid"), ("halign", "selH"), ("valign", "selV"),
-            ("width", "num"), ("height", "num"), ("minwidth", "num"), ("minheight", "num"),
-            ("maxwidth", "num"), ("maxheight", "num")
-        });
-        AddPropGroup(n, "外观", new[]
-        {
-            ("drawmode", "selDraw"), ("visible", "selVisible"), ("alpha", "num"),
-            ("color", "color"), ("scale", "num"), ("clipped", "selBool")
-        });
-        AddPropGroup(n, "图片", new[]
-        {
-            ("texture", "text"), ("image", "text"), ("res", "text"), ("normalimage", "text"),
-            ("normal", "text"), ("backimage", "text"), ("pressedimage", "text"), ("disabledimage", "text"),
-            ("checkedimage", "text"), ("uncheckedimage", "text"), ("barimage", "text"), ("thumbimage", "text")
-        });
-        AddPropGroup(n, "文本", new[]
-        {
-            ("string", "text"), ("text", "text"), ("font", "text"), ("htextalign", "selHText"),
-            ("vtextalign", "selVText"), ("breakwords", "selBool")
-        });
-        AddPropGroup(n, "组排列", new[] { ("gap", "num"), ("hlayoutalign", "selHText"), ("vlayoutalign", "selVText") });
-        AddPropGroup(n, "模板 / 重复", new[] { ("templateid", "text"), ("itemwidth", "num"), ("itemheight", "num"), ("itemcount", "num") });
+            _propsPanel.Children.Add(EditorTheme.EmptyHint(Loc.T("Layout.VirtualHint")));
+            return;
+        }
 
-        AddRawAttrGroup(n);
+        var def = LayoutSchema.Get(n.Tag);
+        var groups = def.AllAttributes.GroupBy(a => a.Group).ToList();
+        var known = new HashSet<string>(def.AllAttributes.Select(a => a.Name), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var g in groups)
+        {
+            var rows = g.ToList();
+            // 只在"布局 / 标识"组总是显示；其它组只有写了属性或是该标签的核心属性时才展开，避免面板过长
+            bool force = g.Key is LayoutSchema.GroupIdentity or LayoutSchema.GroupLayout or LayoutSchema.GroupAppearance
+                         || rows.Any(r => n.Has(r.Name)) || IsCoreGroup(n.Tag, g.Key);
+            if (!force) continue;
+
+            _propsPanel.Children.Add(EditorTheme.SectionHeader(GroupLabel(g.Key)));
+            foreach (var attr in rows)
+            {
+                if (attr.Name == "margin") { _propsPanel.Children.Add(EditorTheme.FormRow(AttrLabel("margin"), BuildMarginEditor(n), 96, "margin")); continue; }
+                if (attr.Name == "halign") { _propsPanel.Children.Add(EditorTheme.FormRow(AttrLabel("align"), BuildAlignGrid(n), 96, "halign / valign")); continue; }
+                if (attr.Name == "valign") continue;
+                _propsPanel.Children.Add(EditorTheme.FormRow(AttrLabel(attr.Name), BuildEditor(n, attr), 96, attr.Name));
+            }
+        }
+
+        // 游戏里出现过、但不在上表里的属性照样可编辑
+        var extra = n.Attributes.Where(kv => !known.Contains(kv.Key)).ToList();
+        _propsPanel.Children.Add(EditorTheme.SectionHeader(Loc.F("Layout.RawAttrs", extra.Count), MakeAddAttrButton(n)));
+        foreach (var kv in extra)
+        {
+            var tb = new TextBox { Text = kv.Value, FontSize = 12, MinHeight = 26 };
+            string key = kv.Key;
+            tb.LostFocus += (_, _) => SetAttr(n, key, tb.Text);
+            tb.KeyDown += (_, e) => { if (e.Key == Key.Enter) { SetAttr(n, key, tb.Text); e.Handled = true; } };
+            var del = EditorTheme.GhostButton("×", (_, _) => { SetAttr(n, key, null); RenderProps(); });
+            del.Padding = new Thickness(6, 0, 6, 0);
+            del.MinHeight = 24;
+            var g = new Grid();
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetColumn(del, 1);
+            g.Children.Add(tb);
+            g.Children.Add(del);
+            _propsPanel.Children.Add(EditorTheme.FormRow(kv.Key, g, 96));
+        }
+    }
+
+    private static bool IsCoreGroup(string tag, string group) => (tag, group) switch
+    {
+        ("Image" or "Button" or "GroupBox" or "Group" or "ProgressBar" or "Slider" or "PlaceHolder", LayoutSchema.GroupImage) => true,
+        ("Label" or "Button" or "EditBox" or "TextBox", LayoutSchema.GroupText) => true,
+        ("HGroup" or "VGroup", LayoutSchema.GroupGroup) => true,
+        ("Repeater" or "PlaceHolder" or "SlideList", LayoutSchema.GroupRepeater) => true,
+        ("TmpWindow" or "Form", LayoutSchema.GroupWindow) => true,
+        ("Animation", LayoutSchema.GroupAnimation) => true,
+        ("ScrollViewer", LayoutSchema.GroupScroll) => true,
+        _ => false
+    };
+
+    private Button MakeAddAttrButton(LayoutNode n)
+    {
+        var b = EditorTheme.ToolButton("＋ " + Loc.T("Layout.AddAttr"), async (_, _) =>
+        {
+            var owner = Window.GetWindow(this) ?? _window;
+            using var dlg = new SingleInputDialog(owner)
+            {
+                Title = Loc.T("Layout.AddAttr"),
+                Description = Loc.T("Layout.AddAttrPrompt"),
+                DefaultValue = ""
+            };
+            var key = await dlg.ShowAsync();
+            if (string.IsNullOrWhiteSpace(key)) return;
+            key = key.Trim();
+            if (!n.Has(key)) SetAttr(n, key, LayoutSchema.Get(n.Tag).Find(key)?.Default ?? "0");
+            RenderProps();
+        });
+        b.Margin = new Thickness(0);
+        b.MinHeight = 22;
+        b.Padding = new Thickness(7, 1, 7, 1);
+        return b;
     }
 
     private UIElement BuildInfoCard(LayoutNode n)
     {
-        var card = new Border
-        {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x47, 0x56)),
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(2, 2, 2, 8),
-            Padding = new Thickness(8)
-        };
         var sp = new StackPanel();
-        sp.Children.Add(new TextBlock
-        {
-            Text = $"{TagCn(n.Tag)}  ({n.Tag})",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x8B, 0xE0, 0xC2)),
-            FontWeight = FontWeights.Bold,
-            FontSize = 12
-        });
-        sp.Children.Add(new TextBlock
-        {
-            Text = $"标识：{(n.Get("id") != null ? "#" + n.Get("id") : "（无）")}",
-            Foreground = new SolidColorBrush(Color.FromRgb(0xAE, 0xB9, 0xC5)),
-            FontSize = 11,
-            Margin = new Thickness(0, 3, 0, 0)
-        });
+        var head = new TextBlock { FontSize = 13, FontWeight = FontWeights.SemiBold };
+        head.Inlines.Add(new System.Windows.Documents.Run(TagName(n.Tag)) { Foreground = EditorTheme.Accent });
+        head.Inlines.Add(new System.Windows.Documents.Run($"  <{n.Tag}>") { Foreground = EditorTheme.TextDim, FontWeight = FontWeights.Normal });
+        sp.Children.Add(head);
+
         var parent = n.Parent;
         int depth = 0;
-        for (var p = n.Parent; p != null; p = p.Parent) depth++;
-        sp.Children.Add(new TextBlock
-        {
-            Text = $"层级 / 父：第 {depth} 层 · {(parent != null ? TagCn(parent.Tag) + (parent.Get("id") != null ? "#" + parent.Get("id") : "") : "—")}",
-            Foreground = new SolidColorBrush(Color.FromRgb(0xAE, 0xB9, 0xC5)),
-            FontSize = 11
-        });
+        for (var p = n.Parent; p != null && !ReferenceEquals(p, _doc.Root); p = p.Parent) depth++;
         var kidCount = LayoutDocument.RealKids(n).Count;
-        string kidSuffix = "";
-        if (n.Items is { Count: > 0 } items) kidSuffix = $"（重复 {items.Count} 单元）";
-        else if (n.Expanded is { Count: > 0 } expanded) kidSuffix = $"（模板 {expanded.Count}）";
-        sp.Children.Add(new TextBlock
-        {
-            Text = $"子控件：{kidCount}{kidSuffix}",
-            Foreground = new SolidColorBrush(Color.FromRgb(0xAE, 0xB9, 0xC5)),
-            FontSize = 11
-        });
+        string kidSuffix = n.Items is { Count: > 0 } items ? Loc.F("Layout.Info.Cells", items.Count)
+                         : n.Expanded is { Count: > 0 } ex ? Loc.F("Layout.Info.Template", ex.Count) : "";
+        var meta = EditorTheme.Muted(Loc.F("Layout.Info.Meta", depth,
+            parent != null && !ReferenceEquals(parent, _doc.Root) ? NodeLabel(parent) : "—", kidCount, kidSuffix));
+        meta.Margin = new Thickness(0, 4, 0, 0);
+        meta.TextWrapping = TextWrapping.Wrap;
+        sp.Children.Add(meta);
 
-        var geo = new Grid { Margin = new Thickness(0, 5, 0, 0) };
+        if (LayoutDocument.ImageRefOf(n) is { } ir)
+        {
+            var rec = LayoutImageProvider.Resolve(ir.Ref);
+            var line = EditorTheme.Muted(rec is { Ready: true }
+                ? Loc.F("Layout.Info.ImageOk", ir.Ref, rec.W, rec.H, rec.Atlas != null ? LayoutImageProvider.AtlasDisplayName(rec.Atlas) : Loc.T("Layout.Info.LooseFile"))
+                : Loc.F("Layout.Info.ImageMissing", ir.Ref));
+            line.Foreground = rec is { Ready: true } ? EditorTheme.TextMuted : EditorTheme.Danger;
+            line.TextWrapping = TextWrapping.Wrap;
+            line.Margin = new Thickness(0, 2, 0, 0);
+            sp.Children.Add(line);
+        }
+
+        var geo = new Grid { Margin = new Thickness(0, 8, 0, 0) };
         for (int i = 0; i < 4; i++) geo.ColumnDefinitions.Add(new ColumnDefinition());
         UIElement Cell(string label, out TextBlock value)
         {
             var st = new StackPanel();
-            st.Children.Add(new TextBlock { Text = label, Foreground = new SolidColorBrush(Color.FromRgb(0x7E, 0x8A, 0x97)), FontSize = 10 });
-            value = new TextBlock { Text = "–", Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xED, 0xF2)), FontSize = 12 };
+            st.Children.Add(new TextBlock { Text = label, Foreground = EditorTheme.TextDim, FontSize = 10 });
+            value = new TextBlock { Text = "–", Foreground = EditorTheme.Text, FontSize = 13, FontWeight = FontWeights.SemiBold };
             st.Children.Add(value);
             return st;
         }
         geo.Children.Add(Cell("X", out _geoX));
         geo.Children.Add(Cell("Y", out _geoY));
-        geo.Children.Add(Cell("宽", out _geoW));
-        geo.Children.Add(Cell("高", out _geoH));
+        geo.Children.Add(Cell(Loc.T("Common.Width"), out _geoW));
+        geo.Children.Add(Cell(Loc.T("Common.Height"), out _geoH));
         int idx = 0;
         foreach (var child in geo.Children.Cast<UIElement>().ToList()) Grid.SetColumn(child, idx++);
         sp.Children.Add(geo);
 
-        card.Child = sp;
+        var card = EditorTheme.Card(sp);
+        card.Margin = new Thickness(8, 8, 8, 0);
+        UpdateGeoCard();
         return card;
     }
 
@@ -319,140 +328,186 @@ public partial class LayoutEditScene
         }
     }
 
-    private void AddPropGroup(LayoutNode n, string name, (string Key, string Type)[] rows)
+    /// <summary>按属性类型生成编辑器。</summary>
+    private UIElement BuildEditor(LayoutNode n, LayoutAttrDef attr)
     {
-        bool anyAttr = rows.Any(r => n.Has(r.Key));
-        bool forceShow = name is "标识" or "布局";
-        if (!anyAttr && !forceShow) return;
+        string key = attr.Name;
+        string? cur = n.Get(key);
 
-        var visibleRows = new List<(string, string)>();
-        foreach (var (key, type) in rows)
+        switch (attr.Kind)
         {
-            bool exists = n.Has(key);
-            if (name == "图片" && !ImageTagList.Contains(n.Tag) && !exists) continue;
-            if (name == "文本" && !TextTagList.Contains(n.Tag) && !exists) continue;
-            if (name == "组排列" && !GapTagList.Contains(n.Tag) && !exists) continue;
-            if (name == "模板 / 重复" && n.Tag is not ("PlaceHolder" or "Repeater") && !exists) continue;
-            visibleRows.Add((key, type));
-        }
-        if (visibleRows.Count == 0) return;
+            case LayoutAttrKind.Enum:
+                return MakeOptionCombo(new[] { "" }.Concat(attr.Options ?? Array.Empty<string>()).ToArray(), cur, v => SetAttr(n, key, v));
 
-        AddGroupHeader(name);
-        foreach (var (key, type) in visibleRows) AddPropRow(n, key, type);
-    }
+            case LayoutAttrKind.Bool:
+                return MakeOptionCombo(new[] { "", "true", "false" }, cur != null && LayoutDocument.IsFalseValue(cur) ? "false" : cur != null ? "true" : "", v => SetAttr(n, key, v));
 
-    private void AddGroupHeader(string title)
-    {
-        _propsPanel.Children.Add(new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            Padding = new Thickness(8, 3, 8, 3),
-            Margin = new Thickness(0, 6, 0, 2),
-            Child = new TextBlock
+            case LayoutAttrKind.Color:
+                return BuildColorEditor(n, key);
+
+            case LayoutAttrKind.Image:
+            case LayoutAttrKind.AnimRes:
+                return BuildImageEditor(n, key, attr.Kind == LayoutAttrKind.AnimRes);
+
+            case LayoutAttrKind.Font:
             {
-                Text = title,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x9F, 0xD8, 0xC6)),
-                FontWeight = FontWeights.Bold,
-                FontSize = 12
+                var combo = new ComboBox { IsEditable = true, FontSize = 12, MinHeight = 26 };
+                foreach (var f in LayoutFontProvider.FontNames.OrderBy(x => x, StringComparer.OrdinalIgnoreCase)) combo.Items.Add(f);
+                combo.Text = cur ?? "";
+                combo.LostFocus += (_, _) => SetAttr(n, key, combo.Text);
+                combo.SelectionChanged += (_, _) => { if (combo.SelectedItem is string s) SetAttr(n, key, s); };
+                var meta = LayoutFontProvider.GetFontMeta(cur);
+                var hint = EditorTheme.Muted(string.IsNullOrEmpty(cur) ? "" : meta.IsBitmap ? Loc.T("Layout.Font.Bitmap") : Loc.F("Layout.Font.Meta", meta.Size, meta.Outline));
+                hint.FontSize = 11;
+                hint.Margin = new Thickness(2, 2, 0, 0);
+                var sp = new StackPanel();
+                sp.Children.Add(combo);
+                if (hint.Text.Length > 0) sp.Children.Add(hint);
+                return sp;
             }
-        });
+
+            case LayoutAttrKind.StringKey:
+            {
+                var sp = new StackPanel();
+                var tb = new TextBox { Text = cur ?? "", FontSize = 12, MinHeight = 26 };
+                tb.LostFocus += (_, _) => { SetAttr(n, key, tb.Text); RenderProps(); };
+                tb.KeyDown += (_, e) => { if (e.Key == Key.Enter) { SetAttr(n, key, tb.Text); RenderProps(); e.Handled = true; } };
+                sp.Children.Add(tb);
+                if (!string.IsNullOrEmpty(cur))
+                {
+                    bool found = StringTable(_lang).TryGetValue(cur, out var localized);
+                    var preview = EditorTheme.Muted(found ? "“" + localized + "”" : Loc.T("Layout.Text.KeyMissing"));
+                    preview.FontSize = 11;
+                    preview.TextWrapping = TextWrapping.Wrap;
+                    preview.Margin = new Thickness(2, 2, 0, 0);
+                    if (!found) preview.Foreground = EditorTheme.Warning;
+                    sp.Children.Add(preview);
+                }
+                return sp;
+            }
+
+            case LayoutAttrKind.TemplateId:
+            {
+                var combo = new ComboBox { IsEditable = true, FontSize = 12, MinHeight = 26 };
+                foreach (var t in _doc.Templates.Keys.OrderBy(x => x)) combo.Items.Add(t);
+                combo.Text = cur ?? "";
+                combo.LostFocus += (_, _) => SetAttr(n, key, combo.Text);
+                combo.SelectionChanged += (_, _) => { if (combo.SelectedItem is string s) SetAttr(n, key, s); };
+                return combo;
+            }
+
+            case LayoutAttrKind.Int:
+            case LayoutAttrKind.Number:
+            {
+                var tb = new TextBox { Text = cur ?? "", FontSize = 12, MinHeight = 26 };
+                tb.LostFocus += (_, _) => SetAttr(n, key, tb.Text.Trim());
+                tb.KeyDown += (_, e) => { if (e.Key == Key.Enter) { SetAttr(n, key, tb.Text.Trim()); e.Handled = true; } };
+                tb.PreviewMouseWheel += (_, e) =>
+                {
+                    if (!tb.IsKeyboardFocused) return;
+                    if (!double.TryParse(tb.Text, NumberStyles.Any, CultureInfo.InvariantCulture, out var v)) v = 0;
+                    double step = attr.Kind == LayoutAttrKind.Int ? 1 : 0.1;
+                    v += e.Delta > 0 ? step : -step;
+                    tb.Text = v.ToString(attr.Kind == LayoutAttrKind.Int ? "0" : "0.##", CultureInfo.InvariantCulture);
+                    SetAttr(n, key, tb.Text);
+                    e.Handled = true;
+                };
+                return tb;
+            }
+
+            default:
+            {
+                var tb = new TextBox { Text = cur ?? "", FontSize = 12, MinHeight = 26 };
+                tb.LostFocus += (_, _) => SetAttr(n, key, tb.Text);
+                tb.KeyDown += (_, e) => { if (e.Key == Key.Enter) { SetAttr(n, key, tb.Text); e.Handled = true; } };
+                return tb;
+            }
+        }
     }
 
-    private void AddPropRow(LayoutNode n, string key, string type)
+    private UIElement BuildColorEditor(LayoutNode n, string key)
     {
-        var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var label = new TextBlock
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var initial = ParseColor(n.Get(key));
+        var swatch = new Border
         {
-            Text = PropLabels.TryGetValue(key, out var l) ? l : key,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
-            FontSize = 11,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap,
-            ToolTip = key + "（XML 属性名）"
+            Width = 22, Height = 22,
+            Margin = new Thickness(0, 0, 6, 0),
+            CornerRadius = new CornerRadius(3),
+            Background = new SolidColorBrush(initial is { } c0 ? ToWpfColor(c0) : Colors.Transparent),
+            BorderBrush = EditorTheme.BorderStrong,
+            BorderThickness = new Thickness(1),
+            ToolTip = Loc.T("Layout.Color.Hint")
         };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        UIElement content;
-        switch (type)
+        var tb = new TextBox { Text = n.Get(key) ?? "", FontSize = 12, MinHeight = 26 };
+        void Commit()
         {
-            case "margin":
-                content = BuildMarginEditor(n);
-                break;
-            case "grid":
-                content = BuildAlignGrid(n);
-                break;
-            case "num":
-                {
-                    var tb = MakeTextBox("");
-                    tb.Text = n.Get(key) ?? "";
-                    tb.LostFocus += (_, _) => SetAttr(n, key, tb.Text);
-                    content = tb;
-                    break;
-                }
-            case "color":
-                {
-                    var sp = new StackPanel { Orientation = Orientation.Horizontal };
-                    var initial = ParseColor(n.Get(key));
-                    var sw = new Border
-                    {
-                        Width = 16,
-                        Height = 16,
-                        Margin = new Thickness(0, 0, 6, 0),
-                        Background = new SolidColorBrush(initial is { } c0 ? ToWpfColor(c0) : Colors.Transparent),
-                        BorderBrush = Brushes.Gray,
-                        BorderThickness = new Thickness(1)
-                    };
-                    var tb = MakeTextBox("");
-                    tb.Text = n.Get(key) ?? "";
-                    tb.LostFocus += (_, _) =>
-                    {
-                        SetAttr(n, key, tb.Text);
-                        var parsed = ParseColor(tb.Text);
-                        sw.Background = new SolidColorBrush(parsed is { } c1 ? ToWpfColor(c1) : Colors.Transparent);
-                    };
-                    sp.Children.Add(sw);
-                    sp.Children.Add(tb);
-                    content = sp;
-                    break;
-                }
-            case "selH":
-                content = MakeComboLabeled("halign", new[] { "", "left", "center", "right" }, n.Get(key), v => SetAttr(n, key, v));
-                break;
-            case "selV":
-                content = MakeComboLabeled("valign", new[] { "", "top", "center", "bottom" }, n.Get(key), v => SetAttr(n, key, v));
-                break;
-            case "selHText":
-                content = MakeComboLabeled("htextalign", new[] { "", "left", "center", "right" }, n.Get(key), v => SetAttr(n, key, v));
-                break;
-            case "selVText":
-                content = MakeComboLabeled("vtextalign", new[] { "", "top", "center", "bottom" }, n.Get(key), v => SetAttr(n, key, v));
-                break;
-            case "selBool":
-                content = MakeComboLabeled("clipped", new[] { "", "true", "false" }, n.Get(key), v => SetAttr(n, key, v));
-                break;
-            case "selDraw":
-                content = MakeComboLabeled("drawmode", new[] { "", "hextend", "vextend", "extend", "stretch", "tile" }, n.Get(key), v => SetAttr(n, key, v));
-                break;
-            case "selVisible":
-                content = MakeComboLabeled("visible", new[] { "", "true", "false" }, n.Get(key), v => SetAttr(n, key, v));
-                break;
-            default:
-                {
-                    var tb = MakeTextBox("");
-                    tb.Text = n.Get(key) ?? "";
-                    tb.LostFocus += (_, _) => SetAttr(n, key, tb.Text);
-                    content = tb;
-                    break;
-                }
+            SetAttr(n, key, tb.Text.Trim());
+            var parsed = ParseColor(tb.Text);
+            swatch.Background = new SolidColorBrush(parsed is { } c1 ? ToWpfColor(c1) : Colors.Transparent);
         }
+        tb.LostFocus += (_, _) => Commit();
+        tb.KeyDown += (_, e) => { if (e.Key == Key.Enter) { Commit(); e.Handled = true; } };
+        Grid.SetColumn(tb, 1);
+        grid.Children.Add(swatch);
+        grid.Children.Add(tb);
+        return grid;
+    }
 
-        Grid.SetColumn(content, 1);
-        row.Children.Add(content);
-        _propsPanel.Children.Add(row);
+    /// <summary>图片属性：文本框 + 缩略图 + "从图库选"按钮（切到图库页，点一张就填回来）。</summary>
+    private UIElement BuildImageEditor(LayoutNode n, string key, bool anim)
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        string? cur = n.Get(key);
+        var thumbBorder = new Border
+        {
+            Width = 26, Height = 26, Margin = new Thickness(0, 0, 6, 0),
+            Background = EditorTheme.Bg0, BorderBrush = EditorTheme.Border, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3)
+        };
+        if (!string.IsNullOrEmpty(cur))
+        {
+            var rec = LayoutImageProvider.Resolve(cur);
+            if (rec is { Ready: true, Atlas: { } atlas })
+            {
+                var defs = LayoutImageProvider.AtlasImages(atlas);
+                var def = defs.FirstOrDefault(d => d.X == rec.X && d.Y == rec.Y && d.Width == rec.W && d.Height == rec.H);
+                if (def != null)
+                    thumbBorder.Child = new Image { Source = HdAtlasImageLoader.Load(atlas, def.Name), Stretch = Stretch.Uniform, Margin = new Thickness(2) };
+            }
+            else if (rec == null)
+            {
+                thumbBorder.BorderBrush = EditorTheme.Danger;
+                thumbBorder.ToolTip = Loc.F("Layout.Info.ImageMissing", cur);
+            }
+        }
+        grid.Children.Add(thumbBorder);
+
+        var tb = new TextBox { Text = cur ?? "", FontSize = 12, MinHeight = 26 };
+        tb.LostFocus += (_, _) => { SetAttr(n, key, tb.Text.Trim()); RenderProps(); };
+        tb.KeyDown += (_, e) => { if (e.Key == Key.Enter) { SetAttr(n, key, tb.Text.Trim()); RenderProps(); e.Handled = true; } };
+        Grid.SetColumn(tb, 1);
+        grid.Children.Add(tb);
+
+        var pick = EditorTheme.ToolButton("…", (_, _) =>
+        {
+            _assignTarget = (n, key);
+            _spAtlasFilter = anim ? null : _spAtlasFilter;
+            _spSearch.Text = anim ? "anim_" : "";
+            ShowSpritesTab();
+        });
+        pick.Margin = new Thickness(6, 0, 0, 0);
+        pick.Padding = new Thickness(7, 1, 7, 1);
+        pick.MinHeight = 26;
+        pick.ToolTip = Loc.T("Layout.Sprites.PickHint");
+        Grid.SetColumn(pick, 2);
+        grid.Children.Add(pick);
+        return grid;
     }
 
     private UIElement BuildMarginEditor(LayoutNode n)
@@ -462,24 +517,21 @@ public partial class LayoutEditScene
         for (int i = 0; i < 4; i++) grid.ColumnDefinitions.Add(new ColumnDefinition());
         void AddCell(int col, string tag, double value)
         {
-            var tb = MakeTextBox(tag);
-            tb.Text = value.ToString(CultureInfo.InvariantCulture);
-            tb.FontSize = 11;
-            tb.LostFocus += (_, _) =>
+            var sp = new StackPanel { Margin = new Thickness(col == 0 ? 0 : 3, 0, 0, 0) };
+            var tb = new TextBox { Text = value.ToString("0.##", CultureInfo.InvariantCulture), FontSize = 11, MinHeight = 24, Padding = new Thickness(4, 2, 4, 2) };
+            void Commit()
             {
                 var mm = n.Margins();
                 double v = double.TryParse(tb.Text, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : 0;
-                switch (tag)
-                {
-                    case "L": mm.L = v; break;
-                    case "T": mm.T = v; break;
-                    case "R": mm.R = v; break;
-                    case "B": mm.B = v; break;
-                }
-                SetAttr(n, "margin", $"{mm.L},{mm.T},{mm.R},{mm.B}");
-            };
-            Grid.SetColumn(tb, col);
-            grid.Children.Add(tb);
+                switch (tag) { case "L": mm.L = v; break; case "T": mm.T = v; break; case "R": mm.R = v; break; case "B": mm.B = v; break; }
+                SetAttr(n, "margin", mm.ToString());
+            }
+            tb.LostFocus += (_, _) => Commit();
+            tb.KeyDown += (_, e) => { if (e.Key == Key.Enter) { Commit(); e.Handled = true; } };
+            sp.Children.Add(tb);
+            sp.Children.Add(new TextBlock { Text = tag, FontSize = 9, Foreground = EditorTheme.TextDim, HorizontalAlignment = HorizontalAlignment.Center });
+            Grid.SetColumn(sp, col);
+            grid.Children.Add(sp);
         }
         AddCell(0, "L", m.L);
         AddCell(1, "T", m.T);
@@ -488,37 +540,38 @@ public partial class LayoutEditScene
         return grid;
     }
 
+    /// <summary>九宫格对齐选择器（中间一格 = 居中；左上 = 游戏默认，不写属性）。</summary>
     private UIElement BuildAlignGrid(LayoutNode n)
     {
-        var grid = new Grid();
+        var grid = new Grid { Width = 96, HorizontalAlignment = HorizontalAlignment.Left };
         for (int i = 0; i < 3; i++) grid.ColumnDefinitions.Add(new ColumnDefinition());
-        for (int i = 0; i < 3; i++) grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(24) });
+        for (int i = 0; i < 3; i++) grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
 
-        int ha = AlignOf(AlignHMap, n.Get("halign"), false);
-        int va = AlignOf(AlignVMap, n.Get("valign"), false);
-        string[] names = { "左上", "中上", "右上", "左中", "居中", "右中", "左下", "中下", "右下" };
+        int ha = LayoutEngine.HAlignOf(n.Get("halign"));
+        int va = LayoutEngine.VAlignOf(n.Get("valign"));
+        string[] glyphs = { "◤", "▲", "◥", "◀", "●", "▶", "◣", "▼", "◢" };
 
         for (int i = 0; i < 9; i++)
         {
             int r = i / 3, c = i % 3;
-            string h = AlignHOptions[c], v = AlignVOptions[r];
+            bool on = c == ha && r == va;
             var b = new Button
             {
-                Content = names[i],
+                Content = glyphs[i],
                 FontSize = 10,
-                BorderThickness = new Thickness(1),
                 Padding = new Thickness(0),
                 Margin = new Thickness(1),
-                Cursor = Cursors.Hand,
-                Background = (c == ha && r == va)
-                    ? new SolidColorBrush(Color.FromRgb(0x16, 0x36, 0x4A))
-                    : new SolidColorBrush(Color.FromRgb(0x17, 0x1D, 0x24)),
-                Foreground = (c == ha && r == va) ? Brushes.White : new SolidColorBrush(Color.FromRgb(0x88, 0x95, 0xA3))
+                MinHeight = 0,
+                Background = on ? EditorTheme.Selection : EditorTheme.Bg3,
+                BorderBrush = on ? EditorTheme.Accent : EditorTheme.Border,
+                Foreground = on ? Brushes.White : EditorTheme.TextMuted,
+                ToolTip = $"{LayoutSchema.AlignHOptions[c]} / {LayoutSchema.AlignVOptions[r]}"
             };
             b.Click += (_, _) =>
             {
-                SetAttr(n, "halign", c == 1 ? null : h);
-                SetAttr(n, "valign", r == 1 ? null : v);
+                PushUndo();
+                SetAttr(n, "halign", c == 0 ? null : LayoutSchema.AlignHOptions[c], recordUndo: false);
+                SetAttr(n, "valign", r == 0 ? null : LayoutSchema.AlignVOptions[r], recordUndo: false);
                 RenderProps();
             };
             Grid.SetRow(b, r);
@@ -528,36 +581,12 @@ public partial class LayoutEditScene
         return grid;
     }
 
-    private static ComboBox MakeCombo(string[] items, string? current, Action<string> changed)
+    private static ComboBox MakeOptionCombo(string[] items, string? current, Action<string> changed)
     {
-        var combo = new ComboBox
-        {
-            FontSize = 11,
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C))
-        };
-        foreach (var i in items) combo.Items.Add(i);
-        combo.SelectedItem = current ?? "";
-        if (combo.SelectedIndex < 0) combo.SelectedIndex = 0;
-        combo.SelectionChanged += (_, _) =>
-        {
-            if (combo.SelectedItem is string s) changed(s);
-        };
-        return combo;
-    }
-
-    private static ComboBox MakeComboLabeled(string key, string[] items, string? current, Action<string> changed)
-    {
-        var combo = new ComboBox
-        {
-            FontSize = 11,
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C))
-        };
-        foreach (var i in items) combo.Items.Add(OptLabel(key, i));
+        var combo = new ComboBox { FontSize = 12, MinHeight = 26 };
+        foreach (var i in items) combo.Items.Add(OptLabel(i));
         int idx = Array.IndexOf(items, current ?? "");
+        if (idx < 0 && current != null) idx = Array.FindIndex(items, i => string.Equals(i, current, StringComparison.OrdinalIgnoreCase));
         combo.SelectedIndex = idx >= 0 ? idx : 0;
         combo.SelectionChanged += (_, _) =>
         {
@@ -567,75 +596,7 @@ public partial class LayoutEditScene
         return combo;
     }
 
-    private void AddRawAttrGroup(LayoutNode n)
-    {
-        AddGroupHeader($"原始属性（{n.Attributes.Count}）");
-        foreach (var kv in n.Attributes.ToList())
-        {
-            var row = new Grid { Margin = new Thickness(0, 1, 0, 1) };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var label = new TextBlock
-            {
-                Text = kv.Key,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
-                FontSize = 11,
-                VerticalAlignment = VerticalAlignment.Center,
-                TextWrapping = TextWrapping.Wrap
-            };
-            Grid.SetColumn(label, 0);
-            row.Children.Add(label);
-
-            var tb = MakeTextBox("");
-            tb.Text = kv.Value;
-            tb.LostFocus += (_, _) => SetAttr(n, kv.Key, tb.Text);
-            Grid.SetColumn(tb, 1);
-            row.Children.Add(tb);
-
-            var del = new Button
-            {
-                Content = "×",
-                Width = 22,
-                FontSize = 11,
-                Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-                Foreground = Brushes.White,
-                BorderThickness = new Thickness(0),
-                Cursor = Cursors.Hand
-            };
-            string key = kv.Key;
-            del.Click += (_, _) =>
-            {
-                SetAttr(n, key, null);
-                RenderProps();
-            };
-            Grid.SetColumn(del, 2);
-            row.Children.Add(del);
-
-            _propsPanel.Children.Add(row);
-        }
-
-        var addBtn = MakeSmallBtn("+ 添加属性", async (_, _) =>
-        {
-            var owner = Window.GetWindow(this) ?? _window;
-            using var dlg = new SingleInputDialog(owner)
-            {
-                Title = "添加属性",
-                Description = "属性名（如 normalimage / text / font …）",
-                DefaultValue = ""
-            };
-            var key = await dlg.ShowAsync();
-            if (string.IsNullOrWhiteSpace(key)) return;
-            if (!n.Has(key)) SetAttr(n, key, "");
-            RenderProps();
-        });
-        addBtn.HorizontalAlignment = HorizontalAlignment.Left;
-        _propsPanel.Children.Add(addBtn);
-    }
-
-    private static System.Windows.Media.Color ToWpfColor(SKColor c)
-        => System.Windows.Media.Color.FromArgb(c.Alpha, c.Red, c.Green, c.Blue);
+    private static Color ToWpfColor(SKColor c) => Color.FromArgb(c.Alpha, c.Red, c.Green, c.Blue);
 
     // ============================================================= 精灵图库 =============================================================
     private UIElement BuildSpritesPane()
@@ -643,46 +604,49 @@ public partial class LayoutEditScene
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        var tools = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(6, 6, 6, 3) };
-        _spSearch = MakeTextBox("搜索图片名…");
-        _spSearch.Width = 180;
+        var tools = new Grid { Margin = new Thickness(8, 8, 8, 4) };
+        tools.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        tools.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var search = EditorTheme.SearchBox(Loc.T("Layout.Sprites.Search"), out _spSearch);
         _spSearch.TextChanged += (_, _) =>
         {
             _spSearchDebounce?.Stop();
-            _spSearchDebounce = new DispatcherTimer(TimeSpan.FromMilliseconds(120), DispatcherPriority.Normal, (_, _) => { _spShown = 120; RefreshSprites(); }, Dispatcher.CurrentDispatcher);
+            _spSearchDebounce = new DispatcherTimer(TimeSpan.FromMilliseconds(150), DispatcherPriority.Normal, (_, _) => { _spSearchDebounce?.Stop(); _spShown = 120; RefreshSprites(); }, Dispatcher.CurrentDispatcher);
             _spSearchDebounce.Start();
         };
-        tools.Children.Add(_spSearch);
-        _spCount = new TextBlock
-        {
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A)),
-            FontSize = 11,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(6, 0, 0, 0)
-        };
+        tools.Children.Add(search);
+        _spCount = EditorTheme.Muted("");
+        _spCount.VerticalAlignment = VerticalAlignment.Center;
+        _spCount.Margin = new Thickness(8, 0, 0, 0);
+        Grid.SetColumn(_spCount, 1);
         tools.Children.Add(_spCount);
-        Grid.SetRow(tools, 0);
         root.Children.Add(tools);
 
+        _spAssignHint = new TextBlock { FontSize = 11, Foreground = EditorTheme.Warning, Margin = new Thickness(10, 0, 10, 4), TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+        Grid.SetRow(_spAssignHint, 1);
+        root.Children.Add(_spAssignHint);
+
         _spAtlasPanel = new WrapPanel { Margin = new Thickness(6, 0, 6, 4) };
-        Grid.SetRow(_spAtlasPanel, 1);
+        Grid.SetRow(_spAtlasPanel, 2);
         root.Children.Add(_spAtlasPanel);
 
         _spGrid = new WrapPanel { Margin = new Thickness(6) };
         var gridScroll = new ScrollViewer { Content = _spGrid, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        Grid.SetRow(gridScroll, 2);
+        Grid.SetRow(gridScroll, 3);
         root.Children.Add(gridScroll);
 
         var bottom = new StackPanel();
-        _spMore = MakeSmallBtn("显示更多…", (_, _) => { _spShown += 120; RefreshSprites(); });
+        _spMore = EditorTheme.ToolButton(Loc.T("Layout.Sprites.More"), (_, _) => { _spShown += 120; RefreshSprites(); });
+        _spMore.Margin = new Thickness(8, 2, 8, 4);
         _spMore.Visibility = Visibility.Collapsed;
         bottom.Children.Add(_spMore);
-        _spHits = new StackPanel { Margin = new Thickness(6, 0, 6, 6) };
+        _spHits = new StackPanel { Margin = new Thickness(8, 0, 8, 8) };
         bottom.Children.Add(_spHits);
-        Grid.SetRow(bottom, 3);
+        Grid.SetRow(bottom, 4);
         root.Children.Add(bottom);
 
         return root;
@@ -693,152 +657,127 @@ public partial class LayoutEditScene
         if (_spAtlasPanel == null) return;
         _spAtlasPanel.Children.Clear();
 
-        var all = LayoutImageProvider.AtlasNames;
-        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        foreach (var a in all) counts[a] = 0;
+        if (_assignTarget is { } at)
+        {
+            _spAssignHint.Text = Loc.F("Layout.Sprites.Assigning", NodeLabel(at.Node), at.Key);
+            _spAssignHint.Visibility = Visibility.Visible;
+        }
+        else _spAssignHint.Visibility = Visibility.Collapsed;
 
-        // 建立索引（首次访问会扫描图集）
+        var all = LayoutImageProvider.AtlasNames;
         var query = (_spSearch.Text ?? "").Trim().ToLowerInvariant();
         var names = new List<(string Name, string Atlas)>();
+        var perAtlas = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var atlas in all)
         {
+            var defs = LayoutImageProvider.AtlasImages(atlas);
+            perAtlas[atlas] = defs.Count;
             if (_spAtlasFilter != null && !string.Equals(atlas, _spAtlasFilter, StringComparison.OrdinalIgnoreCase)) continue;
-            var parser = WC4MapEditor.Core.Parsers.HdAtlas.HdAtlasParser.Get(atlas);
-            foreach (var def in parser.ImageDefinitions)
+            foreach (var def in defs)
             {
-                if (query.Length > 0 && !def.Name.ToLowerInvariant().Contains(query)) continue;
+                if (query.Length > 0 && !def.Name.ToLowerInvariant().Contains(query) && !LayoutImageProvider.AtlasDisplayName(atlas).ToLowerInvariant().Contains(query)) continue;
                 names.Add((def.Name, atlas));
             }
         }
 
-        // 图集 chips — B10: "全部" chip
-        var allChip = new Button
-        {
-            Content = $"全部 ({names.Count})",
-            FontSize = 11,
-            Margin = new Thickness(2),
-            Padding = new Thickness(6, 1, 6, 1),
-            BorderThickness = new Thickness(1),
-            Cursor = Cursors.Hand,
-            Foreground = _spAtlasFilter == null ? Brushes.White : new SolidColorBrush(Color.FromRgb(0x9F, 0xB0, 0xC0)),
-            Background = _spAtlasFilter == null
-                ? new SolidColorBrush(Color.FromRgb(0x16, 0x36, 0x4A))
-                : new SolidColorBrush(Color.FromRgb(0x17, 0x1D, 0x24))
-        };
-        allChip.Click += (_, _) => { _spAtlasFilter = null; _spShown = 120; RefreshSprites(); };
-        _spAtlasPanel.Children.Add(allChip);
-
+        _spAtlasPanel.Children.Add(EditorTheme.Chip(Loc.F("Layout.Sprites.All", names.Count), _spAtlasFilter == null, (_, _) => { _spAtlasFilter = null; _spShown = 120; RefreshSprites(); }));
         foreach (var atlas in all)
         {
-            var parser = WC4MapEditor.Core.Parsers.HdAtlas.HdAtlasParser.Get(atlas);
-            var chip = new Button
-            {
-                Content = $"{atlas} ({parser.ImageDefinitions.Count})",
-                FontSize = 11,
-                Margin = new Thickness(2),
-                Padding = new Thickness(6, 1, 6, 1),
-                BorderThickness = new Thickness(1),
-                Cursor = Cursors.Hand,
-                Foreground = string.Equals(atlas, _spAtlasFilter, StringComparison.OrdinalIgnoreCase) ? Brushes.White : new SolidColorBrush(Color.FromRgb(0x9F, 0xB0, 0xC0)),
-                Background = string.Equals(atlas, _spAtlasFilter, StringComparison.OrdinalIgnoreCase)
-                    ? new SolidColorBrush(Color.FromRgb(0x16, 0x36, 0x4A))
-                    : new SolidColorBrush(Color.FromRgb(0x17, 0x1D, 0x24))
-            };
             string a = atlas;
-            chip.Click += (_, _) =>
+            bool sel = string.Equals(atlas, _spAtlasFilter, StringComparison.OrdinalIgnoreCase);
+            // 搜索时只列有命中的图集，避免几十个空芯片
+            if (query.Length > 0 && !sel && !names.Any(x => string.Equals(x.Atlas, a, StringComparison.OrdinalIgnoreCase))) continue;
+            _spAtlasPanel.Children.Add(EditorTheme.Chip($"{LayoutImageProvider.AtlasDisplayName(atlas)} ({perAtlas[atlas]})", sel, (_, _) =>
             {
                 _spAtlasFilter = string.Equals(_spAtlasFilter, a, StringComparison.OrdinalIgnoreCase) ? null : a;
                 _spShown = 120;
                 RefreshSprites();
-            };
-            _spAtlasPanel.Children.Add(chip);
+            }));
         }
 
-        _spCount.Text = $"{names.Count} 张";
+        _spCount.Text = Loc.F("Layout.Sprites.Count", names.Count);
 
         _spGrid.Children.Clear();
-        var usage = UsageMap();
         var usageByName = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        foreach (var u in usage)
-        {
-            var key = u.Name;
-            usageByName[key] = (usageByName.TryGetValue(key, out var c) ? c : 0) + 1;
-        }
+        foreach (var u in UsageMap()) usageByName[u.Name] = (usageByName.TryGetValue(u.Name, out var c) ? c : 0) + 1;
 
         foreach (var (name, atlas) in names.Take(_spShown))
         {
-            var isSel = string.Equals(name, _spSelectedName, StringComparison.OrdinalIgnoreCase);
-            var cell = new StackPanel
+            bool isSel = string.Equals(name, _spSelectedName, StringComparison.OrdinalIgnoreCase);
+            var cell = new Border
             {
-                Width = 78,
+                Width = 82,
                 Margin = new Thickness(3),
+                Padding = new Thickness(4),
                 Cursor = Cursors.Hand,
-                Background = isSel ? new SolidColorBrush(Color.FromRgb(0x16, 0x36, 0x4A)) : Brushes.Transparent
+                CornerRadius = new CornerRadius(4),
+                Background = isSel ? EditorTheme.Selection : EditorTheme.Bg2,
+                BorderBrush = isSel ? EditorTheme.Accent : EditorTheme.Border,
+                BorderThickness = new Thickness(1),
+                ToolTip = $"{name}\n{LayoutImageProvider.AtlasDisplayName(atlas)}"
             };
-            var thumb = HdAtlasImageLoader.Load(atlas, name);
-            var img = new Image
-            {
-                Width = 68,
-                Height = 68,
-                Stretch = Stretch.Uniform,
-                Source = thumb
-            };
-            cell.Children.Add(img);
-            cell.Children.Add(new TextBlock
-            {
-                Text = name,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x8F, 0xA3, 0xB5)),
-                FontSize = 10,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                Margin = new Thickness(0, 2, 0, 0)
-            });
-            // B11: 引用徽章
+            var sp = new StackPanel();
+            sp.Children.Add(new Image { Width = 64, Height = 64, Stretch = Stretch.Uniform, Source = HdAtlasImageLoader.Load(atlas, name) });
+            var cap = new Grid { Margin = new Thickness(0, 3, 0, 0) };
+            cap.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            cap.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            cap.Children.Add(new TextBlock { Text = name, Foreground = EditorTheme.TextMuted, FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis });
             if (usageByName.TryGetValue(name, out var refCount) && refCount > 0)
             {
-                cell.Children.Add(new TextBlock
-                {
-                    Text = refCount.ToString(),
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x8B, 0xE0, 0xC2)),
-                    FontSize = 9,
-                    FontWeight = FontWeights.Bold,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    Margin = new Thickness(0, -2, 0, 0),
-                    ToolTip = $"当前布局有 {refCount} 处引用"
-                });
+                var badge = EditorTheme.Badge(refCount.ToString(), EditorTheme.Selection);
+                badge.ToolTip = Loc.F("Layout.Sprites.Refs", refCount);
+                badge.Margin = new Thickness(3, 0, 0, 0);
+                Grid.SetColumn(badge, 1);
+                cap.Children.Add(badge);
             }
-            string n = name;
-            cell.MouseLeftButtonDown += (_, _) => SelectSprite(n);
+            sp.Children.Add(cap);
+            cell.Child = sp;
+            string nm = name;
+            cell.MouseLeftButtonDown += (_, e) =>
+            {
+                if (e.ClickCount == 2 && _selected is { IsVirtual: false } target && LayoutSchema.Get(target.Tag).ImageKeys.FirstOrDefault() is { } primaryKey)
+                {
+                    SetAttr(target, primaryKey, nm);
+                    RenderProps();
+                    return;
+                }
+                SelectSprite(nm);
+            };
             _spGrid.Children.Add(cell);
         }
 
         _spMore.Visibility = names.Count > _spShown ? Visibility.Visible : Visibility.Collapsed;
-
         if (_spSelectedName != null) RenderSpriteHits(_spSelectedName);
     }
 
     private void SelectSprite(string name)
     {
+        // 选图模式：填回属性并回到属性页
+        if (_assignTarget is { } at)
+        {
+            _assignTarget = null;
+            SetAttr(at.Node, at.Key, name);
+            ShowPropsTab();
+            RenderProps();
+            SetStatus(Loc.F("Layout.Sprites.Assigned", name, NodeLabel(at.Node), at.Key));
+            return;
+        }
+
         _spSelectedName = name;
         RefreshSprites();
-        RenderSpriteHits(name);
 
-        // 跳到第一个引用它的控件
         var hits = UsageMap().Where(h => string.Equals(h.Name, name, StringComparison.OrdinalIgnoreCase)).ToList();
         if (hits.Count > 0)
         {
             var first = hits[0];
-            if (!ReferenceEquals(first.Form, _form))
-            {
-                _form = first.Form;
-                RefreshFormList();
-            }
+            if (!ReferenceEquals(first.Form, _form)) { _form = first.Form; _doc.BuildExpansion(first.Form); RefreshFormList(); }
             SelectNode(first.Node);
             CenterOnNode(first.Node);
-            SetStatus($"「{name}」被 {hits.Count} 处引用 → {first.FormId} · {first.Node}（{first.Key}）");
+            SetStatus(Loc.F("Layout.Sprites.UsedBy", name, hits.Count, first.FormId, NodeLabel(first.Node), first.Key));
         }
         else
         {
-            SetStatus($"「{name}」当前布局中没有控件引用");
+            SetStatus(Loc.F("Layout.Sprites.NotUsed", name));
         }
     }
 
@@ -847,32 +786,24 @@ public partial class LayoutEditScene
         _spHits.Children.Clear();
         var hits = UsageMap().Where(h => string.Equals(h.Name, name, StringComparison.OrdinalIgnoreCase)).ToList();
 
-        // B13: 带关闭按钮的标题行
-        var header = new StackPanel { Orientation = Orientation.Horizontal };
-        header.Children.Add(new TextBlock
+        var header = new Grid { Margin = new Thickness(0, 4, 0, 2) };
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var title = new TextBlock
         {
-            Text = $"「{name}」{(hits.Count > 0 ? $"被 {hits.Count} 处引用" : "没有控件引用")}",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x8B, 0xE0, 0xC2)),
-            FontWeight = FontWeights.Bold,
+            Text = hits.Count > 0 ? Loc.F("Layout.Sprites.HitsTitle", name, hits.Count) : Loc.F("Layout.Sprites.NotUsed", name),
+            Foreground = EditorTheme.Accent,
+            FontWeight = FontWeights.SemiBold,
             FontSize = 11,
-            Margin = new Thickness(0, 4, 0, 2),
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        var closeBtn = new Button
-        {
-            Content = "×",
-            FontSize = 11,
-            Width = 20,
-            Height = 18,
-            Margin = new Thickness(6, 2, 0, 0),
-            Padding = new Thickness(0),
-            Cursor = Cursors.Hand,
-            ToolTip = "收起",
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            BorderThickness = new Thickness(0),
-            Foreground = Brushes.White
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis
         };
-        closeBtn.Click += (_, _) => _spHits.Children.Clear();
+        header.Children.Add(title);
+        var closeBtn = EditorTheme.GhostButton("×", (_, _) => { _spSelectedName = null; _spHits.Children.Clear(); RefreshSprites(); });
+        closeBtn.Padding = new Thickness(6, 0, 6, 0);
+        closeBtn.MinHeight = 20;
+        closeBtn.ToolTip = Loc.T("Common.Close");
+        Grid.SetColumn(closeBtn, 1);
         header.Children.Add(closeBtn);
         _spHits.Children.Add(header);
 
@@ -880,27 +811,26 @@ public partial class LayoutEditScene
         int shown = 0;
         foreach (var h in hits)
         {
-            string label = $"{h.FormId} · {TagCn(h.Node.Tag)}{(h.Node.Get("id") != null ? "#" + h.Node.Get("id") : "")} · {h.Key}";
+            string label = $"{h.FormId} · {NodeLabel(h.Node)} · {h.Key}";
             if (!seen.Add(label)) continue;
             if (shown++ >= 60) break;
 
             var item = new TextBlock
             {
                 Text = label,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xB9, 0xC6, 0xD3)),
+                Foreground = EditorTheme.TextMuted,
                 FontSize = 11,
-                Padding = new Thickness(2),
-                Cursor = Cursors.Hand
+                Padding = new Thickness(4, 2, 4, 2),
+                Cursor = Cursors.Hand,
+                TextTrimming = TextTrimming.CharacterEllipsis
             };
             var node = h.Node;
             var form = h.Form;
+            item.MouseEnter += (_, _) => item.Foreground = EditorTheme.Text;
+            item.MouseLeave += (_, _) => item.Foreground = EditorTheme.TextMuted;
             item.MouseLeftButtonDown += (_, _) =>
             {
-                if (!ReferenceEquals(form, _form))
-                {
-                    _form = form;
-                    RefreshFormList();
-                }
+                if (!ReferenceEquals(form, _form)) { _form = form; _doc.BuildExpansion(form); RefreshFormList(); }
                 SelectNode(node);
                 CenterOnNode(node);
             };
@@ -910,6 +840,7 @@ public partial class LayoutEditScene
 
     private void InvalidateUsage() => _usageMap = null;
 
+    /// <summary>全文档的"图片名 → 引用位置"表（图库徽章 / 反查用），改图片属性后失效重建。</summary>
     private List<(string FormId, LayoutNode Form, LayoutNode Node, string Key, string Name)> UsageMap()
     {
         if (_usageMap != null) return _usageMap;
@@ -918,22 +849,16 @@ public partial class LayoutEditScene
         foreach (var form in _doc.Forms)
         {
             string fid = form.Get("id") ?? "";
-
-            void Walk(LayoutNode n)
+            foreach (var n in LayoutDocument.Walk(form))
             {
                 foreach (var kv in n.Attributes)
                 {
                     if (!ImageKeys.Contains(kv.Key)) continue;
-                    var key = kv.Value.Replace('\\', '/').Split('/')[^1].ToLowerInvariant();
+                    var key = kv.Value.Replace('\\', '/').Split('/')[^1];
                     if (key.Length == 0) continue;
                     map.Add((fid, form, n, kv.Key, key));
                 }
-                foreach (var c in n.Children) Walk(c);
-                if (n.Expanded != null) foreach (var c in n.Expanded) Walk(c);
-                if (n.Items != null) foreach (var cell in n.Items) foreach (var c in cell.Children) Walk(c);
             }
-
-            Walk(form);
         }
 
         _usageMap = map;

@@ -22,6 +22,21 @@ public sealed class OverlayRender
     private SKFont? _modeTextFont;
     private bool _paintsInitialized;
 
+    // 帮助文本的拆行结果与最大行宽：只在 HelpText 变化（_helpLinesDirty）或字体重建后重算，
+    // 原先每帧 Split + 逐行 MeasureText。
+    private string[] _helpLines = Array.Empty<string>();
+    private float _helpMaxWidth;
+    private bool _helpLinesDirty = true;
+
+    // 帮助面板 / 模式名的画笔常驻复用，每帧只按透明度更新颜色；阴影径向渐变仅在透明度或矩形变化时重建。
+    private SKPaint? _helpShadowPaint;
+    private SKPaint? _helpShadowTextPaint;
+    private SKPaint? _modeShadowPaint;
+    private SKPaint? _modeFillPaint;
+    private SKShader? _helpShadowShader;
+    private float _helpShadowShaderOpacity = -1f;
+    private SKRect _helpShadowShaderRect;
+
     private bool _brushPreviewVisible;
     private int _brushPreviewCenterCol = -1;
     private int _brushPreviewCenterRow = -1;
@@ -45,7 +60,13 @@ public sealed class OverlayRender
     public string HelpText
     {
         get => _helpText;
-        set => _helpText = value ?? string.Empty;
+        set
+        {
+            var text = value ?? string.Empty;
+            if (string.Equals(text, _helpText, StringComparison.Ordinal)) return;
+            _helpText = text;
+            _helpLinesDirty = true;
+        }
     }
 
     public string ModeName
@@ -155,6 +176,14 @@ public sealed class OverlayRender
         };
 
         _brushPreviewHexPath = CreateHexPath(1.0f);
+
+        _helpShadowPaint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill };
+        _helpShadowTextPaint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill };
+        _modeShadowPaint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill };
+        _modeFillPaint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill };
+        _helpShadowShaderOpacity = -1f;
+        // 字体刚（重新）创建，行宽需要按新字体重新测量。
+        _helpLinesDirty = true;
     }
 
     private static SKPath CreateHexPath(float size)
@@ -275,20 +304,12 @@ public sealed class OverlayRender
 
         byte opacityByte = (byte)(_helpOpacity * 255);
 
-        using var shadowPaint = new SKPaint
-        {
-            IsAntialias = true,
-            Color = new SKColor(0, 0, 0, (byte)(200 * _helpOpacity)),
-            Style = SKPaintStyle.Fill
-        };
+        var shadowPaint = _modeShadowPaint!;
+        shadowPaint.Color = new SKColor(0, 0, 0, (byte)(200 * _helpOpacity));
         canvas.DrawText(_modeName, textX + 2, textY + 2, SKTextAlign.Right, _modeTextFont!, shadowPaint);
 
-        using var textPaint = new SKPaint
-        {
-            IsAntialias = true,
-            Color = new SKColor(255, 215, 0, opacityByte),
-            Style = SKPaintStyle.Fill
-        };
+        var textPaint = _modeFillPaint!;
+        textPaint.Color = new SKColor(255, 215, 0, opacityByte);
         canvas.DrawText(_modeName, textX, textY, SKTextAlign.Right, _modeTextFont!, textPaint);
     }
 
@@ -299,19 +320,16 @@ public sealed class OverlayRender
         float startX = marginLeft;
         float startY = marginTop + _helpTextFont!.Size;
 
-        var lines = _helpText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        if (_helpLinesDirty)
+            RebuildHelpLines();
+
+        var lines = _helpLines;
         if (lines.Length <= 1) return;
 
         int contentLines = lines.Length - 1;
-        float maxWidth = 0;
         float lineHeight = _helpTextFont.Size + 4;
-        for (int i = 1; i < lines.Length; i++)
-        {
-            float w = _helpTextFont.MeasureText(lines[i]);
-            if (w > maxWidth) maxWidth = w;
-        }
 
-        float textWidth = maxWidth;
+        float textWidth = _helpMaxWidth;
         float textHeight = contentLines * lineHeight;
 
         float shadowPadding = 8;
@@ -322,11 +340,10 @@ public sealed class OverlayRender
             marginTop + textHeight + shadowPadding
         );
 
-        using (var shadowPaint = new SKPaint())
+        var shadowPaint = _helpShadowPaint!;
+        // 渐变颜色随透明度、几何随矩形变化；两者都没变（非淡入淡出期间的每一帧）时沿用上一帧的着色器。
+        if (_helpShadowShader == null || _helpShadowShaderOpacity != _helpOpacity || _helpShadowShaderRect != shadowRect)
         {
-            shadowPaint.IsAntialias = true;
-            shadowPaint.Style = SKPaintStyle.Fill;
-
             var colors = new SKColor[]
             {
                 new SKColor(0, 0, 0, (byte)(160 * _helpOpacity)),
@@ -336,42 +353,55 @@ public sealed class OverlayRender
             };
             var positions = new float[] { 0.0f, 0.7f, 0.9f, 1.0f };
 
-            using var shader = SKShader.CreateRadialGradient(
+            var shader = SKShader.CreateRadialGradient(
                 new SKPoint(shadowRect.MidX, shadowRect.MidY),
                 Math.Max(shadowRect.Width, shadowRect.Height) / 2,
                 colors,
                 positions,
                 SKShaderTileMode.Clamp);
+            // 先挂到画笔上再释放旧的，画笔自身持有原生引用，不受托管对象释放影响。
             shadowPaint.Shader = shader;
-            canvas.DrawRoundRect(shadowRect, 10, 10, shadowPaint);
+            _helpShadowShader?.Dispose();
+            _helpShadowShader = shader;
+            _helpShadowShaderOpacity = _helpOpacity;
+            _helpShadowShaderRect = shadowRect;
         }
+        canvas.DrawRoundRect(shadowRect, 10, 10, shadowPaint);
 
-        using (var shadowTextPaint = new SKPaint())
+        var shadowTextPaint = _helpShadowTextPaint!;
+        shadowTextPaint.Color = new SKColor(0, 0, 0, (byte)(180 * _helpOpacity));
+        for (int i = 1; i < lines.Length; i++)
         {
-            shadowTextPaint.IsAntialias = true;
-            shadowTextPaint.Color = new SKColor(0, 0, 0, (byte)(180 * _helpOpacity));
-            shadowTextPaint.Style = SKPaintStyle.Fill;
-
-            for (int i = 1; i < lines.Length; i++)
-            {
-                float lineY = startY + ((i - 1) * lineHeight);
-                canvas.DrawText(lines[i], startX + 1, lineY + 1, SKTextAlign.Left, _helpTextFont, shadowTextPaint);
-            }
+            float lineY = startY + ((i - 1) * lineHeight);
+            canvas.DrawText(lines[i], startX + 1, lineY + 1, SKTextAlign.Left, _helpTextFont, shadowTextPaint);
         }
 
         byte opacityByte = (byte)(_helpOpacity * 255);
-        using (var textPaint = new SKPaint())
+        var textPaint = _helpTextPaint!;
+        textPaint.Color = new SKColor(255, 255, 255, opacityByte);
+        for (int i = 1; i < lines.Length; i++)
         {
-            textPaint.IsAntialias = true;
-            textPaint.Color = new SKColor(255, 255, 255, opacityByte);
-            textPaint.Style = SKPaintStyle.Fill;
+            float lineY = startY + ((i - 1) * lineHeight);
+            canvas.DrawText(lines[i], startX, lineY, SKTextAlign.Left, _helpTextFont, textPaint);
+        }
+    }
 
-            for (int i = 1; i < lines.Length; i++)
+    /// <summary>按当前 HelpText 重新拆行并测量最大行宽（跳过首行标题，与绘制逻辑一致）。</summary>
+    private void RebuildHelpLines()
+    {
+        _helpLinesDirty = false;
+        _helpLines = _helpText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        float maxWidth = 0;
+        if (_helpTextFont != null)
+        {
+            for (int i = 1; i < _helpLines.Length; i++)
             {
-                float lineY = startY + ((i - 1) * lineHeight);
-                canvas.DrawText(lines[i], startX, lineY, SKTextAlign.Left, _helpTextFont, textPaint);
+                float w = _helpTextFont.MeasureText(_helpLines[i]);
+                if (w > maxWidth) maxWidth = w;
             }
         }
+        _helpMaxWidth = maxWidth;
     }
 
     public void Dispose()
@@ -386,6 +416,17 @@ public sealed class OverlayRender
         _modeTextFont?.Dispose();
         _brushPreviewPaint?.Dispose();
         _brushPreviewHexPath?.Dispose();
+        _helpShadowPaint?.Dispose();
+        _helpShadowTextPaint?.Dispose();
+        _modeShadowPaint?.Dispose();
+        _modeFillPaint?.Dispose();
+        _helpShadowShader?.Dispose();
+        _helpShadowPaint = null;
+        _helpShadowTextPaint = null;
+        _modeShadowPaint = null;
+        _modeFillPaint = null;
+        _helpShadowShader = null;
+        _helpShadowShaderOpacity = -1f;
         _paintsInitialized = false;
     }
 }

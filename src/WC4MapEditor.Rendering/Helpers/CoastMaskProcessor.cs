@@ -469,6 +469,10 @@ public sealed class CoastMaskProcessor
         {
             _initialized = true;
             LoadedFromDiskCache = true;
+            // 以前这里直接返回，最终图集只有截图流程才会去构建 —— 结果平时渲染每个海岸格
+            // 都走 DrawMaskedCoast 的三张离屏 Surface 合成。遮罩命中时顺便把图集缓存也装上，
+            // 装不上则由 BackGroundRender 在后台烘焙。
+            TryLoadFinalAtlasFromCache();
             progressCallback?.Invoke(100, "海岸线遮罩已从本地缓存加载");
             return;
         }
@@ -748,6 +752,10 @@ public sealed class CoastMaskProcessor
 
         _landTexture = landTexture;
         _hexagonLandTexture = landTexture != null ? CreateHexagonLandTexture(landTexture) : null;
+
+        // 从磁盘恢复的图集在 SetLandTexture 之前就绪，引用为 null；缓存指纹已经覆盖纹理来源，
+        // 这里认领它，避免截图流程再白白重建一次
+        if (_finalAtlasBuilt && _finalAtlasLandTextureRef == null) _finalAtlasLandTextureRef = landTexture;
     }
 
     private static SKImage? CreateHexagonLandTexture(SKImage landTexture)
@@ -791,9 +799,21 @@ public sealed class CoastMaskProcessor
             return _maskCache.ContainsKey(spriteName);
     }
 
+    private readonly object _atlasBuildLock = new();
+
     public void BuildFinalCoastAtlas(CoastHelper coastHelper, Action<int, string>? progressCallback = null)
     {
         if (coastHelper == null || !_initialized || _landTexture == null) return;
+        // 后台烘焙与截图流程可能同时到这里，串行化即可（第二个进来时直接命中已建好的图集）
+        lock (_atlasBuildLock)
+        {
+            BuildFinalCoastAtlasCore(coastHelper, progressCallback);
+        }
+    }
+
+    private void BuildFinalCoastAtlasCore(CoastHelper coastHelper, Action<int, string>? progressCallback)
+    {
+        if (_landTexture == null) return;
         if (_finalAtlasBuilt && ReferenceEquals(_finalAtlasLandTextureRef, _landTexture))
         {
             progressCallback?.Invoke(100, "海岸线最终图集已缓存");
@@ -1035,50 +1055,69 @@ public sealed class CoastMaskProcessor
         return neighbors;
     }
 
+    // 六个邻居的偏移，顺序固定为：上、右上、右下、下、左下、左上（与 DirectionNames 一一对应）。
+    // 偶数列与奇数列的六角邻居不同，两套表分开。
+    private static readonly int[] EvenDx = { 0, 1, 1, 0, -1, -1 };
+    private static readonly int[] EvenDy = { -1, -1, 0, 1, 0, -1 };
+    private static readonly int[] OddDx = { 0, 1, 1, 0, -1, -1 };
+    private static readonly int[] OddDy = { -1, 0, 1, 1, 1, 0 };
+    private static readonly string[] DirectionNames = { "上方", "右上方", "右下方", "下方", "左下方", "左上方" };
+
+    /// <summary>
+    /// 邻居掩码（bit i = 第 i 个邻居是陆地）→ 装饰类型。
+    /// 表由下面保留的"方向名"版本函数在启动时生成，保证与原实现逐位一致；
+    /// 热路径上不再有 List / 数组 / HashSet&lt;string&gt; 分配（整图重算从每格约 10 次堆分配变成一次查表）。
+    /// </summary>
+    private static readonly byte[] DecorationByMask = BuildDecorationTable();
+
+    private static byte[] BuildDecorationTable()
+    {
+        var table = new byte[64];
+        var dirs = new List<string>(6);
+        for (int mask = 0; mask < 64; mask++)
+        {
+            dirs.Clear();
+            for (int i = 0; i < 6; i++)
+                if ((mask & (1 << i)) != 0) dirs.Add(DirectionNames[i]);
+
+            table[mask] = dirs.Count switch
+            {
+                0 => 10,
+                1 => GetDecorationForSingleNeighbor(dirs[0]),
+                2 => GetDecorationForTwoNeighbors(dirs[0], dirs[1]),
+                3 => GetDecorationForThreeNeighbors(dirs[0], dirs[1], dirs[2]),
+                4 => GetDecorationForFourNeighbors(dirs[0], dirs[1], dirs[2], dirs[3]),
+                5 => GetDecorationForFiveNeighbors(dirs[0], dirs[1], dirs[2], dirs[3], dirs[4]),
+                6 => 11,
+                _ => 10
+            };
+        }
+        return table;
+    }
+
     public static byte CalculateCoastDecorationType(MapData mapData, int col, int row)
     {
         const int OCEAN_TILE_TYPE = 1;
-        var nonOceanNeighbors = GetNonOceanNeighbors(mapData, col, row, OCEAN_TILE_TYPE);
+        int mapWidth = mapData.MapWidth, mapHeight = mapData.MapHeight;
+        bool isEven = (col & 1) == 0;
+        var dx = isEven ? EvenDx : OddDx;
+        var dy = isEven ? EvenDy : OddDy;
 
-        return nonOceanNeighbors.Count switch
-        {
-            0 => 10,
-            1 => GetDecorationForSingleNeighbor(nonOceanNeighbors[0].Direction),
-            2 => GetDecorationForTwoNeighbors(nonOceanNeighbors[0].Direction, nonOceanNeighbors[1].Direction),
-            3 => GetDecorationForThreeNeighbors(nonOceanNeighbors[0].Direction, nonOceanNeighbors[1].Direction, nonOceanNeighbors[2].Direction),
-            4 => GetDecorationForFourNeighbors(nonOceanNeighbors[0].Direction, nonOceanNeighbors[1].Direction, nonOceanNeighbors[2].Direction, nonOceanNeighbors[3].Direction),
-            5 => GetDecorationForFiveNeighbors(nonOceanNeighbors[0].Direction, nonOceanNeighbors[1].Direction, nonOceanNeighbors[2].Direction, nonOceanNeighbors[3].Direction, nonOceanNeighbors[4].Direction),
-            6 => 11,
-            _ => 10
-        };
-    }
-
-    private struct NeighborInfo { public int Col; public int Row; public string Direction; }
-
-    private static List<NeighborInfo> GetNonOceanNeighbors(MapData mapData, int col, int row, int oceanType)
-    {
-        var result = new List<NeighborInfo>();
-        bool isEven = col % 2 == 0;
-
-        int[,] evenOffsets = { { 0, -1 }, { 1, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 }, { -1, -1 } };
-        int[,] oddOffsets = { { 0, -1 }, { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 } };
-        var offsets = isEven ? evenOffsets : oddOffsets;
-        string[] directions = ["上方", "右上方", "右下方", "下方", "左下方", "左上方"];
-
+        int mask = 0;
         for (int i = 0; i < 6; i++)
         {
-            int nc = col + offsets[i, 0];
-            int nr = row + offsets[i, 1];
-            if (nc < 0) nc = mapData.MapWidth - 1;
-            else if (nc >= mapData.MapWidth) nc = 0;
-            if (nr < 0 || nr >= mapData.MapHeight) continue;
+            int nc = col + dx[i];
+            int nr = row + dy[i];
+            if (nc < 0) nc = mapWidth - 1;          // 横向环绕（世界地图左右相接），与原实现一致
+            else if (nc >= mapWidth) nc = 0;
+            if (nr < 0 || nr >= mapHeight) continue;
 
-            var terrain = mapData.GetTerrainAt(nc, nr);
-            if (terrain.TileType1 != oceanType)
-                result.Add(new NeighborInfo { Col = nc, Row = nr, Direction = directions[i] });
+            if (mapData.GetTerrainRef(nc, nr).TileType1 != OCEAN_TILE_TYPE) mask |= 1 << i;
         }
-        return result;
+        return DecorationByMask[mask];
     }
+
+    // ---- 下面的方向名版本只用于生成 DecorationByMask（保留原始规则表，便于对照游戏素材编号） ----
 
     private static byte GetDecorationForSingleNeighbor(string direction) => direction switch
     {

@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using WC4MapEditor.Core.Config;
 
 namespace WC4MapEditor.GUI.Views.Assist;
@@ -27,12 +28,16 @@ public sealed class BrushSettingsEventArgs : EventArgs
 
 public sealed class BrushSettingsWindow : Window
 {
+    // "圆形" / "方形" 是 Core（BrushEngine / TerrainModifier）与 Rendering 比较用的标识值，不是界面文字，不能翻译
+    private const string ShapeCircle = "圆形";
+    private const string ShapeSquare = "方形";
+
     private int _brushSize = 0;
     private int _selectedTerrainType = 0;
     private int _selectedTerrainVariant = 0;
     private int _editLayer = 1;
     private bool _maskIncludeMode = true;
-    private string _brushShape = "圆形";
+    private string _brushShape = ShapeCircle;
     private readonly HashSet<int> _maskedTerrainIds = [];
     private bool _isClosing;
     private bool _isExplicitlyShown;
@@ -45,27 +50,24 @@ public sealed class BrushSettingsWindow : Window
     private CheckBox? _maskModeCheckBox;
     private ComboBox? _shapeCombo;
 
-    private readonly SolidColorBrush _textBrush = Brushes.White;
-    private readonly SolidColorBrush _borderBrush = new(Color.FromArgb(100, 255, 255, 255));
-    private readonly Color _themeColor = Color.FromRgb(0x2D, 0x2D, 0x30);
-
     public event EventHandler<BrushSettingsEventArgs>? BrushSettingsChanged;
 
     public BrushSettingsWindow()
     {
-        Title = "画笔设置";
+        EditorTheme.Apply(this);
+        Title = Loc.T("Assist.Brush.Title");
         Width = 300;
         Height = 520;
         WindowStartupLocation = WindowStartupLocation.Manual;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
+        // 无边框圆角卡片 + 投影需要窗口本身透明；主题底色放在内部卡片 Border 上
         Background = Brushes.Transparent;
         ResizeMode = ResizeMode.NoResize;
         Opacity = 0;
         ShowInTaskbar = false;
         ShowActivated = false;
         Topmost = true;
-        FontFamily = new FontFamily("Microsoft YaHei");
 
         Content = CreateWindowContent();
         Loaded += (_, _) => PlayFadeInAnimation();
@@ -137,29 +139,34 @@ public sealed class BrushSettingsWindow : Window
             Width = 280,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
-            Background = new SolidColorBrush(Color.FromArgb(230, _themeColor.R, _themeColor.G, _themeColor.B)),
-            CornerRadius = new CornerRadius(10),
-            BorderBrush = _borderBrush,
+            Background = EditorTheme.Bg2,
+            CornerRadius = new CornerRadius(8),
+            BorderBrush = EditorTheme.Border,
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(10)
+            Margin = new Thickness(10),
+            Effect = new DropShadowEffect
+            {
+                Color = EditorTheme.ColorOf(EditorTheme.Bg0),
+                Direction = 270,
+                ShadowDepth = 4,
+                BlurRadius = 16,
+                Opacity = 0.5
+            }
         };
 
         var mainStack = new StackPanel();
 
+        var titleText = EditorTheme.Muted(Loc.T("Assist.Brush.DragTitle"));
+        titleText.HorizontalAlignment = HorizontalAlignment.Center;
+        titleText.VerticalAlignment = VerticalAlignment.Center;
+
         var titleBar = new Border
         {
             Height = 30,
-            Background = new SolidColorBrush(Color.FromArgb(50, 0, 0, 0)),
-            CornerRadius = new CornerRadius(10, 10, 0, 0),
+            Background = EditorTheme.Bg3,
+            CornerRadius = new CornerRadius(8, 8, 0, 0),
             Cursor = Cursors.Hand,
-            Child = new TextBlock
-            {
-                Text = "画笔设置 (按住拖动)",
-                FontSize = 12,
-                Foreground = new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            }
+            Child = titleText
         };
         titleBar.MouseLeftButtonDown += TitleBar_MouseLeftButtonDown;
 
@@ -199,6 +206,23 @@ public sealed class BrushSettingsWindow : Window
             DragMove();
     }
 
+    /// <summary>分组标题：主题的 Section 样式自带上边距，面板里第一组不需要。</summary>
+    private static TextBlock SectionTitle(string text, bool first = false)
+    {
+        var tb = EditorTheme.Section(text);
+        tb.Margin = first ? new Thickness(0, 0, 0, 4) : new Thickness(0, 6, 0, 4);
+        return tb;
+    }
+
+    /// <summary>主题里的 ListBox 本身无底无框，用一层面板画出列表区域。</summary>
+    private static Border Boxed(ListBox list)
+    {
+        var host = EditorTheme.Panel(new Thickness(1));
+        host.CornerRadius = new CornerRadius(4);
+        host.Child = list;
+        return host;
+    }
+
     private void CreateSizeAndShapeSection(StackPanel parent)
     {
         var rowPanel = new StackPanel
@@ -212,24 +236,12 @@ public sealed class BrushSettingsWindow : Window
             Margin = new Thickness(0, 0, 15, 0)
         };
 
-        var sizeLabel = new TextBlock
-        {
-            Text = "画笔大小",
-            FontSize = 12,
-            FontWeight = FontWeights.Bold,
-            Foreground = _textBrush,
-            Margin = new Thickness(0, 0, 0, 4)
-        };
-        leftPanel.Children.Add(sizeLabel);
+        leftPanel.Children.Add(SectionTitle(Loc.T("Assist.Brush.Size"), first: true));
 
         _sizeInput = new TextBox
         {
             Text = "0",
-            Width = 60,
-            FontSize = 12,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromRgb(50, 50, 54)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 80))
+            Width = 60
         };
         _sizeInput.TextChanged += SizeInput_TextChanged;
         _sizeInput.LostFocus += SizeInput_LostFocus;
@@ -237,26 +249,13 @@ public sealed class BrushSettingsWindow : Window
 
         var rightPanel = new StackPanel();
 
-        var shapeLabel = new TextBlock
-        {
-            Text = "画笔形状",
-            FontSize = 12,
-            FontWeight = FontWeights.Bold,
-            Foreground = _textBrush,
-            Margin = new Thickness(0, 0, 0, 4)
-        };
-        rightPanel.Children.Add(shapeLabel);
+        rightPanel.Children.Add(SectionTitle(Loc.T("Assist.Brush.Shape"), first: true));
 
-        _shapeCombo = new ComboBox
-        {
-            Width = 80,
-            FontSize = 12,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromRgb(50, 50, 54)),
-            SelectedIndex = 0
-        };
-        _shapeCombo.Items.Add("圆形");
-        _shapeCombo.Items.Add("方形");
+        // 下拉框只负责显示文字；形状值按 SelectedIndex 映射到 ShapeCircle / ShapeSquare
+        _shapeCombo = EditorTheme.ComboBox(100);
+        _shapeCombo.Items.Add(Loc.T("Assist.Brush.ShapeCircle"));
+        _shapeCombo.Items.Add(Loc.T("Assist.Brush.ShapeSquare"));
+        _shapeCombo.SelectedIndex = 0;
         _shapeCombo.SelectionChanged += ShapeCombo_SelectionChanged;
         rightPanel.Children.Add(_shapeCombo);
 
@@ -267,15 +266,7 @@ public sealed class BrushSettingsWindow : Window
 
     private void CreateTerrainAndVariantSection(StackPanel parent)
     {
-        var titleLabel = new TextBlock
-        {
-            Text = "地形类型和变体",
-            FontSize = 12,
-            FontWeight = FontWeights.Bold,
-            Foreground = _textBrush,
-            Margin = new Thickness(0, 0, 0, 4)
-        };
-        parent.Children.Add(titleLabel);
+        parent.Children.Add(SectionTitle(Loc.T("Assist.Brush.TerrainSection")));
 
         var horizontalPanel = new StackPanel
         {
@@ -288,49 +279,35 @@ public sealed class BrushSettingsWindow : Window
             Margin = new Thickness(0, 0, 5, 0)
         };
 
-        var terrainLabel = new TextBlock
-        {
-            Text = "地形类型",
-            FontSize = 11,
-            Foreground = Brushes.LightGray,
-            Margin = new Thickness(0, 0, 0, 2)
-        };
+        var terrainLabel = EditorTheme.Muted(Loc.T("Assist.Brush.TerrainType"));
+        terrainLabel.FontSize = 11;
+        terrainLabel.Margin = new Thickness(0, 0, 0, 2);
         leftPanel.Children.Add(terrainLabel);
 
         _terrainList = new ListBox
         {
             Width = 110,
             Height = 125,
-            FontSize = 11,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromRgb(50, 50, 54)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 80))
+            FontSize = 11
         };
         _terrainList.SelectionChanged += TerrainList_SelectionChanged;
-        leftPanel.Children.Add(_terrainList);
+        leftPanel.Children.Add(Boxed(_terrainList));
 
         var rightPanel = new StackPanel();
 
-        var variantLabel = new TextBlock
-        {
-            Text = "地形变体",
-            FontSize = 11,
-            Foreground = Brushes.LightGray,
-            Margin = new Thickness(0, 0, 0, 2)
-        };
+        var variantLabel = EditorTheme.Muted(Loc.T("Assist.Brush.TerrainVariant"));
+        variantLabel.FontSize = 11;
+        variantLabel.Margin = new Thickness(0, 0, 0, 2);
         rightPanel.Children.Add(variantLabel);
 
         _variantList = new ListBox
         {
             Width = 110,
             Height = 125,
-            FontSize = 11,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromRgb(50, 50, 54)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 80))
+            FontSize = 11
         };
         _variantList.SelectionChanged += VariantList_SelectionChanged;
-        rightPanel.Children.Add(_variantList);
+        rightPanel.Children.Add(Boxed(_variantList));
 
         horizontalPanel.Children.Add(leftPanel);
         horizontalPanel.Children.Add(rightPanel);
@@ -345,22 +322,18 @@ public sealed class BrushSettingsWindow : Window
             Margin = new Thickness(0, 0, 0, 4)
         };
 
-        var titleLabel = new TextBlock
-        {
-            Text = "蒙版地形",
-            FontSize = 12,
-            FontWeight = FontWeights.Bold,
-            Foreground = _textBrush
-        };
+        var titleLabel = SectionTitle(Loc.T("Assist.Brush.MaskSection"));
+        titleLabel.Margin = new Thickness(0, 6, 0, 0);
+        titleLabel.VerticalAlignment = VerticalAlignment.Center;
         headerPanel.Children.Add(titleLabel);
 
         _maskModeCheckBox = new CheckBox
         {
-            Content = "只绘制选中地形",
+            Content = Loc.T("Assist.Brush.MaskOnlySelected"),
             FontSize = 11,
-            Foreground = Brushes.White,
             IsChecked = true,
-            Margin = new Thickness(10, 0, 0, 0)
+            Margin = new Thickness(10, 6, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
         };
         _maskModeCheckBox.Checked += MaskModeCheckBox_Changed;
         _maskModeCheckBox.Unchecked += MaskModeCheckBox_Changed;
@@ -368,26 +341,19 @@ public sealed class BrushSettingsWindow : Window
 
         parent.Children.Add(headerPanel);
 
-        var descLabel = new TextBlock
-        {
-            Text = "勾选：只在选中地形上绘制 | 未勾选：跳过选中地形",
-            FontSize = 9,
-            Foreground = Brushes.LightGray,
-            Margin = new Thickness(0, 0, 0, 4),
-            TextWrapping = TextWrapping.Wrap
-        };
+        var descLabel = EditorTheme.Muted(Loc.T("Assist.Brush.MaskHint"));
+        descLabel.FontSize = 10;
+        descLabel.Margin = new Thickness(0, 0, 0, 4);
+        descLabel.TextWrapping = TextWrapping.Wrap;
         parent.Children.Add(descLabel);
 
         _maskTerrainList = new ListBox
         {
             Height = 100,
-            FontSize = 11,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromRgb(50, 50, 54)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 80))
+            FontSize = 11
         };
         _maskTerrainList.SelectionChanged += MaskTerrainList_SelectionChanged;
-        parent.Children.Add(_maskTerrainList);
+        parent.Children.Add(Boxed(_maskTerrainList));
     }
 
     public void InitializeTerrainList()
@@ -413,7 +379,7 @@ public sealed class BrushSettingsWindow : Window
 
         int variantCount = ConfigManager.Instance.GetTerrainVariantCount(_selectedTerrainType);
         for (int i = 0; i < variantCount; i++)
-            _variantList.Items.Add($"变体 {i}");
+            _variantList.Items.Add(Loc.F("Assist.Brush.VariantItem", i));
 
         if (_selectedTerrainVariant < _variantList.Items.Count)
             _variantList.SelectedIndex = _selectedTerrainVariant;
@@ -455,7 +421,7 @@ public sealed class BrushSettingsWindow : Window
     private void ShapeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_shapeCombo == null) return;
-        _brushShape = _shapeCombo.SelectedIndex == 1 ? "方形" : "圆形";
+        _brushShape = _shapeCombo.SelectedIndex == 1 ? ShapeSquare : ShapeCircle;
         RaiseSettingsChanged();
     }
 
@@ -540,11 +506,11 @@ public sealed class BrushSettingsWindow : Window
         get => _brushShape;
         set
         {
-            if (value == "圆形" || value == "方形")
+            if (value == ShapeCircle || value == ShapeSquare)
             {
                 _brushShape = value;
                 if (_shapeCombo != null)
-                    _shapeCombo.SelectedIndex = value == "方形" ? 1 : 0;
+                    _shapeCombo.SelectedIndex = value == ShapeSquare ? 1 : 0;
             }
         }
     }

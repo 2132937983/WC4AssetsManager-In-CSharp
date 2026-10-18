@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -29,6 +29,7 @@ public class CountryEditScene : UserControl
 
     public CountryEditScene(MainWindow window)
     {
+        EditorTheme.Apply(this);
         _window = window;
         InitializeUI();
         LoadCountries();
@@ -37,152 +38,85 @@ public class CountryEditScene : UserControl
 
     private void InitializeUI()
     {
-        Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
-
         _root = new Grid();
-        _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
         _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
 
-        // Top bar
-        var backBtn = new Button
-        {
-            Content = "返回",
-            Margin = new Thickness(10, 0, 0, 0),
-            Padding = new Thickness(15, 5, 15, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0)
-        };
-        backBtn.Click += (_, _) => _window.SetCurrentScene(new BeginScene(_window));
-
-        var addBtn = new Button
-        {
-            Content = "+ 新增国家",
-            Margin = new Thickness(10, 0, 0, 0),
-            Padding = new Thickness(15, 5, 15, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0x0E, 0x63, 0x9C)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0)
-        };
-        addBtn.Click += OnAddCountry;
-
-        var topBar = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            Height = 50,
-            Child = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                VerticalAlignment = VerticalAlignment.Center,
-                Children =
-                {
-                    backBtn,
-                    addBtn,
-                    new TextBlock
-                    {
-                        Text = "国家数据编辑",
-                        Foreground = Brushes.White,
-                        FontSize = 18,
-                        FontWeight = FontWeights.Bold,
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Margin = new Thickness(20, 0, 0, 0)
-                    }
-                }
-            }
-        };
+        var topBar = EditorTheme.TopBar(
+            Loc.T("Country.Title"),
+            (_, _) => _window.SetCurrentScene(new BeginScene(_window)),
+            EditorTheme.PrimaryButton("+ " + Loc.T("Country.AddCountry"), OnAddCountry));
         Grid.SetRow(topBar, 0);
         _root.Children.Add(topBar);
 
-        // Main content
+        // 主体：国家列表 | 征服列表 | 详情
         var mainGrid = new Grid();
-        mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(250) });
-        mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(250) });
+        mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) });
+        mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
+        mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) });
+        mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
         mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         Grid.SetRow(mainGrid, 1);
 
-        // Country list
-        var countryBorder = CreatePanel("国家列表");
-        _countryList = new ListBox
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x26)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            Margin = new Thickness(5)
-        };
+        _countryList = new ListBox();
         _countryList.SelectionChanged += OnCountrySelected;
-        countryBorder.Child = _countryList;
-        Grid.SetColumn(countryBorder, 0);
-        mainGrid.Children.Add(countryBorder);
+        var countryPanel = CreateListPanel(Loc.T("Country.CountryList"), _countryList);
+        Grid.SetColumn(countryPanel, 0);
+        mainGrid.Children.Add(countryPanel);
 
-        // Conquer list for selected country
-        var conquerBorder = CreatePanel("征服中的国家");
-        _conquerList = new ListBox
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x26)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            Margin = new Thickness(5)
-        };
+        var splitter1 = EditorTheme.VSplitter();
+        Grid.SetColumn(splitter1, 1);
+        mainGrid.Children.Add(splitter1);
+
+        _conquerList = new ListBox();
         _conquerList.SelectionChanged += OnConquerCountrySelected;
-        conquerBorder.Child = _conquerList;
-        Grid.SetColumn(conquerBorder, 1);
-        mainGrid.Children.Add(conquerBorder);
+        var conquerPanel = CreateListPanel(Loc.T("Country.ConquerList"), _conquerList);
+        Grid.SetColumn(conquerPanel, 2);
+        mainGrid.Children.Add(conquerPanel);
 
-        // Detail panel
-        _detailPanel = new StackPanel
+        var splitter2 = EditorTheme.VSplitter();
+        Grid.SetColumn(splitter2, 3);
+        mainGrid.Children.Add(splitter2);
+
+        _detailPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
+        var detailScroll = new ScrollViewer
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x26)),
-            Margin = new Thickness(5)
+            Content = _detailPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Padding = new Thickness(0, 0, 8, 0)
         };
-        var detailBorder = new Border
-        {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            Child = _detailPanel
-        };
-        Grid.SetColumn(detailBorder, 2);
-        mainGrid.Children.Add(detailBorder);
+        Grid.SetColumn(detailScroll, 4);
+        mainGrid.Children.Add(detailScroll);
 
         _root.Children.Add(mainGrid);
 
-        // Status bar
-        _statusText = new TextBlock
-        {
-            Foreground = Brushes.Gray,
-            Margin = new Thickness(10, 5, 10, 5)
-        };
-        var statusBar = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            Child = _statusText
-        };
+        var statusBar = EditorTheme.StatusBar(out _statusText);
         Grid.SetRow(statusBar, 2);
         _root.Children.Add(statusBar);
 
         Content = _root;
     }
 
-    private static Border CreatePanel(string title)
+    /// <summary>左侧列表面板：标题条 + 列表。</summary>
+    private static Border CreateListPanel(string title, ListBox list)
     {
-        var panel = new StackPanel();
-        panel.Children.Add(new TextBlock
-        {
-            Text = title,
-            Foreground = Brushes.White,
-            FontWeight = FontWeights.Bold,
-            Margin = new Thickness(5)
-        });
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        return new Border
-        {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            Margin = new Thickness(5),
-            Child = panel
-        };
+        var header = EditorTheme.SectionHeader(title);
+        header.Margin = new Thickness(0);   // 面板顶部紧贴顶栏，不要分组标题自带的上边距
+        Grid.SetRow(header, 0);
+        grid.Children.Add(header);
+
+        list.Margin = new Thickness(4);
+        Grid.SetRow(list, 1);
+        grid.Children.Add(list);
+
+        var panel = EditorTheme.Panel(new Thickness(0, 0, 1, 0));
+        panel.Child = grid;
+        return panel;
     }
 
     private void LoadCountries()
@@ -190,16 +124,13 @@ public class CountryEditScene : UserControl
         _countryList.Items.Clear();
         foreach (var country in _parser.Countries)
         {
-            var item = new ListBoxItem
+            _countryList.Items.Add(new ListBoxItem
             {
                 Content = $"[{country.Id}] {country.Name}",
-                Tag = country,
-                Foreground = Brushes.White,
-                Background = Brushes.Transparent
-            };
-            _countryList.Items.Add(item);
+                Tag = country
+            });
         }
-        SetStatus($"已加载 {_parser.Countries.Count} 个国家");
+        SetStatus(Loc.F("Country.CountriesLoaded", _parser.Countries.Count));
     }
 
     private void LoadConquers()
@@ -224,14 +155,11 @@ public class CountryEditScene : UserControl
         foreach (var cc in conquerCountries)
         {
             var conquerName = _parser.GetConquerName(cc.ConquerId);
-            var item = new ListBoxItem
+            _conquerList.Items.Add(new ListBoxItem
             {
-                Content = $"[{cc.ConquerId}] {conquerName} - 星级:{cc.Star}",
-                Tag = cc,
-                Foreground = Brushes.White,
-                Background = Brushes.Transparent
-            };
-            _conquerList.Items.Add(item);
+                Content = Loc.F("Country.ConquerListItem", cc.ConquerId, conquerName, cc.Star),
+                Tag = cc
+            });
         }
     }
 
@@ -248,90 +176,74 @@ public class CountryEditScene : UserControl
     {
         _detailPanel.Children.Clear();
 
-        // Flag preview
+        // 国旗预览 + 国旗操作
+        _detailPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("Country.Section.Flag")));
         _flagPreview = new Image
         {
             Width = 100,
             Height = 100,
             Stretch = Stretch.Uniform,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(5)
+            VerticalAlignment = VerticalAlignment.Center
         };
         LoadFlagPreview(country.Id);
-        _detailPanel.Children.Add(_flagPreview);
 
-        // Edit flag button
-        var editFlagBtn = new Button
-        {
-            Content = "编辑国旗",
-            Margin = new Thickness(5),
-            Padding = new Thickness(10, 5, 10, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        editFlagBtn.Click += (_, _) =>
+        var editFlagBtn = EditorTheme.Button(Loc.T("Country.EditFlag"), (_, _) =>
         {
             var scene = new FlagEditScene(_window, country.Id, country.Name);
             _window.SetCurrentScene(scene);
-        };
+        });
+        var useExistingFlagBtn = EditorTheme.Button(Loc.T("Country.UseExistingFlag"), (_, _) => OnUseExistingFlag(country.Id));
+        useExistingFlagBtn.Margin = new Thickness(6, 0, 0, 0);
 
-        // 按钮行：编辑国旗 + 使用现有国旗
-        var flagBtnPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(5) };
-        flagBtnPanel.Children.Add(editFlagBtn);
-
-        var useExistingFlagBtn = new Button
+        var flagBtnPanel = new StackPanel
         {
-            Content = "使用现有国旗",
-            Margin = new Thickness(5, 0, 0, 0),
-            Padding = new Thickness(10, 5, 10, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0x0E, 0x63, 0x9C)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0)
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(12, 0, 0, 0)
         };
-        useExistingFlagBtn.Click += (_, _) => OnUseExistingFlag(country.Id);
+        flagBtnPanel.Children.Add(editFlagBtn);
         flagBtnPanel.Children.Add(useExistingFlagBtn);
 
-        _detailPanel.Children.Add(flagBtnPanel);
+        var flagRow = new StackPanel { Orientation = Orientation.Horizontal };
+        flagRow.Children.Add(_flagPreview);
+        flagRow.Children.Add(flagBtnPanel);
+        var flagCard = EditorTheme.Card(flagRow);
+        flagCard.Margin = new Thickness(10, 8, 10, 0);
+        _detailPanel.Children.Add(flagCard);
 
-        // Country info with edit buttons
+        // 基本信息（可编辑）
+        _detailPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("Common.BasicInfo")));
         var realName = _parser.GetCountryRealName(country.Id);
-        _detailPanel.Children.Add(CreateEditableInfoBlockWithSync("名称", country.Name,
+        _detailPanel.Children.Add(CreateEditableInfoBlock(Loc.T("Common.Name"), country.Name,
             v => { country.Name = v; SaveAndReload(country); },
-            () => { if (_parser.SyncRealNameToName(country.Id)) { SaveAndReload(country); SetStatus($"已将真实名称同步为名称: {country.Name}"); } }));
-        _detailPanel.Children.Add(CreateEditableInfoBlockWithSync("真实名称", realName,
-            v => { if (_parser.SetCountryRealName(country.Id, v)) { ShowCountryDetail(country); SetStatus($"已更新真实名称: {v}"); } },
-            () => { if (_parser.SyncNameToRealName(country.Id)) { ShowCountryDetail(country); SetStatus($"已将名称同步为真实名称: {country.Name}"); } }));
-        _detailPanel.Children.Add(CreateEditableInfoBlock("阵营", country.Camp.ToString(), v => { if (int.TryParse(v, out var n)) { country.Camp = n; SaveAndReload(country); } }));
-        _detailPanel.Children.Add(CreateEditableInfoBlock("步兵模组", country.InfantryMod.ToString(), v => { if (int.TryParse(v, out var n)) { country.InfantryMod = n; SaveAndReload(country); } }));
-        _detailPanel.Children.Add(CreateEditableInfoBlock("装甲模组", country.ArmoredMod.ToString(), v => { if (int.TryParse(v, out var n)) { country.ArmoredMod = n; SaveAndReload(country); } }));
-        _detailPanel.Children.Add(CreateEditableInfoBlock("炮兵模组", country.ArtilleryMod.ToString(), v => { if (int.TryParse(v, out var n)) { country.ArtilleryMod = n; SaveAndReload(country); } }));
-        _detailPanel.Children.Add(CreateEditableInfoBlock("Logo", country.Logo.ToString(), v => { if (int.TryParse(v, out var n)) { country.Logo = n; SaveAndReload(country); } }));
+            Loc.T("Country.SyncToRealName"),
+            () => { if (_parser.SyncRealNameToName(country.Id)) { SaveAndReload(country); SetStatus(Loc.F("Country.RealNameSyncedToName", country.Name)); } }));
+        _detailPanel.Children.Add(CreateEditableInfoBlock(Loc.T("Country.Field.RealName"), realName,
+            v => { if (_parser.SetCountryRealName(country.Id, v)) { ShowCountryDetail(country); SetStatus(Loc.F("Country.RealNameUpdated", v)); } },
+            Loc.T("Country.SyncToName"),
+            () => { if (_parser.SyncNameToRealName(country.Id)) { ShowCountryDetail(country); SetStatus(Loc.F("Country.NameSyncedToRealName", country.Name)); } }));
+        _detailPanel.Children.Add(CreateEditableInfoBlock(Loc.T("Country.Field.Camp"), country.Camp.ToString(), v => { if (int.TryParse(v, out var n)) { country.Camp = n; SaveAndReload(country); } }));
+        _detailPanel.Children.Add(CreateEditableInfoBlock(Loc.T("Country.Field.InfantryMod"), country.InfantryMod.ToString(), v => { if (int.TryParse(v, out var n)) { country.InfantryMod = n; SaveAndReload(country); } }));
+        _detailPanel.Children.Add(CreateEditableInfoBlock(Loc.T("Country.Field.ArmoredMod"), country.ArmoredMod.ToString(), v => { if (int.TryParse(v, out var n)) { country.ArmoredMod = n; SaveAndReload(country); } }));
+        _detailPanel.Children.Add(CreateEditableInfoBlock(Loc.T("Country.Field.ArtilleryMod"), country.ArtilleryMod.ToString(), v => { if (int.TryParse(v, out var n)) { country.ArtilleryMod = n; SaveAndReload(country); } }));
+        _detailPanel.Children.Add(CreateEditableInfoBlock(Loc.T("Country.Field.Logo"), country.Logo.ToString(), v => { if (int.TryParse(v, out var n)) { country.Logo = n; SaveAndReload(country); } }));
 
-        // Delete country button
-        var deleteBtn = new Button
+        // 删除国家
+        var deleteBtn = EditorTheme.DangerButton(Loc.T("Country.DeleteCountry"), (_, _) =>
         {
-            Content = "删除国家",
-            Margin = new Thickness(5, 15, 5, 5),
-            Padding = new Thickness(10, 5, 10, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        deleteBtn.Click += async (_, _) =>
-        {
-            var result = MessageBox.Show($"确定要删除国家 [{country.Id}] {country.Name} 吗？\n这将同时删除该国家在所有征服中的数据。", "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            var result = MessageBox.Show(Loc.F("Country.DeleteConfirm", country.Id, country.Name), Loc.T("Country.DeleteConfirmTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (result != MessageBoxResult.Yes) return;
             if (_parser.RemoveCountry(country.Id))
             {
                 _currentCountry = null;
                 LoadCountries();
                 _detailPanel.Children.Clear();
-                SetStatus($"已删除国家: [{country.Id}] {country.Name}");
+                SetStatus(Loc.F("Country.Deleted", country.Id, country.Name));
             }
-        };
+        });
+        deleteBtn.HorizontalAlignment = HorizontalAlignment.Left;
+        deleteBtn.Margin = new Thickness(10, 16, 10, 8);
         _detailPanel.Children.Add(deleteBtn);
     }
 
@@ -339,7 +251,7 @@ public class CountryEditScene : UserControl
     {
         _parser.SaveCountries();
         LoadCountries();
-        SetStatus($"已更新: [{country.Id}] {country.Name}");
+        SetStatus(Loc.F("Country.Updated", country.Id, country.Name));
         foreach (ListBoxItem item in _countryList.Items)
         {
             if (item.Tag is CountrySettingData c && c.Id == country.Id)
@@ -350,110 +262,51 @@ public class CountryEditScene : UserControl
         }
     }
 
-    private StackPanel CreateEditableInfoBlock(string label, string value, Action<string> onSave)
+    /// <summary>
+    /// 可编辑字段行：当前值 + 「编辑」按钮，可选再带一个同步按钮（名称 / 真实名称互相同步）。
+    /// 同步按钮文字由调用方传入——字段名已本地化，不能再拿它当标识来判断。
+    /// </summary>
+    private Border CreateEditableInfoBlock(string label, string value, Action<string> onSave, string? syncLabel = null, Action? onSync = null)
     {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(5) };
-        panel.Children.Add(new TextBlock
-        {
-            Text = label + ": ",
-            Foreground = Brushes.Gray,
-            Width = 80
-        });
-        var valueBlock = new TextBlock
-        {
-            Text = value,
-            Foreground = Brushes.White,
-            Width = 120
-        };
-        panel.Children.Add(valueBlock);
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var editBtn = new Button
-        {
-            Content = "编辑",
-            FontSize = 11,
-            Padding = new Thickness(8, 2, 8, 2),
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0)
-        };
-        editBtn.Click += async (_, _) =>
+        var valueBlock = EditorTheme.Text_(value);
+        valueBlock.TextTrimming = TextTrimming.CharacterEllipsis;
+        Grid.SetColumn(valueBlock, 0);
+        row.Children.Add(valueBlock);
+
+        var editBtn = EditorTheme.ToolButton(Loc.T("Common.Edit"), async (_, _) =>
         {
             using var dialog = new Views.Dialogs.SingleInputDialog(_window)
             {
-                Title = $"修改 {label}",
-                Description = $"请输入新的{label}：",
+                Title = Loc.F("Country.EditTitle", label),
+                Description = Loc.F("Country.EditPrompt", label),
                 DefaultValue = value,
-                ConfirmText = "保存",
-                CancelText = "取消"
+                ConfirmText = Loc.T("Common.Save"),
+                CancelText = Loc.T("Common.Cancel")
             };
             var newValue = await dialog.ShowAsync();
             if (newValue != null)
             {
                 onSave(newValue.Trim());
             }
-        };
-        panel.Children.Add(editBtn);
-        return panel;
-    }
-
-    private StackPanel CreateEditableInfoBlockWithSync(string label, string value, Action<string> onSave, Action onSync)
-    {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(5) };
-        panel.Children.Add(new TextBlock
-        {
-            Text = label + ": ",
-            Foreground = Brushes.Gray,
-            Width = 80
         });
-        var valueBlock = new TextBlock
-        {
-            Text = value,
-            Foreground = Brushes.White,
-            Width = 120
-        };
-        panel.Children.Add(valueBlock);
+        editBtn.Margin = new Thickness(8, 0, 0, 0);
+        Grid.SetColumn(editBtn, 1);
+        row.Children.Add(editBtn);
 
-        var editBtn = new Button
+        if (syncLabel != null && onSync != null)
         {
-            Content = "编辑",
-            FontSize = 11,
-            Padding = new Thickness(8, 2, 8, 2),
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            Margin = new Thickness(0, 0, 4, 0)
-        };
-        editBtn.Click += async (_, _) =>
-        {
-            using var dialog = new Views.Dialogs.SingleInputDialog(_window)
-            {
-                Title = $"修改 {label}",
-                Description = $"请输入新的{label}：",
-                DefaultValue = value,
-                ConfirmText = "保存",
-                CancelText = "取消"
-            };
-            var newValue = await dialog.ShowAsync();
-            if (newValue != null)
-            {
-                onSave(newValue.Trim());
-            }
-        };
-        panel.Children.Add(editBtn);
+            var syncBtn = EditorTheme.ToolButton(syncLabel, (_, _) => onSync());
+            syncBtn.Margin = new Thickness(6, 0, 0, 0);
+            Grid.SetColumn(syncBtn, 2);
+            row.Children.Add(syncBtn);
+        }
 
-        var syncBtn = new Button
-        {
-            Content = label == "名称" ? "同步为真实名称" : "同步为名称",
-            FontSize = 11,
-            Padding = new Thickness(8, 2, 8, 2),
-            Background = new SolidColorBrush(Color.FromRgb(0x0E, 0x63, 0x9C)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0)
-        };
-        syncBtn.Click += (_, _) => onSync();
-        panel.Children.Add(syncBtn);
-
-        return panel;
+        return EditorTheme.FormRow(label, row, 110);
     }
 
     private void ShowConquerCountryDetail(ConquerCountrySettingData cc)
@@ -463,41 +316,32 @@ public class CountryEditScene : UserControl
         var countryName = _parser.GetCountryName(cc.CountryId);
         var conquerName = _parser.GetConquerName(cc.ConquerId);
 
-        _detailPanel.Children.Add(CreateInfoBlock("ID", cc.Id.ToString()));
-        _detailPanel.Children.Add(CreateInfoBlock("征服", $"[{cc.ConquerId}] {conquerName}"));
-        _detailPanel.Children.Add(CreateInfoBlock("国家", $"[{cc.CountryId}] {countryName}"));
-        _detailPanel.Children.Add(CreateInfoBlock("座位", cc.Seat.ToString()));
-        _detailPanel.Children.Add(CreateInfoBlock("星级", cc.Star.ToString()));
-        _detailPanel.Children.Add(CreateInfoBlock("阵营", cc.Camp.ToString()));
-        _detailPanel.Children.Add(CreateInfoBlock("战争回合", cc.WarTurn.ToString()));
-        _detailPanel.Children.Add(CreateInfoBlock("经验奖励", cc.PrizeExp.ToString()));
-        _detailPanel.Children.Add(CreateInfoBlock("金币奖励", cc.PrizeGold.ToString()));
-        _detailPanel.Children.Add(CreateInfoBlock("工业奖励", cc.PrizeIndustry.ToString()));
-        _detailPanel.Children.Add(CreateInfoBlock("能源奖励", cc.PrizeEnergy.ToString()));
-        _detailPanel.Children.Add(CreateInfoBlock("科技奖励", cc.PrizeTech.ToString()));
-        _detailPanel.Children.Add(CreateInfoBlock("照片", cc.Photo));
-        _detailPanel.Children.Add(CreateInfoBlock("费用-金钱", cc.CostMoney.ToString()));
-        _detailPanel.Children.Add(CreateInfoBlock("费用-齿轮", cc.CostGear.ToString()));
-        _detailPanel.Children.Add(CreateInfoBlock("费用-原子", cc.CostAtomic.ToString()));
-        _detailPanel.Children.Add(CreateInfoBlock("系数", cc.Coefficient.ToString("F2")));
-        _detailPanel.Children.Add(CreateInfoBlock("投降", cc.Surrender ? "是" : "否"));
+        _detailPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("Country.Section.ConquerInfo")));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Common.Id"), cc.Id.ToString()));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.Conquer"), $"[{cc.ConquerId}] {conquerName}"));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.Country"), $"[{cc.CountryId}] {countryName}"));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.Seat"), cc.Seat.ToString()));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.Star"), cc.Star.ToString()));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.Camp"), cc.Camp.ToString()));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.WarTurn"), cc.WarTurn.ToString()));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.PrizeExp"), cc.PrizeExp.ToString()));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.PrizeGold"), cc.PrizeGold.ToString()));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.PrizeIndustry"), cc.PrizeIndustry.ToString()));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.PrizeEnergy"), cc.PrizeEnergy.ToString()));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.PrizeTech"), cc.PrizeTech.ToString()));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.Photo"), cc.Photo));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.CostMoney"), cc.CostMoney.ToString()));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.CostGear"), cc.CostGear.ToString()));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.CostAtomic"), cc.CostAtomic.ToString()));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.Coefficient"), cc.Coefficient.ToString("F2")));
+        _detailPanel.Children.Add(CreateInfoBlock(Loc.T("Country.Field.Surrender"), Loc.T(cc.Surrender ? "Common.Yes" : "Common.No")));
     }
 
-    private static StackPanel CreateInfoBlock(string label, string value)
+    private static Border CreateInfoBlock(string label, string value)
     {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(5) };
-        panel.Children.Add(new TextBlock
-        {
-            Text = label + ": ",
-            Foreground = Brushes.Gray,
-            Width = 100
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = value,
-            Foreground = Brushes.White
-        });
-        return panel;
+        var text = EditorTheme.Text_(value);
+        text.TextWrapping = TextWrapping.Wrap;
+        return EditorTheme.FormRow(label, text, 130);
     }
 
     private void LoadFlagPreview(int countryId)
@@ -562,11 +406,11 @@ public class CountryEditScene : UserControl
         var nextId = _parser.GetNextCountryId();
         using var dialog = new Views.Dialogs.SingleInputDialog(_window)
         {
-            Title = "新增国家",
-            Description = $"将要新增一个国家，建议ID为 {nextId}。\n请输入国家名称：",
+            Title = Loc.T("Country.AddCountry"),
+            Description = Loc.F("Country.AddPrompt", nextId),
             DefaultValue = "",
-            ConfirmText = "确定",
-            CancelText = "取消"
+            ConfirmText = Loc.T("Common.Ok"),
+            CancelText = Loc.T("Common.Cancel")
         };
         var name = await dialog.ShowAsync();
         if (name == null) return;
@@ -574,7 +418,7 @@ public class CountryEditScene : UserControl
         name = name.Trim();
         if (string.IsNullOrEmpty(name))
         {
-            MessageBox.Show("国家名称不能为空", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.T("Country.NameRequired"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -592,7 +436,7 @@ public class CountryEditScene : UserControl
         if (_parser.AddCountry(country))
         {
             LoadCountries();
-            SetStatus($"新增国家成功: [{nextId}] {name}");
+            SetStatus(Loc.F("Country.Added", nextId, name));
             foreach (ListBoxItem item in _countryList.Items)
             {
                 if (item.Tag is CountrySettingData c && c.Id == nextId)
@@ -604,7 +448,7 @@ public class CountryEditScene : UserControl
         }
         else
         {
-            MessageBox.Show("新增国家失败，可能ID已存在", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Country.AddFailed"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -617,53 +461,33 @@ public class CountryEditScene : UserControl
     {
         var inputDialog = new Window
         {
-            Title = "使用现有国旗",
-            Width = 320,
-            Height = 160,
+            Title = Loc.T("Country.UseExistingFlag"),
+            Width = 380,
+            SizeToContent = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner = _window,
             ResizeMode = ResizeMode.NoResize,
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30))
+            Background = EditorTheme.Bg1
         };
+        EditorTheme.Apply(inputDialog);
 
-        var panel = new StackPanel { Margin = new Thickness(15) };
-        panel.Children.Add(new TextBlock
-        {
-            Text = $"输入要复制的源国家ID（将复制该国家的国旗到当前国家ID={targetCountryId}）",
-            Foreground = Brushes.White,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 10)
-        });
+        var panel = new StackPanel { Margin = new Thickness(16) };
+        var prompt = EditorTheme.Text_(Loc.F("Country.CopyFlagPrompt", targetCountryId));
+        prompt.TextWrapping = TextWrapping.Wrap;
+        prompt.Margin = new Thickness(0, 0, 0, 10);
+        panel.Children.Add(prompt);
 
-        var idBox = new TextBox
-        {
-            Text = "",
-            Margin = new Thickness(0, 0, 0, 10),
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            Foreground = Brushes.White
-        };
+        var idBox = new TextBox { Margin = new Thickness(0, 0, 0, 12) };
         panel.Children.Add(idBox);
 
         var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        var okBtn = new Button
-        {
-            Content = "确定",
-            Padding = new Thickness(20, 5, 20, 5),
-            Margin = new Thickness(0, 0, 10, 0),
-            Background = new SolidColorBrush(Color.FromRgb(0x0E, 0x63, 0x9C)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            IsDefault = true
-        };
-        var cancelBtn = new Button
-        {
-            Content = "取消",
-            Padding = new Thickness(20, 5, 20, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            IsCancel = true
-        };
+        var okBtn = EditorTheme.PrimaryButton(Loc.T("Common.Ok"));
+        okBtn.MinWidth = 80;
+        okBtn.Margin = new Thickness(0, 0, 8, 0);
+        okBtn.IsDefault = true;
+        var cancelBtn = EditorTheme.Button(Loc.T("Common.Cancel"));
+        cancelBtn.MinWidth = 80;
+        cancelBtn.IsCancel = true;
         btnPanel.Children.Add(okBtn);
         btnPanel.Children.Add(cancelBtn);
         panel.Children.Add(btnPanel);
@@ -678,17 +502,17 @@ public class CountryEditScene : UserControl
 
         if (sourceId == null || sourceId.Value <= 0)
         {
-            SetStatus("已取消或ID无效");
+            SetStatus(Loc.T("Country.CopyFlagCancelled"));
             return;
         }
 
         if (sourceId.Value == targetCountryId)
         {
-            MessageBox.Show("源国家ID与当前国家ID相同，无需复制", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.T("Country.CopyFlagSameId"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        SetStatus($"正在复制国家{sourceId.Value}的国旗到国家{targetCountryId}...");
+        SetStatus(Loc.F("Country.CopyFlagProgress", sourceId.Value, targetCountryId));
 
         try
         {
@@ -698,7 +522,7 @@ public class CountryEditScene : UserControl
 
             if (bigFlag == null && smallFlag == null && hdFlag == null)
             {
-                MessageBox.Show($"国家{sourceId.Value}没有任何国旗数据，无法复制", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(Loc.F("Country.CopyFlagNoSource", sourceId.Value), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -719,7 +543,7 @@ public class CountryEditScene : UserControl
                             imagesToAdd.Add(($"f_{targetCountryId:D2}.png", smallFlag.Copy()));
 
                         var ok = tmEditor.AddImagesAndArrange(imagesToAdd, tacticalImagePath, tacticalXmlPath);
-                        SetStatus(ok ? "TacticalMap添加成功" : "TacticalMap添加失败");
+                        SetStatus(Loc.T(ok ? "Country.TacticalMapAddOk" : "Country.TacticalMapAddFailed"));
 
                         foreach (var (_, img) in imagesToAdd)
                             img.Dispose();
@@ -738,7 +562,7 @@ public class CountryEditScene : UserControl
                         var hdCopy = hdFlag.Copy();
                         var ok = hdEditor.AddImageAndSave(targetCountryId, hdCopy, hdImagePath, hdXmlPath);
                         hdCopy.Dispose();
-                        SetStatus(ok ? "HD图集添加成功" : "HD图集添加失败");
+                        SetStatus(Loc.T(ok ? "Country.HdAtlasAddOk" : "Country.HdAtlasAddFailed"));
                     }
                 }
             }
@@ -752,13 +576,13 @@ public class CountryEditScene : UserControl
             if (_currentCountry != null)
                 LoadFlagPreview(_currentCountry.Id);
 
-            MessageBox.Show($"已将国家{sourceId.Value}的国旗复制到国家{targetCountryId}", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
-            SetStatus($"国旗复制完成: 源ID={sourceId.Value} → 目标ID={targetCountryId}");
+            MessageBox.Show(Loc.F("Country.CopyFlagDone", sourceId.Value, targetCountryId), Loc.T("Common.Success"), MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus(Loc.F("Country.CopyFlagDoneStatus", sourceId.Value, targetCountryId));
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"复制国旗失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            SetStatus($"复制失败: {ex.Message}");
+            MessageBox.Show(Loc.F("Country.CopyFlagFailed", ex.Message), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            SetStatus(Loc.F("Country.CopyFlagFailed", ex.Message));
         }
     }
 

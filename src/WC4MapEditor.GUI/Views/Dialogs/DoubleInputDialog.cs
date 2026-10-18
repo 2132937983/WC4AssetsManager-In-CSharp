@@ -17,13 +17,14 @@ public sealed class DoubleInputDialog : IDisposable
     private TaskCompletionSource<(string? Value1, string? Value2)?>? _tcs;
     private bool _isClosed;
 
-    public string Title { get; set; } = "输入";
+    // 默认文字在构造时取当前语言：对话框对象每次使用都新建，不会缓存旧语言
+    public string Title { get; set; } = Loc.T("Dialog.InputTitle");
     public string Description1 { get; set; } = "";
     public string Description2 { get; set; } = "";
     public string DefaultValue1 { get; set; } = "";
     public string DefaultValue2 { get; set; } = "";
-    public string ConfirmText { get; set; } = "确定";
-    public string CancelText { get; set; } = "取消";
+    public string ConfirmText { get; set; } = Loc.T("Common.Ok");
+    public string CancelText { get; set; } = Loc.T("Common.Cancel");
     public double? MinValue1 { get; set; }
     public double? MaxValue1 { get; set; }
     public double? MinValue2 { get; set; }
@@ -31,32 +32,18 @@ public sealed class DoubleInputDialog : IDisposable
     public List<double>? AllowedSpecialValues1 { get; set; }
     public List<double>? AllowedSpecialValues2 { get; set; }
 
-    private string ValidationMessage1
-    {
-        get
-        {
-            if (MinValue1.HasValue && MaxValue1.HasValue)
-                return $"请输入 {MinValue1} 到 {MaxValue1} 之间的数值";
-            if (MinValue1.HasValue)
-                return $"请输入大于等于 {MinValue1} 的数值";
-            if (MaxValue1.HasValue)
-                return $"请输入小于等于 {MaxValue1} 的数值";
-            return "";
-        }
-    }
+    private string ValidationMessage1 => BuildRangeMessage(MinValue1, MaxValue1);
+    private string ValidationMessage2 => BuildRangeMessage(MinValue2, MaxValue2);
 
-    private string ValidationMessage2
+    private static string BuildRangeMessage(double? min, double? max)
     {
-        get
-        {
-            if (MinValue2.HasValue && MaxValue2.HasValue)
-                return $"请输入 {MinValue2} 到 {MaxValue2} 之间的数值";
-            if (MinValue2.HasValue)
-                return $"请输入大于等于 {MinValue2} 的数值";
-            if (MaxValue2.HasValue)
-                return $"请输入小于等于 {MaxValue2} 的数值";
-            return "";
-        }
+        if (min.HasValue && max.HasValue)
+            return Loc.F("Common.InputRange", min, max);
+        if (min.HasValue)
+            return Loc.F("Common.InputMin", min);
+        if (max.HasValue)
+            return Loc.F("Common.InputMax", max);
+        return "";
     }
 
     public DoubleInputDialog(Window owner)
@@ -80,10 +67,12 @@ public sealed class DoubleInputDialog : IDisposable
 
         _overlay = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(120, 0, 0, 0)),
-            Child = CreateDialogPanel(),
+            Background = CreateScrim(),
             Focusable = true
         };
+        // 主窗口（渲染场景）本身不套编辑主题，对话框内的输入框/按钮要靠合并到覆盖层的字典拿到深色样式
+        EditorTheme.Apply(_overlay);
+        _overlay.Child = CreateDialogPanel();
         _overlay.KeyDown += Overlay_KeyDown;
         Panel.SetZIndex(_overlay, 9999);
         // Tab 在对话框内部循环切换焦点（输入框1 → 输入框2 → 按钮），
@@ -139,17 +128,18 @@ public sealed class DoubleInputDialog : IDisposable
 
         var dialogBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(240, 30, 30, 30)),
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.Border,
+            BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(0),
             MinWidth = 340,
             MaxWidth = 480,
             Effect = new DropShadowEffect
             {
                 BlurRadius = 20,
-                ShadowDepth = 5,
-                Opacity = 0.7,
-                Color = Colors.Black
+                ShadowDepth = 4,
+                Opacity = 0.6,
+                Color = EditorTheme.ColorOf(EditorTheme.Bg0)
             },
             RenderTransformOrigin = new Point(0.5, 0.5),
             RenderTransform = new ScaleTransform(0.9, 0.9)
@@ -160,76 +150,38 @@ public sealed class DoubleInputDialog : IDisposable
             Margin = new Thickness(24, 20, 24, 20)
         };
 
-        var titleText = new TextBlock
-        {
-            Text = Title,
-            FontSize = 16,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 12)
-        };
+        var titleText = EditorTheme.Title(Title);
+        titleText.Margin = new Thickness(0, 0, 0, 10);
         stackPanel.Children.Add(titleText);
 
-        var separator = new Separator
-        {
-            Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)),
-            Margin = new Thickness(0, 0, 0, 12)
-        };
-        stackPanel.Children.Add(separator);
+        stackPanel.Children.Add(new Separator { Margin = new Thickness(0, 0, 0, 12) });
 
         if (!string.IsNullOrEmpty(Description1))
         {
-            var descText1 = new TextBlock
-            {
-                Text = Description1,
-                FontSize = 13,
-                Foreground = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 0, 0, 6)
-            };
+            var descText1 = EditorTheme.FieldLabel(Description1);
+            descText1.Margin = new Thickness(0, 0, 0, 6);
             stackPanel.Children.Add(descText1);
         }
 
         _inputTextBox1 = new TextBox
         {
             Text = DefaultValue1,
-            FontSize = 14,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(80, 255, 255, 255)),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(8, 6, 8, 6),
-            Margin = new Thickness(0, 0, 0, 12),
-            CaretBrush = Brushes.White
+            Margin = new Thickness(0, 0, 0, 12)
         };
         _inputTextBox1.KeyDown += Input_KeyDown;
         stackPanel.Children.Add(_inputTextBox1);
 
         if (!string.IsNullOrEmpty(Description2))
         {
-            var descText2 = new TextBlock
-            {
-                Text = Description2,
-                FontSize = 13,
-                Foreground = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 0, 0, 6)
-            };
+            var descText2 = EditorTheme.FieldLabel(Description2);
+            descText2.Margin = new Thickness(0, 0, 0, 6);
             stackPanel.Children.Add(descText2);
         }
 
         _inputTextBox2 = new TextBox
         {
             Text = DefaultValue2,
-            FontSize = 14,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(80, 255, 255, 255)),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(8, 6, 8, 6),
-            Margin = new Thickness(0, 0, 0, 20),
-            CaretBrush = Brushes.White
+            Margin = new Thickness(0, 0, 0, 20)
         };
         _inputTextBox2.KeyDown += Input_KeyDown;
         stackPanel.Children.Add(_inputTextBox2);
@@ -240,35 +192,13 @@ public sealed class DoubleInputDialog : IDisposable
             HorizontalAlignment = HorizontalAlignment.Right
         };
 
-        var cancelButton = new Button
-        {
-            Content = CancelText,
-            Width = 90,
-            Height = 34,
-            FontSize = 13,
-            Foreground = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
-            Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)),
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(10, 0, 0, 0)
-        };
-        cancelButton.Click += (s, e) => CloseWithResult(null);
+        var cancelButton = EditorTheme.Button(CancelText, (_, _) => CloseWithResult(null));
+        cancelButton.MinWidth = 88;
+        cancelButton.Margin = new Thickness(10, 0, 0, 0);
 
-        var confirmButton = new Button
-        {
-            Content = ConfirmText,
-            Width = 90,
-            Height = 34,
-            FontSize = 13,
-            FontWeight = FontWeights.Medium,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromArgb(180, 0, 122, 204)),
-            BorderThickness = new Thickness(0),
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(10, 0, 0, 0)
-        };
-        confirmButton.Click += (s, e) => TryConfirm();
+        var confirmButton = EditorTheme.PrimaryButton(ConfirmText, (_, _) => TryConfirm());
+        confirmButton.MinWidth = 88;
+        confirmButton.Margin = new Thickness(10, 0, 0, 0);
 
         buttonPanel.Children.Add(cancelButton);
         buttonPanel.Children.Add(confirmButton);
@@ -278,6 +208,13 @@ public sealed class DoubleInputDialog : IDisposable
         container.Children.Add(dialogBorder);
 
         return container;
+    }
+
+    /// <summary>覆盖层的半透明遮罩：由主题最深底色派生，不写死颜色。</summary>
+    private static Brush CreateScrim()
+    {
+        var c = EditorTheme.ColorOf(EditorTheme.Bg0);
+        return new SolidColorBrush(Color.FromArgb(150, c.R, c.G, c.B));
     }
 
     private void Input_KeyDown(object sender, KeyEventArgs e)
@@ -353,15 +290,18 @@ public sealed class DoubleInputDialog : IDisposable
 
         var errorBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(200, 180, 50, 50)),
+            Background = EditorTheme.Bg3,
+            BorderBrush = EditorTheme.Danger,
+            BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(8, 4, 8, 4),
-            Margin = new Thickness(0, -16, 0, 8),
+            Margin = new Thickness(0, -8, 0, 8),
             Child = new TextBlock
             {
                 Text = message,
                 FontSize = 12,
-                Foreground = Brushes.White
+                Foreground = EditorTheme.Danger,
+                TextWrapping = TextWrapping.Wrap
             }
         };
 
@@ -461,10 +401,11 @@ public sealed class DoubleInputDialog : IDisposable
         if (!_isClosed) CloseWithResult(null);
     }
 
+    // 按钮文字默认值不能是编译期常量的 Loc 调用，所以用 null 表示"取当前语言的默认文字"
     public static async Task<(string? Value1, string? Value2)?> ShowDialog(Window owner, string title,
         string description1, string description2,
         string defaultValue1 = "", string defaultValue2 = "",
-        string confirmText = "确定", string cancelText = "取消",
+        string? confirmText = null, string? cancelText = null,
         double? minValue1 = null, double? maxValue1 = null,
         double? minValue2 = null, double? maxValue2 = null,
         List<double>? allowedSpecialValues1 = null,
@@ -477,8 +418,8 @@ public sealed class DoubleInputDialog : IDisposable
             Description2 = description2,
             DefaultValue1 = defaultValue1,
             DefaultValue2 = defaultValue2,
-            ConfirmText = confirmText,
-            CancelText = cancelText,
+            ConfirmText = confirmText ?? Loc.T("Common.Ok"),
+            CancelText = cancelText ?? Loc.T("Common.Cancel"),
             MinValue1 = minValue1,
             MaxValue1 = maxValue1,
             MinValue2 = minValue2,

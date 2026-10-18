@@ -202,10 +202,6 @@ public sealed class SelectionRender : IDisposable
 
             if (centerX + hexSize < 0 || centerX - hexSize > vpW || centerY + hexSize < 0 || centerY - hexSize > vpH) continue;
 
-            var matrix = SKMatrix.CreateTranslation((float)centerX, (float)centerY);
-            using var translatedPath = new SKPath(hexPath);
-            translatedPath.Transform(matrix);
-
             SKPaint fillPaint, borderPaint;
 
             if (isMovingSelection && mapData != null)
@@ -243,8 +239,12 @@ public sealed class SelectionRender : IDisposable
                 borderPaint = _borderPaint;
             }
 
-            canvas.DrawPath(translatedPath, fillPaint);
-            canvas.DrawPath(translatedPath, borderPaint);
+            // 用画布平移代替「复制路径再 Transform」，避免每个选中格每帧分配一个 SKPath；填充/描边顺序不变。
+            canvas.Save();
+            canvas.Translate((float)centerX, (float)centerY);
+            canvas.DrawPath(hexPath, fillPaint);
+            canvas.DrawPath(hexPath, borderPaint);
+            canvas.Restore();
         }
     }
 

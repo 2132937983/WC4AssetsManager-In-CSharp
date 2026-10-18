@@ -252,11 +252,35 @@ public class BackGroundRender : IDisposable
             if (!_coastMaskProcessor.IsInitialized)
                 _coastMaskProcessor.Initialize(_coastHelper);
 
-            // 缓存命中时无需预生成六边形图块：
-            // 六边形图块（_hexagonCoastCache）仅被「最终图集构建」使用，而缓存已提供等价产物
-            if (_coastMaskProcessor.LoadedFromDiskCache || _coastMaskProcessor.HasFinalAtlas) return;
+            // 图集构建需要陆地纹理；以前只有截图流程（PrepareCoastComposition）才设置它
+            if (_landImage != null)
+                _coastMaskProcessor.SetLandTexture(_landImage);
 
-            Task.Run(() => _coastHelper.PreGenerateAllHexagonCoasts(null));
+            // 磁盘上已有最终图集：交互渲染直接走单次 DrawImage，不需要六边形图块
+            if (_coastMaskProcessor.HasFinalAtlas) return;
+
+            // 否则在后台把六边形图块与最终图集烘焙出来（并落盘，下次启动直接命中）。
+            // 期间先用逐格遮罩合成兜底；完成后让背景缓存失效并请求重绘。
+            // 以前这条路径只有截图才会走，平时每个海岸格都要开三张离屏 Surface 合成。
+            var helper = _coastHelper;
+            var processor = _coastMaskProcessor;
+            Task.Run(() =>
+            {
+                try
+                {
+                    helper.PreGenerateAllHexagonCoasts(null);
+                    processor.BuildFinalCoastAtlas(helper);
+                    if (processor.HasFinalAtlas)
+                    {
+                        InvalidateCache();
+                        CoastCacheUpdated?.Invoke();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[BackGroundRender] 后台构建海岸线图集失败: {ex.Message}");
+                }
+            });
         }
         catch (Exception ex)
         {

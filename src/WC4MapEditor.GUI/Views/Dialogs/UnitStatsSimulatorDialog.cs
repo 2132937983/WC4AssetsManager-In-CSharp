@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 
 namespace WC4MapEditor.GUI.Views.Dialogs;
 
@@ -25,8 +26,9 @@ public sealed class UnitStatsSimulatorDialog : IDisposable
     private TaskCompletionSource<SimulatorResult?>? _tcs;
     private bool _isClosed;
 
-    public string Title { get; set; } = "编队/等级数值模拟";
-    public string Description { get; set; } = "按等级与编队重算 HP / 攻击 / 防御（可重复叠加，与原工具一致）。";
+    // 默认文字在构造时取当前语言：对话框对象每次使用都新建，不会缓存旧语言
+    public string Title { get; set; } = Loc.T("Dialog.Sim.Title");
+    public string Description { get; set; } = Loc.T("Dialog.Sim.Description");
     public bool HasCurrentUnit { get; set; } = true;
 
     public UnitStatsSimulatorDialog(Window owner) => _owner = owner;
@@ -47,10 +49,12 @@ public sealed class UnitStatsSimulatorDialog : IDisposable
 
         _overlay = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(120, 0, 0, 0)),
-            Child = CreateDialogPanel(),
+            Background = CreateScrim(),
             Focusable = true
         };
+        // 主窗口本身不套编辑主题，对话框内的下拉框/单选框/按钮要靠合并到覆盖层的字典拿到深色样式
+        EditorTheme.Apply(_overlay);
+        _overlay.Child = CreateDialogPanel();
         _overlay.KeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape) { e.Handled = true; CloseDialog(null); }
@@ -67,52 +71,46 @@ public sealed class UnitStatsSimulatorDialog : IDisposable
     {
         var stack = new StackPanel();
 
-        stack.Children.Add(new TextBlock
+        var title = EditorTheme.Title(Title);
+        title.Margin = new Thickness(0, 0, 0, 10);
+        stack.Children.Add(title);
+
+        var desc = EditorTheme.Muted(Description);
+        desc.TextWrapping = TextWrapping.Wrap;
+        desc.Margin = new Thickness(0, 0, 0, 14);
+        stack.Children.Add(desc);
+
+        // 等级 / 编队的显示文字只用于展示，结果取 SelectedIndex，与语言无关
+        _levelCombo = MakeCombo(Enumerable.Range(1, 6).Select(n => Loc.F("Dialog.Sim.LevelItem", n)).ToArray());
+        stack.Children.Add(MakeRow(Loc.T("Dialog.Sim.SelectLevel"), _levelCombo));
+
+        _formationCombo = MakeCombo(new[]
         {
-            Text = Title,
-            FontSize = 14,
-            FontWeight = FontWeights.Bold,
-            Foreground = Brushes.White,
-            Margin = new Thickness(0, 0, 0, 10)
+            Loc.T("Dialog.Sim.Formation1"),
+            Loc.T("Dialog.Sim.Formation2"),
+            Loc.T("Dialog.Sim.Formation3"),
+            Loc.T("Dialog.Sim.Formation4")
         });
-
-        stack.Children.Add(new TextBlock
-        {
-            Text = Description,
-            FontSize = 12,
-            Foreground = new SolidColorBrush(Color.FromRgb(200, 200, 200)),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 14)
-        });
-
-        _levelCombo = MakeCombo(new[] { "1级", "2级", "3级", "4级", "5级", "6级" });
-        stack.Children.Add(MakeRow("选择等级", _levelCombo));
-
-        _formationCombo = MakeCombo(new[] { "单编队", "两编队", "三编队", "四编队" });
-        stack.Children.Add(MakeRow("选择编队", _formationCombo));
+        stack.Children.Add(MakeRow(Loc.T("Dialog.Sim.SelectFormation"), _formationCombo));
 
         var scopePanel = new StackPanel { Orientation = Orientation.Horizontal };
         _scopeCurrent = new RadioButton
         {
-            Content = "当前兵种",
+            Content = Loc.T("Dialog.Sim.ScopeCurrent"),
             GroupName = "simScope",
             IsChecked = true,
             IsEnabled = HasCurrentUnit,
-            Foreground = Brushes.White,
-            FontSize = 12,
             Margin = new Thickness(0, 0, 16, 0)
         };
         _scopeAll = new RadioButton
         {
-            Content = "列表全部",
-            GroupName = "simScope",
-            Foreground = Brushes.White,
-            FontSize = 12
+            Content = Loc.T("Dialog.Sim.ScopeAll"),
+            GroupName = "simScope"
         };
         if (!HasCurrentUnit) _scopeAll.IsChecked = true;
         scopePanel.Children.Add(_scopeCurrent);
         scopePanel.Children.Add(_scopeAll);
-        stack.Children.Add(MakeRow("作用范围", scopePanel));
+        stack.Children.Add(MakeRow(Loc.T("Dialog.Sim.Scope"), scopePanel));
 
         var buttonPanel = new StackPanel
         {
@@ -121,52 +119,35 @@ public sealed class UnitStatsSimulatorDialog : IDisposable
             Margin = new Thickness(0, 18, 0, 0)
         };
 
-        var cancelButton = new Button
-        {
-            Content = "取消",
-            FontSize = 12,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromRgb(80, 80, 80)),
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(16, 6, 16, 6),
-            Margin = new Thickness(0, 0, 8, 0),
-            Cursor = Cursors.Hand
-        };
-        cancelButton.Click += (_, _) => CloseDialog(null);
+        var cancelButton = EditorTheme.Button(Loc.T("Common.Cancel"), (_, _) => CloseDialog(null));
+        cancelButton.MinWidth = 80;
+        cancelButton.Margin = new Thickness(0, 0, 8, 0);
         buttonPanel.Children.Add(cancelButton);
 
-        var applyButton = new Button
-        {
-            Content = "应用到兵种",
-            FontSize = 12,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromRgb(0x17, 0xA2, 0xB8)),
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(16, 6, 16, 6),
-            Cursor = Cursors.Hand
-        };
-        applyButton.Click += (_, _) => CloseDialog(new SimulatorResult(
+        var applyButton = EditorTheme.PrimaryButton(Loc.T("Dialog.Sim.Apply"), (_, _) => CloseDialog(new SimulatorResult(
             (_levelCombo?.SelectedIndex ?? 0) + 1,
             (_formationCombo?.SelectedIndex ?? 0) + 1,
-            _scopeAll?.IsChecked == true));
+            _scopeAll?.IsChecked == true)));
         buttonPanel.Children.Add(applyButton);
 
         stack.Children.Add(buttonPanel);
 
         _dialogPanel = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(45, 45, 48)),
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.Border,
+            BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(24),
             Width = 380,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            Effect = new DropShadowEffect
             {
-                BlurRadius = 16,
+                BlurRadius = 20,
                 ShadowDepth = 4,
-                Opacity = 0.5,
-                Color = Colors.Black
+                Opacity = 0.6,
+                Color = EditorTheme.ColorOf(EditorTheme.Bg0)
             },
             Child = stack
         };
@@ -174,16 +155,16 @@ public sealed class UnitStatsSimulatorDialog : IDisposable
         return _dialogPanel;
     }
 
+    /// <summary>覆盖层的半透明遮罩：由主题最深底色派生，不写死颜色。</summary>
+    private static Brush CreateScrim()
+    {
+        var c = EditorTheme.ColorOf(EditorTheme.Bg0);
+        return new SolidColorBrush(Color.FromArgb(150, c.R, c.G, c.B));
+    }
+
     private static ComboBox MakeCombo(string[] items)
     {
-        var combo = new ComboBox
-        {
-            Width = 180,
-            FontSize = 12,
-            Background = new SolidColorBrush(Color.FromRgb(60, 60, 60)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(90, 90, 90))
-        };
+        var combo = EditorTheme.ComboBox(180);
         foreach (var i in items) combo.Items.Add(i);
         combo.SelectedIndex = 0;
         return combo;
@@ -194,13 +175,7 @@ public sealed class UnitStatsSimulatorDialog : IDisposable
         var grid = new Grid { Margin = new Thickness(0, 4, 0, 4) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var lbl = new TextBlock
-        {
-            Text = label,
-            Foreground = Brushes.LightGray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center
-        };
+        var lbl = EditorTheme.FieldLabel(label);
         Grid.SetColumn(lbl, 0);
         Grid.SetColumn(content, 1);
         grid.Children.Add(lbl);

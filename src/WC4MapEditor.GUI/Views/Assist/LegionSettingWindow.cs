@@ -1,13 +1,7 @@
 using System.Globalization;
 using System.Reflection;
-using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
-using WC4MapEditor.Core.Models;
 using WC4MapEditor.Core.Modifiers;
 
 namespace WC4MapEditor.GUI.Views.Assist;
@@ -26,33 +20,38 @@ namespace WC4MapEditor.GUI.Views.Assist;
 /// </summary>
 public sealed class LegionSettingWindow : Window
 {
-    /// <summary>字段定义：显示名 / Legion 字段名 / 是否为浮点 / 说明</summary>
-    private sealed record FieldDef(string Label, string FieldName, bool IsFloat);
+    /// <summary>字段定义：显示名的翻译键 / Legion 字段名 / 是否为浮点</summary>
+    private sealed record FieldDef(string LabelKey, string FieldName, bool IsFloat);
 
     /// <summary>颜色字段（R/G/B 三字节）在编辑面板中的虚拟键名</summary>
     private const string ColorFieldKey = "__color";
 
-    /// <summary>全部可编辑字段，顺序即界面顺序（对齐 VB 版 LegionSetting）</summary>
+    /// <summary>
+    /// 全部可编辑字段，顺序即界面顺序（对齐 VB 版 LegionSetting）。
+    /// 静态数组里只放翻译键不放文本：类型初始化只跑一次，之后切换语言时文本还要能跟着变。
+    /// </summary>
     private static readonly FieldDef[] FieldDefs =
     {
-        new("行动顺序", nameof(Legion.ActionId), false),
-        new("国家ID", nameof(Legion.CountryId), false),
-        new("阵营", nameof(Legion.Camp), false),
-        new("初始经济", nameof(Legion.InitialEconomy), false),
-        new("初始工业", nameof(Legion.InitialIndustry), false),
-        new("初始科技", nameof(Legion.InitialTech), false),
-        new("玩家控制", nameof(Legion.IsPlayerControlled), false),
-        new("战败条件", nameof(Legion.DefeatCondition), false),
-        new("国家血率", nameof(Legion.CountryHpRate), true),
-        new("国家税率", nameof(Legion.CountryTaxRate), true),
-        new("颜色", ColorFieldKey, false),
-        new("科技等级", nameof(Legion.InitialTechLevel), false),
-        new("未知字段1", nameof(Legion.Unknown1), false),
-        new("未知字段2", nameof(Legion.Unknown2), false),
-        new("未知字段3", nameof(Legion.Unknown3), false),
-        new("未知字段4", nameof(Legion.Unknown4), false),
-        new("激光等级", nameof(Legion.InitialLaserGunLevel), false),
+        new("Assist.Legion.Field.ActionId", nameof(Legion.ActionId), false),
+        new("Assist.Legion.Field.CountryId", nameof(Legion.CountryId), false),
+        new("Assist.Legion.Field.Camp", nameof(Legion.Camp), false),
+        new("Assist.Legion.Field.InitialEconomy", nameof(Legion.InitialEconomy), false),
+        new("Assist.Legion.Field.InitialIndustry", nameof(Legion.InitialIndustry), false),
+        new("Assist.Legion.Field.InitialTech", nameof(Legion.InitialTech), false),
+        new("Assist.Legion.Field.PlayerControlled", nameof(Legion.IsPlayerControlled), false),
+        new("Assist.Legion.Field.DefeatCondition", nameof(Legion.DefeatCondition), false),
+        new("Assist.Legion.Field.CountryHpRate", nameof(Legion.CountryHpRate), true),
+        new("Assist.Legion.Field.CountryTaxRate", nameof(Legion.CountryTaxRate), true),
+        new("Common.Color", ColorFieldKey, false),
+        new("Assist.Legion.Field.TechLevel", nameof(Legion.InitialTechLevel), false),
+        new("Assist.Legion.Field.Unknown1", nameof(Legion.Unknown1), false),
+        new("Assist.Legion.Field.Unknown2", nameof(Legion.Unknown2), false),
+        new("Assist.Legion.Field.Unknown3", nameof(Legion.Unknown3), false),
+        new("Assist.Legion.Field.Unknown4", nameof(Legion.Unknown4), false),
+        new("Assist.Legion.Field.LaserLevel", nameof(Legion.InitialLaserGunLevel), false),
     };
+
+    private static string LabelOf(FieldDef def) => Loc.T(def.LabelKey);
 
     /// <summary>Legion 的公开字段索引，供读写</summary>
     private static readonly Dictionary<string, FieldInfo> LegionFields =
@@ -79,19 +78,22 @@ public sealed class LegionSettingWindow : Window
 
     public LegionSettingWindow(MapData mapData, LegionModifier modifier)
     {
+        EditorTheme.Apply(this);
+
         _mapData = mapData ?? throw new ArgumentNullException(nameof(mapData));
         _modifier = modifier ?? throw new ArgumentNullException(nameof(modifier));
 
-        Title = "军团列表管理";
-        Width = 600;
+        Title = Loc.T("Assist.Legion.Title");
+        Width = 660;
         Height = 640;
+        MinWidth = 560;
+        MinHeight = 480;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ResizeMode = ResizeMode.CanResize;
         WindowStyle = WindowStyle.None;
+        // 淡入靠 Opacity 动画，无边框窗口只有开了 AllowsTransparency 时 Opacity 才生效
         AllowsTransparency = true;
-        Background = Brushes.Transparent;
-        FontFamily = new FontFamily("Microsoft YaHei");
-        FontSize = 12;
+        Background = EditorTheme.Bg1;
 
         // 清掉上次"没找到国旗"的缓存：之后补上了国旗资源，重开窗口就能显示出来
         FlagImageLoader.ClearMisses();
@@ -103,7 +105,7 @@ public sealed class LegionSettingWindow : Window
         Opacity = 0;
         Loaded += (_, _) =>
         {
-            var fadeIn = new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150));
+            var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150));
             BeginAnimation(OpacityProperty, fadeIn);
         };
     }
@@ -112,28 +114,11 @@ public sealed class LegionSettingWindow : Window
 
     private FrameworkElement CreateUI()
     {
-        var outer = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(45, 45, 48)),
-            CornerRadius = new CornerRadius(10),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(100, 100, 100, 100)),
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(10),
-            Effect = new DropShadowEffect
-            {
-                Color = Colors.Black,
-                Direction = 270,
-                ShadowDepth = 8,
-                BlurRadius = 20,
-                Opacity = 0.4
-            }
-        };
-
         var grid = new Grid();
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(40) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(56) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         var title = CreateTitleBar();
         Grid.SetRow(title, 0);
@@ -151,50 +136,55 @@ public sealed class LegionSettingWindow : Window
         Grid.SetRow(buttons, 3);
         grid.Children.Add(buttons);
 
-        outer.Child = grid;
-        return outer;
+        // 无边框窗口描一圈边，免得与底下的主窗口连成一片
+        return new Border
+        {
+            BorderBrush = EditorTheme.BorderStrong,
+            BorderThickness = new Thickness(1),
+            Child = grid
+        };
     }
 
-    private Grid CreateTitleBar()
+    /// <summary>标题栏：按住可拖动窗口，右侧 ✕ 关闭。</summary>
+    private Border CreateTitleBar()
     {
-        var panel = new Grid { Margin = new Thickness(15, 8, 12, 4) };
+        var panel = new Grid();
         panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var label = new TextBlock
-        {
-            Text = "军团列表管理",
-            FontSize = 16,
-            FontWeight = FontWeights.Bold,
-            Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center
-        };
+        var label = EditorTheme.Title(Loc.T("Assist.Legion.Title"));
+        label.Margin = new Thickness(12, 0, 0, 0);
         Grid.SetColumn(label, 0);
         panel.Children.Add(label);
 
-        var close = new Button
-        {
-            Content = "✕",
-            Width = 28,
-            Height = 28,
-            Background = Brushes.Transparent,
-            Foreground = new SolidColorBrush(Color.FromRgb(200, 200, 200)),
-            BorderThickness = new Thickness(0),
-            FontSize = 13,
-            Cursor = Cursors.Hand,
-            ToolTip = "关闭 (Esc)"
-        };
-        close.Click += (_, _) => Close();
+        var close = EditorTheme.GhostButton("✕", (_, _) => Close());
+        close.Width = 32;
+        close.Height = 28;
+        close.Padding = new Thickness(0);
+        close.Margin = new Thickness(0, 0, 6, 0);
+        close.ToolTip = Loc.T("Assist.Legion.CloseTooltip");
         Grid.SetColumn(close, 1);
         panel.Children.Add(close);
 
-        return panel;
+        var bar = new Border
+        {
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.Border,
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Child = panel
+        };
+        bar.MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.ButtonState == MouseButtonState.Pressed) DragMove();
+        };
+        return bar;
     }
 
     private Grid CreateBody()
     {
-        var grid = new Grid { Margin = new Thickness(12, 4, 12, 4) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(230) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         // 左侧：军团列表 + 增删按钮
@@ -202,13 +192,8 @@ public sealed class LegionSettingWindow : Window
         leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        _legionListBox.Background = new SolidColorBrush(Color.FromRgb(58, 58, 61));
-        _legionListBox.Foreground = Brushes.White;
-        _legionListBox.BorderBrush = new SolidColorBrush(Color.FromRgb(100, 100, 100));
-        _legionListBox.BorderThickness = new Thickness(1);
-        _legionListBox.Padding = new Thickness(4);
+        _legionListBox.Margin = new Thickness(4, 4, 4, 0);
         _legionListBox.SelectionChanged += OnLegionSelectionChanged;
-        _legionListBox.ItemContainerStyle = CreateListItemStyle();
         Grid.SetRow(_legionListBox, 0);
         leftGrid.Children.Add(_legionListBox);
 
@@ -217,65 +202,49 @@ public sealed class LegionSettingWindow : Window
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 6, 0, 0)
+            Margin = new Thickness(0, 6, 0, 8)
         };
-        addRemovePanel.Children.Add(CreateSmallButton("+", Color.FromRgb(0, 122, 204), "新增军团",
-            (_, _) => OnAddLegion()));
-        addRemovePanel.Children.Add(CreateSmallButton("-", Color.FromRgb(200, 50, 50), "删除当前军团",
-            (_, _) => OnDeleteLegion()));
+        addRemovePanel.Children.Add(CreateSmallButton(EditorTheme.Button("+", (_, _) => OnAddLegion()),
+            Loc.T("Assist.Legion.AddLegion")));
+        addRemovePanel.Children.Add(CreateSmallButton(EditorTheme.DangerButton("-", (_, _) => OnDeleteLegion()),
+            Loc.T("Assist.Legion.DeleteLegion")));
         Grid.SetRow(addRemovePanel, 1);
         leftGrid.Children.Add(addRemovePanel);
 
-        var leftBorder = new Border
-        {
-            Child = leftGrid,
-            Margin = new Thickness(0, 0, 8, 0)
-        };
-        Grid.SetColumn(leftBorder, 0);
-        grid.Children.Add(leftBorder);
+        var leftPanel = EditorTheme.Panel(new Thickness(0, 0, 1, 0));
+        leftPanel.Child = leftGrid;
+        Grid.SetColumn(leftPanel, 0);
+        grid.Children.Add(leftPanel);
+
+        var splitter = EditorTheme.VSplitter();
+        Grid.SetColumn(splitter, 1);
+        grid.Children.Add(splitter);
 
         // 右侧：字段编辑面板
-        _editorPanel.Margin = new Thickness(6, 2, 6, 2);
         BuildEditorFields();
 
         var scroll = new ScrollViewer
         {
             Content = _editorPanel,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Background = new SolidColorBrush(Color.FromRgb(52, 52, 55)),
-            Padding = new Thickness(8)
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
-
-        var rightBorder = new Border
-        {
-            Child = scroll,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
-            BorderThickness = new Thickness(1)
-        };
-        Grid.SetColumn(rightBorder, 1);
-        grid.Children.Add(rightBorder);
+        Grid.SetColumn(scroll, 2);
+        grid.Children.Add(scroll);
 
         return grid;
     }
 
-    private static Style CreateListItemStyle()
+    /// <summary>把主题按钮改成列表底部的小方块尺寸</summary>
+    private static Button CreateSmallButton(Button button, string tooltip)
     {
-        var style = new Style(typeof(ListBoxItem));
-        style.Setters.Add(new Setter(ListBoxItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(58, 58, 61))));
-        style.Setters.Add(new Setter(ListBoxItem.ForegroundProperty, Brushes.White));
-        style.Setters.Add(new Setter(ListBoxItem.BorderThicknessProperty, new Thickness(0)));
-        style.Setters.Add(new Setter(ListBoxItem.PaddingProperty, new Thickness(4)));
-
-        var selected = new Trigger { Property = ListBoxItem.IsSelectedProperty, Value = true };
-        selected.Setters.Add(new Setter(ListBoxItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0, 122, 204))));
-        style.Triggers.Add(selected);
-
-        var hover = new Trigger { Property = ListBoxItem.IsMouseOverProperty, Value = true };
-        hover.Setters.Add(new Setter(ListBoxItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(80, 80, 83))));
-        style.Triggers.Add(hover);
-
-        return style;
+        button.Width = 36;
+        button.Padding = new Thickness(0, 3, 0, 3);
+        button.FontSize = 14;
+        button.FontWeight = FontWeights.Bold;
+        button.Margin = new Thickness(4, 0, 4, 0);
+        button.ToolTip = tooltip;
+        return button;
     }
 
     private void BuildEditorFields()
@@ -283,105 +252,76 @@ public sealed class LegionSettingWindow : Window
         _editorPanel.Children.Clear();
         _fieldBoxes.Clear();
 
+        var header = EditorTheme.SectionHeader(Loc.T("Assist.Legion.Section.Fields"));
+        header.Margin = new Thickness(0);
+        _editorPanel.Children.Add(header);
+
         foreach (var def in FieldDefs)
         {
-            var row = new Grid { Margin = new Thickness(0, 3, 0, 3) };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(84) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-            var label = new TextBlock
-            {
-                Text = def.Label,
-                Foreground = Brushes.White,
-                FontSize = 12,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(label, 0);
-            row.Children.Add(label);
-
-            var box = new TextBox
-            {
-                Height = 24,
-                Background = new SolidColorBrush(Color.FromRgb(70, 70, 73)),
-                Foreground = Brushes.White,
-                BorderBrush = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(4, 1, 4, 1),
-                VerticalContentAlignment = VerticalAlignment.Center,
-                FontSize = 12,
-                IsEnabled = false
-            };
+            string label = LabelOf(def);
+            var box = new TextBox { IsEnabled = false };
+            UIElement content;
 
             if (def.FieldName == ColorFieldKey)
             {
-                box.ToolTip = "RRGGBB 十六进制，例如 FF0000";
+                box.ToolTip = Loc.T("Assist.Legion.ColorHexTooltip");
                 box.TextChanged += (_, _) => UpdateColorPreview();
 
                 var colorRow = new Grid();
                 colorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                colorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(48) });
+                colorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
                 Grid.SetColumn(box, 0);
                 colorRow.Children.Add(box);
 
+                // 色块显示的是军团自己的颜色（数据），不走主题色
                 _colorPreview.Width = 44;
-                _colorPreview.Height = 22;
-                _colorPreview.BorderBrush = new SolidColorBrush(Color.FromRgb(120, 120, 120));
+                _colorPreview.Height = 26;
+                _colorPreview.BorderBrush = EditorTheme.BorderStrong;
                 _colorPreview.BorderThickness = new Thickness(1);
+                _colorPreview.CornerRadius = new CornerRadius(4);
                 _colorPreview.Background = Brushes.Transparent;
-                _colorPreview.Margin = new Thickness(4, 0, 0, 0);
+                _colorPreview.Margin = new Thickness(6, 0, 0, 0);
                 _colorPreview.Cursor = Cursors.Hand;
-                _colorPreview.ToolTip = "点击打开调色板";
+                _colorPreview.ToolTip = Loc.T("Assist.Legion.OpenColorPicker");
                 _colorPreview.MouseLeftButtonDown += (_, _) => PickColor();
 
                 Grid.SetColumn(_colorPreview, 1);
                 colorRow.Children.Add(_colorPreview);
-
-                Grid.SetColumn(colorRow, 1);
-                row.Children.Add(colorRow);
+                content = colorRow;
             }
             else if (def.FieldName == nameof(Legion.CountryId))
             {
                 // 国家ID：输入框收窄，右侧让出一个按钮，点开带搜索栏的国家列表
-                box.ToolTip = "国家 ID，也可点右侧按钮从列表中选择";
+                box.ToolTip = Loc.T("Assist.Legion.CountryIdTooltip");
 
                 var countryRow = new Grid();
                 countryRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                countryRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
+                countryRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
                 Grid.SetColumn(box, 0);
                 countryRow.Children.Add(box);
 
-                var pickButton = new Button
-                {
-                    Content = "▼",
-                    Width = 26,
-                    Height = 24,
-                    Margin = new Thickness(4, 0, 0, 0),
-                    Background = new SolidColorBrush(Color.FromRgb(0, 122, 204)),
-                    Foreground = Brushes.White,
-                    BorderThickness = new Thickness(0),
-                    FontSize = 10,
-                    Cursor = Cursors.Hand,
-                    ToolTip = "从国家列表中选择"
-                };
+                var pickButton = EditorTheme.Button("▼");
+                pickButton.Width = 30;
+                pickButton.Padding = new Thickness(0);
+                pickButton.FontSize = 10;
+                pickButton.Margin = new Thickness(6, 0, 0, 0);
+                pickButton.ToolTip = Loc.T("Assist.Legion.PickCountry");
                 pickButton.Click += (_, _) => ShowCountryPicker(pickButton, box);
 
                 Grid.SetColumn(pickButton, 1);
                 countryRow.Children.Add(pickButton);
-
-                Grid.SetColumn(countryRow, 1);
-                row.Children.Add(countryRow);
+                content = countryRow;
             }
             else
             {
-                box.ToolTip = def.Label;
-                Grid.SetColumn(box, 1);
-                row.Children.Add(box);
+                box.ToolTip = label;
+                content = box;
             }
 
             _fieldBoxes[def.FieldName] = box;
-            _editorPanel.Children.Add(row);
+            _editorPanel.Children.Add(EditorTheme.FormRow(label, content, 100));
         }
     }
 
@@ -400,51 +340,36 @@ public sealed class LegionSettingWindow : Window
         var displayNames = new Dictionary<int, string>();
         foreach (var c in countries)
         {
-            var name = WC4MapEditor.Core.Config.ConfigManager.Instance.GetStringTableValue($"country_{c.Id}");
-            if (string.IsNullOrWhiteSpace(name)) name = $"国家{c.Id}";
+            var name = ConfigManager.Instance.GetStringTableValue($"country_{c.Id}");
+            if (string.IsNullOrWhiteSpace(name)) name = Loc.F("Assist.Legion.CountryFallback", c.Id);
             displayNames[c.Id] = name;
         }
 
         // 第一行：搜索栏（按国家名或 ID 过滤）
-        var searchBox = new TextBox
-        {
-            Height = 24,
-            Margin = new Thickness(6, 6, 6, 4),
-            Background = new SolidColorBrush(Color.FromRgb(70, 70, 73)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(4, 1, 4, 1),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            FontSize = 12,
-            ToolTip = "输入国家名或 ID 进行搜索"
-        };
+        var searchHost = EditorTheme.SearchBox(Loc.T("Assist.Legion.CountrySearchHint"), out var searchBox);
+        searchHost.Margin = new Thickness(6, 6, 6, 4);
 
         var listBox = new ListBox
         {
             MaxHeight = 300,
-            Margin = new Thickness(6, 0, 6, 6),
-            Background = new SolidColorBrush(Color.FromRgb(58, 58, 61)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
-            BorderThickness = new Thickness(1),
-            FontSize = 12,
-            ItemContainerStyle = CreateListItemStyle()
+            Margin = new Thickness(6, 0, 6, 6)
         };
 
         var panel = new StackPanel();
-        panel.Children.Add(searchBox);
+        panel.Children.Add(searchHost);
         panel.Children.Add(listBox);
 
         var border = new Border
         {
             Child = panel,
-            Background = new SolidColorBrush(Color.FromRgb(45, 45, 48)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0, 122, 204)),
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.BorderStrong,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
             Effect = new DropShadowEffect { BlurRadius = 10, ShadowDepth = 2, Opacity = 0.5 }
         };
+        // Popup 的内容不在窗口的可视树里，隐式样式要在它自己的根上再合并一次
+        EditorTheme.Apply(border);
 
         var popup = new Popup
         {
@@ -453,7 +378,7 @@ public sealed class LegionSettingWindow : Window
             StaysOpen = false,
             AllowsTransparency = true,
             PopupAnimation = PopupAnimation.Fade,
-            Width = 280,
+            Width = 300,
             Child = border
         };
 
@@ -536,60 +461,52 @@ public sealed class LegionSettingWindow : Window
     /// 分开三个框反而更啰嗦。
     /// </para>
     /// </summary>
-    private StackPanel CreateBatchBar()
+    private Border CreateBatchBar()
     {
-        var panel = new StackPanel
+        // 英文按钮比中文长，一行放不下时让它折行，而不是被裁掉
+        var panel = new WrapPanel
         {
             Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 12, 0)
+            VerticalAlignment = VerticalAlignment.Center
         };
 
-        var label = new TextBlock
-        {
-            Text = "批量：",
-            Foreground = new SolidColorBrush(Color.FromRgb(200, 200, 200)),
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 6, 0)
-        };
+        var label = EditorTheme.Muted(Loc.T("Assist.Legion.BatchLabel"));
+        label.VerticalAlignment = VerticalAlignment.Center;
+        label.Margin = new Thickness(0, 0, 6, 0);
         panel.Children.Add(label);
 
         _batchValueBox.Width = 70;
-        _batchValueBox.Height = 26;
-        _batchValueBox.Background = new SolidColorBrush(Color.FromRgb(70, 70, 73));
-        _batchValueBox.Foreground = Brushes.White;
-        _batchValueBox.BorderBrush = new SolidColorBrush(Color.FromRgb(100, 100, 100));
-        _batchValueBox.BorderThickness = new Thickness(1);
-        _batchValueBox.Padding = new Thickness(4, 1, 4, 1);
-        _batchValueBox.VerticalContentAlignment = VerticalAlignment.Center;
-        _batchValueBox.FontSize = 12;
-        _batchValueBox.ToolTip = "统一经济 / 工业 / 科技时使用的数值";
-        _batchValueBox.Margin = new Thickness(0, 0, 8, 0);
+        _batchValueBox.VerticalAlignment = VerticalAlignment.Center;
+        _batchValueBox.ToolTip = Loc.T("Assist.Legion.BatchValueTooltip");
+        _batchValueBox.Margin = new Thickness(0, 2, 8, 2);
         panel.Children.Add(_batchValueBox);
 
-        // 按钮做得比底部那排窄一些，五个并排才放得下
-        void AddBatchButton(string text, Color background, Action onClick)
+        void AddBatchButton(string text, Action onClick)
         {
-            var button = CreateButton(text, background, (_, _) => onClick());
-            button.Width = 76;
-            button.Height = 26;
-            button.FontSize = 11;
-            button.Margin = new Thickness(4, 0, 0, 0);
+            var button = EditorTheme.ToolButton(text, (_, _) => onClick());
+            button.Margin = new Thickness(0, 2, 6, 2);
+            button.VerticalAlignment = VerticalAlignment.Center;
             button.ToolTip = text;
             panel.Children.Add(button);
         }
 
-        AddBatchButton("统一经济", Color.FromRgb(70, 110, 70),
-            () => ApplyBatchValue("经济", _modifier.SetAllLegionsEconomy));
-        AddBatchButton("统一工业", Color.FromRgb(70, 110, 70),
-            () => ApplyBatchValue("工业", _modifier.SetAllLegionsIndustry));
-        AddBatchButton("统一科技", Color.FromRgb(70, 110, 70),
-            () => ApplyBatchValue("科技", _modifier.SetAllLegionsTech));
-        AddBatchButton("随机化等级", Color.FromRgb(125, 90, 40), OnRandomizeAllLegionLevels);
-        AddBatchButton("应用默认颜色", Color.FromRgb(125, 90, 40), OnApplyDefaultColors);
+        AddBatchButton(Loc.T("Assist.Legion.UnifyEconomy"),
+            () => ApplyBatchValue(Loc.T("Assist.Legion.Economy"), _modifier.SetAllLegionsEconomy));
+        AddBatchButton(Loc.T("Assist.Legion.UnifyIndustry"),
+            () => ApplyBatchValue(Loc.T("Assist.Legion.Industry"), _modifier.SetAllLegionsIndustry));
+        AddBatchButton(Loc.T("Assist.Legion.UnifyTech"),
+            () => ApplyBatchValue(Loc.T("Assist.Legion.Tech"), _modifier.SetAllLegionsTech));
+        AddBatchButton(Loc.T("Assist.Legion.RandomizeLevels"), OnRandomizeAllLegionLevels);
+        AddBatchButton(Loc.T("Assist.Legion.ApplyDefaultColors"), OnApplyDefaultColors);
 
-        return panel;
+        return new Border
+        {
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.Border,
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(10, 5, 10, 5),
+            Child = panel
+        };
     }
 
     /// <summary>
@@ -600,8 +517,8 @@ public sealed class LegionSettingWindow : Window
         if (!int.TryParse(_batchValueBox.Text.Trim(), out int value))
         {
             MessageBox.Show(
-                $"请先在「批量」输入框里填一个整数（用于统一{fieldLabel}）",
-                "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                Loc.F("Assist.Legion.BatchNeedInteger", fieldLabel),
+                Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information);
             _batchValueBox.Focus();
             return;
         }
@@ -609,7 +526,7 @@ public sealed class LegionSettingWindow : Window
         var result = apply(value);
         if (!result.Success)
         {
-            MessageBox.Show(result.Message ?? $"统一{fieldLabel}失败", "错误",
+            MessageBox.Show(result.Message ?? Loc.F("Assist.Legion.UnifyFailed", fieldLabel), Loc.T("Common.Error"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
@@ -620,14 +537,14 @@ public sealed class LegionSettingWindow : Window
     private void OnRandomizeAllLegionLevels()
     {
         var confirm = MessageBox.Show(
-            "随机化所有军团的等级与经济？\n\n此操作会覆盖所有军团的现有数值。",
-            "确认", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Loc.T("Assist.Legion.RandomizeConfirm"),
+            Loc.T("Common.Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes) return;
 
         var result = _modifier.RandomizeAllLegionLevels();
         if (!result.Success)
         {
-            MessageBox.Show(result.Message ?? "随机化失败", "错误",
+            MessageBox.Show(result.Message ?? Loc.T("Assist.Legion.RandomizeFailed"), Loc.T("Common.Error"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
@@ -640,7 +557,7 @@ public sealed class LegionSettingWindow : Window
         var result = _modifier.ApplyDefaultColorsToAllLegions();
         if (!result.Success)
         {
-            MessageBox.Show(result.Message ?? "应用默认颜色失败", "错误",
+            MessageBox.Show(result.Message ?? Loc.T("Assist.Legion.ApplyDefaultColorsFailed"), Loc.T("Common.Error"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
@@ -666,67 +583,33 @@ public sealed class LegionSettingWindow : Window
         DataModified?.Invoke(this, EventArgs.Empty);
     }
 
-    private StackPanel CreateButtonBar()
+    private Border CreateButtonBar()
     {
         var panel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 16, 12)
+            VerticalAlignment = VerticalAlignment.Center
         };
 
-        panel.Children.Add(CreateButton("重置", Color.FromRgb(80, 80, 80), (_, _) => ReloadSelected()));
-        panel.Children.Add(CreateButton("应用", Color.FromRgb(0, 122, 204), (_, _) => ApplyToSelected()));
-        panel.Children.Add(CreateButton("关闭", Color.FromRgb(80, 80, 80), (_, _) => Close()));
+        panel.Children.Add(CreateBarButton(EditorTheme.Button(Loc.T("Common.Reset"), (_, _) => ReloadSelected())));
+        panel.Children.Add(CreateBarButton(EditorTheme.PrimaryButton(Loc.T("Common.Apply"), (_, _) => ApplyToSelected())));
+        panel.Children.Add(CreateBarButton(EditorTheme.Button(Loc.T("Common.Close"), (_, _) => Close())));
 
-        return panel;
-    }
-
-    private static Button CreateButton(string content, Color background, RoutedEventHandler onClick)
-    {
-        var button = new Button
+        return new Border
         {
-            Content = content,
-            Width = 76,
-            Height = 30,
-            Background = new SolidColorBrush(background),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontSize = 12,
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(8, 0, 0, 0)
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.Border,
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(12, 10, 12, 10),
+            Child = panel
         };
-        button.Click += onClick;
-
-        var template = new ControlTemplate(typeof(Button));
-        var border = new FrameworkElementFactory(typeof(Border));
-        border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Button.BackgroundProperty));
-        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
-        var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
-        presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-        presenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
-        border.AppendChild(presenter);
-        template.VisualTree = border;
-
-        var hover = new Trigger { Property = Button.IsMouseOverProperty, Value = true };
-        hover.Setters.Add(new Setter(Button.BackgroundProperty, new SolidColorBrush(Color.FromRgb(100, 149, 237))));
-        template.Triggers.Add(hover);
-        button.Template = template;
-
-        return button;
     }
 
-    /// <summary>小尺寸按钮（复用标准按钮的圆角模板）</summary>
-    private static Button CreateSmallButton(string content, Color background, string tooltip, RoutedEventHandler onClick)
+    private static Button CreateBarButton(Button button)
     {
-        var button = CreateButton(content, background, onClick);
-        button.Width = 32;
-        button.Height = 26;
-        button.FontSize = 14;
-        button.FontWeight = FontWeights.Bold;
-        button.Margin = new Thickness(4, 0, 4, 0);
-        button.ToolTip = tooltip;
+        button.MinWidth = 80;
+        button.Margin = new Thickness(8, 0, 0, 0);
         return button;
     }
 
@@ -754,21 +637,22 @@ public sealed class LegionSettingWindow : Window
     /// </summary>
     private FrameworkElement CreateLegionListItem(int index, Legion legion)
     {
-        var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+        var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });      // 颜色条
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });   // 国旗
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        // 军团颜色条：宽度压缩到 5px，把位置让给国旗
+        // 军团颜色条：宽度压缩到 5px，把位置让给国旗（颜色是军团数据，不走主题）
         var colorBar = new Border
         {
             Width = 5,
             Height = 32,
             Background = new SolidColorBrush(Color.FromRgb(legion.ColorR, legion.ColorG, legion.ColorB)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(90, 90, 90)),
+            BorderBrush = EditorTheme.BorderStrong,
             BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(2),
             VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = $"军团颜色 #{legion.ColorR:X2}{legion.ColorG:X2}{legion.ColorB:X2}"
+            ToolTip = Loc.F("Assist.Legion.ColorTooltip", $"{legion.ColorR:X2}{legion.ColorG:X2}{legion.ColorB:X2}")
         };
         Grid.SetColumn(colorBar, 0);
         row.Children.Add(colorBar);
@@ -791,23 +675,19 @@ public sealed class LegionSettingWindow : Window
         }
         else
         {
-            flagElement = new TextBlock
-            {
-                Text = "无旗",
-                Foreground = new SolidColorBrush(Color.FromRgb(150, 150, 150)),
-                FontSize = 10,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(5, 0, 0, 0),
-                ToolTip = $"未找到 flag_{legion.CountryId}.png"
-            };
+            var noFlag = EditorTheme.Muted(Loc.T("Assist.Legion.NoFlag"));
+            noFlag.FontSize = 10;
+            noFlag.VerticalAlignment = VerticalAlignment.Center;
+            noFlag.Margin = new Thickness(5, 0, 0, 0);
+            noFlag.ToolTip = Loc.F("Assist.Legion.FlagNotFound", legion.CountryId);
+            flagElement = noFlag;
         }
         Grid.SetColumn(flagElement, 1);
         row.Children.Add(flagElement);
 
         var text = new TextBlock
         {
-            Text = $"军团 {index + 1}  顺序{legion.ActionId}\n{GetCountryName(legion.CountryId)} | 阵营{legion.Camp}",
-            Foreground = Brushes.White,
+            Text = Loc.F("Assist.Legion.ListItem", index + 1, legion.ActionId, GetCountryName(legion.CountryId), legion.Camp),
             FontSize = 11,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(6, 0, 0, 0)
@@ -842,7 +722,7 @@ public sealed class LegionSettingWindow : Window
         var result = _modifier.AddLegion();
         if (!result.Success)
         {
-            MessageBox.Show(result.Message ?? "新增军团失败", "错误",
+            MessageBox.Show(result.Message ?? Loc.T("Assist.Legion.AddFailed"), Loc.T("Common.Error"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
@@ -856,20 +736,20 @@ public sealed class LegionSettingWindow : Window
     {
         if (_selectedIndex < 0 || _selectedIndex >= _mapData.Legions.Count)
         {
-            MessageBox.Show("请先在左侧选择一个军团", "提示",
+            MessageBox.Show(Loc.T("Common.SelectItemFirst"), Loc.T("Common.Hint"),
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         var confirm = MessageBox.Show(
-            $"确定要删除军团 {_selectedIndex + 1} 吗？", "确认删除",
+            Loc.F("Assist.Legion.DeleteConfirm", _selectedIndex + 1), Loc.T("Assist.Legion.DeleteConfirmTitle"),
             MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes) return;
 
         var result = _modifier.RemoveLegionAt(_selectedIndex);
         if (!result.Success)
         {
-            MessageBox.Show(result.Message ?? "删除军团失败", "错误",
+            MessageBox.Show(result.Message ?? Loc.T("Assist.Legion.DeleteFailed"), Loc.T("Common.Error"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
@@ -1002,7 +882,7 @@ public sealed class LegionSettingWindow : Window
             {
                 if (!TryParseColor(text, out byte r, out byte g, out byte b))
                 {
-                    errors.Add("颜色格式应为 6 位十六进制(RRGGBB)");
+                    errors.Add(Loc.T("Assist.Legion.ColorFormatError"));
                     continue;
                 }
 
@@ -1019,14 +899,14 @@ public sealed class LegionSettingWindow : Window
             if (def.IsFloat)
             {
                 if (!float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
-                    errors.Add($"{def.Label}: 需要数字");
+                    errors.Add(Loc.F("Assist.Legion.NeedNumber", LabelOf(def)));
                 else
                     field.SetValue(boxed, f);
             }
             else
             {
                 if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int v))
-                    errors.Add($"{def.Label}: 需要整数");
+                    errors.Add(Loc.F("Assist.Legion.NeedInteger", LabelOf(def)));
                 else
                     field.SetValue(boxed, v);
             }
@@ -1034,7 +914,7 @@ public sealed class LegionSettingWindow : Window
 
         if (errors.Count > 0)
         {
-            MessageBox.Show(string.Join("\n", errors), "输入有误",
+            MessageBox.Show(string.Join("\n", errors), Loc.T("Common.InputError"),
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -1046,7 +926,7 @@ public sealed class LegionSettingWindow : Window
         var result = _modifier.UpdateLegionAt(_selectedIndex, updated);
         if (!result.Success)
         {
-            MessageBox.Show(result.Message ?? "保存失败", "错误",
+            MessageBox.Show(result.Message ?? Loc.T("Assist.Legion.ApplyFailed"), Loc.T("Common.Error"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }

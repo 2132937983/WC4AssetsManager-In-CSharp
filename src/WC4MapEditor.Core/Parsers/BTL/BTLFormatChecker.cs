@@ -117,7 +117,7 @@ public sealed class BTLCheckReport
 /// <summary>
 /// BTL 文件格式检查。
 /// <para>
-/// <b>为什么需要它</b>：<see cref="BTLParser"/> 解析时对每个区块都写成
+/// <b>为什么需要它</b>：旧版 BTLParser（已删除）解析时对每个区块都写成
 /// <c>if (offset + size &lt;= data.Length)</c> —— 文件被截断或头部字段被改坏时，
 /// 它不会报错，只是<b>静默跳过</b>读不到的部分。结果是"打开成功但数据少了一截"，
 /// 很难从界面上看出来。这个检查类专门把这类问题显式暴露出来。

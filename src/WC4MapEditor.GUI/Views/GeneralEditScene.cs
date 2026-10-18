@@ -57,8 +57,8 @@ public class GeneralEditScene : UserControl
 
     public GeneralEditScene(MainWindow window)
     {
+        EditorTheme.Apply(this);
         _window = window;
-        Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
         BuildUI();
         RefreshList();
         Loaded += (_, _) => Dispatcher.BeginInvoke(() =>
@@ -72,104 +72,38 @@ public class GeneralEditScene : UserControl
     private void BuildUI()
     {
         _root = new Grid();
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(50) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
         _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
 
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        // 顶部工具栏
-        _topBar = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 0, 0, 1)
-        };
+        // 顶栏只放增删存重载；随机 / 专长模板按钮数量多，放到属性面板上方的工具条里，避免顶栏挤不下
+        _topBar = EditorTheme.TopBar(Loc.T("General.Title"), OnBack,
+            EditorTheme.Button(Loc.T("General.Add"), OnAdd),
+            EditorTheme.DangerButton(Loc.T("General.DeleteSelected"), OnDelete),
+            EditorTheme.Button(Loc.T("Common.Reload"), OnReload),
+            EditorTheme.PrimaryButton(Loc.T("Common.Save"), OnSave));
         Grid.SetRow(_topBar, 0); Grid.SetColumnSpan(_topBar, 3);
-        var topSp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 12, 0) };
-
-        topSp.Children.Add(MakeTopBtn("← 返回", OnBack, primary: false));
-        topSp.Children.Add(new Border { Width = 1 });
-        topSp.Children.Add(MakeTopBtn("➕ 新增将领", OnAdd, primary: true));
-        topSp.Children.Add(MakeTopBtn("❌ 删除选中", OnDelete, primary: false));
-        topSp.Children.Add(MakeTopBtn("💾 保存", OnSave, primary: true));
-        topSp.Children.Add(MakeTopBtn("↻ 重载", OnReload, primary: false));
-        topSp.Children.Add(new Border { Width = 8 });
-
-        // 随机参数按钮
-        topSp.Children.Add(MakeTopBtn("🎲 低级随机", (_, _) => ApplyRandomTemplate(1), primary: false));
-        topSp.Children.Add(MakeTopBtn("🎲 中级随机", (_, _) => ApplyRandomTemplate(2), primary: false));
-        topSp.Children.Add(MakeTopBtn("🎲 高级随机", (_, _) => ApplyRandomTemplate(3), primary: false));
-        topSp.Children.Add(new Border { Width = 8 });
-
-        // 兵种专长按钮
-        topSp.Children.Add(MakeTopBtn("🦶 步将", (_, _) => ApplySpecialtyTemplate("infantry"), primary: false));
-        topSp.Children.Add(MakeTopBtn("🛡️ 坦将", (_, _) => ApplySpecialtyTemplate("armor"), primary: false));
-        topSp.Children.Add(MakeTopBtn("💣 炮将", (_, _) => ApplySpecialtyTemplate("artillery"), primary: false));
-        topSp.Children.Add(MakeTopBtn("⚓ 海将", (_, _) => ApplySpecialtyTemplate("navy"), primary: false));
-        topSp.Children.Add(MakeTopBtn("✈️ 空将", (_, _) => ApplySpecialtyTemplate("airforce"), primary: false));
-
-        var titleTb = new TextBlock
-        {
-            Text = "将领数据编辑",
-            Foreground = Brushes.White,
-            FontSize = 18,
-            FontWeight = FontWeights.Bold,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(20, 0, 0, 0)
-        };
-        topSp.Children.Add(titleTb);
-
-        _topBar.Child = topSp;
         _root.Children.Add(_topBar);
 
         // 左栏：搜索 + 列表
-        _leftPanel = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x26)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 0, 1, 0)
-        };
+        _leftPanel = EditorTheme.Panel(new Thickness(0, 0, 1, 0));
         Grid.SetRow(_leftPanel, 1); Grid.SetColumn(_leftPanel, 0);
 
         var leftGrid = new Grid();
-        leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(40) });
+        leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        _searchBox = new TextBox
-        {
-            Margin = new Thickness(8, 6, 8, 6),
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13,
-            Padding = new Thickness(6, 3, 6, 3),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            CaretBrush = Brushes.White
-        };
-        _searchBox.Text = "搜索 (Id / 名称 / EName)...";
-        _searchBox.GotFocus += (s, e) =>
-        {
-            if (_searchBox.Text.StartsWith("搜索")) _searchBox.Text = string.Empty;
-        };
-        _searchBox.LostFocus += (s, e) =>
-        {
-            if (string.IsNullOrWhiteSpace(_searchBox.Text)) _searchBox.Text = "搜索 (Id / 名称 / EName)...";
-        };
+        var search = EditorTheme.SearchBox(Loc.T("General.SearchPlaceholder"), out _searchBox);
+        search.Margin = new Thickness(8);
         _searchBox.TextChanged += (s, e) => RefreshList();
-        Grid.SetRow(_searchBox, 0);
-        leftGrid.Children.Add(_searchBox);
+        Grid.SetRow(search, 0);
+        leftGrid.Children.Add(search);
 
-        _listBox = new ListBox
-        {
-            Background = Brushes.Transparent,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontSize = 13
-        };
+        _listBox = new ListBox();
         _listBox.SelectionChanged += ListBox_SelectionChanged;
         _listBox.KeyDown += ListBox_KeyDown;
         Grid.SetRow(_listBox, 1);
@@ -179,39 +113,19 @@ public class GeneralEditScene : UserControl
         _root.Children.Add(_leftPanel);
 
         // Splitter
-        _splitter = new GridSplitter
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            ResizeBehavior = GridResizeBehavior.PreviousAndNext,
-            ShowsPreview = true
-        };
+        _splitter = EditorTheme.VSplitter();
         Grid.SetRow(_splitter, 1); Grid.SetColumn(_splitter, 1);
         _root.Children.Add(_splitter);
 
         // 右栏：属性面板
-        _rightPanel = new Border { Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)) };
+        _rightPanel = new Border { Background = EditorTheme.Bg1 };
         Grid.SetRow(_rightPanel, 1); Grid.SetColumn(_rightPanel, 2);
         BuildRightPanel();
         _root.Children.Add(_rightPanel);
 
         // 底部状态栏
-        var status = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 1, 0, 0)
-        };
+        var status = EditorTheme.StatusBar(out _statusText, Loc.F("General.StatusLoaded", _parser.All.Count));
         Grid.SetRow(status, 2); Grid.SetColumnSpan(status, 3);
-        _statusText = new TextBlock
-        {
-            Text = $"已加载 {_parser.All.Count} 个将领配置",
-            Foreground = Brushes.LightGray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 12, 0)
-        };
-        status.Child = _statusText;
         _root.Children.Add(status);
 
         Content = _root;
@@ -219,18 +133,39 @@ public class GeneralEditScene : UserControl
 
     private void BuildRightPanel()
     {
+        var rightGrid = new Grid();
+        rightGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        rightGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        // 模板工具条：随机参数 | 兵种专长
+        var tools = new WrapPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        tools.Children.Add(EditorTheme.ToolButton(Loc.T("General.RandomLow"), (_, _) => ApplyRandomTemplate(1)));
+        tools.Children.Add(EditorTheme.ToolButton(Loc.T("General.RandomMid"), (_, _) => ApplyRandomTemplate(2)));
+        tools.Children.Add(EditorTheme.ToolButton(Loc.T("General.RandomHigh"), (_, _) => ApplyRandomTemplate(3)));
+        tools.Children.Add(EditorTheme.VSeparator());
+        tools.Children.Add(EditorTheme.ToolButton(Loc.T("General.SpecInfantry"), (_, _) => ApplySpecialtyTemplate("infantry")));
+        tools.Children.Add(EditorTheme.ToolButton(Loc.T("General.SpecArmor"), (_, _) => ApplySpecialtyTemplate("armor")));
+        tools.Children.Add(EditorTheme.ToolButton(Loc.T("General.SpecArtillery"), (_, _) => ApplySpecialtyTemplate("artillery")));
+        tools.Children.Add(EditorTheme.ToolButton(Loc.T("General.SpecNavy"), (_, _) => ApplySpecialtyTemplate("navy")));
+        tools.Children.Add(EditorTheme.ToolButton(Loc.T("General.SpecAirForce"), (_, _) => ApplySpecialtyTemplate("airforce")));
+        var toolBar = EditorTheme.ToolBar(tools);
+        Grid.SetRow(toolBar, 0);
+        rightGrid.Children.Add(toolBar);
+
         _propScroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Padding = new Thickness(20)
+            Padding = new Thickness(16)
         };
         _propPanel = new StackPanel { Orientation = Orientation.Vertical };
         _propScroll.Content = _propPanel;
-        _rightPanel.Child = _propScroll;
+        Grid.SetRow(_propScroll, 1);
+        rightGrid.Children.Add(_propScroll);
+        _rightPanel.Child = rightGrid;
 
         // 顶部预览区：头像 + 半身像 + 战术地图头像 + JSON预览（横向排列，节省垂直空间）
-        var previewGrid = new Grid { Margin = new Thickness(0, 0, 0, 16) };
+        var previewGrid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
         previewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });   // 头像
         previewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });    // 间距
         previewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });   // 半身像
@@ -240,245 +175,119 @@ public class GeneralEditScene : UserControl
         previewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // JSON预览
 
         // 头像 (general_circle)
-        var headWrap = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        _headPreview = new Image
-        {
-            Width = 100, Height = 100,
-            Stretch = Stretch.Uniform,
-            Source = null
-        };
-        headWrap.Child = _headPreview;
+        _headPreview = new Image { Width = 100, Height = 100, Stretch = Stretch.Uniform, Source = null };
+        var headWrap = EditorTheme.Card(_headPreview, new Thickness(8));
+        headWrap.Margin = new Thickness(0);
+        headWrap.HorizontalAlignment = HorizontalAlignment.Center;
+        headWrap.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(headWrap, 0);
         previewGrid.Children.Add(headWrap);
 
         // 半身像 (generalphoto)
-        var photoWrap = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            MaxHeight = 180
-        };
         var photoPanel = new StackPanel { Orientation = Orientation.Vertical };
         _photoPreview = new Image { Stretch = Stretch.Uniform, Height = 160, Cursor = Cursors.Hand };
         _photoPreview.MouseLeftButtonDown += OnPhotoPreviewClick;
         photoPanel.Children.Add(_photoPreview);
-        var photoTip = new TextBlock
-        {
-            Text = "点击编辑图片",
-            Foreground = Brushes.Gray,
-            FontSize = 10,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 4, 0, 0)
-        };
+        var photoTip = EditorTheme.Muted(Loc.T("General.ClickToEditPhoto"));
+        photoTip.FontSize = 10;
+        photoTip.HorizontalAlignment = HorizontalAlignment.Center;
+        photoTip.Margin = new Thickness(0, 4, 0, 0);
         photoPanel.Children.Add(photoTip);
-        photoWrap.Child = photoPanel;
+        var photoWrap = EditorTheme.Card(photoPanel, new Thickness(8));
+        photoWrap.Margin = new Thickness(0);
+        photoWrap.HorizontalAlignment = HorizontalAlignment.Center;
+        photoWrap.VerticalAlignment = VerticalAlignment.Center;
+        photoWrap.MaxHeight = 200;
         Grid.SetColumn(photoWrap, 2);
         previewGrid.Children.Add(photoWrap);
 
         // 战术地图头像 (head_{EName} from tacticalmap)
-        var tacticalHeadWrap = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        _tacticalHeadPreview = new Image
-        {
-            Width = 100, Height = 100,
-            Stretch = Stretch.Uniform,
-            Source = null
-        };
-        tacticalHeadWrap.Child = _tacticalHeadPreview;
+        _tacticalHeadPreview = new Image { Width = 100, Height = 100, Stretch = Stretch.Uniform, Source = null };
+        var tacticalHeadWrap = EditorTheme.Card(_tacticalHeadPreview, new Thickness(8));
+        tacticalHeadWrap.Margin = new Thickness(0);
+        tacticalHeadWrap.HorizontalAlignment = HorizontalAlignment.Center;
+        tacticalHeadWrap.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(tacticalHeadWrap, 4);
         previewGrid.Children.Add(tacticalHeadWrap);
 
         // JSON 预览（只读）
-        var jsonBorder = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(10),
-            MaxHeight = 180
-        };
-        _jsonPreview = new TextBox
-        {
-            Background = Brushes.Transparent,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xD4, 0xD4, 0xD4)),
-            BorderThickness = new Thickness(0),
-            FontFamily = new FontFamily("Consolas, Courier New, monospace"),
-            FontSize = 11,
-            IsReadOnly = true,
-            IsReadOnlyCaretVisible = false,
-            TextWrapping = TextWrapping.Wrap,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Text = "{}"
-        };
-        jsonBorder.Child = _jsonPreview;
-        Grid.SetColumn(jsonBorder, 6);
-        previewGrid.Children.Add(jsonBorder);
+        _jsonPreview = EditorTheme.MonoTextBox(180);
+        _jsonPreview.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+        _jsonPreview.Text = "{}";
+        Grid.SetColumn(_jsonPreview, 6);
+        previewGrid.Children.Add(_jsonPreview);
 
         _propPanel.Children.Add(previewGrid);
 
-        _propPanel.Children.Add(Separator());
-
         // ---- 基本信息 ----
-        AddSection("基本信息");
-        AddRow("Id", AddNum("Id", min: 1, max: 99999, changed: _ => ApplyProp()));
-        AddRow("名称 (Name)", AddText("Name", changed: _ => ApplyProp()));
-        AddRow("英文名 (EName)", AddText("EName", changed: _ => ApplyProp()));
-        AddRow("显示图 (Photo)", AddText("Photo", changed: _ => { ApplyProp(); RefreshPreviews(); }));
+        Section(Loc.T("Common.BasicInfo"));
+        Row(Loc.T("Common.Id"), AddNum("Id", 1, 99999, _ => ApplyProp()));
+        Row(Loc.T("General.Field.Name"), AddText("Name", _ => ApplyProp()));
+        Row(Loc.T("General.Field.EName"), AddText("EName", _ => ApplyProp()));
+        Row(Loc.T("General.Field.Photo"), AddText("Photo", _ => { ApplyProp(); RefreshPreviews(); }));
 
-        _propPanel.Children.Add(Separator());
-        AddSection("战斗属性 (当前 / 上限)");
+        Section(Loc.T("General.Section.Stats"));
 
         void AddStat(string key, string label, int max)
         {
             var sp = new StackPanel { Orientation = Orientation.Horizontal };
             var cur = AddNum(key, 0, max, _ => ApplyProp());
-            cur.Margin = new Thickness(0);
             cur.Width = 100;
-            var sep = new TextBlock { Text = "  /  ", Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 };
+            var sep = EditorTheme.Text_("  /  ", 13, EditorTheme.TextMuted);
             var maxCtrl = AddNum(key + "Max", 0, 99, _ => ApplyProp());
-            maxCtrl.Margin = new Thickness(0);
             maxCtrl.Width = 100;
             sp.Children.Add(cur);
             sp.Children.Add(sep);
             sp.Children.Add(maxCtrl);
-            AddRow(label, sp);
+            Row(label, sp);
         }
-        AddStat("Infantry", "步兵", 99);
-        AddStat("Armor", "装甲", 99);
-        AddStat("Artillery", "火炮", 99);
-        AddStat("Navy", "海军", 99);
-        AddStat("AirForce", "空军", 99);
-        AddStat("March", "行军", 99);
+        AddStat("Infantry", Loc.T("General.Stat.Infantry"), 99);
+        AddStat("Armor", Loc.T("General.Stat.Armor"), 99);
+        AddStat("Artillery", Loc.T("General.Stat.Artillery"), 99);
+        AddStat("Navy", Loc.T("General.Stat.Navy"), 99);
+        AddStat("AirForce", Loc.T("General.Stat.AirForce"), 99);
+        AddStat("March", Loc.T("General.Stat.March"), 99);
 
-        _propPanel.Children.Add(Separator());
-        AddSection("军衔与生命");
-        AddRow("军衔 (MilitaryRank)", AddNum("MilitaryRank", 0, 20, _ => ApplyProp()));
-        AddRow("生命等级 (Hp)", AddNum("Hp", 0, 20, _ => ApplyProp()));
+        Section(Loc.T("General.Section.RankHp"));
+        Row(Loc.T("General.Field.MilitaryRank"), AddNum("MilitaryRank", 0, 20, _ => ApplyProp()));
+        Row(Loc.T("General.Field.Hp"), AddNum("Hp", 0, 20, _ => ApplyProp()));
 
-        _propPanel.Children.Add(Separator());
-        AddSection("商店/UI");
-        AddRow("InShop", AddNum("InShop", 0, 1, _ => ApplyProp()));
-        AddRow("Type", AddNum("Type", 0, 99, _ => ApplyProp()));
-        AddRow("Evaluate", AddNum("Evaluate", 0, 99, _ => ApplyProp()));
-        AddRow("Sequence", AddNum("Sequence", 0, 9999, _ => ApplyProp()));
-        AddRow("解锁 HQ 等级", AddNum("UnlockHQLv", 0, 999, _ => ApplyProp()));
-        AddRow("勋章花费", AddNum("CostMedal", 0, 999999, _ => ApplyProp()));
-        AddRow("金币花费", AddNum("CostGold", 0, 99999999, _ => ApplyProp()));
+        Section(Loc.T("General.Section.ShopUi"));
+        Row(Loc.T("General.Field.InShop"), AddNum("InShop", 0, 1, _ => ApplyProp()));
+        Row(Loc.T("General.Field.Type"), AddNum("Type", 0, 99, _ => ApplyProp()));
+        Row(Loc.T("General.Field.Evaluate"), AddNum("Evaluate", 0, 99, _ => ApplyProp()));
+        Row(Loc.T("General.Field.Sequence"), AddNum("Sequence", 0, 9999, _ => ApplyProp()));
+        Row(Loc.T("General.Field.UnlockHQLv"), AddNum("UnlockHQLv", 0, 999, _ => ApplyProp()));
+        Row(Loc.T("General.Field.CostMedal"), AddNum("CostMedal", 0, 999999, _ => ApplyProp()));
+        Row(Loc.T("General.Field.CostGold"), AddNum("CostGold", 0, 99999999, _ => ApplyProp()));
 
-        _propPanel.Children.Add(Separator());
-        AddSection("技能与勋章 (逗号/空格分隔整数)");
-        AddRow("技能 IDs (Skills)", AddText("Skills", changed: _ => ApplyProp()));
-        AddRow("勋章 IDs (Medals)", AddText("Medals", changed: _ => ApplyProp()));
-        AddRow("技能上限 (SkillsMax)", AddNum("SkillsMax", 0, 99, _ => ApplyProp()));
-        AddRow("重置技能 (ResetSkills)", AddNum("ResetSkills", 0, 1, _ => ApplyProp()));
+        Section(Loc.T("General.Section.SkillsMedals"));
+        Row(Loc.T("General.Field.Skills"), AddText("Skills", _ => ApplyProp()));
+        Row(Loc.T("General.Field.Medals"), AddText("Medals", _ => ApplyProp()));
+        Row(Loc.T("General.Field.SkillsMax"), AddNum("SkillsMax", 0, 99, _ => ApplyProp()));
+        Row(Loc.T("General.Field.ResetSkills"), AddNum("ResetSkills", 0, 1, _ => ApplyProp()));
 
-        _propPanel.Children.Add(Separator());
-        AddSection("头像位移 (def_portraitpos.xml)");
-        AddRow("PosX", AddNum("Portrait_PosX", -999, 999, _ => ApplyPortrait()));
-        AddRow("PosY", AddNum("Portrait_PosY", -999, 999, _ => ApplyPortrait()));
-        AddRow("Scale", AddNum("Portrait_Scale", 0.01, 10.0, 0.01, _ => ApplyPortrait()));
+        Section(Loc.T("General.Section.Portrait"));
+        Row(Loc.T("General.Field.PortraitPosX"), AddNum("Portrait_PosX", -999, 999, _ => ApplyPortrait()));
+        Row(Loc.T("General.Field.PortraitPosY"), AddNum("Portrait_PosY", -999, 999, _ => ApplyPortrait()));
+        Row(Loc.T("General.Field.PortraitScale"), AddNum("Portrait_Scale", 0.01, 10.0, 0.01, _ => ApplyPortrait()));
 
-        var tip = new TextBlock
-        {
-            Text = "提示：新增将领时 PortraitPos 会自动创建 posx=-30, posy=40, scale=1.0；\n删除将领时 PortraitPos 中对应项会同步删除。",
-            Foreground = Brushes.Gray,
-            FontSize = 11,
-            Margin = new Thickness(0, 12, 0, 0),
-            TextWrapping = TextWrapping.Wrap
-        };
-        _propPanel.Children.Add(tip);
+        var tip = EditorTheme.Muted(Loc.T("General.PortraitTip"));
+        tip.FontSize = 11;
+        tip.TextWrapping = TextWrapping.Wrap;
+        var tipCard = EditorTheme.Card(tip);
+        tipCard.Margin = new Thickness(0, 12, 0, 0);
+        _propPanel.Children.Add(tipCard);
     }
 
     // ===================================== UI 辅助 =====================================
-    private Button MakeTopBtn(string text, RoutedEventHandler onClick, bool primary = false)
-    {
-        var bg = primary ? new SolidColorBrush(Color.FromRgb(0x0E, 0x63, 0xC6)) : new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C));
-        var hoverBg = primary ? new SolidColorBrush(Color.FromRgb(0x11, 0x77, 0xDD)) : new SolidColorBrush(Color.FromRgb(0x50, 0x50, 0x50));
-        var b = new Button
-        {
-            Content = text,
-            Background = bg,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(14, 7, 14, 7),
-            Margin = new Thickness(0, 0, 6, 0),
-            FontSize = 13,
-            Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        b.Click += onClick;
-        return b;
-    }
+    private void Section(string title) => _propPanel.Children.Add(EditorTheme.SectionHeader(title));
 
-    private void AddSection(string title)
-    {
-        var tb = new TextBlock
-        {
-            Text = title,
-            Foreground = Brushes.White,
-            FontWeight = FontWeights.Bold,
-            FontSize = 14,
-            Margin = new Thickness(0, 10, 0, 8)
-        };
-        _propPanel.Children.Add(tb);
-    }
-
-    private FrameworkElement Separator() => new Border
-    {
-        Height = 1,
-        Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-        Margin = new Thickness(0, 8, 0, 8)
-    };
-
-    private void AddRow(string label, FrameworkElement value)
-    {
-        var row = new Grid { Margin = new Thickness(0, 3, 0, 3) };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var lb = new TextBlock
-        {
-            Text = label,
-            Foreground = Brushes.LightGray,
-            VerticalAlignment = VerticalAlignment.Center,
-            FontSize = 13
-        };
-        Grid.SetColumn(lb, 0);
-        Grid.SetColumn(value, 1);
-        value.VerticalAlignment = VerticalAlignment.Center;
-        row.Children.Add(lb);
-        row.Children.Add(value);
-        _propPanel.Children.Add(row);
-    }
+    private void Row(string label, UIElement value) => _propPanel.Children.Add(EditorTheme.FormRow(label, value, 160));
 
     private TextBox AddText(string key, Action<string> changed)
     {
-        var tb = new TextBox
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            CaretBrush = Brushes.White,
-            Padding = new Thickness(6, 4, 6, 4),
-            FontSize = 13
-        };
+        var tb = new TextBox();
         tb.TextChanged += (s, e) => changed?.Invoke(tb.Text);
         _textBoxes[key] = tb;
         return tb;
@@ -503,7 +312,7 @@ public class GeneralEditScene : UserControl
     {
         var query = _parser.All.AsEnumerable();
         var s = _searchBox?.Text?.Trim();
-        if (!string.IsNullOrEmpty(s) && !s.StartsWith("搜索"))
+        if (!string.IsNullOrEmpty(s))
         {
             query = query.Where(g =>
                 g.Id.ToString().Contains(s, StringComparison.OrdinalIgnoreCase) ||
@@ -520,7 +329,7 @@ public class GeneralEditScene : UserControl
             _listBox.Items.Add(entry);
             if (previousId.HasValue && g.Id == previousId.Value) _listBox.SelectedItem = entry;
         }
-        SetStatus($"已加载 {_parser.All.Count} 个将领配置，列表显示 {_listBox.Items.Count} 项");
+        SetStatus(Loc.F("General.StatusLoadedFiltered", _parser.All.Count, _listBox.Items.Count));
     }
 
     private sealed class GeneralListEntry
@@ -674,7 +483,7 @@ public class GeneralEditScene : UserControl
                 _listBox.Items[idx] = new GeneralListEntry(_current);
                 _listBox.SelectedIndex = idx;
             }
-            SetStatus($"已更新将领 {_current.EName}（未保存）");
+            SetStatus(Loc.F("General.StatusUpdated", _current.EName));
             RefreshJsonPreview();
         }
         catch (Exception ex)
@@ -692,7 +501,7 @@ public class GeneralEditScene : UserControl
         p.PosX = (int)GetNum("Portrait_PosX");
         p.PosY = (int)GetNum("Portrait_PosY");
         p.Scale = GetNum("Portrait_Scale");
-        SetStatus($"已更新 PortraitPos[{key}]（未保存）");
+        SetStatus(Loc.F("General.StatusPortraitUpdated", key));
     }
 
     private static List<int> ParseIntList(string? s)
@@ -918,7 +727,7 @@ public class GeneralEditScene : UserControl
         }
         catch (Exception ex)
         {
-            _jsonPreview.Text = $"序列化失败: {ex.Message}";
+            _jsonPreview.Text = Loc.F("General.SerializeFailed", ex.Message);
         }
     }
 
@@ -969,7 +778,7 @@ public class GeneralEditScene : UserControl
         var ename = string.IsNullOrEmpty(_current.EName) ? _current.Photo : _current.EName;
         if (string.IsNullOrEmpty(ename))
         {
-            MessageBox.Show("当前将领没有 EName/Photo，无法进入图片编辑", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.T("General.NoEnameForPhoto"), Loc.T("Common.Info"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         var scene = new GeneralPhotoEditScene(_window, ename);
@@ -980,8 +789,8 @@ public class GeneralEditScene : UserControl
     {
         using var enameDlg = new SingleInputDialog(_window)
         {
-            Title = "新增将领",
-            Description = "请输入将领英文名 EName（将作为 general_{EName}.webp / portraitpos 主键）：",
+            Title = Loc.T("General.Add"),
+            Description = Loc.T("General.AddEnamePrompt"),
             DefaultValue = "",
             MinValue = 0,
             MaxValue = 0
@@ -991,14 +800,14 @@ public class GeneralEditScene : UserControl
 
         if (_parser.GetByEName(ename) != null)
         {
-            MessageBox.Show($"已存在 EName={ename} 的将领，不能重复添加", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.F("General.EnameExists", ename), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
         using var nameDlg = new SingleInputDialog(_window)
         {
-            Title = "新增将领",
-            Description = $"请输入将领中文名（EName={ename}）：",
+            Title = Loc.T("General.Add"),
+            Description = Loc.F("General.AddNamePrompt", ename),
             DefaultValue = ename
         };
         var cname = await nameDlg.ShowAsync() ?? ename;
@@ -1007,14 +816,14 @@ public class GeneralEditScene : UserControl
         RefreshList();
         foreach (GeneralListEntry item in _listBox.Items)
             if (item.Id == g.Id) { _listBox.SelectedItem = item; break; }
-        SetStatus($"新增将领 {g.Name}({g.EName}) ID={g.Id}，PortraitPos 默认: posx={p.PosX} posy={p.PosY} scale={p.Scale}");
+        SetStatus(Loc.F("General.StatusAdded", g.Name, g.EName, g.Id, p.PosX, p.PosY, p.Scale));
     }
 
     private void OnDelete(object sender, RoutedEventArgs e)
     {
-        if (_current == null) { MessageBox.Show("请先在左侧选中一个将领", "提示", MessageBoxButton.OK, MessageBoxImage.Information); return; }
-        var res = MessageBox.Show($"确定要删除将领 [{_current.Id}] {_current.Name}({_current.EName})？\n同时将删除 def_portraitpos.xml 中的对应项。",
-            "删除将领", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (_current == null) { MessageBox.Show(Loc.T("Common.SelectItemFirst"), Loc.T("Common.Info"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
+        var res = MessageBox.Show(Loc.F("General.DeleteConfirm", _current.Id, _current.Name, _current.EName),
+            Loc.T("General.DeleteTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (res != MessageBoxResult.Yes) return;
         int id = _current.Id;
         string ename = _current.EName;
@@ -1023,7 +832,7 @@ public class GeneralEditScene : UserControl
             RefreshList();
             _current = null;
             ShowEmpty();
-            SetStatus($"已删除将领 ID={id} EName={ename}（未保存）");
+            SetStatus(Loc.F("General.StatusDeleted", id, ename));
         }
     }
 
@@ -1032,25 +841,25 @@ public class GeneralEditScene : UserControl
         var ok = _parser.SaveAll();
         if (ok)
         {
-            SetStatus($"✔ 保存成功：{_parser.ConfigPath}  +  {_parser.PortraitPosPath}");
-            MessageBox.Show($"保存成功：\nGeneralSettings.json: {_parser.ConfigPath}\ndef_portraitpos.xml: {_parser.PortraitPosPath}",
-                "保存成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus(Loc.F("General.StatusSaved", _parser.ConfigPath, _parser.PortraitPosPath));
+            MessageBox.Show(Loc.F("General.SaveSuccessMessage", _parser.ConfigPath, _parser.PortraitPosPath),
+                Loc.T("Common.SaveSuccess"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
         else
         {
-            MessageBox.Show("保存失败，请检查文件权限或查看 Debug 输出", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Common.SaveFailed"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     private void OnReload(object sender, RoutedEventArgs e)
     {
-        var res = MessageBox.Show("重新加载磁盘上的 GeneralSettings.json 与 def_portraitpos.xml？未保存的更改将丢失。",
-            "重载", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var res = MessageBox.Show(Loc.F("Common.ReloadConfirm", "GeneralSettings.json + def_portraitpos.xml"),
+            Loc.T("Common.Reload"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (res != MessageBoxResult.Yes) return;
         _parser.LoadAll();
         RefreshList();
         ShowEmpty();
-        SetStatus("已从磁盘重新加载");
+        SetStatus(Loc.T("Common.ReloadedFromDisk"));
     }
 
     private void SetStatus(string s)
@@ -1062,13 +871,13 @@ public class GeneralEditScene : UserControl
     // ===================================== 随机参数模板 =====================================
     private void ApplyRandomTemplate(int templateId)
     {
-        if (_current == null) { MessageBox.Show("请先在左侧选中一个将领", "提示", MessageBoxButton.OK, MessageBoxImage.Information); return; }
+        if (_current == null) { MessageBox.Show(Loc.T("Common.SelectItemFirst"), Loc.T("Common.Info"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
 
         var templates = ConfigManager.Instance.GetGeneralRandomTemplates();
         var template = templates.FirstOrDefault(t => t.Id == templateId);
         if (template == null)
         {
-            MessageBox.Show($"未找到 ID={templateId} 的随机参数模板", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.F("General.RandomTemplateNotFound", templateId), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
@@ -1106,7 +915,7 @@ public class GeneralEditScene : UserControl
         }
 
         ApplyProp();
-        SetStatus($"已应用随机模板: {template.Name}");
+        SetStatus(Loc.F("General.StatusRandomApplied", template.Name));
     }
 
     private void RandomizeSkillLevels(int minLevel, int maxLevel, int count)
@@ -1128,13 +937,13 @@ public class GeneralEditScene : UserControl
     // ===================================== 兵种专长模板 =====================================
     private void ApplySpecialtyTemplate(string specialtyKey)
     {
-        if (_current == null) { MessageBox.Show("请先在左侧选中一个将领", "提示", MessageBoxButton.OK, MessageBoxImage.Information); return; }
+        if (_current == null) { MessageBox.Show(Loc.T("Common.SelectItemFirst"), Loc.T("Common.Info"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
 
         var templates = ConfigManager.Instance.GetGeneralSpecialtyTemplates();
         var template = templates.FirstOrDefault(t => t.Key.Equals(specialtyKey, StringComparison.OrdinalIgnoreCase));
         if (template == null)
         {
-            MessageBox.Show($"未找到 Key={specialtyKey} 的兵种专长模板", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.F("General.SpecialtyTemplateNotFound", specialtyKey), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
@@ -1186,113 +995,12 @@ public class GeneralEditScene : UserControl
         }
 
         ApplyProp();
-        SetStatus($"已应用兵种专长模板: {template.Name}");
+        SetStatus(Loc.F("General.StatusSpecialtyApplied", template.Name));
     }
 
     private void SetField(string key, int value)
     {
         if (_numBoxes.TryGetValue(key, out var box))
             box.Value = value;
-    }
-}
-
-// ===================================== 子控件：数字输入 =====================================
-public class NumericUpDown : UserControl
-{
-    private readonly TextBox _textBox;
-    private double _value;
-    private bool _updating;
-
-    public double MinValue { get; set; } = 0;
-    public double MaxValue { get; set; } = 100;
-    public double Increment { get; set; } = 1;
-
-    public event EventHandler<double>? ValueChanged;
-
-    public double Value
-    {
-        get => _value;
-        set
-        {
-            var v = Math.Clamp(value, MinValue, MaxValue);
-            if (Math.Abs(v - _value) < 1e-12) return;
-            _value = v;
-            UpdateTextBox();
-            ValueChanged?.Invoke(this, _value);
-        }
-    }
-
-    public NumericUpDown()
-    {
-        Focusable = false;
-        Height = 28;
-        var g = new Grid();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        _textBox = new TextBox
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1, 1, 0, 1),
-            CaretBrush = Brushes.White,
-            Padding = new Thickness(6, 4, 6, 4),
-            FontSize = 13,
-            VerticalContentAlignment = VerticalAlignment.Center
-        };
-        _textBox.TextChanged += TextBox_TextChanged;
-        _textBox.LostKeyboardFocus += (_, _) => UpdateTextBox();
-
-        var rightPanel = new StackPanel { Orientation = Orientation.Vertical };
-        var up = MakeBtn("▲", (_, _) => Value += Increment);
-        var down = MakeBtn("▼", (_, _) => Value -= Increment);
-        up.Height = 14;
-        down.Height = 14;
-        rightPanel.Children.Add(up);
-        rightPanel.Children.Add(down);
-
-        Grid.SetColumn(_textBox, 0);
-        Grid.SetColumn(rightPanel, 1);
-        g.Children.Add(_textBox);
-        g.Children.Add(rightPanel);
-        Content = g;
-        Loaded += (_, _) => UpdateTextBox();
-    }
-
-    private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_updating) return;
-        if (double.TryParse(_textBox.Text, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v))
-        {
-            var old = _value;
-            _value = Math.Clamp(v, MinValue, MaxValue);
-            if (Math.Abs(old - _value) > 1e-12) ValueChanged?.Invoke(this, _value);
-        }
-    }
-
-    private void UpdateTextBox()
-    {
-        _updating = true;
-        string format = Math.Abs(Increment - Math.Truncate(Increment)) < 1e-12 ? "F0" : "0.0##";
-        _textBox.Text = _value.ToString(format, System.Globalization.CultureInfo.InvariantCulture);
-        _updating = false;
-    }
-
-    private static Button MakeBtn(string text, RoutedEventHandler click)
-    {
-        var b = new Button
-        {
-            Content = text,
-            Background = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            Foreground = Brushes.White,
-            FontSize = 9,
-            Padding = new Thickness(0),
-            BorderThickness = new Thickness(0),
-            Cursor = Cursors.Hand,
-            Width = 18
-        };
-        b.Click += click;
-        return b;
     }
 }

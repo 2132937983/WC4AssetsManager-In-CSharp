@@ -33,6 +33,14 @@ public class BelongFlagRender : IDisposable
     private readonly List<SKRotationScaleMatrix> _transforms = new();
     private readonly List<(SKPoint Position, string Text)> _belongTextPositions = new();
 
+    // 归属值 0..255 的标签字符串表，避免每格每帧 belongValue.ToString()。
+    private static readonly string[] BelongLabels = BuildBelongLabels();
+
+    // 复用的图集画笔与标签字体 / 画笔（只在渲染线程使用），每帧只改字号与颜色。
+    private readonly SKPaint _atlasPaint = new() { IsAntialias = true };
+    private readonly SKFont _belongTextFont = new(SKTypeface.Default, 10);
+    private readonly SKPaint _belongTextPaint = new() { IsAntialias = true };
+
     public bool EnableBelongFlagRender
     {
         get { _stateLock.EnterReadLock(); try { return _enableBelongFlagRender; } finally { _stateLock.ExitReadLock(); } }
@@ -120,10 +128,7 @@ public class BelongFlagRender : IDisposable
             if (mapData.Belongs == null || mapData.Belongs.Count == 0) return;
 
             float flagSize = CalculateFlagSize();
-            var visibleHexes = GetVisibleHexes(mapData);
-            if (visibleHexes.Count == 0) return;
-
-            PrepareDrawAtlasData(visibleHexes, flagSize, mapData);
+            PrepareDrawAtlasData(flagSize, mapData);
             DrawAtlasBatch(canvas);
         }
         finally
@@ -394,10 +399,23 @@ public class BelongFlagRender : IDisposable
         return (float)(hexSize * FLAG_SIZE_RATIO);
     }
 
-    private List<(int col, int row)> GetVisibleHexes(MapData mapData)
+    private static string[] BuildBelongLabels()
     {
-        var result = new List<(int, int)>();
+        var labels = new string[256];
+        for (int i = 0; i < labels.Length; i++) labels[i] = i.ToString();
+        return labels;
+    }
 
+    private static string GetBelongLabel(int belongValue)
+        => (uint)belongValue < (uint)BelongLabels.Length ? BelongLabels[belongValue] : belongValue.ToString();
+
+    private void PrepareDrawAtlasData(float flagSize, MapData mapData)
+    {
+        _spriteRects.Clear();
+        _transforms.Clear();
+        _belongTextPositions.Clear();
+
+        // 直接按 列→行 遍历可视范围，不再先收集成 List<(col,row)> 再二次遍历；遍历顺序与原先一致。
         double hexSpacingX = HEX_HORIZONTAL_SPACING * _zoomLevel;
         double hexSpacingY = HEX_VERTICAL_SPACING * _zoomLevel;
 
@@ -409,56 +427,43 @@ public class BelongFlagRender : IDisposable
         int mapClipX = mapData.Header?.MapClipX ?? 0;
         int mapClipY = mapData.Header?.MapClipY ?? 0;
 
+        float halfSize = flagSize / 2;
+        float hexHeight = (float)(BASE_HEX_SIZE * Math.Sqrt(3) * _zoomLevel);
+        float scale = flagSize / ATLAS_TILE_SIZE;
+        float spacing = Math.Max(2.0f, flagSize * 0.05f);
+
         for (int col = startCol; col <= endCol; col++)
         {
+            if (mapClipX > 0 && col < mapClipX) continue;
+
             for (int row = startRow; row <= endRow; row++)
             {
                 if (mapClipY > 0 && row < mapClipY) continue;
-                if (mapClipX > 0 && col < mapClipX) continue;
-                result.Add((col, row));
+
+                int hexIndex = GetHexIndex(col, row, mapData);
+                if (hexIndex < 0 || hexIndex >= mapData.Belongs.Count) continue;
+
+                int countryId = GetCountryId(hexIndex, mapData);
+                if (countryId < 0) continue;
+                if (!_flagAtlasMap.TryGetValue(countryId, out var spriteRect)) continue;
+
+                double centerX = _offsetX + col * HEX_HORIZONTAL_SPACING * _zoomLevel;
+                double centerY = _offsetY + (col % 2) * (hexHeight / 2) + row * hexHeight;
+
+                _spriteRects.Add(spriteRect);
+
+                float tx = (float)centerX - halfSize;
+                float ty = (float)centerY + hexHeight / 2 - halfSize;
+
+                _transforms.Add(new SKRotationScaleMatrix(scale, 0, tx, ty));
+
+                int belongValue = GetBelongValue(hexIndex, mapData);
+                float textX = tx + flagSize + spacing;
+                float textY = ty + halfSize;
+                _belongTextPositions.Add((new SKPoint(textX, textY), GetBelongLabel(belongValue)));
+
+                if (_transforms.Count >= MAX_ATLAS_DRAW_COUNT) return;
             }
-        }
-
-        return result;
-    }
-
-    private void PrepareDrawAtlasData(List<(int col, int row)> visibleHexes, float flagSize, MapData mapData)
-    {
-        _spriteRects.Clear();
-        _transforms.Clear();
-        _belongTextPositions.Clear();
-
-        float halfSize = flagSize / 2;
-        float hexHeight = (float)(BASE_HEX_SIZE * Math.Sqrt(3) * _zoomLevel);
-
-        for (int i = 0; i < visibleHexes.Count; i++)
-        {
-            var (col, row) = visibleHexes[i];
-            int hexIndex = GetHexIndex(col, row, mapData);
-            if (hexIndex < 0 || hexIndex >= mapData.Belongs.Count) continue;
-
-            int countryId = GetCountryId(hexIndex, mapData);
-            if (countryId < 0) continue;
-            if (!_flagAtlasMap.ContainsKey(countryId)) continue;
-
-            double centerX = _offsetX + col * HEX_HORIZONTAL_SPACING * _zoomLevel;
-            double centerY = _offsetY + (col % 2) * (hexHeight / 2) + row * hexHeight;
-
-            _spriteRects.Add(_flagAtlasMap[countryId]);
-
-            float scale = flagSize / ATLAS_TILE_SIZE;
-            float tx = (float)centerX - halfSize;
-            float ty = (float)centerY + hexHeight / 2 - halfSize;
-
-            _transforms.Add(new SKRotationScaleMatrix(scale, 0, tx, ty));
-
-            int belongValue = GetBelongValue(hexIndex, mapData);
-            float spacing = Math.Max(2.0f, flagSize * 0.05f);
-            float textX = tx + flagSize + spacing;
-            float textY = ty + halfSize;
-            _belongTextPositions.Add((new SKPoint(textX, textY), belongValue.ToString()));
-
-            if (_transforms.Count >= MAX_ATLAS_DRAW_COUNT) break;
         }
     }
 
@@ -470,12 +475,10 @@ public class BelongFlagRender : IDisposable
         {
             if (_flagAtlas == null) return;
 
-            using var paint = new SKPaint { IsAntialias = true };
-
             var sprites = _spriteRects.ToArray();
             var transforms = _transforms.ToArray();
 
-            canvas.DrawAtlas(_flagAtlas, sprites, transforms, paint);
+            canvas.DrawAtlas(_flagAtlas, sprites, transforms, _atlasPaint);
         }
 
         DrawBelongTexts(canvas);
@@ -492,8 +495,10 @@ public class BelongFlagRender : IDisposable
 
         float shadowOffset = Math.Max(1.0f, fontSize * 0.1f);
 
-        using var skFont = new SKFont(SKTypeface.Default, fontSize);
-        using var textPaint = new SKPaint { IsAntialias = true };
+        // 复用字段字体 / 画笔，只改字号与颜色；原先每帧各 new 一个。
+        var skFont = _belongTextFont;
+        skFont.Size = fontSize;
+        var textPaint = _belongTextPaint;
 
         float textOffsetY = fontSize * 0.35f;
 
@@ -535,6 +540,9 @@ public class BelongFlagRender : IDisposable
             _flagAtlasMap.Clear();
         }
 
+        _atlasPaint.Dispose();
+        _belongTextFont.Dispose();
+        _belongTextPaint.Dispose();
         _stateLock.Dispose();
     }
 }

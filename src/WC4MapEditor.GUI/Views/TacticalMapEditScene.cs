@@ -25,7 +25,6 @@ public class TacticalMapEditScene : UserControl, IDisposable
     private OrthographicCamera? _camera;
     private SKElement _skElement = null!;
     private Grid _rootGrid = null!;
-    private Grid? _titleBar;
     private TextBlock? _statusLabel;
     private TextBlock? _infoLabel;
 
@@ -47,6 +46,7 @@ public class TacticalMapEditScene : UserControl, IDisposable
 
     public TacticalMapEditScene(MainWindow window, string imageFilePath, string? xmlFilePath = null, string? sourceDirectory = null)
     {
+        EditorTheme.Apply(this);
         _window = window;
         _sourceDirectory = sourceDirectory;
         Focusable = true;
@@ -58,249 +58,130 @@ public class TacticalMapEditScene : UserControl, IDisposable
 
     private void SetupUI()
     {
-        _rootGrid = new Grid { Background = new SolidColorBrush(Color.FromRgb(30, 30, 36)), AllowDrop = true };
+        _rootGrid = new Grid { Background = EditorTheme.Bg1, AllowDrop = true };
         _rootGrid.DragEnter += OnDragEnter;
         _rootGrid.DragOver += OnDragEnter;
         _rootGrid.Drop += OnDropFiles;
 
+        // 顶栏 44 / 工具栏 Auto / 画布 * / 状态栏 26
+        _rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
+        _rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         _rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        _rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(40) });
+        _rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
 
+        // ---- 顶栏：返回 + 标题 | 另存为 / 导出 PNG ▾ / 保存 ----
+        var exportMenuButton = EditorTheme.Button(Loc.T("TacticalMap.ExportMenu"));
+        var exportMenu = ThemedMenu();
+        AddMenuItem(exportMenu, Loc.T("TacticalMap.Menu.ExportAll"), OnExportObjectsPng);
+        AddMenuItem(exportMenu, Loc.T("TacticalMap.Menu.ExportSelected"), OnExportSelectedPng);
+        exportMenu.Items.Add(new Separator());
+        AddMenuItem(exportMenu, Loc.T("TacticalMap.Menu.ExportCanvas"), OnExportCanvasPng);
+        exportMenuButton.Click += (s, e) => OpenMenu(exportMenu, exportMenuButton);
+
+        var topBar = EditorTheme.TopBar(
+            Loc.T("TacticalMap.Title"),
+            (s, e) => _window.ReturnFromTacticalEditor(_sourceDirectory),
+            EditorTheme.Button(Loc.T("Common.SaveAs"), OnSaveAs),
+            exportMenuButton,
+            EditorTheme.PrimaryButton(Loc.T("Common.Save"), OnSave));
+        Grid.SetRow(topBar, 0);
+        _rootGrid.Children.Add(topBar);
+
+        // ---- 工具栏：视图 | 编辑 | 工具 ▾ …… 右侧是对象 / 选中信息 ----
+        var tools = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
+        tools.Children.Add(EditorTheme.ToolButton(Loc.T("TacticalMap.ResetView"),
+            (s, e) => { _camera?.Reset(); _skElement.InvalidateVisual(); }));
+        tools.Children.Add(EditorTheme.ToolButton(Loc.T("TacticalMap.FitWindow"), OnFitToWindow));
+        tools.Children.Add(EditorTheme.VSeparator());
+        tools.Children.Add(EditorTheme.ToolButton(Loc.T("TacticalMap.Copy"), OnCopy));
+        tools.Children.Add(EditorTheme.ToolButton(Loc.T("TacticalMap.Paste"), OnPaste));
+        tools.Children.Add(EditorTheme.ToolButton(Loc.T("TacticalMap.DeleteSelected"),
+            (s, e) => { _editor.DeleteSelectedObjects(); InvalidateCache(); _skElement.InvalidateVisual(); UpdateInfo(); }));
+        tools.Children.Add(EditorTheme.ToolButton(Loc.T("TacticalMap.ClearSelection"),
+            (s, e) => { _editor.ClearSelection(); _skElement.InvalidateVisual(); }));
+        tools.Children.Add(EditorTheme.VSeparator());
+
+        var toolsMenuButton = EditorTheme.ToolButton(Loc.T("TacticalMap.ToolsMenu"));
+        var toolsMenu = ThemedMenu();
+        AddMenuItem(toolsMenu, Loc.T("TacticalMap.Menu.Import"), OnImportImagesClick);
+        toolsMenu.Items.Add(new Separator());
+        AddMenuItem(toolsMenu, Loc.T("TacticalMap.ArrangeObjects"), OnArrangeObjects);
+        AddMenuItem(toolsMenu, Loc.T("TacticalMap.FitCanvas"), OnFitObjectsBounds);
+        AddMenuItem(toolsMenu, Loc.T("TacticalMap.Menu.ResizeCanvas"), OnResizeCanvasCustom);
+        toolsMenu.Items.Add(new Separator());
+        AddMenuItem(toolsMenu, Loc.T("TacticalMap.Menu.Filter"), (s, e) => ShowFilterDialog());
+        AddMenuItem(toolsMenu, Loc.T("TacticalMap.Menu.ClearFilter"),
+            (s, e) => { _filterKeyword = null; _skElement.InvalidateVisual(); UpdateStatus(Loc.T("TacticalMap.FilterCleared")); UpdateInfo(); });
+        toolsMenu.Items.Add(new Separator());
+        AddMenuItem(toolsMenu, Loc.T("TacticalMap.Menu.Copy"), OnCopy);
+        AddMenuItem(toolsMenu, Loc.T("TacticalMap.Menu.Paste"), OnPaste);
+        toolsMenu.Items.Add(new Separator());
+        AddMenuItem(toolsMenu, Loc.T("TacticalMap.Menu.Properties"), OnShowProperties);
+        AddMenuItem(toolsMenu, Loc.T("TacticalMap.Menu.SelectAll"), (s, e) =>
+        {
+            foreach (var obj in _editor.Objects) obj.IsSelected = true;
+            _skElement.InvalidateVisual(); UpdateInfo();
+        });
+        toolsMenuButton.Click += (s, e) => OpenMenu(toolsMenu, toolsMenuButton);
+        tools.Children.Add(toolsMenuButton);
+
+        _infoLabel = EditorTheme.Text_("", 12, EditorTheme.Info);
+        _infoLabel.Margin = new Thickness(12, 0, 0, 0);
+        _infoLabel.MaxWidth = 560;
+        _infoLabel.TextTrimming = TextTrimming.CharacterEllipsis;
+
+        var toolContent = new Grid();
+        toolContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        toolContent.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        toolContent.Children.Add(tools);
+        Grid.SetColumn(_infoLabel, 1);
+        toolContent.Children.Add(_infoLabel);
+
+        var toolBar = EditorTheme.ToolBar(toolContent);
+        Grid.SetRow(toolBar, 1);
+        _rootGrid.Children.Add(toolBar);
+
+        // ---- 画布 ----
         _skElement = new SKElement { IgnorePixelScaling = true, Focusable = true, AllowDrop = true };
         _skElement.DragEnter += OnDragEnter;
         _skElement.DragOver += OnDragEnter;
         _skElement.Drop += OnDropFiles;
         _skElement.PaintSurface += OnPaintSurface;
-        Grid.SetRow(_skElement, 0);
+        Grid.SetRow(_skElement, 2);
         _rootGrid.Children.Add(_skElement);
 
-        _titleBar = new Grid
-        {
-            Height = 40,
-            Background = new SolidColorBrush(Color.FromArgb(230, 25, 25, 30)),
-            VerticalAlignment = VerticalAlignment.Bottom
-        };
-        Grid.SetRow(_titleBar, 1);
-
-        var leftPanel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(10, 0, 0, 0)
-        };
-
-        var backButton = CreateButton("← 返回");
-        backButton.Click += (s, e) => _window.ReturnFromTacticalEditor(_sourceDirectory);
-        leftPanel.Children.Add(backButton);
-
-        leftPanel.Children.Add(CreateSep());
-
-        var saveButton = CreateButton("保存");
-        saveButton.Click += OnSave;
-        leftPanel.Children.Add(saveButton);
-
-        var saveAsButton = CreateButton("另存为...");
-        saveAsButton.Click += OnSaveAs;
-        leftPanel.Children.Add(saveAsButton);
-
-        leftPanel.Children.Add(CreateSep());
-
-        var resetViewButton = CreateButton("重置视图");
-        resetViewButton.Click += (s, e) => { _camera?.Reset(); _skElement.InvalidateVisual(); };
-        leftPanel.Children.Add(resetViewButton);
-
-        var fitButton = CreateButton("适应窗口");
-        fitButton.Click += OnFitToWindow;
-        leftPanel.Children.Add(fitButton);
-
-        leftPanel.Children.Add(CreateSep());
-
-        var copyButton = CreateButton("复制");
-        copyButton.Click += OnCopy;
-        leftPanel.Children.Add(copyButton);
-
-        var pasteButton = CreateButton("粘贴");
-        pasteButton.Click += OnPaste;
-        leftPanel.Children.Add(pasteButton);
-
-        var deleteButton = CreateButton("删除选中");
-        deleteButton.Click += (s, e) => { _editor.DeleteSelectedObjects(); InvalidateCache(); _skElement.InvalidateVisual(); UpdateInfo(); };
-        leftPanel.Children.Add(deleteButton);
-
-        var clearSelButton = CreateButton("取消选中");
-        clearSelButton.Click += (s, e) => { _editor.ClearSelection(); _skElement.InvalidateVisual(); };
-        leftPanel.Children.Add(clearSelButton);
-
-        leftPanel.Children.Add(CreateSep());
-
-        // ---- ▼ 工具 收纳下拉菜单 ----
-        var toolsMenuButton = CreateMenuButton("▼ 工具");
-        var toolsMenu = new ContextMenu();
-        var miImport = new MenuItem { Header = "导入图片..." };
-        miImport.Click += OnImportImagesClick;
-        toolsMenu.Items.Add(miImport);
-        toolsMenu.Items.Add(new Separator());
-
-        var miArrange = new MenuItem { Header = "整理对象" };
-        miArrange.Click += OnArrangeObjects;
-        toolsMenu.Items.Add(miArrange);
-
-        var miFitBounds = new MenuItem { Header = "适应画布（裁剪到对象）" };
-        miFitBounds.Click += OnFitObjectsBounds;
-        toolsMenu.Items.Add(miFitBounds);
-
-        var miResize = new MenuItem { Header = "调整画布大小..." };
-        miResize.Click += OnResizeCanvasCustom;
-        toolsMenu.Items.Add(miResize);
-
-        toolsMenu.Items.Add(new Separator());
-
-        var miFilter = new MenuItem { Header = "过滤对象...  (Ctrl+F)" };
-        miFilter.Click += (s, e) => ShowFilterDialog();
-        toolsMenu.Items.Add(miFilter);
-
-        var miClearFilter = new MenuItem { Header = "清除过滤  (Ctrl+R)" };
-        miClearFilter.Click += (s, e) => { _filterKeyword = null; _skElement.InvalidateVisual(); UpdateStatus("过滤已清除"); UpdateInfo(); };
-        toolsMenu.Items.Add(miClearFilter);
-
-        toolsMenu.Items.Add(new Separator());
-
-        var miCopy = new MenuItem { Header = "复制  (Ctrl+C)" };
-        miCopy.Click += OnCopy;
-        toolsMenu.Items.Add(miCopy);
-
-        var miPaste = new MenuItem { Header = "粘贴  (Ctrl+V)" };
-        miPaste.Click += OnPaste;
-        toolsMenu.Items.Add(miPaste);
-
-        toolsMenu.Items.Add(new Separator());
-
-        var miProps = new MenuItem { Header = "对象属性..." };
-        miProps.Click += OnShowProperties;
-        toolsMenu.Items.Add(miProps);
-
-        var miSelectAll = new MenuItem { Header = "全选  (Ctrl+A)" };
-        miSelectAll.Click += (s, e) =>
-        {
-            foreach (var obj in _editor.Objects) obj.IsSelected = true;
-            _skElement.InvalidateVisual(); UpdateInfo();
-        };
-        toolsMenu.Items.Add(miSelectAll);
-
-        toolsMenuButton.Click += (s, e) =>
-        {
-            toolsMenu.PlacementTarget = toolsMenuButton;
-            toolsMenu.Placement = PlacementMode.Top;
-            toolsMenu.IsOpen = true;
-        };
-        leftPanel.Children.Add(toolsMenuButton);
-
-        leftPanel.Children.Add(CreateSep());
-
-        _infoLabel = new TextBlock
-        {
-            Foreground = new SolidColorBrush(Color.FromArgb(200, 255, 255, 150)),
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0)
-        };
-        leftPanel.Children.Add(_infoLabel);
-
-        var rightPanel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 0, 10, 0)
-        };
-
-        // ---- ▼ 导出 收纳下拉菜单 ----
-        var exportMenuButton = CreateMenuButton("▼ 导出 PNG");
-        var exportMenu = new ContextMenu();
-
-        var miExpObj = new MenuItem { Header = "切出所有对象到文件夹..." };
-        miExpObj.Click += OnExportObjectsPng;
-        exportMenu.Items.Add(miExpObj);
-
-        var miExpSel = new MenuItem { Header = "切出选中对象到文件夹..." };
-        miExpSel.Click += OnExportSelectedPng;
-        exportMenu.Items.Add(miExpSel);
-
-        exportMenu.Items.Add(new Separator());
-
-        var miExpCanvas = new MenuItem { Header = "导出完整画布 PNG" };
-        miExpCanvas.Click += OnExportCanvasPng;
-        exportMenu.Items.Add(miExpCanvas);
-
-        exportMenuButton.Click += (s, e) =>
-        {
-            exportMenu.PlacementTarget = exportMenuButton;
-            exportMenu.Placement = PlacementMode.Top;
-            exportMenu.IsOpen = true;
-        };
-        rightPanel.Children.Add(exportMenuButton);
-
-        rightPanel.Children.Add(CreateSep());
-
-        _statusLabel = new TextBlock
-        {
-            Foreground = Brushes.Gray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 10, 0)
-        };
-        rightPanel.Children.Add(_statusLabel);
-
-        _titleBar.Children.Add(leftPanel);
-        _titleBar.Children.Add(rightPanel);
-        _rootGrid.Children.Add(_titleBar);
+        // ---- 状态栏 ----
+        var statusBar = EditorTheme.StatusBar(out var statusText);
+        _statusLabel = statusText;
+        Grid.SetRow(statusBar, 3);
+        _rootGrid.Children.Add(statusBar);
 
         Content = _rootGrid;
     }
 
-    private static Button CreateButton(string text)
+    /// <summary>
+    /// 下拉 / 右键菜单是弹出层，不在场景的可视树里，场景 Resources 里的隐式样式够不着它，
+    /// 所以把主题字典单独合并进菜单自己的 Resources。
+    /// </summary>
+    private static ContextMenu ThemedMenu()
     {
-        var btn = new Button
-        {
-            Content = text,
-            Foreground = Brushes.White,
-            FontSize = 12,
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Cursor = Cursors.Hand,
-            Padding = new Thickness(6, 3, 6, 3),
-            Margin = new Thickness(2, 0, 2, 0)
-        };
-        btn.MouseEnter += (s, e) => btn.Background = new SolidColorBrush(Color.FromArgb(50, 255, 255, 255));
-        btn.MouseLeave += (s, e) => btn.Background = Brushes.Transparent;
-        return btn;
+        var menu = new ContextMenu();
+        menu.Resources.MergedDictionaries.Add(EditorTheme.Dictionary);
+        return menu;
     }
 
-    private static Separator CreateSep() => new()
+    private static void OpenMenu(ContextMenu menu, UIElement target)
     {
-        Width = 1, Height = 18,
-        Background = new SolidColorBrush(Color.FromArgb(80, 255, 255, 255)),
-        Margin = new Thickness(4, 0, 4, 0),
-        VerticalAlignment = VerticalAlignment.Center
-    };
+        menu.PlacementTarget = target;
+        menu.Placement = PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
 
-    private static Button CreateMenuButton(string text)
+    private static void AddMenuItem(ContextMenu menu, string header, RoutedEventHandler onClick)
     {
-        var btn = new Button
-        {
-            Content = text,
-            Foreground = Brushes.White,
-            FontSize = 12,
-            Background = new SolidColorBrush(Color.FromArgb(40, 120, 160, 220)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(120, 150, 180, 220)),
-            BorderThickness = new Thickness(1),
-            Cursor = Cursors.Hand,
-            Padding = new Thickness(8, 3, 8, 3),
-            Margin = new Thickness(2, 0, 2, 0)
-        };
-        btn.MouseEnter += (s, e) => btn.Background = new SolidColorBrush(Color.FromArgb(90, 120, 160, 220));
-        btn.MouseLeave += (s, e) => btn.Background = new SolidColorBrush(Color.FromArgb(40, 120, 160, 220));
-        return btn;
+        var item = new MenuItem { Header = header };
+        item.Click += onClick;
+        menu.Items.Add(item);
     }
 
     private void LoadImage(string imageFilePath, string? xmlFilePath)
@@ -309,25 +190,25 @@ public class TacticalMapEditScene : UserControl, IDisposable
         {
             if (!_editor.LoadFromFiles(imageFilePath, xmlFilePath))
             {
-                UpdateStatus("加载失败");
+                UpdateStatus(Loc.T("TacticalMap.LoadFailed"));
                 return;
             }
 
             _sourceBitmap = LoadBitmapFromBytes(_editor.ImageData!);
             if (_sourceBitmap == null)
             {
-                UpdateStatus("图片解码失败");
+                UpdateStatus(Loc.T("TacticalMap.DecodeFailed"));
                 return;
             }
 
             _editor.SetImageSize(_sourceBitmap.Width, _sourceBitmap.Height);
             BuildObjectBitmapCache();
-            UpdateStatus($"已加载: {IOPath.GetFileName(imageFilePath)} | {_editor.Objects.Count} 个对象");
+            UpdateStatus(Loc.F("TacticalMap.Loaded", IOPath.GetFileName(imageFilePath), _editor.Objects.Count));
             UpdateInfo();
         }
         catch (Exception ex)
         {
-            UpdateStatus($"加载错误: {ex.Message}");
+            UpdateStatus(Loc.F("Common.LoadFailed", ex.Message));
         }
     }
 
@@ -617,8 +498,8 @@ public class TacticalMapEditScene : UserControl, IDisposable
         _cachedTypeface ??= LoadChineseTypeface();
         using var infoFont = new SKFont { Size = 13, Typeface = _cachedTypeface };
         using var infoPaint = new SKPaint { Color = SKColors.White, IsAntialias = true };
-        string zoomText = $"缩放: {_camera.Zoom:P0}";
-        string posText = $"位置: ({_camera.PositionX:F0}, {_camera.PositionY:F0})";
+        string zoomText = Loc.F("TacticalMap.Canvas.Zoom", _camera.Zoom);
+        string posText = Loc.F("TacticalMap.Canvas.Position", _camera.PositionX, _camera.PositionY);
         canvas.DrawText(zoomText, 10, info.Height - 50, SKTextAlign.Left, infoFont, infoPaint);
         canvas.DrawText(posText, 10, info.Height - 30, SKTextAlign.Left, infoFont, infoPaint);
     }
@@ -820,7 +701,7 @@ public class TacticalMapEditScene : UserControl, IDisposable
             case Key.R when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
                 _filterKeyword = null;
                 _skElement.InvalidateVisual();
-                UpdateStatus("过滤已清除");
+                UpdateStatus(Loc.T("TacticalMap.FilterCleared"));
                 UpdateInfo();
                 e.Handled = true;
                 break;
@@ -855,7 +736,7 @@ public class TacticalMapEditScene : UserControl, IDisposable
         var files = e.Data.GetData(DataFormats.FileDrop) as string[];
         if (files == null || files.Length == 0) return;
         var imgFiles = files.Where(p => ImportImageExtensions.Contains(IOPath.GetExtension(p))).ToList();
-        if (imgFiles.Count == 0) { UpdateStatus("拖拽的文件中没有支持的图片格式"); return; }
+        if (imgFiles.Count == 0) { UpdateStatus(Loc.T("TacticalMap.DropNoImages")); return; }
         ImportImageFiles(imgFiles, scaleOversized: true);
     }
 
@@ -863,8 +744,8 @@ public class TacticalMapEditScene : UserControl, IDisposable
     {
         var dlg = new OpenFileDialog
         {
-            Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff;*.tga|所有文件|*.*",
-            Title = "导入图片",
+            Filter = $"{Loc.T("TacticalMap.ImageFilesFilter")}|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff;*.tga|{Loc.T("Common.AllFiles")}|*.*",
+            Title = Loc.T("TacticalMap.ImportImages"),
             Multiselect = true
         };
         if (dlg.ShowDialog() == true)
@@ -949,7 +830,7 @@ public class TacticalMapEditScene : UserControl, IDisposable
 
             if (pending.Count == 0)
             {
-                UpdateStatus("导入完成：没有可导入的图片（解码失败或格式不支持）");
+                UpdateStatus(Loc.T("TacticalMap.ImportNothing"));
                 return;
             }
 
@@ -1007,12 +888,12 @@ public class TacticalMapEditScene : UserControl, IDisposable
 
             _skElement.InvalidateVisual();
             UpdateInfo();
-            UpdateStatus($"导入完成：新增 {added} 张 / 更新 {updated} 张 / 失败 {failed} 张");
+            UpdateStatus(Loc.F("TacticalMap.ImportDone", added, updated, failed));
         }
         catch (Exception ex)
         {
             // 最外层兜底：防止 WPF DragDrop 未捕获异常导致直接闪退
-            UpdateStatus($"导入失败：{ex.Message}");
+            UpdateStatus(Loc.F("TacticalMap.ImportFailed", ex.Message));
             Debug.WriteLine($"[TacEditScene] 导入崩溃兜底: {ex}");
         }
     }
@@ -1051,13 +932,13 @@ public class TacticalMapEditScene : UserControl, IDisposable
             imgOk = SaveCompositeImage(_editor.ImageFilePath);
 
         if (xmlOk && imgOk)
-            UpdateStatus("已保存 (XML + 图片)");
+            UpdateStatus(Loc.T("TacticalMap.SavedBoth"));
         else if (xmlOk)
-            UpdateStatus("XML已保存，图片保存失败");
+            UpdateStatus(Loc.T("TacticalMap.SavedXmlOnly"));
         else if (imgOk)
-            UpdateStatus("图片已保存，XML保存失败");
+            UpdateStatus(Loc.T("TacticalMap.SavedImageOnly"));
         else
-            UpdateStatus("保存失败");
+            UpdateStatus(Loc.T("Common.SaveFailed"));
     }
 
     private void OnSaveAs(object? sender, RoutedEventArgs e)
@@ -1066,8 +947,8 @@ public class TacticalMapEditScene : UserControl, IDisposable
 
         var dlg = new SaveFileDialog
         {
-            Filter = "PNG图片|*.png|WebP图片|*.webp|所有文件|*.*",
-            Title = "另存为",
+            Filter = $"{Loc.T("TacticalMap.PngFilter")}|*.png|{Loc.T("TacticalMap.WebpFilter")}|*.webp|{Loc.T("Common.AllFiles")}|*.*",
+            Title = Loc.T("Common.SaveAs"),
             FileName = IOPath.GetFileNameWithoutExtension(_editor.ImageFilePath ?? "tacticalmap")
         };
         if (dlg.ShowDialog() != true) return;
@@ -1079,9 +960,9 @@ public class TacticalMapEditScene : UserControl, IDisposable
         bool xmlOk = _editor.SaveXml(xmlPath);
 
         if (imgOk && xmlOk)
-            UpdateStatus($"已另存为: {imagePath}");
+            UpdateStatus(Loc.F("TacticalMap.SavedAs", imagePath));
         else
-            UpdateStatus("另存为失败");
+            UpdateStatus(Loc.T("TacticalMap.SaveAsFailed"));
     }
 
     private bool SaveCompositeImage(string outputPath)
@@ -1187,8 +1068,8 @@ public class TacticalMapEditScene : UserControl, IDisposable
     {
         var dlg = new SaveFileDialog
         {
-            Filter = "XML文件|*.xml|所有文件|*.*",
-            Title = "保存XML",
+            Filter = $"{Loc.T("TacticalMap.XmlFilter")}|*.xml|{Loc.T("Common.AllFiles")}|*.*",
+            Title = Loc.T("TacticalMap.SaveXml"),
             FileName = IOPath.GetFileNameWithoutExtension(_editor.ImageFilePath ?? "tacticalmap") + ".xml"
         };
         if (dlg.ShowDialog() != true) return false;
@@ -1207,8 +1088,8 @@ public class TacticalMapEditScene : UserControl, IDisposable
         var ownerWindow = System.Windows.Window.GetWindow(this) ?? _window;
         var dlg = new Views.Dialogs.SingleInputDialog(ownerWindow)
         {
-            Title = "过滤对象",
-            Description = "输入关键字（留空清除过滤）:",
+            Title = Loc.T("TacticalMap.FilterObjects"),
+            Description = Loc.T("TacticalMap.FilterPrompt"),
             DefaultValue = _filterKeyword ?? ""
         };
         string? result = await dlg.ShowAsync();
@@ -1216,7 +1097,7 @@ public class TacticalMapEditScene : UserControl, IDisposable
         {
             _filterKeyword = string.IsNullOrWhiteSpace(result) ? null : result.Trim();
             _skElement.InvalidateVisual();
-            UpdateStatus(string.IsNullOrEmpty(_filterKeyword) ? "过滤已清除" : $"过滤: {_filterKeyword}");
+            UpdateStatus(string.IsNullOrEmpty(_filterKeyword) ? Loc.T("TacticalMap.FilterCleared") : Loc.F("TacticalMap.FilterActive", _filterKeyword));
         }
     }
 
@@ -1235,14 +1116,14 @@ public class TacticalMapEditScene : UserControl, IDisposable
     {
         if (_infoLabel == null) return;
         var selected = _editor.GetSelectedObjects();
-        string info = $"对象: {_editor.Objects.Count}";
+        string info = Loc.F("TacticalMap.Info.Objects", _editor.Objects.Count);
         if (selected.Count > 0)
         {
             var obj = selected[0];
-            info += $" | 选中: {selected.Count} | {obj.Name} ({obj.X},{obj.Y}) {obj.Width}x{obj.Height}";
+            info += Loc.F("TacticalMap.Info.Selected", selected.Count, obj.Name, obj.X, obj.Y, obj.Width, obj.Height);
         }
         if (!string.IsNullOrEmpty(_filterKeyword))
-            info += $" | 过滤: {_filterKeyword}";
+            info += Loc.F("TacticalMap.Info.Filter", _filterKeyword);
 
         if (Dispatcher.CheckAccess())
             _infoLabel.Text = info;
@@ -1257,14 +1138,14 @@ public class TacticalMapEditScene : UserControl, IDisposable
         if (sel.Count == 0) return;
         // 只复制第一个（与py版本一致）
         _copiedObject = TacticalMapObject.Clone(sel[0]);
-        UpdateStatus($"已复制: {sel[0].Name}");
+        UpdateStatus(Loc.F("TacticalMap.Copied", sel[0].Name));
     }
 
     private void OnPaste(object? sender, EventArgs e)
     {
         if (_copiedObject == null)
         {
-            UpdateStatus("剪贴板为空");
+            UpdateStatus(Loc.T("TacticalMap.ClipboardEmpty"));
             return;
         }
         // 对齐py版 paste_copied_object 语义：
@@ -1281,7 +1162,7 @@ public class TacticalMapEditScene : UserControl, IDisposable
         InvalidateCache();
         _skElement.InvalidateVisual();
         UpdateInfo();
-        UpdateStatus($"已粘贴为: {newObj.Name}");
+        UpdateStatus(Loc.F("TacticalMap.PastedAs", newObj.Name));
     }
     #endregion
 
@@ -1310,8 +1191,8 @@ public class TacticalMapEditScene : UserControl, IDisposable
 
         _skElement.InvalidateVisual();
         UpdateInfo();
-        string msg = $"已整理 {placed}/{_editor.Objects.Count} 对象，画布 {curW}×{curH} → {newW}×{newH}";
-        if (unplaced.Count > 0) msg += $"  ⚠ {unplaced.Count} 个对象仍放不下：{string.Join(", ", unplaced.Take(5))}";
+        string msg = Loc.F("TacticalMap.Arranged", placed, _editor.Objects.Count, curW, curH, newW, newH);
+        if (unplaced.Count > 0) msg += Loc.F("TacticalMap.ArrangeUnplaced", unplaced.Count, string.Join(", ", unplaced.Take(5)));
         UpdateStatus(msg);
     }
 
@@ -1342,7 +1223,7 @@ public class TacticalMapEditScene : UserControl, IDisposable
         // 2) py版语义："当前画布小于等于需要尺寸就不扩（只缩不扩）"
         if (targetW >= curW && targetH >= curH)
         {
-            UpdateStatus($"画布已是紧凑尺寸（{curW}×{curH}），无需裁剪");
+            UpdateStatus(Loc.F("TacticalMap.CanvasAlreadyTight", curW, curH));
             return;
         }
         int finalW = Math.Min(curW, Math.Max(1, targetW));
@@ -1354,7 +1235,7 @@ public class TacticalMapEditScene : UserControl, IDisposable
         BuildObjectBitmapCache();
         _skElement.InvalidateVisual();
         UpdateInfo();
-        UpdateStatus($"画布已裁剪适应对象：{curW}×{curH} → {finalW}×{finalH}");
+        UpdateStatus(Loc.F("TacticalMap.CanvasCropped", curW, curH, finalW, finalH));
     }
 
     /// <summary>
@@ -1402,27 +1283,27 @@ public class TacticalMapEditScene : UserControl, IDisposable
 
         string? wStr = await new Views.Dialogs.SingleInputDialog(owner)
         {
-            Title = "调整画布大小",
-            Description = $"请输入新的画布宽度（当前：{_sourceBitmap.Width}）：",
+            Title = Loc.T("TacticalMap.ResizeCanvas"),
+            Description = Loc.F("TacticalMap.ResizePromptWidth", _sourceBitmap.Width),
             DefaultValue = _sourceBitmap.Width.ToString()
         }.ShowAsync();
         if (wStr == null) return;
         if (!int.TryParse(wStr.Trim(), out int newW) || newW <= 0)
         {
-            UpdateStatus("宽度不是有效数字，已取消");
+            UpdateStatus(Loc.T("TacticalMap.InvalidWidth"));
             return;
         }
 
         string? hStr = await new Views.Dialogs.SingleInputDialog(owner)
         {
-            Title = "调整画布大小",
-            Description = $"请输入新的画布高度（当前：{_sourceBitmap.Height}）：",
+            Title = Loc.T("TacticalMap.ResizeCanvas"),
+            Description = Loc.F("TacticalMap.ResizePromptHeight", _sourceBitmap.Height),
             DefaultValue = _sourceBitmap.Height.ToString()
         }.ShowAsync();
         if (hStr == null) return;
         if (!int.TryParse(hStr.Trim(), out int newH) || newH <= 0)
         {
-            UpdateStatus("高度不是有效数字，已取消");
+            UpdateStatus(Loc.T("TacticalMap.InvalidHeight"));
             return;
         }
 
@@ -1433,7 +1314,7 @@ public class TacticalMapEditScene : UserControl, IDisposable
         BuildObjectBitmapCache();
         _skElement.InvalidateVisual();
         UpdateInfo();
-        UpdateStatus($"画布已调整：{oldW}×{oldH} → {newW}×{newH}");
+        UpdateStatus(Loc.F("TacticalMap.CanvasResized", oldW, oldH, newW, newH));
     }
     #endregion
 
@@ -1461,7 +1342,7 @@ public class TacticalMapEditScene : UserControl, IDisposable
         var sel = _editor.GetSelectedObjects();
         if (sel.Count == 0)
         {
-            UpdateStatus("请先选择一个对象");
+            UpdateStatus(Loc.T("TacticalMap.SelectObjectFirst"));
             return;
         }
         ShowObjectPropertiesDialog(sel[0]);
@@ -1478,8 +1359,8 @@ public class TacticalMapEditScene : UserControl, IDisposable
         InvalidateCache();
         _skElement.InvalidateVisual();
         UpdateInfo();
-        UpdateStatus(accepted ? $"属性已更新: {obj.Name}  ({obj.X},{obj.Y}) +{obj.Width}x{obj.Height}  ref({obj.RefX},{obj.RefY})"
-                               : "已取消编辑");
+        UpdateStatus(accepted ? Loc.F("TacticalMap.PropertiesUpdated", obj.Name, obj.X, obj.Y, obj.Width, obj.Height, obj.RefX, obj.RefY)
+                               : Loc.T("TacticalMap.EditCancelled"));
     }
     #endregion
 
@@ -1694,13 +1575,13 @@ public class TacticalMapEditScene : UserControl, IDisposable
     {
         var dlg = new OpenFileDialog
         {
-            Title = title + "  (选择文件夹后，在此处点‘打开’)",
-            Filter = "Folder|*.folder.dummy",
+            Title = Loc.F("TacticalMap.PickFolderLegacyHint", title),
+            Filter = $"{Loc.T("Common.Folder")}|*.folder.dummy",
             FilterIndex = 1,
             CheckFileExists = false,
             CheckPathExists = true,
             ValidateNames = false,
-            FileName = "选择此文件夹"
+            FileName = Loc.T("TacticalMap.SelectThisFolder")
         };
         if (dlg.ShowDialog(Window.GetWindow(this) ?? _window) != true) return null;
         string? dir = IOPath.GetDirectoryName(dlg.FileName);
@@ -1713,7 +1594,7 @@ public class TacticalMapEditScene : UserControl, IDisposable
     {
         if (_sourceBitmap == null || _editor.Objects.Count == 0)
         {
-            UpdateStatus("无对象可导出");
+            UpdateStatus(Loc.T("TacticalMap.NoObjectsToExport"));
             return;
         }
         // 尊重过滤条件（与py版一致）
@@ -1724,7 +1605,7 @@ public class TacticalMapEditScene : UserControl, IDisposable
             targets = _editor.Objects
                 .Where(o => o.Name.IndexOf(_filterKeyword, StringComparison.OrdinalIgnoreCase) >= 0)
                 .ToList();
-            filterNote = $" (过滤: '{_filterKeyword}')";
+            filterNote = Loc.F("TacticalMap.FilterNote", _filterKeyword);
         }
         else
         {
@@ -1732,12 +1613,12 @@ public class TacticalMapEditScene : UserControl, IDisposable
         }
         if (targets.Count == 0)
         {
-            UpdateStatus($"没有可导出的对象{filterNote}");
+            UpdateStatus(Loc.F("TacticalMap.NoExportTargets", filterNote));
             return;
         }
 
-        string? folder = PickFolder($"选择保存{targets.Count}个对象PNG的文件夹{filterNote}");
-        if (folder == null) { UpdateStatus("已取消导出"); return; }
+        string? folder = PickFolder(Loc.F("TacticalMap.PickExportFolder", targets.Count, filterNote));
+        if (folder == null) { UpdateStatus(Loc.T("TacticalMap.ExportCancelled")); return; }
 
         int ok = 0, fail = 0;
         var nameUsed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1763,7 +1644,7 @@ public class TacticalMapEditScene : UserControl, IDisposable
             }
             catch { fail++; }
         }
-        UpdateStatus($"批量导出完成{filterNote}: 成功 {ok} 张, 失败 {fail} 张 → {IOPath.GetFileName(folder)}");
+        UpdateStatus(Loc.F("TacticalMap.BatchExportDone", filterNote, ok, fail, IOPath.GetFileName(folder)));
     }
 
     private void OnExportSelectedPng(object? sender, RoutedEventArgs e)
@@ -1772,12 +1653,12 @@ public class TacticalMapEditScene : UserControl, IDisposable
         var sel = _editor.GetSelectedObjects();
         if (sel.Count == 0)
         {
-            UpdateStatus("请先选择要导出的对象");
+            UpdateStatus(Loc.T("TacticalMap.SelectExportObjects"));
             return;
         }
 
-        string? folder = PickFolder($"选择保存 {sel.Count} 个选中对象 PNG 的文件夹");
-        if (folder == null) { UpdateStatus("已取消导出"); return; }
+        string? folder = PickFolder(Loc.F("TacticalMap.PickExportFolderSelected", sel.Count));
+        if (folder == null) { UpdateStatus(Loc.T("TacticalMap.ExportCancelled")); return; }
 
         int ok = 0, fail = 0;
         var nameUsed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1802,7 +1683,7 @@ public class TacticalMapEditScene : UserControl, IDisposable
             }
             catch { fail++; }
         }
-        UpdateStatus($"选中对象导出完成: 成功 {ok} 张, 失败 {fail} 张 → {IOPath.GetFileName(folder)}");
+        UpdateStatus(Loc.F("TacticalMap.SelectedExportDone", ok, fail, IOPath.GetFileName(folder)));
     }
 
     private void OnExportCanvasPng(object? sender, RoutedEventArgs e)
@@ -1810,15 +1691,15 @@ public class TacticalMapEditScene : UserControl, IDisposable
         if (_sourceBitmap == null) return;
         var dlg = new SaveFileDialog
         {
-            Filter = "PNG图片|*.png",
-            Title = "导出完整画布为PNG（源图原样）",
+            Filter = $"{Loc.T("TacticalMap.PngFilter")}|*.png",
+            Title = Loc.T("TacticalMap.ExportCanvasTitle"),
             FileName = IOPath.GetFileNameWithoutExtension(_editor.ImageFilePath ?? "canvas") + ".png"
         };
         if (dlg.ShowDialog() != true) return;
         using var encoded = _sourceBitmap.Encode(SKEncodedImageFormat.Png, 100);
-        if (encoded == null) { UpdateStatus("导出失败"); return; }
+        if (encoded == null) { UpdateStatus(Loc.T("TacticalMap.ExportFailed")); return; }
         File.WriteAllBytes(dlg.FileName, encoded.ToArray());
-        UpdateStatus($"已导出画布: {IOPath.GetFileName(dlg.FileName)} ({_sourceBitmap.Width}x{_sourceBitmap.Height})");
+        UpdateStatus(Loc.F("TacticalMap.CanvasExported", IOPath.GetFileName(dlg.FileName), _sourceBitmap.Width, _sourceBitmap.Height));
     }
     #endregion
 
@@ -1839,12 +1720,12 @@ public class TacticalMapEditScene : UserControl, IDisposable
 
     private void ShowContextMenu(Point screenPos, TacticalMapObject? hitObject)
     {
-        var menu = new ContextMenu();
+        var menu = ThemedMenu();
 
         if (hitObject != null)
         {
             // 选中此对象
-            var select = new MenuItem { Header = $"选中: {hitObject.Name}" };
+            var select = new MenuItem { Header = Loc.F("TacticalMap.Menu.Select", hitObject.Name) };
             select.Click += (s, e) =>
             {
                 _editor.ClearSelection();
@@ -1854,7 +1735,7 @@ public class TacticalMapEditScene : UserControl, IDisposable
             };
             menu.Items.Add(select);
 
-            var props = new MenuItem { Header = "编辑属性..." };
+            var props = new MenuItem { Header = Loc.T("TacticalMap.Menu.EditProperties") };
             props.Click += (s, e) =>
             {
                 _editor.ClearSelection();
@@ -1863,34 +1744,34 @@ public class TacticalMapEditScene : UserControl, IDisposable
             };
             menu.Items.Add(props);
 
-            var copy = new MenuItem { Header = "复制 (Ctrl+C)" };
-            copy.Click += (s, e) => { _copiedObject = TacticalMapObject.Clone(hitObject); UpdateStatus($"已复制: {hitObject.Name}"); };
+            var copy = new MenuItem { Header = Loc.T("TacticalMap.Menu.Copy") };
+            copy.Click += (s, e) => { _copiedObject = TacticalMapObject.Clone(hitObject); UpdateStatus(Loc.F("TacticalMap.Copied", hitObject.Name)); };
             menu.Items.Add(copy);
 
-            var exportPng = new MenuItem { Header = "导出此对象为PNG..." };
+            var exportPng = new MenuItem { Header = Loc.T("TacticalMap.Menu.ExportObject") };
             exportPng.Click += (s, e) =>
             {
                 using var bmp = GetObjectPixels(hitObject);
-                if (bmp == null) { UpdateStatus("导出失败：无法获取对象像素"); return; }
+                if (bmp == null) { UpdateStatus(Loc.T("TacticalMap.ExportNoPixels")); return; }
                 var dlg = new SaveFileDialog
                 {
-                    Filter = "PNG图片|*.png",
-                    Title = $"导出对象: {hitObject.Name}",
+                    Filter = $"{Loc.T("TacticalMap.PngFilter")}|*.png",
+                    Title = Loc.F("TacticalMap.ExportObjectTitle", hitObject.Name),
                     FileName = SanitizeFileName(StripImageExtensions(hitObject.Name)) + ".png"
                 };
                 if (dlg.ShowDialog(Window.GetWindow(this) ?? _window) == true)
                 {
                     if (SaveBitmapAsPng(bmp, dlg.FileName))
-                        UpdateStatus($"已导出对象: {IOPath.GetFileName(dlg.FileName)} ({bmp.Width}×{bmp.Height})");
+                        UpdateStatus(Loc.F("TacticalMap.ObjectExported", IOPath.GetFileName(dlg.FileName), bmp.Width, bmp.Height));
                     else
-                        UpdateStatus("导出失败");
+                        UpdateStatus(Loc.T("TacticalMap.ExportFailed"));
                 }
             };
             menu.Items.Add(exportPng);
 
             menu.Items.Add(new Separator());
 
-            var del = new MenuItem { Header = "删除 (Del)" };
+            var del = new MenuItem { Header = Loc.T("TacticalMap.Menu.Delete") };
             del.Click += (s, e) =>
             {
                 hitObject.IsSelected = true;
@@ -1903,32 +1784,32 @@ public class TacticalMapEditScene : UserControl, IDisposable
         }
         else
         {
-            var paste = new MenuItem { Header = "粘贴 (Ctrl+V)", IsEnabled = _copiedObject != null };
+            var paste = new MenuItem { Header = Loc.T("TacticalMap.Menu.Paste"), IsEnabled = _copiedObject != null };
             paste.Click += (s, e) => OnPaste(s, EventArgs.Empty);
             menu.Items.Add(paste);
 
             menu.Items.Add(new Separator());
 
-            var resetCam = new MenuItem { Header = "重置视图 (R)" };
+            var resetCam = new MenuItem { Header = Loc.T("TacticalMap.Menu.ResetView") };
             resetCam.Click += (s, e) => { _camera?.Reset(); _skElement.InvalidateVisual(); };
             menu.Items.Add(resetCam);
 
-            var fitAll = new MenuItem { Header = "适应窗口" };
+            var fitAll = new MenuItem { Header = Loc.T("TacticalMap.FitWindow") };
             fitAll.Click += (s, e) => OnFitToWindow(s, e);
             menu.Items.Add(fitAll);
 
-            var fitBounds = new MenuItem { Header = "适应画布（裁剪到对象）", IsEnabled = _editor.Objects.Count > 0 };
+            var fitBounds = new MenuItem { Header = Loc.T("TacticalMap.FitCanvas"), IsEnabled = _editor.Objects.Count > 0 };
             fitBounds.Click += (s, e) => OnFitObjectsBounds(s, e);
             menu.Items.Add(fitBounds);
 
             menu.Items.Add(new Separator());
 
-            var arrange = new MenuItem { Header = "整理对象", IsEnabled = _editor.Objects.Count > 0 };
+            var arrange = new MenuItem { Header = Loc.T("TacticalMap.ArrangeObjects"), IsEnabled = _editor.Objects.Count > 0 };
             arrange.Click += (s, e) => OnArrangeObjects(s, e);
             menu.Items.Add(arrange);
 
-            var clearFilter = new MenuItem { Header = "清除过滤 (Ctrl+R)", IsEnabled = !string.IsNullOrEmpty(_filterKeyword) };
-            clearFilter.Click += (s, e) => { _filterKeyword = null; _skElement.InvalidateVisual(); UpdateStatus("过滤已清除"); UpdateInfo(); };
+            var clearFilter = new MenuItem { Header = Loc.T("TacticalMap.Menu.ClearFilter"), IsEnabled = !string.IsNullOrEmpty(_filterKeyword) };
+            clearFilter.Click += (s, e) => { _filterKeyword = null; _skElement.InvalidateVisual(); UpdateStatus(Loc.T("TacticalMap.FilterCleared")); UpdateInfo(); };
             menu.Items.Add(clearFilter);
         }
 

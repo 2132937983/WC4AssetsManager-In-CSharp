@@ -15,7 +15,7 @@ public class MapRenderScene : RenderSceneBase
         _isNew = isNew;
     }
 
-    protected override string SceneTitle => "地形地图";
+    protected override string SceneTitle => Loc.T("Render.SceneTitle.World");
     protected override string SceneType => "world";
 
     protected override MapData? LoadMapData()
@@ -31,8 +31,8 @@ public class MapRenderScene : RenderSceneBase
         {
             var dlg = new OpenFileDialog
             {
-                Filter = "Map Files|*.bin;*.dat|All Files|*.*",
-                Title = "打开地图文件"
+                Filter = $"{Loc.T("Render.File.MapFilter")}|*.bin;*.dat|{Loc.T("Common.AllFiles")}|*.*",
+                Title = Loc.T("Render.File.OpenMapTitle")
             };
             if (dlg.ShowDialog() != true) return null;
             path = dlg.FileName;

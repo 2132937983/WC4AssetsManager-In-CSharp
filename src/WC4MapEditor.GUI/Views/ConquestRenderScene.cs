@@ -15,7 +15,7 @@ public class ConquestRenderScene : RenderSceneBase
         _isNew = isNew;
     }
 
-    protected override string SceneTitle => "征服地图";
+    protected override string SceneTitle => Loc.T("Render.SceneTitle.Conquest");
     protected override string SceneType => "conquest";
 
     protected override MapData? LoadMapData()
@@ -28,8 +28,8 @@ public class ConquestRenderScene : RenderSceneBase
         {
             var dlg = new OpenFileDialog
             {
-                Filter = "征服文件 (*.btl)|*.btl|所有文件 (*.*)|*.*",
-                Title = "打开征服地图文件"
+                Filter = $"{Loc.T("Render.File.ConquestFilter")} (*.btl)|*.btl|{Loc.T("Common.AllFiles")} (*.*)|*.*",
+                Title = Loc.T("Render.File.OpenConquestTitle")
             };
             if (dlg.ShowDialog() != true) return null;
             path = dlg.FileName;

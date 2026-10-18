@@ -6,7 +6,6 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using Microsoft.Win32;
 using WC4MapEditor.Core.Assets;
 
@@ -34,6 +33,8 @@ public partial class AssetBrowserScene : UserControl
         _window = window;
         _manager = AssetManager.Default;
         InitializeComponent();
+        // 主题要在 SetupUI 之前合并进 Resources，后面创建的标准控件才会套上隐式样式
+        EditorTheme.Apply(this);
         SetupUI();
         InitializeAssetCache();
     }
@@ -42,218 +43,81 @@ public partial class AssetBrowserScene : UserControl
     {
         _mainGrid = new Grid();
 
-        // Column: sidebar (200) | splitter (4) | content (*)
-        _mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
-        _mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
-        _mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        // Row: top bar (40) | content (*) | status (28)
-        _mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(40) });
+        // 顶栏 44 / 主体 * / 状态栏 26
+        _mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
         _mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        _mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
+        _mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
 
-        // ---- Sidebar ----
-        var sidebar = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(30, 30, 40)),
-            Margin = new Thickness(0)
-        };
-        Grid.SetColumn(sidebar, 0);
-        Grid.SetRowSpan(sidebar, 2);
-
-        var sideContent = new StackPanel();
-
-        var sideTitle = new TextBlock
-        {
-            Text = "资源类别",
-            Foreground = Brushes.White,
-            FontSize = 14,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(12, 12, 12, 8)
-        };
-        sideContent.Children.Add(sideTitle);
-
-        _categoryPanel = new StackPanel();
-        sideContent.Children.Add(_categoryPanel);
-
-        sidebar.Child = sideContent;
-        _mainGrid.Children.Add(sidebar);
-
-        // ---- Splitter ----
-        var splitter = new GridSplitter
-        {
-            Width = 4,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Background = new SolidColorBrush(Color.FromRgb(50, 50, 60))
-        };
-        Grid.SetColumn(splitter, 1);
-        Grid.SetRowSpan(splitter, 2);
-        _mainGrid.Children.Add(splitter);
-
-        // ---- Content area ----
-        var contentArea = new Grid();
-        Grid.SetColumn(contentArea, 2);
-
-        contentArea.RowDefinitions.Add(new RowDefinition { Height = new GridLength(40) });
-        contentArea.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-
-        // Top bar
-        var topBar = new Grid { Background = new SolidColorBrush(Color.FromRgb(35, 35, 45)), Margin = new Thickness(0, 0, 0, 1) };
-        Grid.SetRow(topBar, 0);
-
-        var topPanel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 12, 0)
-        };
-
-        _searchBox = new TextBox
-        {
-            Width = 200,
-            Height = 26,
-            Background = new SolidColorBrush(Color.FromRgb(50, 50, 60)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 90)),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(8, 3, 8, 3),
-            FontSize = 13
-        };
-        _searchBox.GotFocus += (s, e) =>
-        {
-            if (_searchBox.Tag as string == "搜索文件名...") _searchBox.Text = "";
-        };
-        _searchBox.LostFocus += (s, e) =>
-        {
-            if (string.IsNullOrEmpty(_searchBox.Text)) { _searchBox.Text = "搜索文件名..."; _searchBox.Tag = "搜索文件名..."; }
-        };
-        _searchBox.Text = "搜索文件名...";
-        _searchBox.Tag = "搜索文件名...";
+        // ---- 顶栏：返回 + 标题 | 搜索 / 扩展名 / 刷新 ----
+        var search = EditorTheme.SearchBox(Loc.T("Asset.SearchPlaceholder"), out _searchBox, 220);
         _searchBox.TextChanged += (s, e) => ApplyFilter();
-        topPanel.Children.Add(_searchBox);
 
-        topPanel.Children.Add(new TextBlock
-        {
-            Text = "扩展名:",
-            Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(15, 0, 6, 0),
-            FontSize = 13
-        });
+        var extLabel = EditorTheme.Muted(Loc.T("Asset.ExtFilter"));
+        extLabel.VerticalAlignment = VerticalAlignment.Center;
+        extLabel.Margin = new Thickness(12, 0, 0, 0);
 
-        _extFilter = new ComboBox
-        {
-            Width = 100,
-            Height = 26,
-            Background = new SolidColorBrush(Color.FromRgb(50, 50, 60)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 90)),
-            FontSize = 13
-        };
-        _extFilter.Items.Add("全部");
+        _extFilter = EditorTheme.ComboBox(110);
+        _extFilter.Items.Add(Loc.T("Common.All"));
         _extFilter.SelectedIndex = 0;
         _extFilter.SelectionChanged += (s, e) => ApplyFilter();
-        topPanel.Children.Add(_extFilter);
 
-        var refreshBtn = new Button
+        var topBar = EditorTheme.TopBar(
+            Loc.T("Asset.Title"),
+            (s, e) => _window.ReturnToMainScene(),
+            search,
+            extLabel,
+            _extFilter,
+            EditorTheme.Button(Loc.T("Common.Refresh"), (s, e) => RefreshAssets()));
+        Grid.SetRow(topBar, 0);
+        _mainGrid.Children.Add(topBar);
+
+        // ---- 主体：侧栏 (220) | 分隔条 (4) | 文件列表 (*) ----
+        var body = new Grid();
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetRow(body, 1);
+
+        var sidebar = EditorTheme.Panel(new Thickness(0, 0, 1, 0));
+        var sideContent = new StackPanel();
+        var sideTitle = EditorTheme.Section(Loc.T("Asset.Categories"));
+        sideTitle.Margin = new Thickness(12, 12, 12, 6);
+        sideContent.Children.Add(sideTitle);
+        _categoryPanel = new StackPanel();
+        sideContent.Children.Add(_categoryPanel);
+        sidebar.Child = new ScrollViewer
         {
-            Content = "刷新",
-            Width = 60,
-            Height = 26,
-            Margin = new Thickness(10, 0, 0, 0),
-            Background = new SolidColorBrush(Color.FromRgb(60, 60, 80)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            Cursor = Cursors.Hand,
-            FontSize = 13
+            Content = sideContent,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
-        refreshBtn.Click += (s, e) => RefreshAssets();
-        topPanel.Children.Add(refreshBtn);
+        Grid.SetColumn(sidebar, 0);
+        body.Children.Add(sidebar);
 
-        var backBtn = new Button
-        {
-            Content = "← 返回",
-            Width = 70,
-            Height = 26,
-            Margin = new Thickness(20, 0, 0, 0),
-            Background = new SolidColorBrush(Color.FromRgb(60, 60, 80)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            Cursor = Cursors.Hand,
-            FontSize = 13,
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-        backBtn.Click += (s, e) => _window.ReturnToMainScene();
-        topPanel.Children.Add(backBtn);
+        var splitter = EditorTheme.VSplitter();
+        Grid.SetColumn(splitter, 1);
+        body.Children.Add(splitter);
 
-        topBar.Children.Add(topPanel);
-        contentArea.Children.Add(topBar);
-
-        // File list
-        _fileList = new ListView
-        {
-            Background = new SolidColorBrush(Color.FromRgb(28, 28, 36)),
-            BorderThickness = new Thickness(0),
-            FontSize = 13,
-            Foreground = Brushes.White,
-            SelectionMode = SelectionMode.Extended,
-        };
-
-        // 自定义选中项样式：选中时字体变黑
-        var itemContainerStyle = new Style(typeof(ListViewItem));
-        itemContainerStyle.Setters.Add(new Setter(ListViewItem.BackgroundProperty, Brushes.Transparent));
-        itemContainerStyle.Setters.Add(new Setter(ListViewItem.ForegroundProperty, Brushes.White));
-        itemContainerStyle.Setters.Add(new Setter(ListViewItem.BorderThicknessProperty, new Thickness(0)));
-        itemContainerStyle.Setters.Add(new Setter(ListViewItem.PaddingProperty, new Thickness(6, 3, 6, 3)));
-
-        var selectedTrigger = new Trigger { Property = ListViewItem.IsSelectedProperty, Value = true };
-        selectedTrigger.Setters.Add(new Setter(ListViewItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(100, 150, 220))));
-        selectedTrigger.Setters.Add(new Setter(ListViewItem.ForegroundProperty, Brushes.Black));
-        itemContainerStyle.Triggers.Add(selectedTrigger);
-
-        var mouseOverTrigger = new Trigger { Property = ListViewItem.IsMouseOverProperty, Value = true };
-        mouseOverTrigger.Setters.Add(new Setter(ListViewItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(50, 60, 80))));
-        itemContainerStyle.Triggers.Add(mouseOverTrigger);
-
-        _fileList.ItemContainerStyle = itemContainerStyle;
+        _fileList = new ListView { SelectionMode = SelectionMode.Extended };
 
         var gv = new GridView();
-        gv.Columns.Add(CreateColumn("文件名", 250, nameof(AssetEntry.FileName)));
-        gv.Columns.Add(CreateColumn("大小", 90, nameof(AssetEntry.Size)));
-        gv.Columns.Add(CreateColumn("类别", 110, nameof(AssetEntry.Kind)));
-        gv.Columns.Add(CreateColumn("修改时间", 150, nameof(AssetEntry.LastModifiedUtc)));
-        gv.Columns.Add(CreateColumn("路径", 0, nameof(AssetEntry.RelativePath)));
+        gv.Columns.Add(CreateColumn(Loc.T("Asset.Column.FileName"), 250, nameof(AssetEntry.FileName)));
+        gv.Columns.Add(CreateColumn(Loc.T("Common.Size"), 90, nameof(AssetEntry.Size)));
+        gv.Columns.Add(CreateColumn(Loc.T("Asset.Column.Kind"), 110, nameof(AssetEntry.Kind)));
+        gv.Columns.Add(CreateColumn(Loc.T("Common.ModifiedTime"), 150, nameof(AssetEntry.LastModifiedUtc)));
+        gv.Columns.Add(CreateColumn(Loc.T("Common.Path"), 0, nameof(AssetEntry.RelativePath)));
         _fileList.View = gv;
         _fileList.MouseDoubleClick += FileList_MouseDoubleClick;
         _fileList.KeyDown += FileList_KeyDown;
         _fileList.ItemsSource = _entries;
+        Grid.SetColumn(_fileList, 2);
+        body.Children.Add(_fileList);
 
-        contentArea.Children.Add(_fileList);
-        Grid.SetRow(_fileList, 1);
+        _mainGrid.Children.Add(body);
 
-        _mainGrid.Children.Add(contentArea);
-        Grid.SetColumn(contentArea, 2);
-        Grid.SetRowSpan(contentArea, 2);
-
-        // Status bar
-        var statusBar = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(25, 25, 35)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(50, 50, 60)),
-            BorderThickness = new Thickness(0, 1, 0, 0)
-        };
+        // ---- 状态栏 ----
+        var statusBar = EditorTheme.StatusBar(out _statusText, Loc.T("Common.Ready"));
         Grid.SetRow(statusBar, 2);
-        Grid.SetColumnSpan(statusBar, 3);
-
-        _statusText = new TextBlock
-        {
-            Text = "就绪",
-            Foreground = Brushes.Gray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 0, 0)
-        };
-        statusBar.Child = _statusText;
         _mainGrid.Children.Add(statusBar);
 
         Content = _mainGrid;
@@ -278,11 +142,11 @@ public partial class AssetBrowserScene : UserControl
             _manager.ScanDefault(forceReload: true);
             PopulateCategories();
             PopulateExtensions();
-            UpdateStatus($"已加载 {_manager.Count} 个文件");
+            UpdateStatus(Loc.F("Asset.LoadedFiles", _manager.Count));
         }
         catch (Exception ex)
         {
-            UpdateStatus($"加载失败: {ex.Message}");
+            UpdateStatus(Loc.F("Common.LoadFailed", ex.Message));
         }
     }
 
@@ -291,34 +155,11 @@ public partial class AssetBrowserScene : UserControl
         _categoryPanel.Children.Clear();
 
         // "全部文件" 按钮（按修改时间排序）
-        _allFilesButton = new Button
-        {
-            Content = $"全部文件 ({_manager.Count})",
-            Tag = null,
-            Background = Brushes.Transparent,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(12, 6, 12, 6),
-            HorizontalContentAlignment = HorizontalAlignment.Left,
-            FontSize = 13,
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(4, 1, 4, 1)
-        };
-        _allFilesButton.Click += AllFilesButton_Click;
-        _allFilesButton.MouseEnter += (s, e) =>
-        {
-            if (!_showAllFiles)
-                _allFilesButton.Background = new SolidColorBrush(Color.FromRgb(50, 50, 65));
-        };
-        _allFilesButton.MouseLeave += (s, e) =>
-        {
-            if (!_showAllFiles)
-                _allFilesButton.Background = Brushes.Transparent;
-        };
+        _allFilesButton = EditorTheme.NavButton(Loc.F("Asset.AllFiles", _manager.Count), AllFilesButton_Click);
+        EditorTheme.SetNavSelected(_allFilesButton, _showAllFiles);
         _categoryPanel.Children.Add(_allFilesButton);
 
-        // Separator
-        _categoryPanel.Children.Add(new Separator { Margin = new Thickness(8, 6, 8, 6), Background = new SolidColorBrush(Color.FromRgb(60, 60, 70)) });
+        _categoryPanel.Children.Add(new Separator { Margin = new Thickness(8, 6, 8, 6) });
 
         var counts = _manager.GetKindCounts();
         if (counts.Count == 0) return;
@@ -337,8 +178,7 @@ public partial class AssetBrowserScene : UserControl
             AddCategoryButton(kind, c);
         }
 
-        // Separator
-        _categoryPanel.Children.Add(new Separator { Margin = new Thickness(8, 6, 8, 6), Background = new SolidColorBrush(Color.FromRgb(60, 60, 70)) });
+        _categoryPanel.Children.Add(new Separator { Margin = new Thickness(8, 6, 8, 6) });
 
         // Generic types
         var genericKinds = new[]
@@ -357,32 +197,9 @@ public partial class AssetBrowserScene : UserControl
 
     private void AddCategoryButton(AssetKind kind, int count)
     {
-        var btn = new Button
-        {
-            Content = $"{GetKindDisplayName(kind)} ({count})",
-            Tag = kind,
-            Background = Brushes.Transparent,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(12, 6, 12, 6),
-            HorizontalContentAlignment = HorizontalAlignment.Left,
-            FontSize = 13,
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(4, 1, 4, 1)
-        };
-
-        btn.Click += CategoryButton_Click;
-        btn.MouseEnter += (s, e) =>
-        {
-            if (_selectedKind != kind)
-                btn.Background = new SolidColorBrush(Color.FromRgb(50, 50, 65));
-        };
-        btn.MouseLeave += (s, e) =>
-        {
-            if (_selectedKind != kind)
-                btn.Background = Brushes.Transparent;
-        };
-
+        var btn = EditorTheme.NavButton($"{GetKindDisplayName(kind)} ({count})", CategoryButton_Click);
+        btn.Tag = kind;
+        EditorTheme.SetNavSelected(btn, !_showAllFiles && _selectedKind == kind);
         _categoryPanel.Children.Add(btn);
     }
 
@@ -390,17 +207,7 @@ public partial class AssetBrowserScene : UserControl
     {
         _showAllFiles = true;
         _selectedKind = null;
-
-        // Update visual selection
-        if (_allFilesButton != null)
-            _allFilesButton.Background = new SolidColorBrush(Color.FromRgb(60, 70, 90));
-
-        foreach (var child in _categoryPanel.Children)
-        {
-            if (child is Button b && b.Tag is AssetKind)
-                b.Background = Brushes.Transparent;
-        }
-
+        RefreshCategorySelection();
         ApplyFilter();
     }
 
@@ -409,21 +216,22 @@ public partial class AssetBrowserScene : UserControl
         if (sender is not Button btn || btn.Tag is not AssetKind kind) return;
 
         _showAllFiles = false;
+        _selectedKind = kind;
+        RefreshCategorySelection();
+        ApplyFilter();
+    }
 
-        // Update visual selection
+    /// <summary>按当前 _showAllFiles / _selectedKind 同步侧栏按钮的选中外观。</summary>
+    private void RefreshCategorySelection()
+    {
         if (_allFilesButton != null)
-            _allFilesButton.Background = Brushes.Transparent;
+            EditorTheme.SetNavSelected(_allFilesButton, _showAllFiles);
 
         foreach (var child in _categoryPanel.Children)
         {
-            if (child is Button b)
-                b.Background = b.Tag is AssetKind k && k == kind
-                    ? new SolidColorBrush(Color.FromRgb(60, 70, 90))
-                    : Brushes.Transparent;
+            if (child is Button b && b.Tag is AssetKind k)
+                EditorTheme.SetNavSelected(b, !_showAllFiles && _selectedKind == k);
         }
-
-        _selectedKind = kind;
-        ApplyFilter();
     }
 
     private void ApplyFilter()
@@ -432,7 +240,6 @@ public partial class AssetBrowserScene : UserControl
 
         string? ext = _extFilter.SelectedIndex > 0 ? _extFilter.SelectedItem as string : null;
         string? search = _searchBox.Text;
-        if (search == "搜索文件名...") search = null;
 
         List<AssetEntry> results;
         if (_showAllFiles)
@@ -458,7 +265,7 @@ public partial class AssetBrowserScene : UserControl
         foreach (var entry in results)
             _entries.Add(entry);
 
-        UpdateStatus($"显示 {results.Count} / {_manager.Count} 个文件");
+        UpdateStatus(Loc.F("Asset.Showing", results.Count, _manager.Count));
     }
 
     private void PopulateExtensions()
@@ -500,7 +307,7 @@ public partial class AssetBrowserScene : UserControl
             var data = new System.Windows.DataObject();
             data.SetFileDropList(fileDropList);
             System.Windows.Clipboard.SetDataObject(data, true);
-            UpdateStatus($"已复制 {fileDropList.Count} 个文件到剪贴板");
+            UpdateStatus(Loc.F("Asset.CopiedToClipboard", fileDropList.Count));
         }
     }
 
@@ -572,15 +379,15 @@ public partial class AssetBrowserScene : UserControl
             _manager.ScanDefault(forceReload: true);
             _entries.Clear();
             _extFilter.Items.Clear();
-            _extFilter.Items.Add("全部");
+            _extFilter.Items.Add(Loc.T("Common.All"));
             _extFilter.SelectedIndex = 0;
             PopulateCategories();
             PopulateExtensions();
-            UpdateStatus($"已刷新，共 {_manager.Count} 个文件");
+            UpdateStatus(Loc.F("Asset.Refreshed", _manager.Count));
         }
         catch (Exception ex)
         {
-            UpdateStatus($"刷新失败: {ex.Message}");
+            UpdateStatus(Loc.F("Asset.RefreshFailed", ex.Message));
         }
     }
 
@@ -592,25 +399,26 @@ public partial class AssetBrowserScene : UserControl
             Dispatcher.Invoke(() => _statusText.Text = text);
     }
 
+    // 每次调用时才查 Loc，不缓存：语言可在运行时切换，场景会被重建
     private static string GetKindDisplayName(AssetKind kind) => kind switch
     {
-        AssetKind.Stage => "战役关卡",
-        AssetKind.Conquest => "征服",
-        AssetKind.Event => "事件关卡",
-        AssetKind.Frontier => "前线",
-        AssetKind.GeneralStage => "名将关卡",
-        AssetKind.Legend => "传奇",
-        AssetKind.Warzone => "战区",
-        AssetKind.InvadeCorps => "入侵军团",
-        AssetKind.OtherStageBtl => "其它关卡",
-        AssetKind.Texture => "纹理图片",
-        AssetKind.Xml => "XML 文件",
-        AssetKind.Json => "JSON 配置",
-        AssetKind.Binary => "二进制数据",
-        AssetKind.Audio => "音频",
-        AssetKind.Font => "字体",
-        AssetKind.Shader => "着色器",
-        AssetKind.StringTable => "字符串表",
-        _ => "其它"
+        AssetKind.Stage => Loc.T("Asset.Kind.Stage"),
+        AssetKind.Conquest => Loc.T("Asset.Kind.Conquest"),
+        AssetKind.Event => Loc.T("Asset.Kind.Event"),
+        AssetKind.Frontier => Loc.T("Asset.Kind.Frontier"),
+        AssetKind.GeneralStage => Loc.T("Asset.Kind.GeneralStage"),
+        AssetKind.Legend => Loc.T("Asset.Kind.Legend"),
+        AssetKind.Warzone => Loc.T("Asset.Kind.Warzone"),
+        AssetKind.InvadeCorps => Loc.T("Asset.Kind.InvadeCorps"),
+        AssetKind.OtherStageBtl => Loc.T("Asset.Kind.OtherStageBtl"),
+        AssetKind.Texture => Loc.T("Asset.Kind.Texture"),
+        AssetKind.Xml => Loc.T("Asset.Kind.Xml"),
+        AssetKind.Json => Loc.T("Asset.Kind.Json"),
+        AssetKind.Binary => Loc.T("Asset.Kind.Binary"),
+        AssetKind.Audio => Loc.T("Asset.Kind.Audio"),
+        AssetKind.Font => Loc.T("Asset.Kind.Font"),
+        AssetKind.Shader => Loc.T("Asset.Kind.Shader"),
+        AssetKind.StringTable => Loc.T("Asset.Kind.StringTable"),
+        _ => Loc.T("Asset.Kind.Other")
     };
 }

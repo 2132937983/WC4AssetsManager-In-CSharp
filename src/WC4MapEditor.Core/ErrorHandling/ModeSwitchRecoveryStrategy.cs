@@ -76,26 +76,3 @@ public sealed class KeyboardRecoveryStrategy : IRecoveryStrategy
         }
     }
 }
-
-/// <summary>
-/// 地图数据错误恢复策略 - 当地图操作失败时尝试回滚
-/// </summary>
-public sealed class MapDataRecoveryStrategy : IRecoveryStrategy
-{
-    public string Name => "MapDataRecovery";
-
-    public bool CanHandle(ErrorRecord error)
-    {
-        return error.Source?.Contains("MapData") == true
-            || error.Message.Contains("地图")
-            || error.Message.Contains("Map");
-    }
-
-    public Task<ErrorHandleResult> RecoverAsync(ErrorRecord error)
-    {
-        // 地图数据错误通常无法自动恢复，记录错误并返回失败
-        return Task.FromResult(
-            ErrorHandleResult.Failed(
-                new ErrorRecord(ErrorSeverity.Critical, "地图数据错误无法自动恢复", Name)));
-    }
-}

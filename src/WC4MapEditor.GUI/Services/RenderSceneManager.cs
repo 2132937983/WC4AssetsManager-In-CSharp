@@ -92,10 +92,10 @@ public sealed class RenderSceneManager
     {
         return sceneType switch
         {
-            RenderSceneType.Test => "[地图]",
-            RenderSceneType.Stage => "[战役]",
-            RenderSceneType.Conquest => "[征服]",
-            RenderSceneType.Campaign => "[战役]",
+            RenderSceneType.Test => Loc.T("Scene.TypeWorld"),
+            RenderSceneType.Stage => Loc.T("Scene.TypeCampaign"),
+            RenderSceneType.Conquest => Loc.T("Scene.TypeConquest"),
+            RenderSceneType.Campaign => Loc.T("Scene.TypeCampaign"),
             _ => ""
         };
     }
@@ -153,7 +153,7 @@ public sealed class RenderSceneManager
             var scene = new RenderSceneInfo
             {
                 SceneId = _sceneIdCounter,
-                SceneName = string.IsNullOrEmpty(sceneName) ? $"场景 {_sceneIdCounter}" : sceneName,
+                SceneName = string.IsNullOrEmpty(sceneName) ? Loc.F("Scene.DefaultName", _sceneIdCounter) : sceneName,
                 MapFilePath = mapFilePath,
                 SceneType = sceneType,
                 CacheFilePath = IOPath.Combine(_cacheDirectory, $"scene_{_sceneIdCounter}.cache")
@@ -334,7 +334,7 @@ public sealed class RenderSceneManager
             ReleaseSceneMemory(_currentSceneId);
 
         if (string.IsNullOrEmpty(sceneName))
-            sceneName = $"场景 {SceneCount + 1}";
+            sceneName = Loc.F("Scene.DefaultName", SceneCount + 1);
 
         var newSceneId = CreateScene(sceneName, mapFilePath, sceneType);
         ActivateScene(newSceneId);

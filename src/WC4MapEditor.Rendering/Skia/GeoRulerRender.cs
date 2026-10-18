@@ -240,11 +240,9 @@ public sealed class GeoRulerRender : IDisposable
     {
         if (_labelFont == null) return;
         float newSize = LabelFontSize;
+        // 字号变化时直接改 Size，无需销毁重建字体对象。
         if (Math.Abs(_labelFont.Size - newSize) > 0.5f)
-        {
-            _labelFont?.Dispose();
-            _labelFont = new SKFont(SKTypeface.Default, newSize);
-        }
+            _labelFont.Size = newSize;
     }
 
     private void EnsurePaints()

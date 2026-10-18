@@ -103,7 +103,7 @@ public partial class BeginScene : UserControl
 
         var windowTitle = new TextBlock
         {
-            Text = ConfigManager.Instance.GetText("TitleBarText", "WC4 Map Editor"),
+            Text = ConfigManager.Instance.GetText("TitleBarText", Loc.T("Main.Title")),
             FontSize = 12,
             Foreground = Brushes.White,
             VerticalAlignment = VerticalAlignment.Center,
@@ -145,12 +145,21 @@ public partial class BeginScene : UserControl
         Grid.SetRowSpan(circlePanel, 2);
         Panel.SetZIndex(circlePanel, 100);
 
-        circlePanel.Children.Add(CreateCircleButton("AI", AiAssistantButton_Click));
-        circlePanel.Children.Add(CreateCircleButton("➖", (_, _) => _window.MinimizeWindow()));
-        circlePanel.Children.Add(CreateCircleButton("⬜", (_, _) => _window.ToggleMaximize()));
-        circlePanel.Children.Add(CreateCircleButton("✕", (_, _) => _window.CloseApplication(), true));
+        Button Circle(string glyph, RoutedEventHandler handler, string tipKey, bool isClose = false)
+        {
+            var b = CreateCircleButton(glyph, handler, isClose);
+            b.ToolTip = Loc.T(tipKey);
+            return b;
+        }
+        circlePanel.Children.Add(Circle("AI", AiAssistantButton_Click, "Begin.AiAssistant"));
+        var langBtn = Circle("文A", LanguageButton_Click, "Begin.SwitchLanguage");
+        if (langBtn.Content is TextBlock langTb) langTb.FontSize = 14;
+        circlePanel.Children.Add(langBtn);
+        circlePanel.Children.Add(Circle("➖", (_, _) => _window.MinimizeWindow(), "Begin.Minimize"));
+        circlePanel.Children.Add(Circle("⬜", (_, _) => _window.ToggleMaximize(), "Begin.Maximize"));
+        circlePanel.Children.Add(Circle("✕", (_, _) => _window.CloseApplication(), "Begin.CloseApp", true));
         circlePanel.Children.Add(new Rectangle { Height = 10, Fill = Brushes.Transparent });
-        circlePanel.Children.Add(CreateCircleButton("❚❚", MusicToggleButton_Click));
+        circlePanel.Children.Add(Circle("❚❚", MusicToggleButton_Click, "Begin.Music"));
 
         _mainGrid.Children.Add(circlePanel);
 
@@ -176,7 +185,7 @@ public partial class BeginScene : UserControl
 
         var versionLabel = new TextBlock
         {
-            Text = ConfigManager.Instance.GetText("VersionText", "v5.0 开发版"),
+            Text = ConfigManager.Instance.GetText("VersionText", Loc.T("Main.Version")),
             FontSize = 18,
             Foreground = Brushes.White,
             Margin = new Thickness(5, 10, 0, 0),
@@ -196,25 +205,25 @@ public partial class BeginScene : UserControl
         _navPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, RenderTransform = new TranslateTransform() };
 
         // 创建主按钮
-        _campaignButton = CreateNavButton(ConfigManager.Instance.GetText("CampaignButtonText", "战役"), CampaignButton_Click);
-        _conquestButton = CreateNavButton(ConfigManager.Instance.GetText("ConquestButtonText", "征服"), ConquestButton_Click);
-        _mapButton = CreateNavButton(ConfigManager.Instance.GetText("TerrainsMapButtonText", "征服地图"), MapButton_Click);
+        _campaignButton = CreateNavButton(Loc.T("Begin.Campaign"), CampaignButton_Click);
+        _conquestButton = CreateNavButton(Loc.T("Begin.Conquest"), ConquestButton_Click);
+        _mapButton = CreateNavButton(Loc.T("Begin.TerrainMap"), MapButton_Click);
 
         // 创建弹出按钮
-        _newCampaignButton = CreatePopupButton(ConfigManager.Instance.GetText("NewCampaignButtonText", "新战役"), NewCampaignButton_Click);
-        _newConquestButton = CreatePopupButton(ConfigManager.Instance.GetText("NewConquestButtonText", "新征服"), NewConquestButton_Click);
-        _newMapButton = CreatePopupButton(ConfigManager.Instance.GetText("NewTerrainsMapButtonText", "新地图"), NewMapButton_Click);
+        _newCampaignButton = CreatePopupButton(Loc.T("Begin.NewCampaign"), NewCampaignButton_Click);
+        _newConquestButton = CreatePopupButton(Loc.T("Begin.NewConquest"), NewConquestButton_Click);
+        _newMapButton = CreatePopupButton(Loc.T("Begin.NewTerrainMap"), NewMapButton_Click);
 
         // 创建按钮组（主按钮 + 弹出按钮）
         _campaignGroup = CreateButtonGroup(_campaignButton, _newCampaignButton);
         _conquestGroup = CreateButtonGroup(_conquestButton, _newConquestButton);
         _mapGroup = CreateButtonGroup(_mapButton, _newMapButton);
 
-        _assetButton = CreateNavButton(ConfigManager.Instance.GetText("AssetBrowserButtonText", "资源管理器"), AssetButton_Click);
-        _generalButton = CreateNavButton(ConfigManager.Instance.GetText("GeneralButtonText", "将领编辑"), GeneralButton_Click);
-        _countryButton = CreateNavButton(ConfigManager.Instance.GetText("CountryButtonText", "国家编辑"), CountryButton_Click);
-        _checkDataButton = CreateNavButton(ConfigManager.Instance.GetText("CheckDataButtonText", "检查数据"), CheckDataButton_Click);
-        _settingsButton = CreateNavButton(ConfigManager.Instance.GetText("SettingsButtonText", "设置"), SettingsButton_Click);
+        _assetButton = CreateNavButton(Loc.T("Begin.AssetBrowser"), AssetButton_Click);
+        _generalButton = CreateNavButton(Loc.T("Begin.General"), GeneralButton_Click);
+        _countryButton = CreateNavButton(Loc.T("Begin.Country"), CountryButton_Click);
+        _checkDataButton = CreateNavButton(Loc.T("Begin.CheckData"), CheckDataButton_Click);
+        _settingsButton = CreateNavButton(Loc.T("Begin.Settings"), SettingsButton_Click);
 
         _navPanel.Children.Add(_campaignGroup);
         _navPanel.Children.Add(_conquestGroup);
@@ -224,16 +233,16 @@ public partial class BeginScene : UserControl
         _navPanel.Children.Add(_countryButton);
         _navPanel.Children.Add(_checkDataButton);
         _navPanel.Children.Add(_settingsButton);
-        _navPanel.Children.Add(CreateNavButton(ConfigManager.Instance.GetText("InGameTechButtonText", "局内科技"), InGameTechButton_Click));
-        _navPanel.Children.Add(CreateNavButton(ConfigManager.Instance.GetText("EventEditorButtonText", "集团军事件编辑"), EventEditorButton_Click));
-        _navPanel.Children.Add(CreateNavButton(ConfigManager.Instance.GetText("EventBuffButtonText", "事件的效果"), EventBuffButton_Click));
-        _navPanel.Children.Add(CreateNavButton(ConfigManager.Instance.GetText("ConquerEventButtonText", "征服事件"), ConquerEventButton_Click));
-        _navPanel.Children.Add(CreateNavButton(ConfigManager.Instance.GetText("SkillButtonText", "技能编辑"), SkillButton_Click));
-        _navPanel.Children.Add(CreateNavButton(ConfigManager.Instance.GetText("ArmyBuffButtonText", "军队Buff"), ArmyBuffButton_Click));
-        _navPanel.Children.Add(CreateNavButton(ConfigManager.Instance.GetText("ArmyButtonText", "兵种编辑"), ArmyButton_Click));
-        _navPanel.Children.Add(CreateNavButton(ConfigManager.Instance.GetText("BuildingButtonText", "建筑与设施"), BuildingButton_Click));
-        _navPanel.Children.Add(CreateNavButton(ConfigManager.Instance.GetText("ArmyGroupButtonText", "集团军与援军"), ArmyGroupButton_Click));
-        _navPanel.Children.Add(CreateNavButton(ConfigManager.Instance.GetText("LayoutButtonText", "布局编辑器"), LayoutButton_Click));
+        _navPanel.Children.Add(CreateNavButton(Loc.T("Begin.InGameTech"), InGameTechButton_Click));
+        _navPanel.Children.Add(CreateNavButton(Loc.T("Begin.EventEditor"), EventEditorButton_Click));
+        _navPanel.Children.Add(CreateNavButton(Loc.T("Begin.EventBuff"), EventBuffButton_Click));
+        _navPanel.Children.Add(CreateNavButton(Loc.T("Begin.ConquerEvent"), ConquerEventButton_Click));
+        _navPanel.Children.Add(CreateNavButton(Loc.T("Begin.Skill"), SkillButton_Click));
+        _navPanel.Children.Add(CreateNavButton(Loc.T("Begin.ArmyBuff"), ArmyBuffButton_Click));
+        _navPanel.Children.Add(CreateNavButton(Loc.T("Begin.Army"), ArmyButton_Click));
+        _navPanel.Children.Add(CreateNavButton(Loc.T("Begin.Building"), BuildingButton_Click));
+        _navPanel.Children.Add(CreateNavButton(Loc.T("Begin.ArmyGroup"), ArmyGroupButton_Click));
+        _navPanel.Children.Add(CreateNavButton(Loc.T("Begin.Layout"), LayoutButton_Click));
 
         RegisterAiBridge();
 
@@ -250,6 +259,7 @@ public partial class BeginScene : UserControl
             if (child is FrameworkElement fe) fe.Width = navWidth;
 
         _recommendBtn = CreateCircleButton("👍", RecommendButton_Click);
+        _recommendBtn.ToolTip = Loc.T("Begin.Recommend");
         _recommendBtn.Width = 75;
         _recommendBtn.Height = 75;
         _recommendBtn.HorizontalAlignment = HorizontalAlignment.Right;
@@ -583,76 +593,76 @@ public partial class BeginScene : UserControl
     }
     private async void NewCampaignButton_Click(object sender, RoutedEventArgs e)
     {
-        var confirmResult = MessageBox.Show("确定要创建新的战役文件吗？", "新建战役", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var confirmResult = MessageBox.Show(Loc.T("Begin.NewCampaignConfirm"), Loc.T("Begin.NewCampaignTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirmResult != MessageBoxResult.Yes) return;
 
         using var widthDialog = new SingleInputDialog(_window)
         {
-            Title = "新建战役",
-            Description = "请输入地图宽度（格子数）：",
+            Title = Loc.T("Begin.NewCampaignTitle"),
+            Description = Loc.T("Begin.MapWidthPrompt"),
             DefaultValue = "10",
             MinValue = 1
         };
         var widthStr = await widthDialog.ShowAsync();
         if (widthStr == null || !int.TryParse(widthStr, out int mapWidth) || mapWidth < 1)
         {
-            if (widthStr != null) MessageBox.Show("请输入有效的地图宽度", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            if (widthStr != null) MessageBox.Show(Loc.T("Begin.InvalidMapWidth"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
         using var heightDialog = new SingleInputDialog(_window)
         {
-            Title = "新建战役",
-            Description = "请输入地图高度（格子数）：",
+            Title = Loc.T("Begin.NewCampaignTitle"),
+            Description = Loc.T("Begin.MapHeightPrompt"),
             DefaultValue = "10",
             MinValue = 1
         };
         var heightStr = await heightDialog.ShowAsync();
         if (heightStr == null || !int.TryParse(heightStr, out int mapHeight) || mapHeight < 1)
         {
-            if (heightStr != null) MessageBox.Show("请输入有效的地图高度", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            if (heightStr != null) MessageBox.Show(Loc.T("Begin.InvalidMapHeight"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
         using var legionDialog = new SingleInputDialog(_window)
         {
-            Title = "新建战役",
-            Description = "请输入军团数量：",
+            Title = Loc.T("Begin.NewCampaignTitle"),
+            Description = Loc.T("Begin.LegionCountPrompt"),
             DefaultValue = "2",
             MinValue = 1
         };
         var legionStr = await legionDialog.ShowAsync();
         if (legionStr == null || !int.TryParse(legionStr, out int numLegions) || numLegions < 1)
         {
-            if (legionStr != null) MessageBox.Show("请输入有效的军团数量", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            if (legionStr != null) MessageBox.Show(Loc.T("Begin.InvalidLegionCount"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
         var parser = new StageParser();
         if (!parser.CreateNew(mapWidth, mapHeight, numLegions))
         {
-            MessageBox.Show("创建战役文件失败", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Begin.CreateCampaignFailed"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
         var saveResult = MessageBox.Show(
-            $"已创建 {mapWidth}x{mapHeight} 的新战役，包含 {mapWidth * mapHeight} 个格子和 {numLegions} 个军团。\n\n是否保存新创建的战役文件？",
-            "保存文件", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Loc.F("Begin.CampaignCreatedAskSave", mapWidth, mapHeight, mapWidth * mapHeight, numLegions),
+            Loc.T("Render.File.SaveFileTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question);
 
         if (saveResult == MessageBoxResult.Yes)
         {
             var saveDialog = new SaveFileDialog
             {
-                Filter = "战役文件 (*.btl)|*.btl|所有文件 (*.*)|*.*",
-                Title = "保存战役文件",
+                Filter = $"{Loc.T("Render.File.StageFilter")} (*.btl)|*.btl|{Loc.T("Common.AllFiles")} (*.*)|*.*",
+                Title = Loc.T("Begin.SaveCampaignTitle"),
                 FileName = $"new_campaign_{mapWidth}x{mapHeight}.btl"
             };
             if (saveDialog.ShowDialog() == true)
             {
                 if (parser.SaveData(saveDialog.FileName))
                 {
-                    MessageBox.Show($"战役文件已保存到:\n{saveDialog.FileName}", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
-                    var openResult = MessageBox.Show("是否立即打开编辑？", "打开编辑", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    MessageBox.Show(Loc.F("Begin.CampaignSavedTo", saveDialog.FileName), Loc.T("Common.Success"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    var openResult = MessageBox.Show(Loc.T("Begin.OpenNowQuestion"), Loc.T("Begin.OpenNowTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                     if (openResult == MessageBoxResult.Yes)
                     {
                         var scene = new StageRenderScene(_window, saveDialog.FileName);
@@ -661,7 +671,7 @@ public partial class BeginScene : UserControl
                 }
                 else
                 {
-                    MessageBox.Show("保存战役文件失败", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(Loc.T("Begin.SaveCampaignFailed") + (parser.LastError != null ? "\n" + parser.LastError : ""), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
@@ -673,13 +683,13 @@ public partial class BeginScene : UserControl
     }
     private async void NewConquestButton_Click(object sender, RoutedEventArgs e)
     {
-        var confirmResult = MessageBox.Show("确定要创建新的征服文件吗？", "新建征服", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var confirmResult = MessageBox.Show(Loc.T("Begin.NewConquestConfirm"), Loc.T("Begin.NewConquestTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirmResult != MessageBoxResult.Yes) return;
 
         var mapDialog = new OpenFileDialog
         {
-            Filter = "世界地图文件 (*.bin)|*.bin|所有文件 (*.*)|*.*",
-            Title = "选择地图文件（获取尺寸）"
+            Filter = $"{Loc.T("Begin.WorldMapFileFilter")} (*.bin)|*.bin|{Loc.T("Common.AllFiles")} (*.*)|*.*",
+            Title = Loc.T("Begin.SelectMapForSizeTitle")
         };
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
         var mapsFolder = System.IO.Path.Combine(baseDir, "Maps");
@@ -691,7 +701,7 @@ public partial class BeginScene : UserControl
         var mapData = WorldParser.LoadFromFile(selectedMapFilePath);
         if (mapData == null)
         {
-            MessageBox.Show("无法加载地图文件，请检查文件是否有效！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Begin.MapLoadFailed"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
@@ -704,8 +714,8 @@ public partial class BeginScene : UserControl
         {
             using var mapNumDialog = new SingleInputDialog(_window)
             {
-                Title = "新建征服",
-                Description = "无法从文件名识别地图编号，请手动输入地图编号 (1-255)：",
+                Title = Loc.T("Begin.NewConquestTitle"),
+                Description = Loc.T("Begin.MapNumberPrompt"),
                 DefaultValue = "1",
                 MinValue = 1,
                 MaxValue = 255
@@ -713,51 +723,51 @@ public partial class BeginScene : UserControl
             var mapNumStr = await mapNumDialog.ShowAsync();
             if (mapNumStr == null || !int.TryParse(mapNumStr, out mapNumber) || mapNumber < 1 || mapNumber > 255)
             {
-                if (mapNumStr != null) MessageBox.Show("地图编号必须是1-255之间的整数！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                if (mapNumStr != null) MessageBox.Show(Loc.T("Begin.InvalidMapNumber"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
         }
 
         using var legionDialog = new SingleInputDialog(_window)
         {
-            Title = "新建征服",
-            Description = "请输入军团数量：",
+            Title = Loc.T("Begin.NewConquestTitle"),
+            Description = Loc.T("Begin.LegionCountPrompt"),
             DefaultValue = "2",
             MinValue = 1
         };
         var legionStr = await legionDialog.ShowAsync();
         if (legionStr == null || !int.TryParse(legionStr, out int numLegions) || numLegions < 1)
         {
-            if (legionStr != null) MessageBox.Show("请输入有效的军团数量", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            if (legionStr != null) MessageBox.Show(Loc.T("Begin.InvalidLegionCount"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
         var parser = new ConquestParser();
         if (!parser.CreateNew(actualMapWidth, actualMapHeight, numLegions, mapNumber))
         {
-            MessageBox.Show("创建征服文件失败", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Begin.CreateConquestFailed"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
         var mapFileName = System.IO.Path.GetFileNameWithoutExtension(selectedMapFilePath);
         var saveResult = MessageBox.Show(
-            $"已创建基于 \"{mapFileName}\" 的新征服（{actualMapWidth}x{actualMapHeight}，地图编号 {mapNumber}，{numLegions} 个军团）。\n\n是否保存新创建的征服文件？",
-            "保存文件", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Loc.F("Begin.ConquestCreatedAskSave", mapFileName, actualMapWidth, actualMapHeight, mapNumber, numLegions),
+            Loc.T("Render.File.SaveFileTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question);
 
         if (saveResult == MessageBoxResult.Yes)
         {
             var saveDialog = new SaveFileDialog
             {
-                Filter = "征服文件 (*.btl)|*.btl|所有文件 (*.*)|*.*",
-                Title = "保存征服文件",
+                Filter = $"{Loc.T("Render.File.ConquestFilter")} (*.btl)|*.btl|{Loc.T("Common.AllFiles")} (*.*)|*.*",
+                Title = Loc.T("Begin.SaveConquestTitle"),
                 FileName = $"conquest_{mapFileName}_{mapNumber}_{actualMapWidth}x{actualMapHeight}.btl"
             };
             if (saveDialog.ShowDialog() == true)
             {
                 if (parser.SaveData(saveDialog.FileName))
                 {
-                    MessageBox.Show($"征服文件已保存到:\n{saveDialog.FileName}", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
-                    var openResult = MessageBox.Show("是否立即打开编辑？", "打开编辑", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    MessageBox.Show(Loc.F("Begin.ConquestSavedTo", saveDialog.FileName), Loc.T("Common.Success"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    var openResult = MessageBox.Show(Loc.T("Begin.OpenNowQuestion"), Loc.T("Begin.OpenNowTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                     if (openResult == MessageBoxResult.Yes)
                     {
                         var scene = new ConquestRenderScene(_window, saveDialog.FileName);
@@ -766,7 +776,7 @@ public partial class BeginScene : UserControl
                 }
                 else
                 {
-                    MessageBox.Show("保存征服文件失败", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(Loc.T("Begin.SaveConquestFailed") + (parser.LastError != null ? "\n" + parser.LastError : ""), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
@@ -780,8 +790,8 @@ public partial class BeginScene : UserControl
     {
         using var inputDialog = new SingleInputDialog(_window)
         {
-            Title = "创建新地图",
-            Description = "请输入地图尺寸（格式：宽度x高度，如：100x100）：",
+            Title = Loc.T("Begin.NewMapTitle"),
+            Description = Loc.T("Begin.MapSizePrompt"),
             DefaultValue = "100x100"
         };
         var sizeStr = await inputDialog.ShowAsync();
@@ -792,7 +802,7 @@ public partial class BeginScene : UserControl
             var parts = sizeStr.Trim().Split('x', 'X', '*', ' ');
             if (parts.Length < 2)
             {
-                MessageBox.Show("请输入正确的尺寸格式（如：100x100）", "输入错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc.T("Begin.InvalidSizeFormat"), Loc.T("Common.InputError"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -801,7 +811,7 @@ public partial class BeginScene : UserControl
 
             if (width < 10 || width > 500 || height < 10 || height > 500)
             {
-                MessageBox.Show("地图尺寸必须在 10-500 之间", "输入错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc.T("Render.Console.MapSizeRange"), Loc.T("Common.InputError"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -810,22 +820,22 @@ public partial class BeginScene : UserControl
             WorldParser.SaveToFile(mapData, tempPath);
 
             var saveResult = MessageBox.Show(
-                $"已创建 {width}x{height} 的新地图。\n\n是否保存地图文件？",
-                "保存文件", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                Loc.F("Begin.MapCreatedAskSave", width, height),
+                Loc.T("Render.File.SaveFileTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question);
 
             if (saveResult == MessageBoxResult.Yes)
             {
                 var saveDialog = new SaveFileDialog
                 {
-                    Filter = "地图文件 (*.bin)|*.bin|所有文件 (*.*)|*.*",
-                    Title = "保存地图文件",
+                    Filter = $"{Loc.T("Render.File.MapFilter")} (*.bin)|*.bin|{Loc.T("Common.AllFiles")} (*.*)|*.*",
+                    Title = Loc.T("Render.File.SaveTitle"),
                     FileName = $"new_map_{width}x{height}.bin"
                 };
                 if (saveDialog.ShowDialog() == true)
                 {
                     File.Copy(tempPath, saveDialog.FileName, true);
-                    MessageBox.Show($"地图文件已保存到:\n{saveDialog.FileName}", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
-                    var openResult = MessageBox.Show("是否立即打开编辑？", "打开编辑", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    MessageBox.Show(Loc.F("Begin.MapSavedTo", saveDialog.FileName), Loc.T("Common.Success"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    var openResult = MessageBox.Show(Loc.T("Begin.OpenNowQuestion"), Loc.T("Begin.OpenNowTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                     if (openResult == MessageBoxResult.Yes)
                     {
                         var scene = new MapRenderScene(_window, saveDialog.FileName);
@@ -841,7 +851,7 @@ public partial class BeginScene : UserControl
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"创建新地图失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.F("Begin.CreateMapFailed", ex.Message), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -1084,6 +1094,37 @@ public partial class BeginScene : UserControl
         _navNextButton.Opacity = canNext ? 1 : 0.3;
     }
 
+    // ============================================================= 界面语言 =============================================================
+
+    /// <summary>
+    /// 弹出语言菜单（Resource/Lang 下有哪些 json 就列哪些）。
+    /// 场景都是进入时现建的，所以切换后只需重建开始界面，其它场景下次打开自然是新语言。
+    /// </summary>
+    private void LanguageButton_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = sender as UIElement, Placement = System.Windows.Controls.Primitives.PlacementMode.Left };
+        EditorTheme.Apply(menu);
+        foreach (var lang in Loc.AvailableLanguages)
+        {
+            var item = new MenuItem
+            {
+                Header = lang.DisplayName,
+                IsCheckable = true,
+                IsChecked = string.Equals(lang.Code, Loc.CurrentLanguage, StringComparison.OrdinalIgnoreCase)
+            };
+            string code = lang.Code;
+            item.Click += (_, _) =>
+            {
+                if (string.Equals(code, Loc.CurrentLanguage, StringComparison.OrdinalIgnoreCase)) return;
+                if (Loc.SetLanguage(code)) _window.ReturnToMainScene();
+            };
+            menu.Items.Add(item);
+        }
+        if (menu.Items.Count == 0)
+            menu.Items.Add(new MenuItem { Header = Loc.T("Common.None"), IsEnabled = false });
+        menu.IsOpen = true;
+    }
+
     // ============================================================= AI 助手 =============================================================
 
     private static WC4MapEditor.AI.Ui.AiChatWindow? _aiChatWindow;
@@ -1145,7 +1186,7 @@ public partial class BeginScene : UserControl
                         var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
                             $"NewCampaign_{width}x{height}_{DateTime.Now:yyyyMMddHHmmss}.btl");
                         if (!parser.SaveData(tempPath))
-                            return (false, "战役保存临时文件失败");
+                            return (false, $"战役保存临时文件失败: {parser.LastError}");
                         var scene = new StageRenderScene(_window, tempPath);
                         _window.SetCurrentScene(scene);
                         return (true, $"已创建战役 {width}x{height}（{legions}军团）并打开编辑");
@@ -1158,7 +1199,7 @@ public partial class BeginScene : UserControl
                         var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
                             $"NewConquest_{width}x{height}_{mapNumber}_{DateTime.Now:yyyyMMddHHmmss}.btl");
                         if (!parser.SaveData(tempPath))
-                            return (false, "征服保存临时文件失败");
+                            return (false, $"征服保存临时文件失败: {parser.LastError}");
                         var scene = new ConquestRenderScene(_window, tempPath);
                         _window.SetCurrentScene(scene);
                         return (true, $"已创建征服 {width}x{height}（{legions}军团，地图编号{mapNumber}）并打开编辑");
@@ -1246,7 +1287,7 @@ public partial class BeginScene : UserControl
                 $"NewCampaign_{w}x{h}_{DateTime.Now:yyyyMMddHHmmss}.btl");
             if (!parser.SaveData(tempPath))
             {
-                System.Diagnostics.Debug.WriteLine("战役保存临时文件失败");
+                System.Diagnostics.Debug.WriteLine($"战役保存临时文件失败: {parser.LastError}");
                 return;
             }
             System.Diagnostics.Debug.WriteLine($"已创建战役 {w}x{h}（{legions}军团）: {tempPath}");
@@ -1272,7 +1313,7 @@ public partial class BeginScene : UserControl
                 $"NewConquest_{w}x{h}_{mapNum}_{DateTime.Now:yyyyMMddHHmmss}.btl");
             if (!parser.SaveData(tempPath))
             {
-                System.Diagnostics.Debug.WriteLine("征服保存临时文件失败");
+                System.Diagnostics.Debug.WriteLine($"征服保存临时文件失败: {parser.LastError}");
                 return;
             }
             System.Diagnostics.Debug.WriteLine($"已创建征服 {w}x{h}（{legions}军团，地图编号{mapNum}）: {tempPath}");

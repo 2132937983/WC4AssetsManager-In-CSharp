@@ -17,7 +17,7 @@ public sealed class ArmySettingV3Window : ArmySettingWindow
         _army3 = army3;
         _isNewArmy3 = isNew;
 
-        Title = isNew ? "创建v3单位" : "编辑v3单位";
+        Title = isNew ? Loc.T("Assist.Army.CreateV3Title") : Loc.T("Assist.Army.EditV3Title");
     }
 
     protected override void LoadArmyData()

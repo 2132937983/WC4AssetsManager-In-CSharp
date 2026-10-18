@@ -2110,7 +2110,11 @@ public sealed class CliCommandHost : ICommandHost
         ArmyV3Modifier? GetV3(MapData mapData)
         {
             if (mapData.Header.BtlVersion < 3) return null;
-            var v3 = new ArmyV3Modifier();
+            // 优先复用 EditModeManager 里注册的实例（保留复制 / 粘贴等状态）；
+            // 只有管理器没对这份地图初始化时才临时建一个
+            var v3 = EditModeManager.Instance.GetModifier<ArmyV3Modifier>();
+            if (v3 != null && v3.IsInitializedFor(mapData)) return v3;
+            v3 = new ArmyV3Modifier();
             v3.Initialize(mapData);
             return v3;
         }
@@ -2881,11 +2885,14 @@ public sealed class CliCommandHost : ICommandHost
                 _output.WriteLine($"  总格子数:    {header.TotalTiles}");
                 _output.WriteLine($"  军团数:      {mapData.Legions.Count}");
                 _output.WriteLine($"  建筑数:      {mapData.Buildings.Count}");
-                _output.WriteLine($"  省份数据:    {mapData.Provinces.Count} 格");
+                int cellCount = mapData.MapWidth * mapData.MapHeight;
+                _output.WriteLine($"  省份数据:    {cellCount} 格");
                 _output.WriteLine($"  归属数据:    {mapData.Belongs.Count} 格");
-                _output.WriteLine($"  地形数据:    {mapData.Terrains.Count} 格");
+                _output.WriteLine($"  地形数据:    {cellCount} 格");
 
-                int provinceCount = mapData.Provinces.Count(p => p.ProvinceValue != 0);
+                int provinceCount = 0;
+                for (int i = 0; i < cellCount; i++)
+                    if (mapData.GetProvinceRef(i).ProvinceValue != 0) provinceCount++;
                 int belongCount = 0;
                 for (int i = 0; i < mapData.Belongs.Count; i++)
                     if (mapData.GetBelongValueByIndex(i) != 0xFF) belongCount++;

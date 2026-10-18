@@ -1,17 +1,13 @@
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
-using System.Windows.Threading;
-using WC4MapEditor.Core.Config;
-using WC4MapEditor.Rendering.Skia;
 
 namespace WC4MapEditor.GUI.Views.Assist;
 
 /// <summary>
-/// 调试控制台窗口 - 占满父窗口全屏的WPF窗口
+/// 调试控制台窗口 - 跟随主窗口的独立弹窗（F3 开关）。
+/// <para>
+/// 标题栏 / 关闭按钮 / 输入框走 <see cref="EditorTheme"/>；日志区保留"背景图 + 黑色半透明遮罩 + 白色等宽字"
+/// 的终端外观，那是控制台本身的用途，不跟主题走。
+/// </para>
 /// </summary>
 public sealed class DebugConsoleWindow : Window
 {
@@ -34,13 +30,16 @@ public sealed class DebugConsoleWindow : Window
 
     public DebugConsoleWindow(DebugConsole console, Window ownerWindow)
     {
+        EditorTheme.Apply(this);
+
         _console = console;
 
         // 窗口设置 —— 独立弹窗，不再铺满主窗口
         Owner = ownerWindow;
         WindowStyle = WindowStyle.None;
+        // 淡入靠 Opacity 动画，无边框窗口只有开了 AllowsTransparency 时 Opacity 才生效
         AllowsTransparency = true;
-        Background = Brushes.Transparent;
+        Background = EditorTheme.Bg1;
         ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.Manual;
         Width = DefaultWidth;
@@ -180,12 +179,12 @@ public sealed class DebugConsoleWindow : Window
             AddFallbackBackground(grid);
         }
 
-        // 添加半透明遮罩层（60%不透明度）
+        // 添加半透明遮罩层（60%不透明度）：压暗背景图让日志可读，属于控制台外观，不走主题
         var overlay = new Rectangle
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
-            Fill = new SolidColorBrush(Color.FromArgb(153, 0, 0, 0)) // 60%不透明度的黑色遮罩
+            Fill = new SolidColorBrush(Color.FromArgb(153, 0, 0, 0))
         };
         grid.Children.Add(overlay);
 
@@ -224,8 +223,8 @@ public sealed class DebugConsoleWindow : Window
         var cursorText = new TextBlock
         {
             Text = "> ",
-            Foreground = Brushes.LightGreen,
-            FontFamily = new FontFamily("Consolas"),
+            Foreground = EditorTheme.Success,
+            FontFamily = EditorTheme.MonoFontFamily,
             FontSize = 14,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(5, 0, 0, 0)
@@ -240,17 +239,13 @@ public sealed class DebugConsoleWindow : Window
         Grid.SetColumn(cursorText, 0);
         inputPanel.Children.Add(cursorText);
 
-        // 输入框
+        // 输入框：配色交给主题的 TextBox 样式，只保留等宽字体
         _inputTextBox = new TextBox
         {
-            Background = new SolidColorBrush(Color.FromArgb(180, 30, 30, 30)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontFamily = new FontFamily("Consolas"),
+            FontFamily = EditorTheme.MonoFontFamily,
             FontSize = 14,
-            Padding = new Thickness(5, 2, 0, 0),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            CaretBrush = Brushes.LightGreen
+            Padding = new Thickness(5, 2, 5, 2),
+            VerticalContentAlignment = VerticalAlignment.Center
         };
         _inputTextBox.PreviewKeyDown += InputTextBox_PreviewKeyDown;
         _inputTextBox.TextChanged += InputTextBox_TextChanged;
@@ -271,8 +266,8 @@ public sealed class DebugConsoleWindow : Window
         {
             Height = 32,
             VerticalAlignment = VerticalAlignment.Top,
-            Background = new SolidColorBrush(Color.FromArgb(215, 20, 20, 24)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(90, 255, 255, 255)),
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.Border,
             BorderThickness = new Thickness(0, 0, 0, 1)
         };
 
@@ -282,30 +277,21 @@ public sealed class DebugConsoleWindow : Window
 
         var title = new TextBlock
         {
-            Text = "调试控制台",
-            Foreground = Brushes.White,
-            FontFamily = new FontFamily("Microsoft YaHei"),
+            Text = Loc.T("Assist.Console.Title"),
             FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(12, 0, 0, 0)
         };
         Grid.SetColumn(title, 0);
         row.Children.Add(title);
 
-        var close = new Button
-        {
-            Content = "✕",
-            Width = 36,
-            Height = 30,
-            Margin = new Thickness(0, 1, 2, 1),
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Foreground = Brushes.White,
-            FontSize = 12,
-            Cursor = Cursors.Hand,
-            ToolTip = "隐藏控制台（按 F3 可再打开）"
-        };
-        close.Click += (_, _) => _console.HideConsole();
+        var close = EditorTheme.GhostButton("✕", (_, _) => _console.HideConsole());
+        close.Width = 36;
+        close.Height = 28;
+        close.Padding = new Thickness(0);
+        close.Margin = new Thickness(0, 1, 2, 1);
+        close.ToolTip = Loc.T("Assist.Console.HideTooltip");
         Grid.SetColumn(close, 1);
         row.Children.Add(close);
 
@@ -435,7 +421,7 @@ public sealed class DebugConsoleWindow : Window
             // 不需要在这里再维护一套执行逻辑。路径加引号以兼容含空格的目录。
             if (file.EndsWith(".lua", StringComparison.OrdinalIgnoreCase))
             {
-                _console.WriteLine($"[脚本] 执行 Lua 脚本: {System.IO.Path.GetFileName(file)}");
+                _console.WriteLine(Loc.F("Assist.Console.RunLuaScript", System.IO.Path.GetFileName(file)));
                 // 用 BatchExecuteInput：它会先查本地命令表再回退到命令宿主，
                 // 而 ExecuteInput 在本地表里找不到时会先吐一句"未知命令"。
                 _console.BatchExecuteInput($"lua \"{file}\"");
@@ -446,7 +432,7 @@ public sealed class DebugConsoleWindow : Window
 
             if (!file.EndsWith(".zme", StringComparison.OrdinalIgnoreCase)) continue;
 
-            _console.WriteLine($"[脚本] 加载脚本文件: {System.IO.Path.GetFileName(file)}");
+            _console.WriteLine(Loc.F("Assist.Console.LoadScript", System.IO.Path.GetFileName(file)));
 
             var savedCallback = _console.InvalidateCallback;
             _console.InvalidateCallback = null;
@@ -486,18 +472,18 @@ public sealed class DebugConsoleWindow : Window
 
                     if (executedCount % refreshInterval == 0)
                     {
-                        _console.WriteLine($"[脚本] 进度: {executedCount}/{totalLines}");
+                        _console.WriteLine(Loc.F("Assist.Console.ScriptProgress", executedCount, totalLines));
                         RefreshDisplayIncremental();
                         _scrollViewer.ScrollToBottom();
                         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);
                     }
                 }
 
-                _console.WriteLine($"[脚本] 执行完成: {executedCount} 条命令, {skippedCount} 条注释跳过, 共 {totalLines} 行");
+                _console.WriteLine(Loc.F("Assist.Console.ScriptDone", executedCount, skippedCount, totalLines));
             }
             catch (Exception ex)
             {
-                _console.WriteLine($"[脚本] 执行失败: {ex.Message}");
+                _console.WriteLine(Loc.F("Assist.Console.ScriptFailed", ex.Message));
             }
             finally
             {
@@ -566,13 +552,14 @@ public sealed class DebugConsoleWindow : Window
         });
     }
 
+    /// <summary>日志行：白色等宽字 + 黑色描边阴影，压在背景图上也能读 —— 终端外观，不走主题色。</summary>
     private static TextBlock CreateLogTextBlock(string line)
     {
         var textBlock = new TextBlock
         {
             Text = line,
             Foreground = Brushes.White,
-            FontFamily = new FontFamily("Consolas"),
+            FontFamily = EditorTheme.MonoFontFamily,
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 1, 0, 1)
@@ -592,13 +579,14 @@ public sealed class DebugConsoleWindow : Window
         // WPF TextBox自带光标，不需要额外处理
     }
 
+    /// <summary>没有背景图时的纯色底：同样是控制台的黑色半透明，不走主题。</summary>
     private static void AddFallbackBackground(Grid grid)
     {
         var background = new Rectangle
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
-            Fill = new SolidColorBrush(Color.FromArgb(153, 0, 0, 0)) // 60%不透明度的黑色背景
+            Fill = new SolidColorBrush(Color.FromArgb(153, 0, 0, 0))
         };
         grid.Children.Add(background);
     }

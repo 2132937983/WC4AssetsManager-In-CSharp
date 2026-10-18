@@ -47,6 +47,18 @@ public class BuildingRender : IDisposable
     private readonly List<CityLevelDrawCall> _cityLevelList = new();
     private readonly List<(string Type, int Level)> _facilityScratch = new();
 
+    // (BuildingType, Appearance, DecorativeBuilding) → 建筑图集键。键只取决于这三个字段和进程级共享、
+    // 构建后不再变化的图集表，因此无需失效；原先每个可见建筑每帧拼 1~3 个字符串。
+    private readonly Dictionary<(int, int, int), string> _buildingKeyCache = new();
+
+    // "city_lv{n}" 预生成表，索引 = 城市等级 0..5，替代每帧字符串插值。
+    private static readonly string[] CityLevelKeys = { "city_lv0", "city_lv1", "city_lv2", "city_lv3", "city_lv4", "city_lv5" };
+
+    // 按图集键分组的池化容器，替代每帧 LINQ GroupBy 的分配（做法同 LandTerrainsRender）。
+    private readonly DrawCallGrouper<BuildingDrawCall> _buildingGroups = new();
+    private readonly DrawCallGrouper<FacilityDrawCall> _facilityGroups = new();
+    private readonly DrawCallGrouper<CityLevelDrawCall> _cityLevelGroups = new();
+
     private readonly SKFont _buildingNameFont;
     private readonly SKFont _facilityLevelFont;
     private readonly SKPaint _redKeyPointPaint;
@@ -192,10 +204,17 @@ public class BuildingRender : IDisposable
 
     private string GetBuildingCacheKey(Building building)
     {
-        int buildingType = building.BuildingType;
-        int appearance = building.Appearance;
-        int decorativeBuilding = building.DecorativeBuilding;
+        var key = ((int)building.BuildingType, (int)building.Appearance, (int)building.DecorativeBuilding);
+        if (_buildingKeyCache.TryGetValue(key, out var cachedKey))
+            return cachedKey;
 
+        string result = ComputeBuildingCacheKey(key.Item1, key.Item2, key.Item3);
+        _buildingKeyCache[key] = result;
+        return result;
+    }
+
+    private string ComputeBuildingCacheKey(int buildingType, int appearance, int decorativeBuilding)
+    {
         if (decorativeBuilding > 0)
         {
             string capitalKey = $"0_0_{decorativeBuilding}";
@@ -283,7 +302,7 @@ public class BuildingRender : IDisposable
             if (building.BuildingType >= 11 && building.BuildingType <= 15)
             {
                 int cityLevel = building.BuildingType - 10;
-                string cityLevelCacheKey = $"city_lv{cityLevel}";
+                string cityLevelCacheKey = CityLevelKeys[cityLevel];
                 if (_cityLevelAtlasMap.ContainsKey(cityLevelCacheKey))
                 {
                     int cityLevelImageSize = (int)(facilityImageSize * 1.2);
@@ -349,19 +368,22 @@ public class BuildingRender : IDisposable
         {
             using var paint = new SKPaint { IsAntialias = true };
 
-            var grouped = batch.GroupBy(d => d.IsFallback ? "fallback" : d.CacheKey);
+            var groups = _buildingGroups;
+            groups.Reset();
+            foreach (var d in batch)
+                groups.Add(d.IsFallback ? "fallback" : d.CacheKey, d);
 
-            foreach (var group in grouped)
+            foreach (var (key, group) in groups.Groups)
             {
-                if (group.Key == "fallback")
+                if (key == "fallback")
                 {
                     foreach (var drawCall in group)
                         RenderFallbackTriangle(canvas, drawCall.ScreenX, drawCall.ScreenY, drawCall.ImageSize * 0.5f);
                     continue;
                 }
 
-                if (!_buildingAtlasMap.TryGetValue(group.Key, out var srcRect)) continue;
-                if (!_buildingOriginalSize.TryGetValue(group.Key, out var originalSize)) continue;
+                if (!_buildingAtlasMap.TryGetValue(key, out var srcRect)) continue;
+                if (!_buildingOriginalSize.TryGetValue(key, out var originalSize)) continue;
 
                 foreach (var drawCall in group)
                 {
@@ -384,12 +406,15 @@ public class BuildingRender : IDisposable
         {
             using var paint = new SKPaint { IsAntialias = true };
 
-            var grouped = batch.GroupBy(d => d.CacheKey);
+            var groups = _facilityGroups;
+            groups.Reset();
+            foreach (var d in batch)
+                groups.Add(d.CacheKey, d);
 
-            foreach (var group in grouped)
+            foreach (var (key, group) in groups.Groups)
             {
-                if (!_facilityAtlasMap.TryGetValue(group.Key, out var srcRect)) continue;
-                if (!_facilityOriginalSize.TryGetValue(group.Key, out var originalSize)) continue;
+                if (!_facilityAtlasMap.TryGetValue(key, out var srcRect)) continue;
+                if (!_facilityOriginalSize.TryGetValue(key, out var originalSize)) continue;
 
                 foreach (var drawCall in group)
                 {
@@ -435,12 +460,15 @@ public class BuildingRender : IDisposable
         {
             using var paint = new SKPaint { IsAntialias = true };
 
-            var grouped = batch.GroupBy(d => d.CacheKey);
+            var groups = _cityLevelGroups;
+            groups.Reset();
+            foreach (var d in batch)
+                groups.Add(d.CacheKey, d);
 
-            foreach (var group in grouped)
+            foreach (var (key, group) in groups.Groups)
             {
-                if (!_cityLevelAtlasMap.TryGetValue(group.Key, out var srcRect)) continue;
-                if (!_cityLevelOriginalSize.TryGetValue(group.Key, out var originalSize)) continue;
+                if (!_cityLevelAtlasMap.TryGetValue(key, out var srcRect)) continue;
+                if (!_cityLevelOriginalSize.TryGetValue(key, out var originalSize)) continue;
 
                 foreach (var drawCall in group)
                 {
@@ -535,6 +563,40 @@ public class BuildingRender : IDisposable
         public readonly float ScreenY = screenY;
         public readonly int ImageSize = imageSize;
         public readonly string CacheKey = cacheKey;
+    }
+
+    /// <summary>
+    /// 按字符串键分组的池化容器：Reset 把各组的 List 回收到池里复用，不再每帧分配；
+    /// Groups 按键首次出现的顺序排列，与 LINQ GroupBy 的分组顺序一致，保证绘制顺序不变。
+    /// </summary>
+    private sealed class DrawCallGrouper<T>
+    {
+        private readonly Dictionary<string, List<T>> _lookup = new();
+        private readonly Stack<List<T>> _pool = new();
+
+        public readonly List<(string Key, List<T> Items)> Groups = new();
+
+        public void Reset()
+        {
+            foreach (var (_, items) in Groups)
+            {
+                items.Clear();
+                _pool.Push(items);
+            }
+            Groups.Clear();
+            _lookup.Clear();
+        }
+
+        public void Add(string key, T item)
+        {
+            if (!_lookup.TryGetValue(key, out var items))
+            {
+                items = _pool.Count > 0 ? _pool.Pop() : new List<T>();
+                _lookup[key] = items;
+                Groups.Add((key, items));
+            }
+            items.Add(item);
+        }
     }
 
     #endregion

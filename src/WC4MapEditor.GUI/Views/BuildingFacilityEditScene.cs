@@ -17,6 +17,9 @@ namespace WC4MapEditor.GUI.Views;
 /// </summary>
 public class BuildingFacilityEditScene : UserControl
 {
+    /// <summary>表单行字段名列宽：这里的标签带英文属性名，比默认的 180 宽一点。</summary>
+    private const double LabelWidth = 200;
+
     private readonly MainWindow _window;
     private readonly BuildingFacilitySettingParser _parser = BuildingFacilitySettingParser.Instance;
 
@@ -45,7 +48,7 @@ public class BuildingFacilityEditScene : UserControl
     public BuildingFacilityEditScene(MainWindow window)
     {
         _window = window;
-        Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
+        EditorTheme.Apply(this);
         BuildUI();
         RefreshList();
         Loaded += (_, _) => Dispatcher.BeginInvoke(() =>
@@ -58,90 +61,56 @@ public class BuildingFacilityEditScene : UserControl
     private void BuildUI()
     {
         _root = new Grid();
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(50) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
         _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var topBar = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 0, 0, 1)
-        };
-        Grid.SetRow(topBar, 0); Grid.SetColumnSpan(topBar, 3);
-        var topPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) };
-        topPanel.Children.Add(MakeTopBtn("返回", (_, _) => _window.ReturnToMainScene()));
-        topPanel.Children.Add(MakeTopBtn("新增", OnAdd));
-        topPanel.Children.Add(MakeTopBtn("删除", OnDelete));
-        topPanel.Children.Add(MakeTopBtn("保存", OnSave));
-        topPanel.Children.Add(MakeTopBtn("重载", OnReload));
-        topPanel.Children.Add(MakeTopBtn("校验", OnValidate));
-
+        // 建筑 / 设施 两种模式的切换放在顶栏右侧、操作按钮之前
         var buildingRadio = new RadioButton
         {
-            Content = "建筑 (BuildingSettings)",
-            Foreground = Brushes.White,
+            Content = Loc.T("Building.ModeBuilding"),
             GroupName = "mode",
             IsChecked = true,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(20, 0, 8, 0)
+            VerticalAlignment = VerticalAlignment.Center
         };
         var facilityRadio = new RadioButton
         {
-            Content = "设施 (FacilitySettings)",
-            Foreground = Brushes.White,
+            Content = Loc.T("Building.ModeFacility"),
             GroupName = "mode",
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 8, 0)
+            Margin = new Thickness(10, 0, 0, 0)
         };
         buildingRadio.Checked += (_, _) => SwitchMode("building");
         facilityRadio.Checked += (_, _) => SwitchMode("facility");
-        topPanel.Children.Add(buildingRadio);
-        topPanel.Children.Add(facilityRadio);
 
-        topBar.Child = topPanel;
+        var topBar = EditorTheme.TopBar(Loc.T("Building.Title"), (_, _) => _window.ReturnToMainScene(),
+            buildingRadio,
+            facilityRadio,
+            EditorTheme.VSeparator(),
+            EditorTheme.Button(Loc.T("Common.Add"), OnAdd),
+            EditorTheme.DangerButton(Loc.T("Common.Delete"), OnDelete),
+            EditorTheme.PrimaryButton(Loc.T("Common.Save"), OnSave),
+            EditorTheme.Button(Loc.T("Common.Reload"), OnReload),
+            EditorTheme.Button(Loc.T("Common.Validate"), OnValidate));
+        Grid.SetRow(topBar, 0); Grid.SetColumnSpan(topBar, 3);
         _root.Children.Add(topBar);
 
-        var left = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x26)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 0, 1, 0)
-        };
+        var left = EditorTheme.Panel(new Thickness(0, 0, 1, 0));
         Grid.SetRow(left, 1); Grid.SetColumn(left, 0);
         var leftGrid = new Grid();
-        leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(38) });
+        leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        _searchBox = new TextBox
-        {
-            Margin = new Thickness(8, 6, 8, 6),
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13,
-            Padding = new Thickness(6, 3, 6, 3),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            CaretBrush = Brushes.White
-        };
-        _searchBox.Text = "搜索 (Id / 名称)...";
-        _searchBox.GotFocus += (_, _) => { if (_searchBox.Text.StartsWith("搜索")) _searchBox.Text = ""; };
-        _searchBox.LostFocus += (_, _) => { if (string.IsNullOrWhiteSpace(_searchBox.Text)) _searchBox.Text = "搜索 (Id / 名称)..."; };
+        var search = EditorTheme.SearchBox(Loc.T("Building.SearchPlaceholder"), out _searchBox);
+        search.Margin = new Thickness(8);
         _searchBox.TextChanged += (_, _) => RefreshList();
-        Grid.SetRow(_searchBox, 0);
-        leftGrid.Children.Add(_searchBox);
+        Grid.SetRow(search, 0);
+        leftGrid.Children.Add(search);
 
-        _listBox = new ListBox
-        {
-            Background = Brushes.Transparent,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontSize = 13
-        };
+        _listBox = new ListBox();
         _listBox.SelectionChanged += ListBox_SelectionChanged;
         Grid.SetRow(_listBox, 1);
         leftGrid.Children.Add(_listBox);
@@ -149,14 +118,7 @@ public class BuildingFacilityEditScene : UserControl
         left.Child = leftGrid;
         _root.Children.Add(left);
 
-        var splitter = new GridSplitter
-        {
-            Width = 4,
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch,
-            ResizeBehavior = GridResizeBehavior.PreviousAndNext
-        };
+        var splitter = EditorTheme.VSplitter();
         Grid.SetRow(splitter, 1); Grid.SetColumn(splitter, 1);
         _root.Children.Add(splitter);
 
@@ -165,22 +127,8 @@ public class BuildingFacilityEditScene : UserControl
         BuildPanels();
         _root.Children.Add(_propHost);
 
-        var status = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 1, 0, 0)
-        };
+        var status = EditorTheme.StatusBar(out _statusText, Loc.T("Common.Ready"));
         Grid.SetRow(status, 2); Grid.SetColumnSpan(status, 3);
-        _statusText = new TextBlock
-        {
-            Text = "就绪",
-            Foreground = Brushes.LightGray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 12, 0)
-        };
-        status.Child = _statusText;
         _root.Children.Add(status);
 
         Content = _root;
@@ -189,57 +137,53 @@ public class BuildingFacilityEditScene : UserControl
 
     private void BuildPanels()
     {
-        _buildingScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 8, 0) };
-        var bp = new StackPanel { Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)) };
-        AddSection(bp, "贴图预览 (buildings_hd)");
-        AddRow(bp, "建筑贴图", BuildBuildingPreview());
-        AddSection(bp, "基本信息");
-        AddNum(bp, "B.Id", "建筑ID(Id)", 0, int.MaxValue);
-        AddText(bp, "B.Name", "名称(Name)");
-        AddNum(bp, "B.Type", "类型(Type)", 0, int.MaxValue);
-        AddSection(bp, "产出");
-        AddNum(bp, "B.ProduceMoney", "产出金钱(ProduceMoney)", 0, int.MaxValue);
-        AddNum(bp, "B.ProduceGear", "产出零件(ProduceGear)", 0, int.MaxValue);
-        AddNum(bp, "B.ProduceAtomic", "产出核能(ProduceAtomic)", 0, int.MaxValue);
-        AddSection(bp, "关联");
-        AddNum(bp, "B.ArmyId", "关联兵种(ArmyId)", 0, int.MaxValue);
-        AddRow(bp, "关联设施(FacilityId)", BuildFacilityIdRow());
-        AddSection(bp, "其它");
-        AddText(bp, "B.ResName", "资源名(ResName，可空)");
-        AddNum(bp, "B.StyleCount", "样式数量(StyleCount)", 0, int.MaxValue);
-        AddNum(bp, "B.MeritExp", "功勋经验(MeritExp)", 0, int.MaxValue);
+        _buildingScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        var bp = new StackPanel();
+        bp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Preview")));
+        bp.Children.Add(EditorTheme.FormRow(Loc.T("Building.Field.Texture"), BuildBuildingPreview(), LabelWidth));
+        bp.Children.Add(EditorTheme.SectionHeader(Loc.T("Common.BasicInfo")));
+        AddNum(bp, "B.Id", Loc.T("Building.Field.BuildingId"), 0, int.MaxValue);
+        AddText(bp, "B.Name", Loc.T("Building.Field.Name"));
+        AddNum(bp, "B.Type", Loc.T("Building.Field.Type"), 0, int.MaxValue);
+        bp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Produce")));
+        AddNum(bp, "B.ProduceMoney", Loc.T("Building.Field.ProduceMoney"), 0, int.MaxValue);
+        AddNum(bp, "B.ProduceGear", Loc.T("Building.Field.ProduceGear"), 0, int.MaxValue);
+        AddNum(bp, "B.ProduceAtomic", Loc.T("Building.Field.ProduceAtomic"), 0, int.MaxValue);
+        bp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Links")));
+        AddNum(bp, "B.ArmyId", Loc.T("Building.Field.ArmyId"), 0, int.MaxValue);
+        bp.Children.Add(EditorTheme.FormRow(Loc.T("Building.Field.FacilityIdLink"), BuildFacilityIdRow(), LabelWidth));
+        bp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Other")));
+        AddText(bp, "B.ResName", Loc.T("Building.Field.ResName"));
+        AddNum(bp, "B.StyleCount", Loc.T("Building.Field.StyleCount"), 0, int.MaxValue);
+        AddNum(bp, "B.MeritExp", Loc.T("Building.Field.MeritExp"), 0, int.MaxValue);
         _buildingJson = AddJsonPreview(bp);
         _buildingScroll.Content = bp;
 
-        _facilityScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 8, 0) };
-        var fp = new StackPanel { Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)) };
-        AddSection(fp, "基本信息");
-        AddNum(fp, "F.Id", "设施ID(Id)", 0, int.MaxValue);
-        AddText(fp, "F.Name", "名称(Name)");
-        AddNum(fp, "F.Level", "等级(Level)", 0, int.MaxValue);
-        AddNum(fp, "F.Type", "类型(Type)", 0, int.MaxValue);
-        AddRow(fp, "类型含义", new TextBlock
-        {
-            Text = "1:城池 2:工厂 3:科研所 4:机场 5:导弹",
-            Foreground = Brushes.Gray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        AddSection(fp, "恢复");
-        AddNum(fp, "F.CityRecovery", "城池恢复(CityRecovery)", 0, int.MaxValue);
-        AddNum(fp, "F.ArmyRecovery", "部队恢复(ArmyRecovery)", 0, int.MaxValue);
-        AddSection(fp, "产出");
-        AddNum(fp, "F.ProduceMoney", "产出金钱(ProduceMoney)", 0, int.MaxValue);
-        AddNum(fp, "F.ProduceGear", "产出零件(ProduceGear)", 0, int.MaxValue);
-        AddNum(fp, "F.ProduceAtomic", "产出核能(ProduceAtomic)", 0, int.MaxValue);
-        AddSection(fp, "消耗");
-        AddNum(fp, "F.CostMoney", "消耗金钱(CostMoney)", 0, int.MaxValue);
-        AddNum(fp, "F.CostGear", "消耗零件(CostGear)", 0, int.MaxValue);
-        AddNum(fp, "F.CostAtomic", "消耗核能(CostAtomic)", 0, int.MaxValue);
-        AddNum(fp, "F.Only", "仅限(Only)", 0, int.MaxValue);
-        AddSection(fp, "解锁列表 (逗号分隔)");
-        AddText(fp, "F.UnlockArmy", "解锁兵种(UnlockArmy)");
-        AddText(fp, "F.UnlockArmyType", "解锁兵种类型(UnlockArmyType)");
+        _facilityScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        var fp = new StackPanel();
+        fp.Children.Add(EditorTheme.SectionHeader(Loc.T("Common.BasicInfo")));
+        AddNum(fp, "F.Id", Loc.T("Building.Field.FacilityIdSelf"), 0, int.MaxValue);
+        AddText(fp, "F.Name", Loc.T("Building.Field.Name"));
+        AddNum(fp, "F.Level", Loc.T("Building.Field.Level"), 0, int.MaxValue);
+        AddNum(fp, "F.Type", Loc.T("Building.Field.Type"), 0, int.MaxValue);
+        var typeMeaning = EditorTheme.Muted(Loc.T("Building.TypeMeaningText"));
+        typeMeaning.VerticalAlignment = VerticalAlignment.Center;
+        fp.Children.Add(EditorTheme.FormRow(Loc.T("Building.Field.TypeMeaning"), typeMeaning, LabelWidth));
+        fp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Recovery")));
+        AddNum(fp, "F.CityRecovery", Loc.T("Building.Field.CityRecovery"), 0, int.MaxValue);
+        AddNum(fp, "F.ArmyRecovery", Loc.T("Building.Field.ArmyRecovery"), 0, int.MaxValue);
+        fp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Produce")));
+        AddNum(fp, "F.ProduceMoney", Loc.T("Building.Field.ProduceMoney"), 0, int.MaxValue);
+        AddNum(fp, "F.ProduceGear", Loc.T("Building.Field.ProduceGear"), 0, int.MaxValue);
+        AddNum(fp, "F.ProduceAtomic", Loc.T("Building.Field.ProduceAtomic"), 0, int.MaxValue);
+        fp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Cost")));
+        AddNum(fp, "F.CostMoney", Loc.T("Building.Field.CostMoney"), 0, int.MaxValue);
+        AddNum(fp, "F.CostGear", Loc.T("Building.Field.CostGear"), 0, int.MaxValue);
+        AddNum(fp, "F.CostAtomic", Loc.T("Building.Field.CostAtomic"), 0, int.MaxValue);
+        AddNum(fp, "F.Only", Loc.T("Building.Field.Only"), 0, int.MaxValue);
+        fp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Unlock")));
+        AddText(fp, "F.UnlockArmy", Loc.T("Building.Field.UnlockArmy"));
+        AddText(fp, "F.UnlockArmyType", Loc.T("Building.Field.UnlockArmyType"));
         _facilityJson = AddJsonPreview(fp);
         _facilityScroll.Content = fp;
     }
@@ -250,17 +194,8 @@ public class BuildingFacilityEditScene : UserControl
         _facilityIdBox = new NumericUpDown { MinValue = 0, MaxValue = int.MaxValue, Increment = 1, Width = 120 };
         _facilityIdBox.ValueChanged += (_, _) => { if (!_loadingUi && _building != null) ApplyBuilding(); };
         _numBoxes["B.FacilityId"] = _facilityIdBox;
-        var jump = new Button
-        {
-            Content = "跳转到该设施",
-            Margin = new Thickness(8, 0, 0, 0),
-            Padding = new Thickness(10, 2, 10, 2),
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 12
-        };
+        var jump = EditorTheme.Button(Loc.T("Building.JumpToFacility"));
+        jump.Margin = new Thickness(8, 0, 0, 0);
         jump.Click += (_, _) => JumpToFacility((int)Math.Round(_facilityIdBox.Value));
         panel.Children.Add(_facilityIdBox);
         panel.Children.Add(jump);
@@ -268,107 +203,29 @@ public class BuildingFacilityEditScene : UserControl
     }
 
     // ============================================================= 控件辅助 =============================================================
-    private static Button MakeTopBtn(string label, RoutedEventHandler handler)
-    {
-        var btn = new Button
-        {
-            Content = label,
-            Height = 32,
-            Margin = new Thickness(4, 0, 4, 0),
-            Padding = new Thickness(14, 0, 14, 0),
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13
-        };
-        btn.Click += handler;
-        return btn;
-    }
-
-    private static void AddSection(StackPanel panel, string title)
-    {
-        panel.Children.Add(new TextBlock
-        {
-            Text = title,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB7, 0x4E)),
-            FontSize = 13,
-            FontWeight = FontWeights.Bold,
-            Margin = new Thickness(8, 10, 0, 4)
-        });
-    }
-
-    private static void AddRow(StackPanel panel, string label, UIElement content)
-    {
-        var border = new Border
-        {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(8, 4, 8, 4)
-        };
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var lbl = new TextBlock
-        {
-            Text = label,
-            Foreground = Brushes.LightGray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap
-        };
-        Grid.SetColumn(lbl, 0);
-        Grid.SetColumn(content, 1);
-        grid.Children.Add(lbl);
-        grid.Children.Add(content);
-        border.Child = grid;
-        panel.Children.Add(border);
-    }
-
     private NumericUpDown AddNum(StackPanel panel, string key, string label, double min, double max, double inc = 1)
     {
         var ctrl = new NumericUpDown { MinValue = min, MaxValue = max, Increment = inc };
         ctrl.ValueChanged += (_, _) => { if (!_loadingUi) ApplyActive(); };
         _numBoxes[key] = ctrl;
-        AddRow(panel, label, ctrl);
+        panel.Children.Add(EditorTheme.FormRow(label, ctrl, LabelWidth));
         return ctrl;
     }
 
     private TextBox AddText(StackPanel panel, string key, string label)
     {
-        var tb = new TextBox
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13,
-            Padding = new Thickness(6, 3, 6, 3),
-            CaretBrush = Brushes.White
-        };
+        var tb = new TextBox();
         tb.TextChanged += (_, _) => { if (!_loadingUi) ApplyActive(); };
         _textBoxes[key] = tb;
-        AddRow(panel, label, tb);
+        panel.Children.Add(EditorTheme.FormRow(label, tb, LabelWidth));
         return tb;
     }
 
     private static TextBox AddJsonPreview(StackPanel panel)
     {
-        AddSection(panel, "JSON 预览");
-        var tb = new TextBox
-        {
-            IsReadOnly = true,
-            Background = new SolidColorBrush(Color.FromRgb(0x16, 0x16, 0x16)),
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9C, 0xD6, 0x6B)),
-            FontFamily = new FontFamily("Consolas"),
-            FontSize = 12,
-            BorderThickness = new Thickness(0),
-            TextWrapping = TextWrapping.Wrap,
-            AcceptsReturn = true,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Margin = new Thickness(8, 4, 8, 12),
-            Height = 180
-        };
+        panel.Children.Add(EditorTheme.SectionHeader(Loc.T("Common.JsonPreview")));
+        var tb = EditorTheme.MonoTextBox(180);
+        tb.Margin = new Thickness(10, 8, 10, 12);
         panel.Children.Add(tb);
         return tb;
     }
@@ -379,17 +236,17 @@ public class BuildingFacilityEditScene : UserControl
         if (_mode == mode) return;
         _mode = mode;
         _propHost.Content = mode == "building" ? _buildingScroll : _facilityScroll;
-        _searchBox.Text = "搜索 (Id / 名称)...";
+        _searchBox.Text = "";
         RefreshList();
         ShowEmpty();
-        SetStatus(mode == "building" ? "已切换到 建筑" : "已切换到 设施");
+        SetStatus(mode == "building" ? Loc.T("Building.SwitchedToBuilding") : Loc.T("Building.SwitchedToFacility"));
     }
 
     // ============================================================= 列表 =============================================================
     private void RefreshList()
     {
         var q = _searchBox.Text;
-        bool searching = !string.IsNullOrWhiteSpace(q) && !q.StartsWith("搜索");
+        bool searching = !string.IsNullOrWhiteSpace(q);
 
         _listBox.Items.Clear();
         if (_mode == "building")
@@ -399,7 +256,7 @@ public class BuildingFacilityEditScene : UserControl
             {
                 _listBox.Items.Add(new ItemEntry { Id = b.Id, Display = $"[{b.Id}] {b.Name}" });
             }
-            SetStatus($"建筑 {_parser.Buildings.Count} 条，列表 {_listBox.Items.Count} 条");
+            SetStatus(Loc.F("Building.BuildingsLoaded", _parser.Buildings.Count, _listBox.Items.Count));
         }
         else
         {
@@ -408,7 +265,7 @@ public class BuildingFacilityEditScene : UserControl
             {
                 _listBox.Items.Add(new ItemEntry { Id = f.Id, Display = $"[{f.Id}] {f.Name}" });
             }
-            SetStatus($"设施 {_parser.Facilities.Count} 条，列表 {_listBox.Items.Count} 条");
+            SetStatus(Loc.F("Building.FacilitiesLoaded", _parser.Facilities.Count, _listBox.Items.Count));
         }
     }
 
@@ -509,7 +366,7 @@ public class BuildingFacilityEditScene : UserControl
         _building.ResName = string.IsNullOrWhiteSpace(res) ? null : res;
 
         SyncListItem(_building.Id, _building.Name);
-        SetStatus($"已更新建筑 {_building.Id}（未保存）");
+        SetStatus(Loc.F("Building.BuildingUpdated", _building.Id));
         UpdateJsonPreview();
     }
 
@@ -533,24 +390,21 @@ public class BuildingFacilityEditScene : UserControl
         _facility.UnlockArmyType = ParseIntList(_textBoxes["F.UnlockArmyType"].Text);
 
         SyncListItem(_facility.Id, _facility.Name);
-        SetStatus($"已更新设施 {_facility.Id}（未保存）");
+        SetStatus(Loc.F("Building.FacilityUpdated", _facility.Id));
         UpdateJsonPreview();
     }
 
     private UIElement BuildBuildingPreview()
     {
         var panel = new StackPanel { Orientation = Orientation.Vertical };
-        var border = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(6),
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
         _buildingPreview = new Image { Width = 160, Height = 160, Stretch = Stretch.Uniform };
-        border.Child = _buildingPreview;
-        _buildingPreviewTip = new TextBlock { Foreground = Brushes.Gray, FontSize = 11, Margin = new Thickness(0, 4, 0, 0) };
-        panel.Children.Add(border);
+        var card = EditorTheme.Card(_buildingPreview, new Thickness(6));
+        card.HorizontalAlignment = HorizontalAlignment.Left;
+        card.Margin = new Thickness(0);
+        _buildingPreviewTip = EditorTheme.Muted("");
+        _buildingPreviewTip.FontSize = 11;
+        _buildingPreviewTip.Margin = new Thickness(0, 4, 0, 0);
+        panel.Children.Add(card);
         panel.Children.Add(_buildingPreviewTip);
         return panel;
     }
@@ -567,7 +421,7 @@ public class BuildingFacilityEditScene : UserControl
         string name = $"building_{_building.Id}.png";
         var img = HdAtlasImageLoader.Load("buildings_hd", name);
         _buildingPreview.Source = img;
-        _buildingPreviewTip.Text = img == null ? $"未找到贴图 {name}" : name;
+        _buildingPreviewTip.Text = img == null ? Loc.F("Building.TextureNotFound", name) : name;
     }
 
     private void SyncListItem(int id, string name)
@@ -585,16 +439,16 @@ public class BuildingFacilityEditScene : UserControl
         var target = _parser.GetFacilityById(id);
         if (id <= 0 || target == null)
         {
-            MessageBox.Show($"未在设施库中找到 ID={id} 的设施", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.F("Building.FacilityNotFound", id), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         _mode = "facility";
         _propHost.Content = _facilityScroll;
-        _searchBox.Text = "搜索 (Id / 名称)...";
+        _searchBox.Text = "";
         RefreshList();
         foreach (ItemEntry item in _listBox.Items)
             if (item.Id == id) { _listBox.SelectedItem = item; _listBox.ScrollIntoView(item); break; }
-        SetStatus($"已跳转到设施 {id}");
+        SetStatus(Loc.F("Building.JumpedToFacility", id));
     }
 
     private void SetNum(string key, double v) { if (_numBoxes.TryGetValue(key, out var b)) b.Value = v; }
@@ -620,12 +474,13 @@ public class BuildingFacilityEditScene : UserControl
         object? cur = building ? _building : _facility;
         if (cur == null) { target.Text = ""; return; }
         try { target.Text = JsonSerializer.Serialize(cur, new JsonSerializerOptions { WriteIndented = true }); }
-        catch { target.Text = "(序列化失败)"; }
+        catch { target.Text = Loc.T("Common.SerializeFailed"); }
     }
 
     // ============================================================= 操作 =============================================================
     private void OnAdd(object sender, RoutedEventArgs e)
     {
+        // 默认名称会写进 JSON，是数据不是界面文字，保持原样
         if (_mode == "building")
         {
             int newId = _parser.GetNextBuildingId();
@@ -634,7 +489,7 @@ public class BuildingFacilityEditScene : UserControl
             RefreshList();
             foreach (ItemEntry item in _listBox.Items)
                 if (item.Id == newId) { _listBox.SelectedItem = item; break; }
-            SetStatus($"新增建筑 ID={newId}（未保存）");
+            SetStatus(Loc.F("Building.BuildingAdded", newId));
         }
         else
         {
@@ -644,7 +499,7 @@ public class BuildingFacilityEditScene : UserControl
             RefreshList();
             foreach (ItemEntry item in _listBox.Items)
                 if (item.Id == newId) { _listBox.SelectedItem = item; break; }
-            SetStatus($"新增设施 ID={newId}（未保存）");
+            SetStatus(Loc.F("Building.FacilityAdded", newId));
         }
     }
 
@@ -652,25 +507,25 @@ public class BuildingFacilityEditScene : UserControl
     {
         if (_mode == "building")
         {
-            if (_building == null) { MessageBox.Show("请先在左侧选中一个建筑", "提示", MessageBoxButton.OK, MessageBoxImage.Information); return; }
-            if (MessageBox.Show($"确定删除建筑 [{_building.Id}] {_building.Name}？", "删除", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (_building == null) { MessageBox.Show(Loc.T("Building.SelectBuildingFirst"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
+            if (MessageBox.Show(Loc.F("Building.DeleteBuildingConfirm", _building.Id, _building.Name), Loc.T("Common.Delete"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             int id = _building.Id;
             _parser.BuildingItems.Remove(_building);
             _building = null;
             RefreshList();
             ShowEmpty();
-            SetStatus($"已删除建筑 ID={id}（未保存）");
+            SetStatus(Loc.F("Building.BuildingDeleted", id));
         }
         else
         {
-            if (_facility == null) { MessageBox.Show("请先在左侧选中一个设施", "提示", MessageBoxButton.OK, MessageBoxImage.Information); return; }
-            if (MessageBox.Show($"确定删除设施 [{_facility.Id}] {_facility.Name}？", "删除", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (_facility == null) { MessageBox.Show(Loc.T("Building.SelectFacilityFirst"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
+            if (MessageBox.Show(Loc.F("Building.DeleteFacilityConfirm", _facility.Id, _facility.Name), Loc.T("Common.Delete"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             int id = _facility.Id;
             _parser.FacilityItems.Remove(_facility);
             _facility = null;
             RefreshList();
             ShowEmpty();
-            SetStatus($"已删除设施 ID={id}（未保存）");
+            SetStatus(Loc.F("Building.FacilityDeleted", id));
         }
     }
 
@@ -678,24 +533,24 @@ public class BuildingFacilityEditScene : UserControl
     {
         if (_parser.SaveAll())
         {
-            SetStatus($"✔ 保存成功：{_parser.BuildingConfigPath} / {_parser.FacilityConfigPath}");
-            MessageBox.Show($"保存成功：\nBuildingSettings.json: {_parser.BuildingConfigPath}\nFacilitySettings.json: {_parser.FacilityConfigPath}",
-                "保存成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus(Loc.F("Common.SavedTo", $"{_parser.BuildingConfigPath} / {_parser.FacilityConfigPath}"));
+            MessageBox.Show(Loc.F("Building.SaveSuccessMessage", _parser.BuildingConfigPath, _parser.FacilityConfigPath),
+                Loc.T("Common.SaveSuccess"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
         else
         {
-            MessageBox.Show("保存失败，请检查权限或 Debug 输出", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Common.SaveFailed"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     private void OnReload(object sender, RoutedEventArgs e)
     {
-        var res = MessageBox.Show("重新加载磁盘上的 BuildingSettings.json 与 FacilitySettings.json？未保存的更改将丢失。", "重载", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var res = MessageBox.Show(Loc.F("Common.ReloadConfirm", "BuildingSettings.json & FacilitySettings.json"), Loc.T("Common.Reload"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (res != MessageBoxResult.Yes) return;
         _parser.LoadAll();
         RefreshList();
         ShowEmpty();
-        SetStatus("已从磁盘重新加载");
+        SetStatus(Loc.T("Common.ReloadedFromDisk"));
     }
 
     private void OnValidate(object sender, RoutedEventArgs e)
@@ -704,26 +559,26 @@ public class BuildingFacilityEditScene : UserControl
         var seenB = new HashSet<int>();
         foreach (var b in _parser.Buildings)
         {
-            if (!seenB.Add(b.Id)) problems.Add($"[建筑 Id={b.Id}] ID 重复");
+            if (!seenB.Add(b.Id)) problems.Add(Loc.F("Building.Validate.BuildingDuplicateId", b.Id));
             if (b.FacilityId != 0 && _parser.GetFacilityById(b.FacilityId) == null)
-                problems.Add($"[建筑 Id={b.Id}] FacilityId={b.FacilityId} 找不到对应设施");
+                problems.Add(Loc.F("Building.Validate.FacilityMissing", b.Id, b.FacilityId));
         }
         var seenF = new HashSet<int>();
         foreach (var f in _parser.Facilities)
         {
-            if (!seenF.Add(f.Id)) problems.Add($"[设施 Id={f.Id}] ID 重复");
-            if (string.IsNullOrEmpty(f.Name)) problems.Add($"[设施 Id={f.Id}] 名称为空");
+            if (!seenF.Add(f.Id)) problems.Add(Loc.F("Building.Validate.FacilityDuplicateId", f.Id));
+            if (string.IsNullOrEmpty(f.Name)) problems.Add(Loc.F("Building.Validate.FacilityNameEmpty", f.Id));
         }
 
         if (problems.Count == 0)
-            MessageBox.Show($"校验通过：建筑 {_parser.Buildings.Count} 条，设施 {_parser.Facilities.Count} 条。", "校验", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.F("Building.ValidationPassed", _parser.Buildings.Count, _parser.Facilities.Count), Loc.T("Common.Validate"), MessageBoxButton.OK, MessageBoxImage.Information);
         else
         {
             var msg = string.Join("\n", problems.Take(80));
-            if (problems.Count > 80) msg += $"\n… 共 {problems.Count} 条，仅显示前 80 条";
-            MessageBox.Show(msg, $"校验发现问题 {problems.Count} 条", MessageBoxButton.OK, MessageBoxImage.Warning);
+            if (problems.Count > 80) msg += "\n" + Loc.F("Common.ValidationMore", problems.Count, 80);
+            MessageBox.Show(msg, Loc.F("Common.ValidationProblems", problems.Count), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-        SetStatus($"校验完成：{problems.Count} 个问题");
+        SetStatus(Loc.F("Common.ValidationDone", problems.Count));
     }
 
     private void SetStatus(string s)

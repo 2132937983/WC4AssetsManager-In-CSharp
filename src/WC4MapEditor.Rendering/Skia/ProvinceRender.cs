@@ -29,6 +29,16 @@ public class ProvinceRender : IDisposable
     private readonly Dictionary<int, SKBitmap> _capitalTileCache = new();
     private readonly object _capitalTileCacheLock = new();
 
+    // 按六边形尺寸缓存的路径（同 BackGroundRender.GetHexPath）。原先 GetHexPath 每帧 new 一个 SKPath 且
+    // Render 里从不释放，是一处原生内存泄漏；尺寸只随缩放变化，条目很少，Dispose 时统一释放。
+    private readonly Dictionary<float, SKPath> _hexPathCache = new();
+
+    // 每帧复用的画笔与省会位置列表（只在渲染线程使用），原先每帧重新分配。
+    private readonly SKPaint _fillPaint = new() { IsAntialias = true, Style = SKPaintStyle.Fill };
+    private readonly SKPaint _borderPaint = new() { IsAntialias = true, Style = SKPaintStyle.Stroke };
+    private readonly SKPaint _capitalHexPaint = new() { IsAntialias = true, Style = SKPaintStyle.Fill, Color = new SKColor(255, 215, 0, 200) };
+    private readonly List<(float X, float Y)> _capitalDrawCalls = new();
+
     private static readonly double[] EdgeAngles = { -60, 0, 60, 120, 180, 240 };
 
     // 六边形 6 条边的端点单位向量与外法线方向。这些值只取决于 edgeIndex，
@@ -138,13 +148,14 @@ public class ProvinceRender : IDisposable
         int endRow = Math.Min(mapData.MapHeight - 1, startRow + visibleRows);
 
         SKPath hexPath = GetHexPath(hexSize);
-        using var fillPaint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill };
-        using var borderPaint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke };
+        var fillPaint = _fillPaint;
+        var borderPaint = _borderPaint;
 
         float borderWidth = Math.Max(1.0f, hexSize * 0.09f);
         borderPaint.StrokeWidth = borderWidth;
 
-        var capitalDrawCalls = enableCapital ? new List<(float X, float Y)>() : null;
+        _capitalDrawCalls.Clear();
+        var capitalDrawCalls = enableCapital ? _capitalDrawCalls : null;
 
         for (int col = startCol; col <= endCol; col++)
         {
@@ -212,17 +223,13 @@ public class ProvinceRender : IDisposable
         }
     }
 
-    private static void DrawCapitalBatchWithHexagon(SKCanvas canvas, List<(float X, float Y)> drawCalls, float hexSize)
+    private void DrawCapitalBatchWithHexagon(SKCanvas canvas, List<(float X, float Y)> drawCalls, float hexSize)
     {
-        using var paint = new SKPaint
-        {
-            IsAntialias = true,
-            Style = SKPaintStyle.Fill,
-            Color = new SKColor(255, 215, 0, 200)
-        };
+        var paint = _capitalHexPaint;
 
         float markSize = hexSize * 0.3f;
-        using var hexPath = GetHexPath(markSize);
+        // 路径来自缓存，不能 using 释放。
+        SKPath hexPath = GetHexPath(markSize);
         foreach (var drawCall in drawCalls)
         {
             canvas.Save();
@@ -426,8 +433,10 @@ public class ProvinceRender : IDisposable
         return new SKColor(legion.ColorR, legion.ColorG, legion.ColorB);
     }
 
-    private static SKPath GetHexPath(float hexSize)
+    private SKPath GetHexPath(float hexSize)
     {
+        if (_hexPathCache.TryGetValue(hexSize, out var cached)) return cached;
+
         var path = new SKPath();
         double sqrt3 = Math.Sqrt(3);
         double h = hexSize * sqrt3 / 2;
@@ -439,6 +448,7 @@ public class ProvinceRender : IDisposable
         path.LineTo(-hs, (float)h);
         path.LineTo(-hexSize, 0);
         path.Close();
+        _hexPathCache[hexSize] = path;
         return path;
     }
 
@@ -460,5 +470,13 @@ public class ProvinceRender : IDisposable
                 tile?.Dispose();
             _capitalTileCache.Clear();
         }
+
+        foreach (var path in _hexPathCache.Values)
+            path.Dispose();
+        _hexPathCache.Clear();
+
+        _fillPaint.Dispose();
+        _borderPaint.Dispose();
+        _capitalHexPaint.Dispose();
     }
 }

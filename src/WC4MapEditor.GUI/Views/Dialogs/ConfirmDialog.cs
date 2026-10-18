@@ -12,14 +12,14 @@ public sealed class ConfirmDialog : IDisposable
 {
     private readonly Window _owner;
     private Border? _overlay;
-    private Border? _dialogPanel;
     private TaskCompletionSource<bool>? _tcs;
     private bool _isClosed;
 
-    public string Title { get; set; } = "确认";
+    // 默认文字在构造时取当前语言：对话框对象每次使用都新建，不会缓存旧语言
+    public string Title { get; set; } = Loc.T("Dialog.ConfirmTitle");
     public string Message { get; set; } = "";
-    public string ConfirmText { get; set; } = "确认";
-    public string CancelText { get; set; } = "取消";
+    public string ConfirmText { get; set; } = Loc.T("Common.Confirm");
+    public string CancelText { get; set; } = Loc.T("Common.Cancel");
 
     public ConfirmDialog(Window owner)
     {
@@ -42,11 +42,13 @@ public sealed class ConfirmDialog : IDisposable
 
         _overlay = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(120, 0, 0, 0)),
-            Child = CreateDialogPanel(),
+            Background = CreateScrim(),
             Effect = null,
             Focusable = true
         };
+        // 主窗口（渲染场景）本身不套编辑主题，对话框内的按钮/文字要靠合并到覆盖层的字典拿到深色样式
+        EditorTheme.Apply(_overlay);
+        _overlay.Child = CreateDialogPanel();
         _overlay.KeyDown += Overlay_KeyDown;
         Panel.SetZIndex(_overlay, 9999);
         // Tab 在对话框内部循环切换焦点（按钮之间），避免焦点跑到覆盖层外面落到主界面的控件上
@@ -99,18 +101,13 @@ public sealed class ConfirmDialog : IDisposable
 
         var dialogBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(240, 30, 30, 30)),
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.Border,
+            BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(0),
             MinWidth = 340,
             MaxWidth = 480,
-            Effect = new DropShadowEffect
-            {
-                BlurRadius = 20,
-                ShadowDepth = 5,
-                Opacity = 0.7,
-                Color = Colors.Black
-            },
+            Effect = CreateShadow(),
             RenderTransformOrigin = new Point(0.5, 0.5),
             RenderTransform = new ScaleTransform(0.9, 0.9)
         };
@@ -120,37 +117,21 @@ public sealed class ConfirmDialog : IDisposable
             Margin = new Thickness(24, 20, 24, 20)
         };
 
-        var titleBar = new DockPanel
-        {
-            Margin = new Thickness(0, 0, 0, 12)
-        };
+        var titleText = EditorTheme.Title(Title);
+        titleText.Margin = new Thickness(0, 0, 0, 10);
+        stackPanel.Children.Add(titleText);
 
-        var titleText = new TextBlock
-        {
-            Text = Title,
-            FontSize = 16,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        DockPanel.SetDock(titleText, Dock.Left);
-        titleBar.Children.Add(titleText);
-
-        var separator = new Separator
-        {
-            Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)),
-            Margin = new Thickness(0, 0, 0, 12)
-        };
+        stackPanel.Children.Add(new Separator { Margin = new Thickness(0, 0, 0, 12) });
 
         var messageText = new TextBlock
         {
             Text = Message,
-            FontSize = 14,
-            Foreground = new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)),
+            FontSize = 13,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 24),
             LineHeight = 22
         };
+        stackPanel.Children.Add(messageText);
 
         var buttonPanel = new StackPanel
         {
@@ -158,42 +139,17 @@ public sealed class ConfirmDialog : IDisposable
             HorizontalAlignment = HorizontalAlignment.Right
         };
 
-        var cancelButton = new Button
-        {
-            Content = CancelText,
-            Width = 90,
-            Height = 34,
-            FontSize = 13,
-            Foreground = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
-            Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)),
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(10, 0, 0, 0)
-        };
-        cancelButton.Click += (s, e) => CloseWithResult(false);
+        var cancelButton = EditorTheme.Button(CancelText, (_, _) => CloseWithResult(false));
+        cancelButton.MinWidth = 88;
+        cancelButton.Margin = new Thickness(10, 0, 0, 0);
 
-        var confirmButton = new Button
-        {
-            Content = ConfirmText,
-            Width = 90,
-            Height = 34,
-            FontSize = 13,
-            FontWeight = FontWeights.Medium,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromArgb(180, 220, 80, 60)),
-            BorderThickness = new Thickness(0),
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(10, 0, 0, 0)
-        };
-        confirmButton.Click += (s, e) => CloseWithResult(true);
+        // 确认按钮用危险色：这个对话框基本只用于删除 / 覆盖这类不可逆操作
+        var confirmButton = EditorTheme.DangerButton(ConfirmText, (_, _) => CloseWithResult(true));
+        confirmButton.MinWidth = 88;
+        confirmButton.Margin = new Thickness(10, 0, 0, 0);
 
         buttonPanel.Children.Add(cancelButton);
         buttonPanel.Children.Add(confirmButton);
-
-        stackPanel.Children.Add(titleBar);
-        stackPanel.Children.Add(separator);
-        stackPanel.Children.Add(messageText);
         stackPanel.Children.Add(buttonPanel);
 
         dialogBorder.Child = stackPanel;
@@ -201,6 +157,21 @@ public sealed class ConfirmDialog : IDisposable
 
         return container;
     }
+
+    /// <summary>覆盖层的半透明遮罩：由主题最深底色派生，不写死颜色。</summary>
+    private static Brush CreateScrim()
+    {
+        var c = EditorTheme.ColorOf(EditorTheme.Bg0);
+        return new SolidColorBrush(Color.FromArgb(150, c.R, c.G, c.B));
+    }
+
+    private static DropShadowEffect CreateShadow() => new()
+    {
+        BlurRadius = 20,
+        ShadowDepth = 4,
+        Opacity = 0.6,
+        Color = EditorTheme.ColorOf(EditorTheme.Bg0)
+    };
 
     private void CloseWithResult(bool result)
     {

@@ -17,6 +17,9 @@ namespace WC4MapEditor.GUI.Views;
 /// </summary>
 public class ArmyGroupEditScene : UserControl
 {
+    /// <summary>表单行字段名列宽：这里的标签带英文属性名，比默认的 180 宽一点。</summary>
+    private const double LabelWidth = 200;
+
     private readonly MainWindow _window;
     private readonly ArmyGroupSettingParser _parser = ArmyGroupSettingParser.Instance;
 
@@ -45,7 +48,7 @@ public class ArmyGroupEditScene : UserControl
     public ArmyGroupEditScene(MainWindow window)
     {
         _window = window;
-        Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
+        EditorTheme.Apply(this);
         BuildUI();
         RefreshList();
         Loaded += (_, _) => Dispatcher.BeginInvoke(() =>
@@ -58,76 +61,35 @@ public class ArmyGroupEditScene : UserControl
     private void BuildUI()
     {
         _root = new Grid();
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(50) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
         _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var topBar = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 0, 0, 1)
-        };
+        var topBar = EditorTheme.TopBar(Loc.T("ArmyGroup.Title"), (_, _) => _window.ReturnToMainScene(),
+            EditorTheme.Button(Loc.T("ArmyGroup.CreateTemplate"), OnCreateTemplate),
+            EditorTheme.DangerButton(Loc.T("Common.Delete"), OnDelete),
+            EditorTheme.PrimaryButton(Loc.T("Common.Save"), OnSave),
+            EditorTheme.Button(Loc.T("Common.Reload"), OnReload),
+            EditorTheme.Button(Loc.T("Common.Validate"), OnValidate));
         Grid.SetRow(topBar, 0); Grid.SetColumnSpan(topBar, 3);
-        var topPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) };
-        topPanel.Children.Add(MakeTopBtn("返回", (_, _) => _window.ReturnToMainScene()));
-        topPanel.Children.Add(MakeTopBtn("一键生成集团军模板", OnCreateTemplate));
-        topPanel.Children.Add(MakeTopBtn("删除", OnDelete));
-        topPanel.Children.Add(MakeTopBtn("保存", OnSave));
-        topPanel.Children.Add(MakeTopBtn("重载", OnReload));
-        topPanel.Children.Add(MakeTopBtn("校验", OnValidate));
-        topPanel.Children.Add(new TextBlock
-        {
-            Text = "集团军与援军编辑（五表联动）",
-            Foreground = Brushes.White,
-            FontSize = 16,
-            FontWeight = FontWeights.Bold,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(20, 0, 0, 0)
-        });
-        topBar.Child = topPanel;
         _root.Children.Add(topBar);
 
-        var left = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x26)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 0, 1, 0)
-        };
+        var left = EditorTheme.Panel(new Thickness(0, 0, 1, 0));
         Grid.SetRow(left, 1); Grid.SetColumn(left, 0);
         var leftGrid = new Grid();
-        leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(38) });
+        leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        _searchBox = new TextBox
-        {
-            Margin = new Thickness(8, 6, 8, 6),
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13,
-            Padding = new Thickness(6, 3, 6, 3),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            CaretBrush = Brushes.White
-        };
-        _searchBox.Text = "搜索 (Id / 简称 / 活动ID)...";
-        _searchBox.GotFocus += (_, _) => { if (_searchBox.Text.StartsWith("搜索")) _searchBox.Text = ""; };
-        _searchBox.LostFocus += (_, _) => { if (string.IsNullOrWhiteSpace(_searchBox.Text)) _searchBox.Text = "搜索 (Id / 简称 / 活动ID)..."; };
+        var search = EditorTheme.SearchBox(Loc.T("ArmyGroup.SearchPlaceholder"), out _searchBox);
+        search.Margin = new Thickness(8);
         _searchBox.TextChanged += (_, _) => RefreshList();
-        Grid.SetRow(_searchBox, 0);
-        leftGrid.Children.Add(_searchBox);
+        Grid.SetRow(search, 0);
+        leftGrid.Children.Add(search);
 
-        _listBox = new ListBox
-        {
-            Background = Brushes.Transparent,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontSize = 13
-        };
+        _listBox = new ListBox();
         _listBox.SelectionChanged += ListBox_SelectionChanged;
         Grid.SetRow(_listBox, 1);
         leftGrid.Children.Add(_listBox);
@@ -135,39 +97,16 @@ public class ArmyGroupEditScene : UserControl
         left.Child = leftGrid;
         _root.Children.Add(left);
 
-        var splitter = new GridSplitter
-        {
-            Width = 4,
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch,
-            ResizeBehavior = GridResizeBehavior.PreviousAndNext
-        };
+        var splitter = EditorTheme.VSplitter();
         Grid.SetRow(splitter, 1); Grid.SetColumn(splitter, 1);
         _root.Children.Add(splitter);
 
-        var right = new Border { Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)) };
-        Grid.SetRow(right, 1); Grid.SetColumn(right, 2);
         BuildRightPanel();
-        right.Child = _propScroll;
-        _root.Children.Add(right);
+        Grid.SetRow(_propScroll, 1); Grid.SetColumn(_propScroll, 2);
+        _root.Children.Add(_propScroll);
 
-        var status = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 1, 0, 0)
-        };
+        var status = EditorTheme.StatusBar(out _statusText, Loc.T("Common.Ready"));
         Grid.SetRow(status, 2); Grid.SetColumnSpan(status, 3);
-        _statusText = new TextBlock
-        {
-            Text = $"已加载 {_parser.Items.Count} 个集团军",
-            Foreground = Brushes.LightGray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 12, 0)
-        };
-        status.Child = _statusText;
         _root.Children.Add(status);
 
         Content = _root;
@@ -175,76 +114,81 @@ public class ArmyGroupEditScene : UserControl
 
     private void BuildRightPanel()
     {
-        _propPanel = new StackPanel { Margin = new Thickness(0) };
+        _propPanel = new StackPanel();
         _propScroll = new ScrollViewer
         {
             Content = _propPanel,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Padding = new Thickness(0, 0, 8, 0)
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
 
-        AddSection("活动介绍 (stringtable event_{EventId})");
-        AddRow("活动介绍(INI)", AddIniDesc());
+        _propPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("ArmyGroup.Section.Intro")));
+        _propPanel.Children.Add(EditorTheme.FormRow(Loc.T("ArmyGroup.Field.IntroIni"), AddIniDesc(), LabelWidth));
 
-        AddSection("核心配置");
-        AddNum("A.Id", "集团军ID(Id)", 0, int.MaxValue);
-        AddNum("A.EventId", "活动ID(EventId)", 0, int.MaxValue);
-        AddNum("A.StageId", "关卡ID(StageId)", 0, int.MaxValue);
-        AddNum("A.Seat", "序号(Seat)", 0, int.MaxValue);
-        AddNum("A.Star", "星级(Star)", 0, int.MaxValue);
-        AddNum("A.Camp", "阵营(Camp)", 0, int.MaxValue);
-        AddNum("A.Difficulty", "难度(Difficulty)", 0, int.MaxValue);
-        AddNum("A.MeritPoint", "功勋点(MeritPoint)", 0, int.MaxValue);
-        AddNum("A.TechAcquire", "科技获取(TechAcquire)", 0, int.MaxValue);
-        AddNum("A.CountryId", "国家ID(CountryId)", 0, int.MaxValue);
-        AddNum("A.GroupId", "分组(GroupId)", 0, int.MaxValue);
+        _propPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("ArmyGroup.Section.Core")));
+        AddNum("A.Id", Loc.T("ArmyGroup.Field.Id"), 0, int.MaxValue);
+        AddNum("A.EventId", Loc.T("ArmyGroup.Field.EventId"), 0, int.MaxValue);
+        AddNum("A.StageId", Loc.T("ArmyGroup.Field.StageId"), 0, int.MaxValue);
+        AddNum("A.Seat", Loc.T("ArmyGroup.Field.Seat"), 0, int.MaxValue);
+        AddNum("A.Star", Loc.T("ArmyGroup.Field.Star"), 0, int.MaxValue);
+        AddNum("A.Camp", Loc.T("ArmyGroup.Field.Camp"), 0, int.MaxValue);
+        AddNum("A.Difficulty", Loc.T("ArmyGroup.Field.Difficulty"), 0, int.MaxValue);
+        AddNum("A.MeritPoint", Loc.T("ArmyGroup.Field.MeritPoint"), 0, int.MaxValue);
+        AddNum("A.TechAcquire", Loc.T("ArmyGroup.Field.TechAcquire"), 0, int.MaxValue);
+        AddNum("A.CountryId", Loc.T("ArmyGroup.Field.CountryId"), 0, int.MaxValue);
+        AddNum("A.GroupId", Loc.T("ArmyGroup.Field.GroupId"), 0, int.MaxValue);
 
-        AddSection("奖励");
-        AddNum("A.PrizeGold", "奖励金币(PrizeGold)", 0, int.MaxValue);
-        AddNum("A.PrizeIndustry", "奖励工业(PrizeIndustry)", 0, int.MaxValue);
-        AddNum("A.PrizeEnergy", "奖励能源(PrizeEnergy)", 0, int.MaxValue);
-        AddNum("A.PrizeTech", "奖励科技(PrizeTech)", 0, int.MaxValue);
+        _propPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("ArmyGroup.Section.Prize")));
+        AddNum("A.PrizeGold", Loc.T("ArmyGroup.Field.PrizeGold"), 0, int.MaxValue);
+        AddNum("A.PrizeIndustry", Loc.T("ArmyGroup.Field.PrizeIndustry"), 0, int.MaxValue);
+        AddNum("A.PrizeEnergy", Loc.T("ArmyGroup.Field.PrizeEnergy"), 0, int.MaxValue);
+        AddNum("A.PrizeTech", Loc.T("ArmyGroup.Field.PrizeTech"), 0, int.MaxValue);
 
-        AddSection("消耗 / 规模");
-        AddNum("A.CostMoney", "消耗金钱(CostMoney)", 0, int.MaxValue);
-        AddNum("A.CostGear", "消耗零件(CostGear)", 0, int.MaxValue);
-        AddNum("A.CostAtomic", "消耗核能(CostAtomic)", 0, int.MaxValue);
-        AddNum("A.Coefficient", "系数(Coefficient)", 0, int.MaxValue);
-        AddNum("A.CityNum", "城市数(CityNum)", 0, int.MaxValue);
+        _propPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("ArmyGroup.Section.Cost")));
+        AddNum("A.CostMoney", Loc.T("ArmyGroup.Field.CostMoney"), 0, int.MaxValue);
+        AddNum("A.CostGear", Loc.T("ArmyGroup.Field.CostGear"), 0, int.MaxValue);
+        AddNum("A.CostAtomic", Loc.T("ArmyGroup.Field.CostAtomic"), 0, int.MaxValue);
+        AddNum("A.Coefficient", Loc.T("ArmyGroup.Field.Coefficient"), 0, int.MaxValue);
+        AddNum("A.CityNum", Loc.T("ArmyGroup.Field.CityNum"), 0, int.MaxValue);
 
-        AddSection("文本");
-        AddText("A.Photo", "配图(Photo)");
-        AddText("A.ShortName", "简称(ShortName)");
+        _propPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("ArmyGroup.Section.Text")));
+        AddText("A.Photo", Loc.T("ArmyGroup.Field.Photo"));
+        AddText("A.ShortName", Loc.T("ArmyGroup.Field.ShortName"));
 
-        AddSection("列表字段 (逗号分隔)");
-        AddText("A.TechCategoryIds", "科技分类(TechCategoryIds)");
-        AddText("A.CloseTechTypes", "禁用科技(CloseTechTypes)");
-        AddText("A.CloseCardTypes", "禁用卡牌(CloseCardTypes)");
-        AddText("A.GeneralId", "出场将领(GeneralId)");
+        _propPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("ArmyGroup.Section.Lists")));
+        AddText("A.TechCategoryIds", Loc.T("ArmyGroup.Field.TechCategoryIds"));
+        AddText("A.CloseTechTypes", Loc.T("ArmyGroup.Field.CloseTechTypes"));
+        AddText("A.CloseCardTypes", Loc.T("ArmyGroup.Field.CloseCardTypes"));
+        AddText("A.GeneralId", Loc.T("ArmyGroup.Field.GeneralId"));
 
-        AddSection("专属援军 (>0 条，否则游戏会闪退)");
-        _reWarn = new TextBlock { Foreground = Brushes.OrangeRed, FontSize = 12, Margin = new Thickness(8, 2, 8, 4), TextWrapping = TextWrapping.Wrap };
+        _propPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("ArmyGroup.Section.Reinforcements")));
+        _reWarn = EditorTheme.Muted("");
+        _reWarn.Margin = new Thickness(10, 6, 10, 4);
+        _reWarn.TextWrapping = TextWrapping.Wrap;
         _propPanel.Children.Add(_reWarn);
-        _rePanel = new StackPanel { Margin = new Thickness(4, 0, 4, 4) };
+        _rePanel = new StackPanel { Margin = new Thickness(6, 0, 6, 4) };
         _propPanel.Children.Add(_rePanel);
-        var addRe = MakeTopBtn("增加一队援军", OnAddReinforcement);
+        var addRe = EditorTheme.Button(Loc.T("ArmyGroup.AddReinforcement"), OnAddReinforcement);
         addRe.HorizontalAlignment = HorizontalAlignment.Left;
-        addRe.Margin = new Thickness(8, 4, 0, 8);
+        addRe.Margin = new Thickness(10, 4, 0, 8);
         _propPanel.Children.Add(addRe);
 
-        AddSection("底层活动参数 (Event / Stage / Calendar)");
-        _activityHint = new TextBlock { Foreground = Brushes.OrangeRed, FontSize = 12, Margin = new Thickness(8, 2, 8, 6), TextWrapping = TextWrapping.Wrap };
+        _propPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("ArmyGroup.Section.Activity")));
+        _activityHint = EditorTheme.Muted("");
+        _activityHint.Foreground = EditorTheme.Warning;
+        _activityHint.Margin = new Thickness(10, 6, 10, 6);
+        _activityHint.TextWrapping = TextWrapping.Wrap;
         _propPanel.Children.Add(_activityHint);
 
-        _propPanel.Children.Add(new TextBlock { Text = "■ EventSettings", Foreground = new SolidColorBrush(Color.FromRgb(0x28, 0xA7, 0x45)), FontSize = 12, FontWeight = FontWeights.Bold, Margin = new Thickness(8, 6, 0, 2) });
+        // 三张底层表的名字就是 JSON 文件名，属于技术标识，不进翻译表
+        _propPanel.Children.Add(TableHeader("EventSettings"));
         AddNum("E.Type", "Type", 0, int.MaxValue);
         AddNum("E.NormalId", "NormalId", 0, int.MaxValue);
         AddNum("E.NeedHQLv", "NeedHQLv", 0, int.MaxValue);
-        AddNum("E.GeneralId", "GeneralId(单值)", 0, int.MaxValue);
+        AddNum("E.GeneralId", Loc.F("ArmyGroup.Hint.Single", "GeneralId"), 0, int.MaxValue);
         AddNum("E.DifficultStar", "DifficultStar", 0, int.MaxValue);
-        AddText("E.Points", "Points(逗号分隔)");
+        AddText("E.Points", Loc.F("ArmyGroup.Hint.CommaList", "Points"));
 
-        _propPanel.Children.Add(new TextBlock { Text = "■ EventStageSettings", Foreground = new SolidColorBrush(Color.FromRgb(0x28, 0xA7, 0x45)), FontSize = 12, FontWeight = FontWeights.Bold, Margin = new Thickness(8, 10, 0, 2) });
+        _propPanel.Children.Add(TableHeader("EventStageSettings"));
         AddNum("S.Id", "Id", 0, int.MaxValue);
         AddNum("S.Type", "Type", 0, int.MaxValue);
         AddNum("S.CountryId", "CountryId", 0, int.MaxValue);
@@ -258,101 +202,40 @@ public class ArmyGroupEditScene : UserControl
         AddNum("S.PrizeMedals", "PrizeMedals", 0, int.MaxValue);
         AddNum("S.PrizeTicket", "PrizeTicket", 0, int.MaxValue);
         AddNum("S.EnableRoundEvent", "EnableRoundEvent", 0, int.MaxValue);
-        AddText("S.RoundPhoto", "RoundPhoto(可空)");
-        AddText("S.PrizeItem", "PrizeItem(逗号分隔)");
-        AddText("S.PrizeGold", "PrizeGold(逗号分隔)");
-        AddText("S.PrizeIndustry", "PrizeIndustry(逗号分隔)");
-        AddText("S.PrizeEnergy", "PrizeEnergy(逗号分隔)");
-        AddText("S.PrizeTech", "PrizeTech(逗号分隔)");
-        AddText("S.PrizeMerit", "PrizeMerit(逗号分隔)");
+        AddText("S.RoundPhoto", Loc.F("ArmyGroup.Hint.Nullable", "RoundPhoto"));
+        AddText("S.PrizeItem", Loc.F("ArmyGroup.Hint.CommaList", "PrizeItem"));
+        AddText("S.PrizeGold", Loc.F("ArmyGroup.Hint.CommaList", "PrizeGold"));
+        AddText("S.PrizeIndustry", Loc.F("ArmyGroup.Hint.CommaList", "PrizeIndustry"));
+        AddText("S.PrizeEnergy", Loc.F("ArmyGroup.Hint.CommaList", "PrizeEnergy"));
+        AddText("S.PrizeTech", Loc.F("ArmyGroup.Hint.CommaList", "PrizeTech"));
+        AddText("S.PrizeMerit", Loc.F("ArmyGroup.Hint.CommaList", "PrizeMerit"));
 
-        _propPanel.Children.Add(new TextBlock { Text = "■ EventCalendarSettings", Foreground = new SolidColorBrush(Color.FromRgb(0x28, 0xA7, 0x45)), FontSize = 12, FontWeight = FontWeights.Bold, Margin = new Thickness(8, 10, 0, 2) });
+        _propPanel.Children.Add(TableHeader("EventCalendarSettings"));
         AddNum("C.Id", "Id", 0, int.MaxValue);
         AddNum("C.LastingDays", "LastingDays", 0, int.MaxValue);
         AddNum("C.NoticeDays", "NoticeDays", 0, int.MaxValue);
         AddNum("C.PeriodDays", "PeriodDays", 0, int.MaxValue);
         AddNum("C.NeedHQLv", "NeedHQLv", 0, int.MaxValue);
         AddNum("C.Version", "Version", 0, int.MaxValue);
-        AddText("C.StartDate", "StartDate(年,月,日)");
-        AddText("C.PrizeIds", "PrizeIds(逗号分隔)");
-        AddText("C.HardBuffs", "HardBuffs(逗号分隔)");
-        AddText("C.MyBuffPool", "MyBuffPool(逗号分隔)");
-        AddText("C.HardPrizeIds", "HardPrizeIds(逗号分隔)");
+        AddText("C.StartDate", Loc.T("ArmyGroup.Field.StartDate"));
+        AddText("C.PrizeIds", Loc.F("ArmyGroup.Hint.CommaList", "PrizeIds"));
+        AddText("C.HardBuffs", Loc.F("ArmyGroup.Hint.CommaList", "HardBuffs"));
+        AddText("C.MyBuffPool", Loc.F("ArmyGroup.Hint.CommaList", "MyBuffPool"));
+        AddText("C.HardPrizeIds", Loc.F("ArmyGroup.Hint.CommaList", "HardPrizeIds"));
 
-        AddSection("JSON 预览");
-        _jsonPreview = new TextBox
-        {
-            IsReadOnly = true,
-            Background = new SolidColorBrush(Color.FromRgb(0x16, 0x16, 0x16)),
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9C, 0xD6, 0x6B)),
-            FontFamily = new FontFamily("Consolas"),
-            FontSize = 12,
-            BorderThickness = new Thickness(0),
-            TextWrapping = TextWrapping.Wrap,
-            AcceptsReturn = true,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Margin = new Thickness(8, 4, 8, 12),
-            Height = 200
-        };
+        _propPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("Common.JsonPreview")));
+        _jsonPreview = EditorTheme.MonoTextBox(200);
+        _jsonPreview.Margin = new Thickness(10, 8, 10, 12);
         _propPanel.Children.Add(_jsonPreview);
     }
 
     // ============================================================= 控件辅助 =============================================================
-    private static Button MakeTopBtn(string label, RoutedEventHandler handler)
+    /// <summary>底层表的小标题（分组标题条之下的二级标题）。</summary>
+    private static TextBlock TableHeader(string tableName)
     {
-        var btn = new Button
-        {
-            Content = label,
-            Height = 32,
-            Margin = new Thickness(4, 0, 4, 0),
-            Padding = new Thickness(14, 0, 14, 0),
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13
-        };
-        btn.Click += handler;
-        return btn;
-    }
-
-    private void AddSection(string title)
-    {
-        _propPanel.Children.Add(new TextBlock
-        {
-            Text = title,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB7, 0x4E)),
-            FontSize = 13,
-            FontWeight = FontWeights.Bold,
-            Margin = new Thickness(8, 10, 0, 4)
-        });
-    }
-
-    private void AddRow(string label, UIElement content)
-    {
-        var border = new Border
-        {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(8, 4, 8, 4)
-        };
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var lbl = new TextBlock
-        {
-            Text = label,
-            Foreground = Brushes.LightGray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap
-        };
-        Grid.SetColumn(lbl, 0);
-        Grid.SetColumn(content, 1);
-        grid.Children.Add(lbl);
-        grid.Children.Add(content);
-        border.Child = grid;
-        _propPanel.Children.Add(border);
+        var tb = EditorTheme.Section("■ " + tableName);
+        tb.Margin = new Thickness(10, 10, 0, 2);
+        return tb;
     }
 
     private NumericUpDown AddNum(string key, string label, double min, double max, double inc = 1)
@@ -360,25 +243,16 @@ public class ArmyGroupEditScene : UserControl
         var ctrl = new NumericUpDown { MinValue = min, MaxValue = max, Increment = inc };
         ctrl.ValueChanged += (_, _) => { if (!_loadingUi) ApplyActive(); };
         _numBoxes[key] = ctrl;
-        AddRow(label, ctrl);
+        _propPanel.Children.Add(EditorTheme.FormRow(label, ctrl, LabelWidth));
         return ctrl;
     }
 
     private TextBox AddText(string key, string label)
     {
-        var tb = new TextBox
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13,
-            Padding = new Thickness(6, 3, 6, 3),
-            CaretBrush = Brushes.White
-        };
+        var tb = new TextBox();
         tb.TextChanged += (_, _) => { if (!_loadingUi) ApplyActive(); };
         _textBoxes[key] = tb;
-        AddRow(label, tb);
+        _propPanel.Children.Add(EditorTheme.FormRow(label, tb, LabelWidth));
         return tb;
     }
 
@@ -386,15 +260,10 @@ public class ArmyGroupEditScene : UserControl
     {
         var tb = new TextBox
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13,
-            Padding = new Thickness(6, 3, 6, 3),
-            CaretBrush = Brushes.White,
             TextWrapping = TextWrapping.Wrap,
             AcceptsReturn = true,
+            VerticalContentAlignment = VerticalAlignment.Top,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Height = 70
         };
         tb.TextChanged += (_, _) => { if (!_loadingUi) ApplyActive(); };
@@ -406,7 +275,7 @@ public class ArmyGroupEditScene : UserControl
     private void RefreshList()
     {
         var q = _searchBox.Text;
-        bool searching = !string.IsNullOrWhiteSpace(q) && !q.StartsWith("搜索");
+        bool searching = !string.IsNullOrWhiteSpace(q);
 
         int? keepId = _current?.Id;
         _listBox.Items.Clear();
@@ -420,7 +289,7 @@ public class ArmyGroupEditScene : UserControl
             _listBox.Items.Add(entry);
             if (keepId.HasValue && a.Id == keepId.Value) _listBox.SelectedItem = entry;
         }
-        SetStatus($"已加载 {_parser.Items.Count} 个集团军，列表 {_listBox.Items.Count} 条");
+        SetStatus(Loc.F("ArmyGroup.Loaded", _parser.Items.Count, _listBox.Items.Count));
     }
 
     private void ListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -537,7 +406,7 @@ public class ArmyGroupEditScene : UserControl
         if (_curCalendar == null) missing.Add("EventCalendarSettings");
         _activityHint.Text = missing.Count == 0
             ? ""
-            : $"⚠ 活动 {_current?.EventId} 缺少：{string.Join(" / ", missing)}，可用「一键生成集团军模板」补建。";
+            : Loc.F("ArmyGroup.ActivityMissing", _current?.EventId, string.Join(" / ", missing));
     }
 
     // ============================================================= 援军子面板 =============================================================
@@ -547,20 +416,14 @@ public class ArmyGroupEditScene : UserControl
         if (_current == null) return;
 
         var list = _parser.GetReinforcements(_current.Id);
+        // 没有援军会导致游戏闪退，用危险色把警告顶出来；正常情况只是普通灰字说明
+        _reWarn.Foreground = list.Count == 0 ? EditorTheme.Danger : EditorTheme.TextMuted;
         _reWarn.Text = list.Count == 0
-            ? "⛔ 严重警告：当前集团军没有援军配置！保存会被拦截（会导致游戏闪退）。"
-            : $"当前 {list.Count} 队援军。";
+            ? Loc.T("ArmyGroup.NoReinforcementWarning")
+            : Loc.F("ArmyGroup.ReinforcementCount", list.Count);
 
         foreach (var r in list)
         {
-            var row = new Border
-            {
-                Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(6),
-                Margin = new Thickness(4, 3, 4, 3)
-            };
             var grid = new Grid();
             for (int i = 0; i < 5; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -572,37 +435,37 @@ public class ArmyGroupEditScene : UserControl
             var boxNum = ReNum(r, x => x.Num, (x, v) => x.Num = v, 0, int.MaxValue);
             var boxAg = ReNum(r, x => x.ArmyGroupId, (x, v) => x.ArmyGroupId = v, 0, int.MaxValue);
 
-            AddReField(grid, 0, "援军ID", boxId);
+            AddReField(grid, 0, Loc.T("ArmyGroup.Re.Id"), boxId);
             AddReField(grid, 1, "MapId", boxMap);
-            AddReField(grid, 2, "兵种ID", boxArmy);
-            AddReField(grid, 3, "消耗点数", boxCost);
-            AddReField(grid, 4, "数量", boxNum);
+            AddReField(grid, 2, Loc.T("ArmyGroup.Re.ArmyId"), boxArmy);
+            AddReField(grid, 3, Loc.T("ArmyGroup.Re.CostPoint"), boxCost);
+            AddReField(grid, 4, Loc.T("Common.Count"), boxNum);
             // ArmyGroupId 通常在右侧单独展示，这里合并到行尾
             var tail = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-            tail.Children.Add(new TextBlock { Text = "军团:", Foreground = Brushes.Gray, FontSize = 11, VerticalAlignment = VerticalAlignment.Center });
+            var agLabel = EditorTheme.Muted(Loc.T("ArmyGroup.Re.ArmyGroupId") + ":");
+            agLabel.FontSize = 11;
+            agLabel.VerticalAlignment = VerticalAlignment.Center;
+            agLabel.Margin = new Thickness(0, 0, 3, 0);
+            tail.Children.Add(agLabel);
             boxAg.Width = 70;
             tail.Children.Add(boxAg);
-            var del = new Button
-            {
-                Content = "删除",
-                Margin = new Thickness(8, 0, 0, 0),
-                Padding = new Thickness(8, 2, 8, 2),
-                Background = new SolidColorBrush(Color.FromRgb(0x5A, 0x2A, 0x2A)),
-                Foreground = Brushes.White,
-                BorderThickness = new Thickness(0),
-                FontSize = 11
-            };
+            var del = EditorTheme.DangerButton(Loc.T("Common.Delete"));
+            del.Margin = new Thickness(8, 0, 0, 0);
+            del.Padding = new Thickness(8, 2, 8, 2);
+            del.MinHeight = 0;
+            del.FontSize = 11;
             del.Click += (_, _) =>
             {
                 _parser.Reinforcements.Remove(r);
                 RebuildReinforcements();
-                SetStatus($"已删除援军 ID={r.Id}（未保存）");
+                SetStatus(Loc.F("ArmyGroup.ReinforcementDeleted", r.Id));
             };
             tail.Children.Add(del);
             Grid.SetColumn(tail, 5);
             grid.Children.Add(tail);
 
-            row.Child = grid;
+            var row = EditorTheme.Card(grid, new Thickness(6));
+            row.Margin = new Thickness(0, 3, 0, 3);
             _rePanel.Children.Add(row);
         }
     }
@@ -618,7 +481,11 @@ public class ArmyGroupEditScene : UserControl
     private static void AddReField(Grid grid, int col, string label, NumericUpDown box)
     {
         var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 0, 4, 0) };
-        sp.Children.Add(new TextBlock { Text = label + ":", Foreground = Brushes.LightGray, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 3, 0) });
+        var lbl = EditorTheme.Muted(label + ":");
+        lbl.FontSize = 11;
+        lbl.VerticalAlignment = VerticalAlignment.Center;
+        lbl.Margin = new Thickness(0, 0, 3, 0);
+        sp.Children.Add(lbl);
         sp.Children.Add(box);
         Grid.SetColumn(sp, col);
         grid.Children.Add(sp);
@@ -669,7 +536,7 @@ public class ArmyGroupEditScene : UserControl
             _listBox.Items[idx] = replacement;
             _listBox.SelectedIndex = idx;
         }
-        SetStatus($"已更新集团军 {_current.Id}（未保存）");
+        SetStatus(Loc.F("ArmyGroup.Updated", _current.Id));
         UpdateJsonPreview();
     }
 
@@ -755,7 +622,7 @@ public class ArmyGroupEditScene : UserControl
             };
             _jsonPreview.Text = JsonSerializer.Serialize(bundle, new JsonSerializerOptions { WriteIndented = true });
         }
-        catch { _jsonPreview.Text = "(序列化失败)"; }
+        catch { _jsonPreview.Text = Loc.T("Common.SerializeFailed"); }
     }
 
     // ============================================================= 操作 =============================================================
@@ -771,6 +638,7 @@ public class ArmyGroupEditScene : UserControl
         var ev = new EventSettingData { Id = eventId, Type = 8, NormalId = 0, NeedHQLv = 1, Points = new List<int>(), GeneralId = 0, DifficultStar = 0 };
         var stage = new EventStageSettingData { Id = stageId, EventId = eventId, Type = 15, RoundPhoto = null };
         var cal = new EventCalendarSettingData { Id = calendarId, EventId = eventId, StartDate = new List<int> { 2025, 6, 20 }, LastingDays = 20000, NoticeDays = 3 };
+        // ShortName 与活动介绍都会写进 JSON / stringtable，是数据不是界面文字，保持原样
         var ag = new ArmyGroupSettingData
         {
             Id = agId,
@@ -806,12 +674,12 @@ public class ArmyGroupEditScene : UserControl
         RefreshList();
         foreach (AgListEntry item in _listBox.Items)
             if (item.Id == agId) { _listBox.SelectedItem = item; break; }
-        SetStatus($"已一键生成模板：集团军 {agId}（活动 {eventId}），并植入 1 条保底援军（未保存）");
+        SetStatus(Loc.F("ArmyGroup.TemplateCreated", agId, eventId));
     }
 
     private void OnAddReinforcement(object sender, RoutedEventArgs e)
     {
-        if (_current == null) { MessageBox.Show("请先在左侧选中一个集团军", "提示", MessageBoxButton.OK, MessageBoxImage.Information); return; }
+        if (_current == null) { MessageBox.Show(Loc.T("ArmyGroup.SelectFirst"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
         int newId = _parser.GetNextReinforcementId();
         var stage = _parser.GetStageByEventId(_current.EventId);
         int mapId = stage?.Id ?? (_current.EventId * 100 + 1);
@@ -826,14 +694,14 @@ public class ArmyGroupEditScene : UserControl
         };
         _parser.Reinforcements.Add(re);
         RebuildReinforcements();
-        SetStatus($"已新增援军 ID={newId}（未保存）");
+        SetStatus(Loc.F("ArmyGroup.ReinforcementAdded", newId));
     }
 
     private void OnDelete(object sender, RoutedEventArgs e)
     {
-        if (_current == null) { MessageBox.Show("请先在左侧选中一个集团军", "提示", MessageBoxButton.OK, MessageBoxImage.Information); return; }
-        var res = MessageBox.Show($"确定删除集团军 [{_current.Id}] {_current.ShortName}？\n仅删除集团军与其专属援军，不会删除活动数据。",
-            "删除集团军", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (_current == null) { MessageBox.Show(Loc.T("ArmyGroup.SelectFirst"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
+        var res = MessageBox.Show(Loc.F("ArmyGroup.DeleteConfirm", _current.Id, _current.ShortName),
+            Loc.T("ArmyGroup.DeleteTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (res != MessageBoxResult.Yes) return;
         int id = _current.Id;
         _parser.Reinforcements.RemoveAll(r => r.ArmyGroupId == id);
@@ -841,7 +709,7 @@ public class ArmyGroupEditScene : UserControl
         _current = null;
         RefreshList();
         ShowEmpty();
-        SetStatus($"已删除集团军 ID={id}（未保存）");
+        SetStatus(Loc.F("ArmyGroup.Deleted", id));
     }
 
     private void OnSave(object sender, RoutedEventArgs e)
@@ -851,32 +719,34 @@ public class ArmyGroupEditScene : UserControl
         {
             var ids = string.Join(", ", missing.Take(20));
             if (missing.Count > 20) ids += " …";
-            MessageBox.Show($"⛔ 保存拦截（防闪退机制）\n\n有 {missing.Count} 个集团军没有援军配置，游戏必然闪退！\n\n缺少援军的集团军 ID：\n{ids}\n\n请在「专属援军」面板中至少添加一队援军。",
-                "保存拦截", MessageBoxButton.OK, MessageBoxImage.Error);
-            SetStatus($"保存被拦截：{missing.Count} 个集团军缺少援军");
+            MessageBox.Show(Loc.F("ArmyGroup.SaveBlockedMessage", missing.Count, ids),
+                Loc.T("ArmyGroup.SaveBlockedTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+            SetStatus(Loc.F("ArmyGroup.SaveBlockedStatus", missing.Count));
             return;
         }
 
         if (_parser.SaveAll())
         {
-            SetStatus($"✔ 保存成功：{_parser.ConfigPath}");
-            MessageBox.Show($"保存成功（五表）：\n{_parser.ConfigPath}\n{_parser.ReinforcementPath}\n{_parser.EventPath}\n{_parser.EventStagePath}\n{_parser.EventCalendarPath}\nstringtable: {_parser.StringTablePath}",
-                "保存成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus(Loc.F("Common.SavedTo", _parser.ConfigPath));
+            MessageBox.Show(Loc.F("ArmyGroup.SaveSuccessMessage",
+                    _parser.ConfigPath, _parser.ReinforcementPath, _parser.EventPath,
+                    _parser.EventStagePath, _parser.EventCalendarPath, _parser.StringTablePath),
+                Loc.T("Common.SaveSuccess"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
         else
         {
-            MessageBox.Show("保存失败，请检查权限或 Debug 输出", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Common.SaveFailed"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     private void OnReload(object sender, RoutedEventArgs e)
     {
-        var res = MessageBox.Show("重新加载磁盘上的五张表？未保存的更改将丢失。", "重载", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var res = MessageBox.Show(Loc.F("Common.ReloadConfirm", Loc.T("ArmyGroup.FiveTables")), Loc.T("Common.Reload"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (res != MessageBoxResult.Yes) return;
         _parser.LoadAll();
         RefreshList();
         ShowEmpty();
-        SetStatus("已从磁盘重新加载五张表");
+        SetStatus(Loc.T("ArmyGroup.Reloaded"));
     }
 
     private void OnValidate(object sender, RoutedEventArgs e)
@@ -885,22 +755,22 @@ public class ArmyGroupEditScene : UserControl
         var seen = new HashSet<int>();
         foreach (var a in _parser.Items)
         {
-            if (!seen.Add(a.Id)) problems.Add($"[集团军 Id={a.Id}] ID 重复");
-            if (_parser.GetReinforcements(a.Id).Count == 0) problems.Add($"[集团军 Id={a.Id}] 没有援军配置（会闪退）");
-            if (_parser.GetEventByEventId(a.EventId) == null) problems.Add($"[集团军 Id={a.Id}] 活动 {a.EventId} 在 EventSettings 中缺失");
-            if (_parser.GetStageByEventId(a.EventId) == null) problems.Add($"[集团军 Id={a.Id}] 活动 {a.EventId} 在 EventStageSettings 中缺失");
-            if (_parser.GetCalendarByEventId(a.EventId) == null) problems.Add($"[集团军 Id={a.Id}] 活动 {a.EventId} 在 EventCalendarSettings 中缺失");
+            if (!seen.Add(a.Id)) problems.Add(Loc.F("ArmyGroup.Validate.DuplicateId", a.Id));
+            if (_parser.GetReinforcements(a.Id).Count == 0) problems.Add(Loc.F("ArmyGroup.Validate.NoReinforcement", a.Id));
+            if (_parser.GetEventByEventId(a.EventId) == null) problems.Add(Loc.F("ArmyGroup.Validate.MissingTable", a.Id, a.EventId, "EventSettings"));
+            if (_parser.GetStageByEventId(a.EventId) == null) problems.Add(Loc.F("ArmyGroup.Validate.MissingTable", a.Id, a.EventId, "EventStageSettings"));
+            if (_parser.GetCalendarByEventId(a.EventId) == null) problems.Add(Loc.F("ArmyGroup.Validate.MissingTable", a.Id, a.EventId, "EventCalendarSettings"));
         }
 
         if (problems.Count == 0)
-            MessageBox.Show($"校验通过，共 {_parser.Items.Count} 个集团军，未发现问题。", "校验", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.F("Common.ValidationPassed", _parser.Items.Count), Loc.T("Common.Validate"), MessageBoxButton.OK, MessageBoxImage.Information);
         else
         {
             var msg = string.Join("\n", problems.Take(80));
-            if (problems.Count > 80) msg += $"\n… 共 {problems.Count} 条，仅显示前 80 条";
-            MessageBox.Show(msg, $"校验发现问题 {problems.Count} 条", MessageBoxButton.OK, MessageBoxImage.Warning);
+            if (problems.Count > 80) msg += "\n" + Loc.F("Common.ValidationMore", problems.Count, 80);
+            MessageBox.Show(msg, Loc.F("Common.ValidationProblems", problems.Count), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-        SetStatus($"校验完成：{problems.Count} 个问题");
+        SetStatus(Loc.F("Common.ValidationDone", problems.Count));
     }
 
     private void SetStatus(string s)
@@ -915,6 +785,6 @@ public class ArmyGroupEditScene : UserControl
         public int Id { get; set; }
         public string ShortName { get; set; } = "";
         public int EventId { get; set; }
-        public override string ToString() => $"[{Id}] {ShortName}  (活动ID:{EventId})";
+        public override string ToString() => Loc.F("ArmyGroup.ListEntry", Id, ShortName, EventId);
     }
 }

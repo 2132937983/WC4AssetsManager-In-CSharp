@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
 using SkiaSharp;
@@ -26,11 +28,30 @@ public class TrapRender : IDisposable
 
     private SKImage? _landTrapImage;
     private SKImage? _seaTrapImage;
-    private readonly Dictionary<string, SKImage> _flagImageCache = new();
+    /// <summary>
+    /// 国家 Id → 国旗（源尺寸）。原先按 "{countryId}_{targetSize}" 缓存，每个缩放级别都重新缩放一张新图，
+    /// 既不淘汰也随缩放膨胀；现在每国只存一张源图，绘制时按目标矩形缩放。
+    /// Owned 标记该图是否归本类所有（来自 TacticalMapImageCache 的图块不归本类，不能 Dispose）。
+    /// 失效点：TacticalMapImageCache 就绪状态翻转时整体清空（见 GetFlagImage），以及 Dispose。
+    /// </summary>
+    private readonly Dictionary<int, (SKImage Image, bool Owned)> _flagImageCache = new();
+    private bool _flagCacheTacticalReady;
+    private const int DEFAULT_FLAG_SIZE = 32;
+
+    /// <summary>
+    /// 军团 ActionId → CountryId 的惰性映射。原先每个实体每帧线性扫描 Legions。
+    /// 失效点：订阅的 Legions.CollectionChanged（增删 / ReplaceLegion 写回）触发时置空；
+    /// 地图重载会整体替换 Legions 实例，GetLegionCountryMap 发现实例变化时换订阅并重建。
+    /// </summary>
+    private Dictionary<int, int>? _legionCountryMap;
+    private ObservableCollection<Legion>? _subscribedLegions;
 
     private readonly List<SKRect> _spriteRects = new();
     private readonly List<SKRotationScaleMatrix> _transforms = new();
-    private readonly List<(SKRect SpriteRect, SKRotationScaleMatrix Transform, SKImage Image)> _flagDrawList = new();
+    private readonly List<(SKRect DstRect, SKImage Image)> _flagDrawList = new();
+    // 复用的绘制画笔；原先陷阱图集每帧、国旗每面各 new 一个 SKPaint。
+    private readonly SKPaint _imagePaint = new() { IsAntialias = true };
+    private const int MAX_TRAP_POSITIONS = 5;
 
     public bool ShowTraps
     {
@@ -104,22 +125,26 @@ public class TrapRender : IDisposable
         return surface.Snapshot();
     }
 
-    private SKImage GetFlagImage(int countryId, int targetSize)
+    private SKImage GetFlagImage(int countryId)
     {
-        string cacheKey = $"{countryId}_{targetSize}";
-        if (_flagImageCache.TryGetValue(cacheKey, out var cached)) return cached;
+        var tacticalCache = TacticalMapImageCache.Instance;
+        bool tacticalReady = tacticalCache.IsInitialized;
+        // 图块缓存在本缓存建立之后才就绪（或之后被清空）：旧条目要么是占位/文件图、要么已失效，整体丢弃重建。
+        if (tacticalReady != _flagCacheTacticalReady)
+        {
+            ClearFlagCache();
+            _flagCacheTacticalReady = tacticalReady;
+        }
+
+        if (_flagImageCache.TryGetValue(countryId, out var cached)) return cached.Image;
+
+        SKImage? flagImage = null;
+        bool owned = false;
 
         try
         {
-            SKImage? flagImage = null;
-
-            var tacticalCache = TacticalMapImageCache.Instance;
-            if (tacticalCache.IsInitialized)
-            {
-                var tacticalImage = tacticalCache.GetImage($"flag_{countryId}.png");
-                if (tacticalImage != null)
-                    flagImage = ResizeImage(tacticalImage, targetSize, targetSize);
-            }
+            if (tacticalReady)
+                flagImage = tacticalCache.GetImage($"flag_{countryId}.png");
 
             if (flagImage == null)
             {
@@ -131,33 +156,34 @@ public class TrapRender : IDisposable
                 if (File.Exists(flagPath))
                 {
                     using var stream = File.OpenRead(flagPath);
-                    using var original = SKImage.FromEncodedData(stream);
-                    if (original != null)
-                        flagImage = ResizeImage(original, targetSize, targetSize);
+                    flagImage = SKImage.FromEncodedData(stream);
+                    owned = flagImage != null;
                 }
             }
-
-            flagImage ??= CreateDefaultFlagImage(targetSize);
-
-            _flagImageCache[cacheKey] = flagImage;
-            return flagImage;
         }
         catch
         {
-            return CreateDefaultFlagImage(targetSize);
+            if (owned) flagImage?.Dispose();
+            flagImage = null;
+            owned = false;
         }
+
+        if (flagImage == null)
+        {
+            // 占位图是纯色方块，任意尺寸缩放后外观一致。
+            flagImage = CreateDefaultFlagImage(DEFAULT_FLAG_SIZE);
+            owned = true;
+        }
+
+        _flagImageCache[countryId] = (flagImage, owned);
+        return flagImage;
     }
 
-    private static SKImage ResizeImage(SKImage source, int width, int height)
+    private void ClearFlagCache()
     {
-        using var surface = SKSurface.Create(new SKImageInfo(width, height));
-        var canvas = surface.Canvas;
-        canvas.Clear(SKColors.Transparent);
-        using var paint = new SKPaint { IsAntialias = true };
-        var srcRect = new SKRect(0, 0, source.Width, source.Height);
-        var dstRect = new SKRect(0, 0, width, height);
-        canvas.DrawImage(source, srcRect, dstRect, paint);
-        return surface.Snapshot();
+        foreach (var entry in _flagImageCache.Values)
+            if (entry.Owned) entry.Image.Dispose();
+        _flagImageCache.Clear();
     }
 
     private static SKImage CreateDefaultFlagImage(int size)
@@ -174,42 +200,43 @@ public class TrapRender : IDisposable
 
     #region 陷阱位置计算
 
-    private static List<SKPoint> GetTrapPositions(int level, float centerX, float centerY, float zoom)
+    /// <summary>
+    /// 把 level 对应的陷阱图标位置写入 positions（至少 MAX_TRAP_POSITIONS 个槽位），返回实际数量。
+    /// 原先每个陷阱每帧 new 一个 List&lt;SKPoint&gt;；数量上限是常数，改为调用方 stackalloc。
+    /// </summary>
+    private static int GetTrapPositions(int level, float centerX, float centerY, float zoom, Span<SKPoint> positions)
     {
-        var positions = new List<SKPoint>();
         float radius = (float)(BASE_RADIUS * zoom);
         int normalizedLevel = Math.Max(1, Math.Min(5, level));
 
         switch (normalizedLevel)
         {
             case 1:
-                positions.Add(new SKPoint(centerX, centerY));
-                break;
+                positions[0] = new SKPoint(centerX, centerY);
+                return 1;
             case 2:
-                positions.Add(new SKPoint(centerX - radius, centerY));
-                positions.Add(new SKPoint(centerX + radius, centerY));
-                break;
+                positions[0] = new SKPoint(centerX - radius, centerY);
+                positions[1] = new SKPoint(centerX + radius, centerY);
+                return 2;
             case 3:
-                positions.Add(new SKPoint(centerX, centerY - radius));
-                positions.Add(new SKPoint(centerX - radius * 0.866f, centerY + radius * 0.5f));
-                positions.Add(new SKPoint(centerX + radius * 0.866f, centerY + radius * 0.5f));
-                break;
+                positions[0] = new SKPoint(centerX, centerY - radius);
+                positions[1] = new SKPoint(centerX - radius * 0.866f, centerY + radius * 0.5f);
+                positions[2] = new SKPoint(centerX + radius * 0.866f, centerY + radius * 0.5f);
+                return 3;
             case 4:
-                positions.Add(new SKPoint(centerX - radius * 0.707f, centerY - radius * 0.707f));
-                positions.Add(new SKPoint(centerX + radius * 0.707f, centerY - radius * 0.707f));
-                positions.Add(new SKPoint(centerX - radius * 0.707f, centerY + radius * 0.707f));
-                positions.Add(new SKPoint(centerX + radius * 0.707f, centerY + radius * 0.707f));
-                break;
-            case 5:
-                positions.Add(new SKPoint(centerX, centerY));
-                positions.Add(new SKPoint(centerX - radius * 0.707f, centerY - radius * 0.707f));
-                positions.Add(new SKPoint(centerX + radius * 0.707f, centerY - radius * 0.707f));
-                positions.Add(new SKPoint(centerX - radius * 0.707f, centerY + radius * 0.707f));
-                positions.Add(new SKPoint(centerX + radius * 0.707f, centerY + radius * 0.707f));
-                break;
+                positions[0] = new SKPoint(centerX - radius * 0.707f, centerY - radius * 0.707f);
+                positions[1] = new SKPoint(centerX + radius * 0.707f, centerY - radius * 0.707f);
+                positions[2] = new SKPoint(centerX - radius * 0.707f, centerY + radius * 0.707f);
+                positions[3] = new SKPoint(centerX + radius * 0.707f, centerY + radius * 0.707f);
+                return 4;
+            default:
+                positions[0] = new SKPoint(centerX, centerY);
+                positions[1] = new SKPoint(centerX - radius * 0.707f, centerY - radius * 0.707f);
+                positions[2] = new SKPoint(centerX + radius * 0.707f, centerY - radius * 0.707f);
+                positions[3] = new SKPoint(centerX - radius * 0.707f, centerY + radius * 0.707f);
+                positions[4] = new SKPoint(centerX + radius * 0.707f, centerY + radius * 0.707f);
+                return 5;
         }
-
-        return positions;
     }
 
     #endregion
@@ -236,6 +263,9 @@ public class TrapRender : IDisposable
 
             var visibleBounds = CalculateVisibleBounds();
 
+            // 放在循环外分配一次：stackalloc 的栈空间直到方法返回才释放，放进循环会随陷阱数累积。
+            Span<SKPoint> positions = stackalloc SKPoint[MAX_TRAP_POSITIONS];
+
             foreach (var trap in _mapData.Traps)
             {
                 if (trap.Coordinate < 0 || trap.Coordinate >= _mapData.MapWidth * _mapData.MapHeight)
@@ -249,10 +279,11 @@ public class TrapRender : IDisposable
                 var trapImage = (isSea && _seaTrapImage != null) ? _seaTrapImage : _landTrapImage;
                 if (trapImage == null) continue;
 
-                var positions = GetTrapPositions(trap.Organization, screenPos.Value.X, screenPos.Value.Y, zoom);
+                int positionCount = GetTrapPositions(trap.Organization, screenPos.Value.X, screenPos.Value.Y, zoom, positions);
 
-                foreach (var pos in positions)
+                for (int p = 0; p < positionCount; p++)
                 {
+                    var pos = positions[p];
                     _spriteRects.Add(new SKRect(0, 0, trapImage.Width, trapImage.Height));
                     float scaleX = trapSize / trapImage.Width;
                     float scaleY = trapSize / trapImage.Height;
@@ -266,18 +297,14 @@ public class TrapRender : IDisposable
                 float flagY = screenPos.Value.Y + flagOffsetY;
 
                 int countryId = GetCountryIdFromLegionId(trap.LegionId);
-                var flagImage = GetFlagImage(countryId, (int)flagSize);
+                var flagImage = GetFlagImage(countryId);
 
                 if (flagImage != null)
                 {
-                    float flagScale = flagSize / flagImage.Width;
+                    // 目标矩形为 flagSize 正方形，与原先「先缩放成正方形再按 1:1 贴图」的几何一致。
                     float flagTx = flagX - flagSize / 2;
                     float flagTy = flagY - flagSize / 2;
-                    _flagDrawList.Add((
-                        new SKRect(0, 0, flagImage.Width, flagImage.Height),
-                        new SKRotationScaleMatrix(flagScale, 0, flagTx, flagTy),
-                        flagImage
-                    ));
+                    _flagDrawList.Add((new SKRect(flagTx, flagTy, flagTx + flagSize, flagTy + flagSize), flagImage));
                 }
             }
 
@@ -299,8 +326,7 @@ public class TrapRender : IDisposable
             var trapImage = _landTrapImage ?? _seaTrapImage;
             if (trapImage == null) return;
 
-            using var paint = new SKPaint { IsAntialias = true };
-            canvas.DrawAtlas(trapImage, _spriteRects.ToArray(), _transforms.ToArray(), paint);
+            canvas.DrawAtlas(trapImage, _spriteRects.ToArray(), _transforms.ToArray(), _imagePaint);
             _spriteRects.Clear();
             _transforms.Clear();
         }
@@ -310,12 +336,10 @@ public class TrapRender : IDisposable
     {
         if (_flagDrawList.Count == 0) return;
 
-        using var paint = new SKPaint { IsAntialias = true };
-
+        // 国旗源图块是 52x54 的非正方形，DrawAtlas 只能等比缩放，无法像原先那样拉成正方形；
+        // 原先每面国旗单独一次 DrawAtlas 并分配两个数组，本就没有批量收益，这里直接按目标矩形 DrawImage，零分配。
         foreach (var flag in _flagDrawList)
-        {
-            canvas.DrawAtlas(flag.Image, new[] { flag.SpriteRect }, new[] { flag.Transform }, paint);
-        }
+            canvas.DrawImage(flag.Image, flag.DstRect, _imagePaint);
 
         _flagDrawList.Clear();
     }
@@ -362,15 +386,39 @@ public class TrapRender : IDisposable
 
     private int GetCountryIdFromLegionId(int legionId)
     {
-        if (_mapData?.Legions != null)
+        var map = GetLegionCountryMap();
+        return map != null && map.TryGetValue(legionId, out int countryId) ? countryId : 0;
+    }
+
+    private Dictionary<int, int>? GetLegionCountryMap()
+    {
+        var legions = _mapData?.Legions;
+        if (!ReferenceEquals(legions, _subscribedLegions))
         {
-            foreach (var legion in _mapData.Legions)
-            {
-                if (legion.ActionId == legionId)
-                    return legion.CountryId;
-            }
+            // Legions 实例被整体替换（地图重载）：旧订阅不再有效，换到新实例并丢弃映射。
+            if (_subscribedLegions != null)
+                _subscribedLegions.CollectionChanged -= OnLegionsCollectionChanged;
+            _subscribedLegions = legions;
+            if (legions != null)
+                legions.CollectionChanged += OnLegionsCollectionChanged;
+            _legionCountryMap = null;
         }
-        return 0;
+
+        if (legions == null) return null;
+
+        var map = _legionCountryMap;
+        if (map != null) return map;
+
+        map = new Dictionary<int, int>(legions.Count);
+        foreach (var legion in legions)
+            map.TryAdd(legion.ActionId, legion.CountryId); // 重复 ActionId 保留首个，与原线性查找一致
+        _legionCountryMap = map;
+        return map;
+    }
+
+    private void OnLegionsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        _legionCountryMap = null;
     }
 
     #endregion
@@ -387,9 +435,15 @@ public class TrapRender : IDisposable
             _landTrapImage = null;
             _seaTrapImage = null;
 
-            foreach (var image in _flagImageCache.Values)
-                image?.Dispose();
-            _flagImageCache.Clear();
+            ClearFlagCache();
         }
+
+        if (_subscribedLegions != null)
+        {
+            _subscribedLegions.CollectionChanged -= OnLegionsCollectionChanged;
+            _subscribedLegions = null;
+        }
+
+        _imagePaint.Dispose();
     }
 }

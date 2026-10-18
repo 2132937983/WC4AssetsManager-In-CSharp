@@ -30,19 +30,20 @@ public sealed class LegionBelongListWindow : Window
 
     public LegionBelongListWindow(List<Legion> legions)
     {
+        EditorTheme.Apply(this);
         _legionList = legions ?? new List<Legion>();
 
         PreloadFlags();
 
-        Title = "军团列表";
+        Title = Loc.T("Assist.LegionList.Title");
         Width = 420;
         Height = 560;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ResizeMode = ResizeMode.NoResize;
         WindowStyle = WindowStyle.None;
+        // 无边框圆角卡片 + 投影需要窗口本身透明；主题底色放在内部卡片 Border 上
         Background = Brushes.Transparent;
         AllowsTransparency = true;
-        FontFamily = new FontFamily("Microsoft YaHei");
 
         Content = CreateUI();
 
@@ -173,18 +174,18 @@ public sealed class LegionBelongListWindow : Window
     {
         var border = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(45, 45, 48)),
-            CornerRadius = new CornerRadius(12),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(100, 100, 100, 100)),
+            Background = EditorTheme.Bg2,
+            CornerRadius = new CornerRadius(8),
+            BorderBrush = EditorTheme.Border,
             BorderThickness = new Thickness(1),
             Margin = new Thickness(10),
             Effect = new DropShadowEffect
             {
-                Color = Colors.Black,
+                Color = EditorTheme.ColorOf(EditorTheme.Bg0),
                 Direction = 270,
-                ShadowDepth = 8,
+                ShadowDepth = 6,
                 BlurRadius = 20,
-                Opacity = 0.4
+                Opacity = 0.6
             }
         };
 
@@ -213,49 +214,30 @@ public sealed class LegionBelongListWindow : Window
     {
         var panel = new DockPanel { Margin = new Thickness(15, 10, 15, 5) };
 
-        var titleLabel = new TextBlock
-        {
-            Text = "军团列表",
-            FontSize = 18,
-            FontWeight = FontWeights.Bold,
-            Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center
-        };
+        var closeButton = EditorTheme.GhostButton("✕", (_, _) => CancelAndClose());
+        closeButton.Width = 28;
+        closeButton.Height = 28;
+        closeButton.Padding = new Thickness(0);
+        closeButton.ToolTip = Loc.T("Assist.Common.CloseEsc");
+        closeButton.VerticalAlignment = VerticalAlignment.Top;
+        DockPanel.SetDock(closeButton, Dock.Right);
+        panel.Children.Add(closeButton);
+
+        var titleLabel = EditorTheme.Title(Loc.T("Assist.LegionList.Title"));
         DockPanel.SetDock(titleLabel, Dock.Left);
         panel.Children.Add(titleLabel);
-
-        var closeButton = new Button
-        {
-            Content = "✕",
-            Width = 30,
-            Height = 30,
-            Background = Brushes.Transparent,
-            Foreground = new SolidColorBrush(Color.FromRgb(200, 200, 200)),
-            BorderThickness = new Thickness(0),
-            FontSize = 14,
-            Cursor = Cursors.Hand,
-            ToolTip = "关闭 (Esc)"
-        };
-        DockPanel.SetDock(closeButton, Dock.Right);
-        closeButton.Click += (_, _) => CancelAndClose();
-        panel.Children.Add(closeButton);
 
         return panel;
     }
 
-    private ListBox CreateListPanel()
+    private Border CreateListPanel()
     {
         _listBox = new ListBox
         {
-            Background = new SolidColorBrush(Color.FromRgb(60, 60, 63)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(15, 5, 15, 5),
-            Padding = new Thickness(5),
-            SelectionMode = SelectionMode.Single,
-            FocusVisualStyle = null,
-            ItemContainerStyle = CreateListBoxItemStyle()
+            SelectionMode = SelectionMode.Single
         };
+        // 列表项是直接塞进 Items 的 UIElement，容器回收模式下复用容器会把同一个元素挂到两个父级上，改回标准虚拟化
+        VirtualizingPanel.SetVirtualizationMode(_listBox, VirtualizationMode.Standard);
 
         for (int i = 0; i < _legionList.Count; i++)
         {
@@ -266,37 +248,12 @@ public sealed class LegionBelongListWindow : Window
         _listBox.SelectionChanged += ListBox_SelectionChanged;
         _listBox.MouseDoubleClick += ListBox_MouseDoubleClick;
 
-        return _listBox;
-    }
-
-    private Style CreateListBoxItemStyle()
-    {
-        var style = new Style(typeof(ListBoxItem));
-
-        style.Setters.Add(new Setter(ListBoxItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(60, 60, 63))));
-        style.Setters.Add(new Setter(ListBoxItem.ForegroundProperty, Brushes.White));
-        style.Setters.Add(new Setter(ListBoxItem.BorderThicknessProperty, new Thickness(0)));
-        style.Setters.Add(new Setter(ListBoxItem.PaddingProperty, new Thickness(5)));
-        style.Setters.Add(new Setter(ListBoxItem.MarginProperty, new Thickness(0, 2, 0, 2)));
-        style.Setters.Add(new Setter(ListBoxItem.HeightProperty, 40.0));
-
-        var selectedTrigger = new Trigger
-        {
-            Property = ListBoxItem.IsSelectedProperty,
-            Value = true
-        };
-        selectedTrigger.Setters.Add(new Setter(ListBoxItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0, 122, 204))));
-        style.Triggers.Add(selectedTrigger);
-
-        var hoverTrigger = new Trigger
-        {
-            Property = ListBoxItem.IsMouseOverProperty,
-            Value = true
-        };
-        hoverTrigger.Setters.Add(new Setter(ListBoxItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(80, 80, 83))));
-        style.Triggers.Add(hoverTrigger);
-
-        return style;
+        // 主题里的 ListBox 本身无底无框，用一层面板画出列表区域
+        var host = EditorTheme.Panel(new Thickness(1));
+        host.CornerRadius = new CornerRadius(4);
+        host.Margin = new Thickness(15, 5, 15, 5);
+        host.Child = _listBox;
+        return host;
     }
 
     private Border CreateLegionListItem(Legion legion, int index)
@@ -329,8 +286,7 @@ public sealed class LegionBelongListWindow : Window
         var countryName = GetCountryName(legion.CountryId);
         var nameText = new TextBlock
         {
-            Text = $"军团 {legion.ActionId} - {countryName}",
-            Foreground = Brushes.White,
+            Text = Loc.F("Assist.Common.LegionItem", legion.ActionId, countryName),
             FontSize = 14
         };
         infoPanel.Children.Add(nameText);
@@ -346,7 +302,7 @@ public sealed class LegionBelongListWindow : Window
         if (_countryNameCache.TryGetValue(countryId, out var cached))
             return cached;
 
-        var name = $"国家{countryId}";
+        var name = Loc.F("Assist.Common.CountryFallback", countryId);
         try
         {
             var value = ConfigManager.Instance.GetStringTableValue($"country_{countryId}");
@@ -368,65 +324,18 @@ public sealed class LegionBelongListWindow : Window
             Margin = new Thickness(15, 10, 15, 15)
         };
 
-        var confirmButton = new Button
-        {
-            Content = "确认",
-            Width = 80,
-            Height = 32,
-            Background = new SolidColorBrush(Color.FromRgb(0, 122, 204)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontSize = 12,
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(0, 0, 10, 0),
-            ToolTip = "确认选择 (Enter)"
-        };
-        StyleButton(confirmButton);
-        confirmButton.Click += (_, _) => ConfirmSelection();
+        var confirmButton = EditorTheme.PrimaryButton(Loc.T("Common.Confirm"), (_, _) => ConfirmSelection());
+        confirmButton.MinWidth = 80;
+        confirmButton.Margin = new Thickness(0, 0, 10, 0);
+        confirmButton.ToolTip = Loc.T("Assist.Common.ConfirmEnter");
         panel.Children.Add(confirmButton);
 
-        var cancelButton = new Button
-        {
-            Content = "取消",
-            Width = 80,
-            Height = 32,
-            Background = new SolidColorBrush(Color.FromRgb(80, 80, 80)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontSize = 12,
-            Cursor = Cursors.Hand,
-            ToolTip = "取消 (Esc)"
-        };
-        StyleButton(cancelButton);
-        cancelButton.Click += (_, _) => CancelAndClose();
+        var cancelButton = EditorTheme.Button(Loc.T("Common.Cancel"), (_, _) => CancelAndClose());
+        cancelButton.MinWidth = 80;
+        cancelButton.ToolTip = Loc.T("Assist.Common.CancelEsc");
         panel.Children.Add(cancelButton);
 
         return panel;
-    }
-
-    private void StyleButton(Button button)
-    {
-        var template = new ControlTemplate(typeof(Button));
-        var borderFactory = new FrameworkElementFactory(typeof(Border));
-        borderFactory.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Button.BackgroundProperty));
-        borderFactory.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
-
-        var contentFactory = new FrameworkElementFactory(typeof(ContentPresenter));
-        contentFactory.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-        contentFactory.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
-
-        borderFactory.AppendChild(contentFactory);
-        template.VisualTree = borderFactory;
-
-        var hoverTrigger = new Trigger
-        {
-            Property = Button.IsMouseOverProperty,
-            Value = true
-        };
-        hoverTrigger.Setters.Add(new Setter(Button.BackgroundProperty, new SolidColorBrush(Color.FromRgb(100, 149, 237))));
-        template.Triggers.Add(hoverTrigger);
-
-        button.Template = template;
     }
 
     private void ListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

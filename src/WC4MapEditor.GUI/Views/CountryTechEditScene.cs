@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -41,8 +41,8 @@ public class CountryTechEditScene : UserControl
     private Dictionary<string, NumericUpDown> _numBoxes = new(StringComparer.Ordinal);
     private TextBox _jsonPreview = null!;
 
-    // ---- 右侧面板：基本属性 / INI 文本 切换 ----
-    private Button _propToggleBtn = null!;
+    // ---- 右侧面板：基本属性 / INI 文本 页签 ----
+    private Button _propTabBtn = null!, _iniTabBtn = null!;
     private bool _showIniPanel;
     private ScrollViewer _iniScroll = null!;
     private TextBox _iniNameBox = null!, _iniDescBox = null!;
@@ -71,8 +71,8 @@ public class CountryTechEditScene : UserControl
 
     public CountryTechEditScene(MainWindow window)
     {
+        EditorTheme.Apply(this);
         _window = window;
-        Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
         BuildUI();
         LoadTechIcons();
         RefreshCategories();
@@ -89,83 +89,70 @@ public class CountryTechEditScene : UserControl
     private void BuildUI()
     {
         _root = new Grid();
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(50) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
         _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
-        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(260) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
+        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(360) });
 
-        _root.Children.Add(MakeTopBar());
+        // 顶栏：返回 + 标题 | 操作按钮。两个勾选项直接改字段再重绘（旧实现只重绘、没写回字段）。
+        var topBar = EditorTheme.TopBar(
+            Loc.T("CountryTech.Title"),
+            (_, _) => _window.ReturnToMainScene(),
+            EditorTheme.Button(Loc.T("Common.Add"), OnAdd),
+            EditorTheme.DangerButton(Loc.T("Common.Delete"), OnDelete),
+            EditorTheme.PrimaryButton(Loc.T("Common.Save"), OnSave),
+            EditorTheme.Button(Loc.T("Common.Reload"), OnReload),
+            EditorTheme.VSeparator(),
+            EditorTheme.Button(Loc.T("CountryTech.GenerateLines"), OnGenerateLines),
+            EditorTheme.Button(Loc.T("CountryTech.FitView"), OnFit),
+            EditorTheme.CheckBox(Loc.T("CountryTech.ShowNeedGuides"), _showNeedGuides, v => { _showNeedGuides = v; RenderCanvas(); }),
+            EditorTheme.CheckBox(Loc.T("CountryTech.AutoLines"), _autoUpdateLines, v => _autoUpdateLines = v),
+            EditorTheme.VSeparator(),
+            EditorTheme.Button(Loc.T("Common.Validate"), OnValidate));
+        Grid.SetRow(topBar, 0); Grid.SetColumnSpan(topBar, 5);
+        _root.Children.Add(topBar);
 
-        var left = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x26)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 0, 1, 0)
-        };
-        Grid.SetRow(left, 1); Grid.SetColumn(left, 0);
+        // 左栏：分类筛选 + 搜索 + 列表
         var leftGrid = new Grid();
-        leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(34) });
-        leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(34) });
+        leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        _categoryCombo = new ComboBox
-        {
-            Margin = new Thickness(8, 5, 8, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.Black,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            FontSize = 13
-        };
-        ApplyListPalette(_categoryCombo);
-        _categoryCombo.ItemContainerStyle = MakeListItemStyle();
+        _categoryCombo = EditorTheme.ComboBox();
+        _categoryCombo.Margin = new Thickness(8, 8, 8, 0);
         _categoryCombo.SelectionChanged += (_, _) => { RefreshList(); FitView(); };
         Grid.SetRow(_categoryCombo, 0);
         leftGrid.Children.Add(_categoryCombo);
 
-        _searchBox = new TextBox
-        {
-            Margin = new Thickness(8, 5, 8, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13,
-            Padding = new Thickness(6, 3, 6, 3),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            CaretBrush = Brushes.White
-        };
-        _searchBox.Text = "搜索 (Id / 名称 / Type)...";
-        _searchBox.GotFocus += (_, _) => { if (_searchBox.Text.StartsWith("搜索")) _searchBox.Text = ""; };
-        _searchBox.LostFocus += (_, _) => { if (string.IsNullOrWhiteSpace(_searchBox.Text)) _searchBox.Text = "搜索 (Id / 名称 / Type)..."; };
+        var search = EditorTheme.SearchBox(Loc.T("CountryTech.SearchPlaceholder"), out _searchBox);
+        search.Margin = new Thickness(8);
         _searchBox.TextChanged += (_, _) => RefreshList();
-        Grid.SetRow(_searchBox, 1);
-        leftGrid.Children.Add(_searchBox);
+        Grid.SetRow(search, 1);
+        leftGrid.Children.Add(search);
 
-        _listBox = new ListBox
-        {
-            Background = Brushes.Transparent,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontSize = 13
-        };
-        _listBox.ItemContainerStyle = MakeListItemStyle();
-        ApplyListPalette(_listBox);
+        _listBox = new ListBox();
         _listBox.SelectionChanged += ListBox_SelectionChanged;
         Grid.SetRow(_listBox, 2);
         leftGrid.Children.Add(_listBox);
 
+        var left = EditorTheme.Panel(new Thickness(0, 0, 1, 0));
         left.Child = leftGrid;
+        Grid.SetRow(left, 1); Grid.SetColumn(left, 0);
         _root.Children.Add(left);
-        _root.Children.Add(MakeSplitter());
 
+        var leftSplitter = EditorTheme.VSplitter();
+        Grid.SetRow(leftSplitter, 1); Grid.SetColumn(leftSplitter, 1);
+        _root.Children.Add(leftSplitter);
+
+        // 中间：科技树画布
         var canvasBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0xEA, 0xF4, 0xF7)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
+            Background = EditorTheme.Bg0,
+            BorderBrush = EditorTheme.Border,
             BorderThickness = new Thickness(0, 0, 1, 0),
             ClipToBounds = true
         };
@@ -180,379 +167,158 @@ public class CountryTechEditScene : UserControl
         canvasBorder.Child = _canvas;
         _root.Children.Add(canvasBorder);
 
-        var canvasSplitter = new GridSplitter
-        {
-            Width = 4,
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch,
-            ResizeBehavior = GridResizeBehavior.PreviousAndNext
-        };
+        var canvasSplitter = EditorTheme.VSplitter();
         Grid.SetRow(canvasSplitter, 1); Grid.SetColumn(canvasSplitter, 3);
         _root.Children.Add(canvasSplitter);
 
-        var right = new Border { Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)) };
-        Grid.SetRow(right, 1); Grid.SetColumn(right, 4);
+        // 右栏：页签条（基本属性 / INI 文本）+ 两个可切换的滚动面板
         BuildRightPanel();
         var rightGrid = new Grid();
+        rightGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        rightGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        var tabs = new StackPanel { Orientation = Orientation.Horizontal };
+        _propTabBtn = EditorTheme.TabButton(Loc.T("CountryTech.Tab.Props"), true, (_, _) => ShowIniPanel(false));
+        _iniTabBtn = EditorTheme.TabButton(Loc.T("CountryTech.Tab.Ini"), false, (_, _) => ShowIniPanel(true));
+        tabs.Children.Add(_propTabBtn);
+        tabs.Children.Add(_iniTabBtn);
+        var tabBar = new Border
+        {
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.Border,
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(6, 4, 6, 4),
+            Child = tabs
+        };
+        Grid.SetRow(tabBar, 0);
+        rightGrid.Children.Add(tabBar);
+
+        Grid.SetRow(_propScroll, 1);
+        Grid.SetRow(_iniScroll, 1);
         rightGrid.Children.Add(_propScroll);
         rightGrid.Children.Add(_iniScroll);
-        _propToggleBtn = new Button
-        {
-            Content = "INI 文本",
-            Width = 72, Height = 20,
-            Margin = new Thickness(0, 4, 8, 0),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            FontSize = 12,
-            Cursor = Cursors.Hand
-        };
-        _propToggleBtn.Click += (_, _) => TogglePropPanel();
-        rightGrid.Children.Add(_propToggleBtn);
+
+        var right = EditorTheme.Panel();
         right.Child = rightGrid;
+        Grid.SetRow(right, 1); Grid.SetColumn(right, 4);
         _root.Children.Add(right);
 
-        var status = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 1, 0, 0)
-        };
+        var status = EditorTheme.StatusBar(out _statusText, Loc.F("Common.ItemsLoaded", _parser.Items.Count));
         Grid.SetRow(status, 2); Grid.SetColumnSpan(status, 5);
-        _statusText = new TextBlock
-        {
-            Text = $"已加载 {_parser.Items.Count} 条国家科技",
-            Foreground = Brushes.LightGray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 12, 0)
-        };
-        status.Child = _statusText;
         _root.Children.Add(status);
 
         Content = _root;
     }
 
-    private Grid MakeTopBar()
-    {
-        var bar = new Grid();
-        Grid.SetRow(bar, 0); Grid.SetColumnSpan(bar, 5);
-        bar.Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30));
-        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) };
-        panel.Children.Add(MakeTopBtn("返回", (_, _) => _window.ReturnToMainScene()));
-        panel.Children.Add(MakeTopBtn("新增", OnAdd));
-        panel.Children.Add(MakeTopBtn("删除", OnDelete));
-        panel.Children.Add(MakeTopBtn("保存", OnSave));
-        panel.Children.Add(MakeTopBtn("重载", OnReload));
-        panel.Children.Add(MakeTopBtn("按NeedId生成连线", OnGenerateLines));
-        panel.Children.Add(MakeTopBtn("适配视图", OnFit));
-        panel.Children.Add(MakeCheck("预览NeedId", _showNeedGuides));
-        panel.Children.Add(MakeCheck("自动连线", _autoUpdateLines));
-        panel.Children.Add(MakeTopBtn("校验", OnValidate));
-        Grid.SetColumn(panel, 0);
-        bar.Children.Add(panel);
-        return bar;
-    }
-
-    private static GridSplitter MakeSplitter()
-    {
-        var sp = new GridSplitter
-        {
-            Width = 4,
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch,
-            ResizeBehavior = GridResizeBehavior.PreviousAndNext
-        };
-        Grid.SetRow(sp, 1); Grid.SetColumn(sp, 1);
-        return sp;
-    }
-
-    // 与资源管理器(AssetBrowserScene)列表项样式一致：选中蓝底黑字，悬停深蓝灰底
-    private static Style MakeListItemStyle()
-    {
-        var style = new Style(typeof(ListBoxItem));
-        style.Setters.Add(new Setter(ListBoxItem.BackgroundProperty, Brushes.Transparent));
-        style.Setters.Add(new Setter(ListBoxItem.ForegroundProperty, Brushes.White));
-        style.Setters.Add(new Setter(ListBoxItem.BorderThicknessProperty, new Thickness(0)));
-        style.Setters.Add(new Setter(ListBoxItem.PaddingProperty, new Thickness(6, 3, 6, 3)));
-
-        var selected = new Trigger { Property = ListBoxItem.IsSelectedProperty, Value = true };
-        selected.Setters.Add(new Setter(ListBoxItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(100, 150, 220))));
-        selected.Setters.Add(new Setter(ListBoxItem.ForegroundProperty, Brushes.Black));
-        style.Triggers.Add(selected);
-
-        var hover = new Trigger { Property = ListBoxItem.IsMouseOverProperty, Value = true };
-        hover.Setters.Add(new Setter(ListBoxItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(50, 60, 80))));
-        style.Triggers.Add(hover);
-
-        return style;
-    }
-
-    // 覆盖系统画刷键：ComboBox/ListBox 弹层深底、hover/选中蓝底黑字（模板触发器走这些动态资源）
-    private static void ApplyListPalette(FrameworkElement c)
-    {
-        c.Resources[SystemColors.WindowBrushKey] = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x26));
-        c.Resources[SystemColors.HighlightBrushKey] = new SolidColorBrush(Color.FromRgb(100, 150, 220));
-        c.Resources[SystemColors.HighlightTextBrushKey] = Brushes.Black;
-    }
-
     private void BuildRightPanel()
     {
-        _propPanel = new StackPanel { Margin = new Thickness(0) };
+        _propPanel = new StackPanel();
         _propScroll = new ScrollViewer
         {
             Content = _propPanel,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Padding = new Thickness(0, 0, 8, 0)
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
 
-        AddSection("基本信息");
-        AddNum("Id", "科技ID(Id)", 0, int.MaxValue);
-        AddText("NameIni", "名称(Name / INI skill_name_{Id})");
-        AddNum("CategoryId", "分类ID(CategoryId)", 0, int.MaxValue);
-        AddNum("Categorys", "类别(Categorys 0~4)", 0, 4);
-        AddNum("Type", "类型/图标(Type)", 0, int.MaxValue);
-        AddNum("ResearchLv", "研发等级需求(ResearchLv)", 0, int.MaxValue);
-        AddNum("Position", "UI位置(Position)", 0, int.MaxValue);
+        AddSection(Loc.T("Common.BasicInfo"));
+        AddNum("Id", Loc.T("CountryTech.Field.Id"), 0, int.MaxValue);
+        AddText("NameIni", Loc.T("CountryTech.Field.NameIni"));
+        AddNum("CategoryId", Loc.T("CountryTech.Field.CategoryId"), 0, int.MaxValue);
+        AddNum("Categorys", Loc.T("CountryTech.Field.Categorys"), 0, 4);
+        AddNum("Type", Loc.T("CountryTech.Field.Type"), 0, int.MaxValue);
+        AddNum("ResearchLv", Loc.T("CountryTech.Field.ResearchLv"), 0, int.MaxValue);
+        AddNum("Position", Loc.T("CountryTech.Field.Position"), 0, int.MaxValue);
 
-        AddSection("消耗");
-        AddNum("CostMoney", "消耗金钱(CostMoney)", 0, int.MaxValue);
-        AddNum("CostGear", "消耗零件(CostGear)", 0, int.MaxValue);
-        AddNum("CostAtomic", "消耗核能(CostAtomic)", 0, int.MaxValue);
-        AddNum("CostMerit", "消耗功勋(CostMerit)", 0, int.MaxValue);
+        AddSection(Loc.T("CountryTech.Section.Cost"));
+        AddNum("CostMoney", Loc.T("CountryTech.Field.CostMoney"), 0, int.MaxValue);
+        AddNum("CostGear", Loc.T("CountryTech.Field.CostGear"), 0, int.MaxValue);
+        AddNum("CostAtomic", Loc.T("CountryTech.Field.CostAtomic"), 0, int.MaxValue);
+        AddNum("CostMerit", Loc.T("CountryTech.Field.CostMerit"), 0, int.MaxValue);
 
-        AddSection("其它");
-        AddNum("Chance", "概率(Chance %)", 0, 100);
-        AddNum("Value", "效果值(Value)", int.MinValue, int.MaxValue);
+        AddSection(Loc.T("CountryTech.Section.Other"));
+        AddNum("Chance", Loc.T("CountryTech.Field.Chance"), 0, 100);
+        AddNum("Value", Loc.T("CountryTech.Field.Value"), int.MinValue, int.MaxValue);
 
-        AddSection("引用 / 连线（逗号分隔）");
-        AddText("NeedId", "前置科技需求(NeedId)");
-        AddText("Lines", "连线坐标1(Lines)");
-        AddText("Lines2", "连线坐标2(Lines2)");
+        AddSection(Loc.T("CountryTech.Section.Links"));
+        AddText("NeedId", Loc.T("CountryTech.Field.NeedId"));
+        AddText("Lines", Loc.T("CountryTech.Field.Lines"));
+        AddText("Lines2", Loc.T("CountryTech.Field.Lines2"));
 
-        AddSection("JSON 预览");
-        _jsonPreview = new TextBox
-        {
-            IsReadOnly = true,
-            Background = new SolidColorBrush(Color.FromRgb(0x16, 0x16, 0x16)),
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9C, 0xD6, 0x6B)),
-            FontFamily = new FontFamily("Consolas"),
-            FontSize = 12,
-            BorderThickness = new Thickness(0),
-            TextWrapping = TextWrapping.Wrap,
-            AcceptsReturn = true,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Margin = new Thickness(8, 4, 8, 12),
-            Height = 220
-        };
+        AddSection(Loc.T("Common.JsonPreview"));
+        _jsonPreview = EditorTheme.MonoTextBox(220);
+        _jsonPreview.Margin = new Thickness(10, 8, 10, 12);
         _propPanel.Children.Add(_jsonPreview);
 
         // INI 文本编辑面板（按 Type 显示/修改 countrytech_{type} / countrytech_desc_{type}）
-        var iniPanel = new StackPanel { Margin = new Thickness(0) };
-        iniPanel.Children.Add(new TextBlock
-        {
-            Text = "INI 文本（按 Type）",
-            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB7, 0x4E)),
-            FontSize = 13, FontWeight = FontWeights.Bold,
-            Margin = new Thickness(8, 18, 0, 4)
-        });
-        _iniTypeText = new TextBlock { Foreground = Brushes.LightGray, FontSize = 12, Margin = new Thickness(8, 0, 8, 8) };
+        var iniPanel = new StackPanel();
+        iniPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("CountryTech.IniSection")));
+        _iniTypeText = EditorTheme.Muted("");
+        _iniTypeText.Margin = new Thickness(10, 8, 10, 4);
         iniPanel.Children.Add(_iniTypeText);
 
         _iniNameBox = MakeIniTextBox(false);
         _iniNameBox.LostFocus += (_, _) => { if (_current != null) _parser.SetTechNameByType(_current.Type, _iniNameBox.Text); };
-        iniPanel.Children.Add(MakeIniRow("名称 (countrytech_{type})", _iniNameBox));
+        iniPanel.Children.Add(EditorTheme.FormRow(Loc.T("CountryTech.IniName"), _iniNameBox, 120));
 
         _iniDescBox = MakeIniTextBox(true);
         _iniDescBox.LostFocus += (_, _) => { if (_current != null) _parser.SetTechDescByType(_current.Type, _iniDescBox.Text); };
-        iniPanel.Children.Add(MakeIniRow("介绍 (countrytech_desc_{type})", _iniDescBox));
+        iniPanel.Children.Add(EditorTheme.FormRow(Loc.T("CountryTech.IniDesc"), _iniDescBox, 120));
 
         _iniScroll = new ScrollViewer
         {
             Content = iniPanel,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Padding = new Thickness(0, 0, 8, 0),
             Visibility = Visibility.Collapsed
         };
     }
 
     private static TextBox MakeIniTextBox(bool multiline)
     {
-        var tb = new TextBox
+        var tb = new TextBox { TextWrapping = TextWrapping.Wrap, AcceptsReturn = multiline };
+        if (multiline)
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13,
-            Padding = new Thickness(6, 3, 6, 3),
-            CaretBrush = Brushes.White,
-            TextWrapping = TextWrapping.Wrap,
-            AcceptsReturn = multiline,
-            Margin = new Thickness(8, 2, 8, 6)
-        };
-        if (multiline) { tb.Height = 90; tb.VerticalScrollBarVisibility = ScrollBarVisibility.Auto; }
+            tb.Height = 90;
+            tb.VerticalContentAlignment = VerticalAlignment.Top;
+            tb.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+        }
         return tb;
     }
 
-    private static FrameworkElement MakeIniRow(string label, TextBox content)
+    private void ShowIniPanel(bool ini)
     {
-        var border = new Border
-        {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(8, 4, 8, 4)
-        };
-        var grid = new Grid();
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var lbl = new TextBlock { Text = label, Foreground = Brushes.LightGray, FontSize = 12, Margin = new Thickness(0, 0, 0, 2) };
-        Grid.SetRow(lbl, 0); Grid.SetRow(content, 1);
-        grid.Children.Add(lbl); grid.Children.Add(content);
-        border.Child = grid;
-        return border;
-    }
-
-    private void TogglePropPanel()
-    {
-        _showIniPanel = !_showIniPanel;
-        _propScroll.Visibility = _showIniPanel ? Visibility.Collapsed : Visibility.Visible;
-        _iniScroll.Visibility = _showIniPanel ? Visibility.Visible : Visibility.Collapsed;
-        _propToggleBtn.Content = _showIniPanel ? "基本属性" : "INI 文本";
-        if (_showIniPanel) LoadIniPanel();
+        _showIniPanel = ini;
+        _propScroll.Visibility = ini ? Visibility.Collapsed : Visibility.Visible;
+        _iniScroll.Visibility = ini ? Visibility.Visible : Visibility.Collapsed;
+        EditorTheme.SetTabActive(_propTabBtn, !ini);
+        EditorTheme.SetTabActive(_iniTabBtn, ini);
+        if (ini) LoadIniPanel();
     }
 
     private void LoadIniPanel()
     {
         if (_current == null) { _iniTypeText.Text = ""; _iniNameBox.Text = ""; _iniDescBox.Text = ""; return; }
-        _iniTypeText.Text = $"Type = {_current.Type}";
+        _iniTypeText.Text = Loc.F("CountryTech.IniTypeLabel", _current.Type);
         _iniNameBox.Text = _parser.GetTechNameByType(_current.Type);
         _iniDescBox.Text = _parser.GetTechDescByType(_current.Type);
     }
 
     // ============================================================= 控件辅助 =============================================================
-    private static Button MakeTopBtn(string label, RoutedEventHandler handler)
-    {
-        var btn = new Button
-        {
-            Content = label,
-            Height = 32,
-            Margin = new Thickness(4, 0, 4, 0),
-            Padding = new Thickness(14, 0, 14, 0),
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13
-        };
-        btn.Click += handler;
-        return btn;
-    }
-
-    private CheckBox MakeCheck(string label, bool initial)
-    {
-        var cb = new CheckBox
-        {
-            Content = label,
-            IsChecked = initial,
-            Foreground = Brushes.White,
-            Margin = new Thickness(6, 0, 6, 0),
-            FontSize = 13,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        cb.Checked += (_, _) => RenderCanvas();
-        cb.Unchecked += (_, _) => RenderCanvas();
-        return cb;
-    }
-
     private void OnFit(object sender, RoutedEventArgs e) => FitView();
 
-    private void AddSection(string title, UIElement? right = null)
-    {
-        if (right == null)
-        {
-            _propPanel.Children.Add(new TextBlock
-            {
-                Text = title,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB7, 0x4E)),
-                FontSize = 13,
-                FontWeight = FontWeights.Bold,
-                Margin = new Thickness(8, 10, 0, 4)
-            });
-            return;
-        }
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var tb = new TextBlock
-        {
-            Text = title,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB7, 0x4E)),
-            FontSize = 13,
-            FontWeight = FontWeights.Bold,
-            Margin = new Thickness(8, 10, 0, 4),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(tb, 0);
-        grid.Children.Add(tb);
-        Grid.SetColumn(right, 1);
-        grid.Children.Add(right);
-        _propPanel.Children.Add(grid);
-    }
+    private void AddSection(string title) => _propPanel.Children.Add(EditorTheme.SectionHeader(title));
 
-    private void AddRow(string label, UIElement content)
-    {
-        var border = new Border
-        {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(8, 4, 8, 4)
-        };
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var lbl = new TextBlock
-        {
-            Text = label,
-            Foreground = Brushes.LightGray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap
-        };
-        Grid.SetColumn(lbl, 0);
-        Grid.SetColumn(content, 1);
-        grid.Children.Add(lbl);
-        grid.Children.Add(content);
-        border.Child = grid;
-        _propPanel.Children.Add(border);
-    }
-
+    // 这两个薄封装保留：负责把控件按 key 登记进字典，外观统一交给 EditorTheme.FormRow
     private NumericUpDown AddNum(string key, string label, double min = int.MinValue, double max = int.MaxValue, double inc = 1)
     {
         var ctrl = new NumericUpDown { MinValue = min, MaxValue = max, Increment = inc };
         ctrl.ValueChanged += (_, _) => { if (!_loadingUi && _current != null) ApplyPropCurrent(); };
         _numBoxes[key] = ctrl;
-        AddRow(label, ctrl);
+        _propPanel.Children.Add(EditorTheme.FormRow(label, ctrl, 160));
         return ctrl;
     }
 
     private TextBox AddText(string key, string label)
     {
-        var tb = new TextBox
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13,
-            Padding = new Thickness(6, 3, 6, 3),
-            CaretBrush = Brushes.White
-        };
+        var tb = new TextBox();
         tb.TextChanged += (_, _) =>
         {
             if (_loadingUi || _current == null) return;
@@ -560,7 +326,7 @@ public class CountryTechEditScene : UserControl
             if (key == "NameIni") _parser.SetTechName(_current.Id, tb.Text);
         };
         _textBoxes[key] = tb;
-        AddRow(label, tb);
+        _propPanel.Children.Add(EditorTheme.FormRow(label, tb, 160));
         return tb;
     }
 
@@ -569,9 +335,9 @@ public class CountryTechEditScene : UserControl
     {
         var sel = _categoryCombo.SelectedValue;
         _categoryCombo.Items.Clear();
-        _categoryCombo.Items.Add(new CategoryItem { Id = -1, Name = "全部分类" });
+        _categoryCombo.Items.Add(new CategoryItem { Id = -1, Name = Loc.T("CountryTech.AllCategories") });
         foreach (var cat in _parser.Items.Select(t => t.CategoryId).Distinct().OrderBy(x => x))
-            _categoryCombo.Items.Add(new CategoryItem { Id = cat, Name = $"分类 {cat}" });
+            _categoryCombo.Items.Add(new CategoryItem { Id = cat, Name = Loc.F("CountryTech.CategoryN", cat) });
         _categoryCombo.DisplayMemberPath = "Name";
         _categoryCombo.SelectedValuePath = "Id";
         if (sel == null && _parser.Items.Count > 0)
@@ -590,7 +356,7 @@ public class CountryTechEditScene : UserControl
     {
         int catFilter = _categoryCombo.SelectedValue is int v ? v : -1;
         var q = _searchBox.Text;
-        bool searching = !string.IsNullOrWhiteSpace(q) && !q.StartsWith("搜索");
+        bool searching = !string.IsNullOrWhiteSpace(q);
 
         var items = _parser.Items.Where(t =>
         {
@@ -607,7 +373,7 @@ public class CountryTechEditScene : UserControl
         foreach (var t in items)
         {
             var name = _parser.GetTechName(t.Id);
-            if (string.IsNullOrEmpty(name)) name = $"科技_{t.Id}";
+            if (string.IsNullOrEmpty(name)) name = Loc.F("CountryTech.UnnamedTech", t.Id);
             _listBox.Items.Add(new CountryTechListEntry
             {
                 Id = t.Id,
@@ -616,7 +382,7 @@ public class CountryTechEditScene : UserControl
                 ResearchLv = t.ResearchLv
             });
         }
-        SetStatus($"已加载 {_parser.Items.Count} 条国家科技，列表 {_listBox.Items.Count} 条");
+        SetStatus(Loc.F("Common.ItemsLoadedFiltered", _parser.Items.Count, _listBox.Items.Count));
         RenderCanvas();
     }
 
@@ -715,7 +481,7 @@ public class CountryTechEditScene : UserControl
     {
         if (_current == null) { _jsonPreview.Text = ""; return; }
         try { _jsonPreview.Text = JsonSerializer.Serialize(_current, new JsonSerializerOptions { WriteIndented = true }); }
-        catch { _jsonPreview.Text = "(序列化失败)"; }
+        catch { _jsonPreview.Text = Loc.T("Common.SerializeFailed"); }
     }
 
     // ============================================================= 操作 =============================================================
@@ -741,18 +507,19 @@ public class CountryTechEditScene : UserControl
             Value = 0
         };
         _parser.AddTech(tech);
+        // 默认名会写进 stringtable（游戏数据），不随界面语言变化
         _parser.SetTechName(newId, $"新科技{newId}");
         RefreshCategories();
         RefreshList();
         foreach (CountryTechListEntry item in _listBox.Items)
             if (item.Id == newId) { _listBox.SelectedItem = item; break; }
-        SetStatus($"新增科技 ID={newId}（未保存）");
+        SetStatus(Loc.F("CountryTech.Added", newId));
     }
 
     private void OnDelete(object sender, RoutedEventArgs e)
     {
-        if (_current == null) { MessageBox.Show("请先在左侧选中一条科技", "提示", MessageBoxButton.OK, MessageBoxImage.Information); return; }
-        var res = MessageBox.Show($"确定删除科技 [{_current.Id}] {_parser.GetTechName(_current.Id)}？", "删除", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (_current == null) { MessageBox.Show(Loc.T("Common.SelectItemFirst"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
+        var res = MessageBox.Show(Loc.F("CountryTech.DeleteConfirm", _current.Id, _parser.GetTechName(_current.Id)), Loc.T("Common.Delete"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (res != MessageBoxResult.Yes) return;
         int id = _current.Id;
         _parser.RemoveTech(id);
@@ -760,44 +527,44 @@ public class CountryTechEditScene : UserControl
         RefreshCategories();
         RefreshList();
         ShowEmpty();
-        SetStatus($"已删除科技 ID={id}（未保存）");
+        SetStatus(Loc.F("CountryTech.Deleted", id));
     }
 
     private void OnSave(object sender, RoutedEventArgs e)
     {
         if (_parser.SaveAll())
         {
-            SetStatus($"✔ 保存成功：{_parser.ConfigPath}");
-            MessageBox.Show($"保存成功：\nCountryTechSettings.json: {_parser.ConfigPath}\nstringtable: {_parser.StringTablePath}", "保存成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus(Loc.F("CountryTech.SavedStatus", _parser.ConfigPath));
+            MessageBox.Show(Loc.F("CountryTech.SavedMessage", _parser.ConfigPath, _parser.StringTablePath), Loc.T("Common.SaveSuccess"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
         else
         {
-            MessageBox.Show("保存失败，请检查权限或 Debug 输出", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Common.SaveFailed"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     private void OnReload(object sender, RoutedEventArgs e)
     {
-        var res = MessageBox.Show("重新加载磁盘上的 CountryTechSettings.json？未保存的更改将丢失。", "重载", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var res = MessageBox.Show(Loc.F("Common.ReloadConfirm", "CountryTechSettings.json"), Loc.T("Common.Reload"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (res != MessageBoxResult.Yes) return;
         _parser.LoadAll();
         RefreshCategories();
         RefreshList();
         ShowEmpty();
-        SetStatus("已从磁盘重新加载");
+        SetStatus(Loc.T("Common.ReloadedFromDisk"));
     }
 
     private void OnGenerateLines(object sender, RoutedEventArgs e)
     {
-        if (_current == null) { MessageBox.Show("请先选中一条科技", "提示", MessageBoxButton.OK, MessageBoxImage.Information); return; }
-        if (_current.NeedId.Count == 0) { MessageBox.Show("该科技没有前置需求(NeedId)，无需生成连线", "提示", MessageBoxButton.OK, MessageBoxImage.Information); return; }
+        if (_current == null) { MessageBox.Show(Loc.T("Common.SelectItemFirst"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
+        if (_current.NeedId.Count == 0) { MessageBox.Show(Loc.T("CountryTech.NoNeedId"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
 
         int applied = 0;
         if (_current.NeedId.Count >= 1)
         {
             var src = _parser.GetById(_current.NeedId[0]);
             if (src != null) { _current.Lines = GenerateOrthogonalPath(src, _current); applied++; }
-            else SetStatus($"⚠ NeedId[0]={_current.NeedId[0]} 找不到前置科技");
+            else SetStatus(Loc.F("CountryTech.NeedIdNotFound", _current.NeedId[0]));
         }
         if (_current.NeedId.Count >= 2)
         {
@@ -809,7 +576,7 @@ public class CountryTechEditScene : UserControl
         _textBoxes["Lines2"].Text = FormatList(_current.Lines2);
         _loadingUi = false;
         UpdateJsonPreview();
-        SetStatus($"已根据 NeedId 生成 {applied} 条正交连线（未保存）");
+        SetStatus(Loc.F("CountryTech.LinesGenerated", applied));
     }
 
     private static List<double> GenerateOrthogonalPath(CountryTechData source, CountryTechData target)
@@ -836,40 +603,40 @@ public class CountryTechEditScene : UserControl
 
         foreach (var t in _parser.Items)
         {
-            string pfx = $"[Id={t.Id}]";
-            if (seenIds.Contains(t.Id)) problems.Add($"{pfx} ID 重复");
+            string pfx = $"[Id={t.Id}] ";
+            if (seenIds.Contains(t.Id)) problems.Add(pfx + Loc.T("Common.DuplicateId"));
             else seenIds.Add(t.Id);
 
-            if (t.Categorys < 0 || t.Categorys > 4) problems.Add($"{pfx} Categorys={t.Categorys} 不在 0~4");
+            if (t.Categorys < 0 || t.Categorys > 4) problems.Add(pfx + Loc.F("CountryTech.Validate.CategorysRange", t.Categorys));
 
             if (!typeByCat.TryGetValue(t.CategoryId, out var set))
             {
                 set = new HashSet<int>();
                 typeByCat[t.CategoryId] = set;
             }
-            if (set.Contains(t.Type)) problems.Add($"{pfx} 分类 {t.CategoryId} 下 Type={t.Type} 重复");
+            if (set.Contains(t.Type)) problems.Add(pfx + Loc.F("CountryTech.Validate.DuplicateType", t.CategoryId, t.Type));
             else set.Add(t.Type);
 
-            if (t.NeedId.Count > 2) problems.Add($"{pfx} NeedId 数量 {t.NeedId.Count} > 2，连线仅支持 2 条");
+            if (t.NeedId.Count > 2) problems.Add(pfx + Loc.F("CountryTech.Validate.TooManyNeedId", t.NeedId.Count));
 
-            if (t.Lines.Count % 2 != 0) problems.Add($"{pfx} Lines 数量 {t.Lines.Count} 不是偶数");
-            if (t.Lines2.Count % 2 != 0) problems.Add($"{pfx} Lines2 数量 {t.Lines2.Count} 不是偶数");
+            if (t.Lines.Count % 2 != 0) problems.Add(pfx + Loc.F("CountryTech.Validate.OddCoords", "Lines", t.Lines.Count));
+            if (t.Lines2.Count % 2 != 0) problems.Add(pfx + Loc.F("CountryTech.Validate.OddCoords", "Lines2", t.Lines2.Count));
 
             foreach (var nid in t.NeedId)
-                if (_parser.GetById(nid) == null) problems.Add($"{pfx} NeedId={nid} 找不到前置科技");
+                if (_parser.GetById(nid) == null) problems.Add(pfx + Loc.F("CountryTech.Validate.NeedIdMissing", nid));
 
-            if (t.CostMoney < 0 || t.CostGear < 0 || t.CostAtomic < 0) problems.Add($"{pfx} 消耗出现负值");
+            if (t.CostMoney < 0 || t.CostGear < 0 || t.CostAtomic < 0) problems.Add(pfx + Loc.T("CountryTech.Validate.NegativeCost"));
         }
 
         if (problems.Count == 0)
-            MessageBox.Show($"校验通过，共 {_parser.Items.Count} 条，未发现明显问题。", "校验", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.F("Common.ValidationPassed", _parser.Items.Count), Loc.T("Common.Validate"), MessageBoxButton.OK, MessageBoxImage.Information);
         else
         {
             var msg = string.Join("\n", problems.Take(80));
-            if (problems.Count > 80) msg += $"\n… 共 {problems.Count} 条，仅显示前 80 条";
-            MessageBox.Show(msg, $"校验发现问题 {problems.Count} 条", MessageBoxButton.OK, MessageBoxImage.Warning);
+            if (problems.Count > 80) msg += "\n" + Loc.F("Common.ValidationMore", problems.Count, 80);
+            MessageBox.Show(msg, Loc.F("Common.ValidationProblems", problems.Count), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-        SetStatus($"校验完成：{problems.Count} 个问题");
+        SetStatus(Loc.F("Common.ValidationDone", problems.Count));
     }
 
     private void SetStatus(string s)
@@ -965,15 +732,16 @@ public class CountryTechEditScene : UserControl
             pmin -= 1; pmax += 1; lmin = Math.Max(1, lmin - 1); lmax += 1;
         }
 
+        // 网格坐标标签 L(等级) / P(位置) 是坐标记号，不做翻译
         for (int level = lmin; level <= lmax; level++)
         {
             var g = Grid2World(level, pmin - 0.45);
-            AddText(g.wx, g.wy, "L" + level, new SolidColorBrush(Color.FromRgb(0x5d, 0x78, 0x87)), 12);
+            AddText(g.wx, g.wy, "L" + level, EditorTheme.TextDim, 12);
         }
         for (int pos = pmin; pos <= pmax; pos++)
         {
             var g = Grid2World(lmin - 0.45, pos);
-            AddText(g.wx, g.wy, "P" + pos, new SolidColorBrush(Color.FromRgb(0x5d, 0x78, 0x87)), 12);
+            AddText(g.wx, g.wy, "P" + pos, EditorTheme.TextDim, 12);
         }
 
         var occupied = new HashSet<(int, int)>();
@@ -985,7 +753,7 @@ public class CountryTechEditScene : UserControl
                 var gp = Grid2World(level, pos);
                 var p = W2S(gp.wx, gp.wy);
                 var r = Math.Max(3, 5 * _scale);
-                var dot = new Ellipse { Width = 2 * r, Height = 2 * r, Stroke = new SolidColorBrush(Color.FromRgb(0x82, 0xA7, 0xB4)) };
+                var dot = new Ellipse { Width = 2 * r, Height = 2 * r, Stroke = EditorTheme.BorderStrong };
                 Canvas.SetLeft(dot, p.X - r); Canvas.SetTop(dot, p.Y - r);
                 _canvas.Children.Add(dot);
             }
@@ -1012,7 +780,7 @@ public class CountryTechEditScene : UserControl
                     _canvas.Children.Add(new Polyline
                     {
                         Points = new PointCollection { a, b },
-                        Stroke = new SolidColorBrush(Color.FromRgb(0x9b, 0x6b, 0xa7)),
+                        Stroke = EditorTheme.Warning,
                         StrokeThickness = Math.Max(1, 2 * _scale),
                         StrokeDashArray = new DoubleCollection { 5, 4 }
                     });
@@ -1028,7 +796,7 @@ public class CountryTechEditScene : UserControl
             var gp = Grid2World(_ghostLevel, _ghostPosition);
             var p = W2S(gp.wx, gp.wy);
             var r = NodeRadius * _scale;
-            var ghost = new Ellipse { Width = 2 * r, Height = 2 * r, Stroke = new SolidColorBrush(Colors.Red), StrokeThickness = 2, StrokeDashArray = new DoubleCollection { 4, 4 } };
+            var ghost = new Ellipse { Width = 2 * r, Height = 2 * r, Stroke = EditorTheme.Danger, StrokeThickness = 2, StrokeDashArray = new DoubleCollection { 4, 4 } };
             Canvas.SetLeft(ghost, p.X - r); Canvas.SetTop(ghost, p.Y - r);
             _canvas.Children.Add(ghost);
         }
@@ -1051,7 +819,7 @@ public class CountryTechEditScene : UserControl
         _canvas.Children.Add(new Polyline
         {
             Points = pts,
-            Stroke = new SolidColorBrush(Color.FromRgb(0x16, 0x8D, 0xA3)),
+            Stroke = EditorTheme.Info,
             StrokeThickness = Math.Max(1, 4 * _scale)
         });
     }
@@ -1140,7 +908,7 @@ public class CountryTechEditScene : UserControl
                 var sel = new Rectangle
                 {
                     Width = imgW + 4, Height = imgH + 4,
-                    Stroke = new SolidColorBrush(Color.FromRgb(0xFF, 0xB7, 0x4E)),
+                    Stroke = EditorTheme.Accent,
                     StrokeThickness = Math.Max(1.5, 2.5 * _scale),
                     Fill = Brushes.Transparent,
                     IsHitTestVisible = false
@@ -1151,8 +919,8 @@ public class CountryTechEditScene : UserControl
             }
 
             var name = _parser.GetTechNameByType(node.Type);
-            if (string.IsNullOrEmpty(name)) name = "Tech_" + node.Type;
-            AddScreenTextPair(center.X, center.Y + imgH / 2 + 2, node.Id.ToString() + "  ", new SolidColorBrush(Color.FromRgb(0x21, 0x37, 0x46)), 12, name, Brushes.Black, 11, node.Id);
+            if (string.IsNullOrEmpty(name)) name = Loc.F("CountryTech.UnnamedType", node.Type);
+            AddScreenTextPair(center.X, center.Y + imgH / 2 + 2, node.Id.ToString() + "  ", EditorTheme.TextMuted, 12, name, EditorTheme.Text, 11, node.Id);
             return;
         }
 
@@ -1165,14 +933,14 @@ public class CountryTechEditScene : UserControl
         _canvas.Children.Add(new Polygon
         {
             Points = pts,
-            Fill = selected ? new SolidColorBrush(Color.FromRgb(0xFF, 0xE0, 0xB2)) : new SolidColorBrush(Colors.White),
-            Stroke = new SolidColorBrush(Color.FromRgb(0x4e, 0x71, 0x80)),
+            Fill = selected ? EditorTheme.Selection : EditorTheme.Bg3,
+            Stroke = selected ? EditorTheme.Accent : EditorTheme.BorderStrong,
             StrokeThickness = Math.Max(1, 2 * _scale),
             Tag = node.Id
         });
         var fallbackName = _parser.GetTechNameByType(node.Type);
-        if (string.IsNullOrEmpty(fallbackName)) fallbackName = "Tech_" + node.Type;
-        AddScreenTextPair(center.X, center.Y + 14, node.Id.ToString() + "  ", new SolidColorBrush(Color.FromRgb(0x21, 0x37, 0x46)), 12, fallbackName, Brushes.Black, 11, node.Id);
+        if (string.IsNullOrEmpty(fallbackName)) fallbackName = Loc.F("CountryTech.UnnamedType", node.Type);
+        AddScreenTextPair(center.X, center.Y + 14, node.Id.ToString() + "  ", EditorTheme.TextMuted, 12, fallbackName, EditorTheme.Text, 11, node.Id);
     }
 
     // 用屏幕距离命中：遍历当前分类节点，点击落在节点半径内即命中。
@@ -1205,27 +973,24 @@ public class CountryTechEditScene : UserControl
     {
         var pt = e.GetPosition(_canvas);
         var hit = FindNodeAt(pt);
-        var menu = new ContextMenu
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42))
-        };
+        var menu = new ContextMenu();
+        // 右键菜单是独立弹层，拿不到场景树上的隐式样式，需把主题字典合并进来
+        menu.Resources.MergedDictionaries.Add(EditorTheme.Dictionary);
         if (hit != null)
         {
             var name = _parser.GetTechNameByType(hit.Type);
-            if (string.IsNullOrEmpty(name)) name = "Tech_" + hit.Type;
-            var item = new MenuItem { Header = $"连接至此节点 [Id={hit.Id} {name}]", Foreground = Brushes.White };
+            if (string.IsNullOrEmpty(name)) name = Loc.F("CountryTech.UnnamedType", hit.Type);
+            var item = new MenuItem { Header = Loc.F("CountryTech.Menu.ConnectHere", hit.Id, name) };
             item.Click += (_, _) => ConnectToNode(hit);
             menu.Items.Add(item);
-            var unlink = new MenuItem { Header = "解绑（清空选中节点 NeedId）", Foreground = Brushes.White };
+            var unlink = new MenuItem { Header = Loc.T("CountryTech.Menu.Unlink") };
             unlink.Click += (_, _) => DisconnectNodes();
             menu.Items.Add(unlink);
         }
         else
         {
             var (level, position) = EventGrid(pt);
-            var item = new MenuItem { Header = $"在此新增 (L{level}, P{position})", Foreground = Brushes.White };
+            var item = new MenuItem { Header = Loc.F("CountryTech.Menu.AddHere", level, position) };
             item.Click += (_, _) => AddAt(level, position);
             menu.Items.Add(item);
         }
@@ -1238,7 +1003,7 @@ public class CountryTechEditScene : UserControl
         var children = _parser.Items.Where(t => _selectedIds.Contains(t.Id) && t.Id != target.Id).ToList();
         if (children.Count == 0)
         {
-            MessageBox.Show("请先按住 Ctrl 选中一个或多个子节点，再右键父节点选「连接至此节点」。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.T("CountryTech.ConnectHint"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         foreach (var child in children)
@@ -1249,7 +1014,7 @@ public class CountryTechEditScene : UserControl
         RefreshList();
         if (_current != null) LoadUiFromCurrent();
         RenderCanvas();
-        SetStatus($"已将 {children.Count} 个节点的 NeedId 设为 {target.Id}（未保存）");
+        SetStatus(Loc.F("CountryTech.Connected", children.Count, target.Id));
     }
 
     // 清空所有选中节点的 NeedId（断开与父级的连接）
@@ -1258,7 +1023,7 @@ public class CountryTechEditScene : UserControl
         var nodes = _parser.Items.Where(t => _selectedIds.Contains(t.Id)).ToList();
         if (nodes.Count == 0)
         {
-            MessageBox.Show("请先按住 Ctrl 选中要解绑的节点。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.T("CountryTech.UnlinkHint"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         foreach (var n in nodes)
@@ -1270,7 +1035,7 @@ public class CountryTechEditScene : UserControl
         RefreshList();
         if (_current != null) LoadUiFromCurrent();
         RenderCanvas();
-        SetStatus($"已解绑 {nodes.Count} 个节点的 NeedId（未保存）");
+        SetStatus(Loc.F("CountryTech.Unlinked", nodes.Count));
     }
 
     // 左键：点节点=拖动，点空白=平移视图
@@ -1328,7 +1093,7 @@ public class CountryTechEditScene : UserControl
                 var (level, position) = EventGrid(e.GetPosition(_canvas));
                 bool conflict = _parser.Items.Any(t => t != node && t.CategoryId == node.CategoryId && t.ResearchLv == level && t.Position == position);
                 if (conflict)
-                    MessageBox.Show("目标网格已被本组另一科技占用，移动取消。", "不能移动", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(Loc.T("CountryTech.MoveConflict"), Loc.T("CountryTech.MoveConflictTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 else if (level != node.ResearchLv || position != node.Position)
                 {
                     node.ResearchLv = level;
@@ -1339,7 +1104,7 @@ public class CountryTechEditScene : UserControl
                     _selectedIds.Add(node.Id);
                     LoadUiFromCurrent();
                     RefreshList();
-                    SetStatus($"节点已移动（自动调整 {changed} 条连线，未保存）");
+                    SetStatus(Loc.F("CountryTech.NodeMoved", changed));
                 }
             }
             else
@@ -1434,6 +1199,7 @@ public class CountryTechEditScene : UserControl
         public string Name { get; set; } = "";
         public int CategoryId { get; set; }
         public int ResearchLv { get; set; }
-        public override string ToString() => $"[{Id}] {Name}  (分类:{CategoryId} 等级:{ResearchLv})";
+        // 显示文字在每次取用时才翻译，切换语言后重建列表即可换文字
+        public override string ToString() => Loc.F("CountryTech.ListItem", Id, Name, CategoryId, ResearchLv);
     }
 }

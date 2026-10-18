@@ -77,6 +77,18 @@ public partial class MainWindow : Window
     private DebugConsoleWindow? _consoleWindow;
 
     /// <summary>
+    /// 启动后直接进入的编辑场景（由 App 从命令行 <c>--scene &lt;name&gt;</c> 填入，名字与 AI 工具 open_scene 一致：
+    /// layout / army / general / country …）。放在这里而不是 App 上，因为 GUI 程序集不能反向引用宿主 exe。
+    /// </summary>
+    public static string? StartupScene { get; set; }
+
+    /// <summary>命令行 <c>--screenshot &lt;png&gt;</c>：场景就绪几秒后把整个界面渲染成 PNG 然后退出（自动化界面检查用）。</summary>
+    public static string? StartupScreenshot { get; set; }
+
+    /// <summary>命令行 <c>--open &lt;地图文件&gt;</c>：启动后直接加载该 .btl / .bin 进入对应渲染场景（走开始界面注册的 open 命令）。</summary>
+    public static string? StartupOpenFile { get; set; }
+
+    /// <summary>
     /// 鼠标输入管理器（由 DI 注入，供各渲染场景共享）
     /// </summary>
     public MouseManager MouseManager { get; }
@@ -125,7 +137,7 @@ public partial class MainWindow : Window
 
     private void SetupWindow()
     {
-        Title = ConfigManager.Instance.GetText("TitleBarText", "WC4 Map Editor");
+        Title = ConfigManager.Instance.GetText("TitleBarText", Loc.T("Main.Title"));
         Width = 1250;
         Height = 700;
         MinWidth = 125;
@@ -374,6 +386,41 @@ public partial class MainWindow : Window
     {
         var beginScene = new BeginScene(this);
         SetCurrentScene(beginScene);
+
+        // 命令行指定了启动场景：开始界面注册完 AI 桥之后，借同一条通道切过去（只生效一次）
+        var startup = StartupScene;
+        if (!string.IsNullOrWhiteSpace(startup))
+        {
+            StartupScene = null;
+            Dispatcher.BeginInvoke(() => WC4MapEditor.AI.Tools.AiBridge.SceneOpener?.Invoke(startup), DispatcherPriority.ApplicationIdle);
+        }
+
+        var openFile = StartupOpenFile;
+        if (!string.IsNullOrWhiteSpace(openFile))
+        {
+            StartupOpenFile = null;
+            Dispatcher.BeginInvoke(() => WC4MapEditor.AI.Tools.AiBridge.CommandRunner?.Invoke("open " + openFile), DispatcherPriority.ApplicationIdle);
+        }
+
+        var shotPath = StartupScreenshot;
+        if (!string.IsNullOrWhiteSpace(shotPath))
+        {
+            StartupScreenshot = null;
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(string.IsNullOrWhiteSpace(openFile) ? 4 : 10) };
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                var result = CaptureSceneScreenshot(new WC4MapEditor.Core.Services.MapScreenshotRequest
+                {
+                    SceneMode = true,
+                    OutputPath = shotPath,
+                    MaxPixels = 2600
+                });
+                Console.WriteLine(result.Ok ? $"[screenshot] {result.Path}" : $"[screenshot] FAILED: {result.Message}");
+                Application.Current.Shutdown();
+            };
+            timer.Start();
+        }
     }
 
     private void RemoveWindowBorder()
@@ -778,10 +825,10 @@ public partial class MainWindow : Window
             return Dispatcher.Invoke(() => CaptureSceneScreenshot(request));
 
         if (ActualWidth < 1 || ActualHeight < 1)
-            return WC4MapEditor.Core.Services.MapScreenshotResult.Fail("窗口尚未完成布局，无法截场景");
+            return WC4MapEditor.Core.Services.MapScreenshotResult.Fail(Loc.T("Main.SceneScreenshotNoLayout"));
 
         if (WindowState == WindowState.Minimized)
-            return WC4MapEditor.Core.Services.MapScreenshotResult.Fail("窗口处于最小化状态：请先还原窗口再截场景");
+            return WC4MapEditor.Core.Services.MapScreenshotResult.Fail(Loc.T("Main.SceneScreenshotMinimized"));
 
         try
         {
@@ -823,18 +870,17 @@ public partial class MainWindow : Window
             using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write))
                 encoder.Save(fs);
 
-            string desc = $"整个场景：{Title}（窗口 {ActualWidth:0}×{ActualHeight:0}，"
-                        + $"含工具栏/面板/地图视口/状态栏；独立弹出的窗口与菜单不在内）";
-            if (shrink > 1.0) desc += $"；已按长边 {maxPixels}px 等比缩小";
+            string desc = Loc.F("Main.SceneScreenshotDesc", Title, ActualWidth.ToString("0"), ActualHeight.ToString("0"));
+            if (shrink > 1.0) desc += Loc.F("Main.SceneScreenshotShrunk", maxPixels);
 
-            DebugConsole.WriteLine($"[截图] {desc} → {path}");
+            DebugConsole.WriteLine(Loc.F("Main.ScreenshotLog", desc, path));
             return new WC4MapEditor.Core.Services.MapScreenshotResult(
                 true, path, bitmap.PixelWidth, bitmap.PixelHeight, desc);
         }
         catch (Exception ex)
         {
             return WC4MapEditor.Core.Services.MapScreenshotResult.Fail(
-                $"场景截图失败：{ex.GetType().Name}: {ex.Message}");
+                Loc.F("Main.SceneScreenshotFailed", ex.GetType().Name, ex.Message));
         }
     }
 
@@ -884,7 +930,12 @@ public partial class MainWindow : Window
         timer.Start();
     }
     public void ToggleMaximize() => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-    public void ReturnToMainScene() => SwitchToBeginScene();
+    public void ReturnToMainScene()
+    {
+        // 语言可能刚切换过：回到开始界面时顺带刷新窗口标题
+        Title = ConfigManager.Instance.GetText("TitleBarText", Loc.T("Main.Title"));
+        SwitchToBeginScene();
+    }
 
     /// <summary>
     /// 从 TacticalMapEditScene 返回：有来源目录（= 从资源管理器打开）就回资源管理器，否则回主场景

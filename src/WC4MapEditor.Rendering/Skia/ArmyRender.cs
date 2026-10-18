@@ -48,6 +48,13 @@ public class ArmyRender : IDisposable
     private SKImage? _formationIconCache;
     private readonly Dictionary<int, SKImage> _actionPlanCache = new();
 
+    /// <summary>
+    /// 将领 Id → 头像（null 表示该将领没有头像）。原先每个带将领的单位每帧都要查将领表并拼接文件名。
+    /// 只在 TacticalMapImageCache 就绪时写入；图块缓存状态翻转或 <see cref="ClearGeneralHeadCache"/> 时清空。
+    /// 头像归 TacticalMapImageCache 所有，本类不得 Dispose。
+    /// </summary>
+    private readonly Dictionary<int, SKImage?> _generalHeadCache = new();
+
     private readonly SKFont _levelFont;
     private readonly SKPaint _levelTextPaint;
     private readonly SKPaint _generalDefaultPaint;
@@ -323,27 +330,43 @@ public class ArmyRender : IDisposable
         float headSize = unitSize * GENERAL_HEAD_SIZE_RATIO;
         var headPos = new SKPoint(screenPos.X, screenPos.Y - unitSize * 0.6f);
 
-        SKImage? headImage = null;
-        bool isDefault = true;
-
-        var tacticalCache = TacticalMapImageCache.Instance;
-        if (tacticalCache.IsInitialized)
-        {
-            var generalSetting = GeneralSettingParser.Instance;
-            if (generalSetting != null)
-            {
-                var generalData = generalSetting.GetById(general);
-                string? ename = generalData?.EName;
-                if (!string.IsNullOrEmpty(ename))
-                {
-                    headImage = tacticalCache.GetImage($"head_{ename}.png");
-                    if (headImage != null) isDefault = false;
-                }
-            }
-        }
+        SKImage? headImage = ResolveGeneralHead(general);
+        bool isDefault = headImage == null;
 
         _generalHeadPositions.Add((headPos, headSize, headImage, isDefault));
     }
+
+    /// <summary>按将领 Id 取头像，结果（含"无头像"的 null）缓存在 <see cref="_generalHeadCache"/>。</summary>
+    private SKImage? ResolveGeneralHead(int general)
+    {
+        var tacticalCache = TacticalMapImageCache.Instance;
+        if (!tacticalCache.IsInitialized)
+        {
+            // 图块缓存未就绪时不写缓存，否则会把"暂时没有"永久记成"没有"；
+            // 若之前就绪过而现在被清空，缓存里的图像已失效，一并丢弃。
+            if (_generalHeadCache.Count > 0) _generalHeadCache.Clear();
+            return null;
+        }
+
+        if (_generalHeadCache.TryGetValue(general, out var cached))
+            return cached;
+
+        SKImage? headImage = null;
+        var generalSetting = GeneralSettingParser.Instance;
+        if (generalSetting != null)
+        {
+            var generalData = generalSetting.GetById(general);
+            string? ename = generalData?.EName;
+            if (!string.IsNullOrEmpty(ename))
+                headImage = tacticalCache.GetImage($"head_{ename}.png");
+        }
+
+        _generalHeadCache[general] = headImage;
+        return headImage;
+    }
+
+    /// <summary>将领表（GeneralSettings）重载后调用，丢弃已缓存的 将领 Id → 头像 映射。</summary>
+    public void ClearGeneralHeadCache() => _generalHeadCache.Clear();
 
     private void CollectLevelIconIfNeeded(byte level, SKPoint screenPos, float unitSize)
     {
@@ -591,6 +614,7 @@ public class ArmyRender : IDisposable
         _formationIconCache?.Dispose();
         _actionPlanCache.Values.DisposeAll();
         _actionPlanCache.Clear();
+        _generalHeadCache.Clear(); // 头像归 TacticalMapImageCache 所有，只清引用
 
         _levelFont.Dispose();
         _levelTextPaint.Dispose();

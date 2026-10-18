@@ -19,6 +19,9 @@ public abstract class ModifierBase : IModifier
         _mapData = null;
     }
 
+    /// <summary>是否已针对这份地图数据初始化（命令行 / Lua 用它判断能否复用注册的实例）。</summary>
+    public bool IsInitializedFor(MapData mapData) => ReferenceEquals(_mapData, mapData);
+
     public abstract ModifierResult Apply(int col, int row, object? parameter = null);
     public abstract ModifierResult Remove(int col, int row);
     public abstract bool CanApply(int col, int row);

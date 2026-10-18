@@ -1063,8 +1063,13 @@ public sealed class MapScriptApi : IMapScriptApi
     {
         if (_mapData.Header.BtlVersion >= 3)
         {
-            var v3 = new ArmyV3Modifier();
-            v3.Initialize(_mapData);
+            // 复用管理器里注册的 v3 实例；未对本地图初始化时才临时建一个
+            var v3 = _modeManager.GetModifier<ArmyV3Modifier>();
+            if (v3 == null || !v3.IsInitializedFor(_mapData))
+            {
+                v3 = new ArmyV3Modifier();
+                v3.Initialize(_mapData);
+            }
             return v3Op(v3);
         }
         var v1 = _modeManager.GetModifier<ArmyModifier>();

@@ -18,37 +18,46 @@ namespace WC4MapEditor.GUI.Views.Assist;
 /// </summary>
 public sealed class HeaderSettingWindow : Window
 {
-    /// <summary>字段定义：显示名 / BTLHeader 属性名 / 鼠标提示</summary>
-    private static readonly (string Label, string Prop, string Tip)[] FieldDefs =
+    /// <summary>字段定义：显示名 / BTLHeader 属性名 / 鼠标提示。按实例构建，文字随当前语言而不是缓存在类型里。</summary>
+    private readonly (string Label, string Prop, string Tip)[] _fieldDefs = BuildFieldDefs();
+
+    private static (string Label, string Prop, string Tip)[] BuildFieldDefs()
     {
-        ("BTL版本", nameof(BTLHeader.BtlVersion), "BTL文件版本号"),
-        ("地图编号", nameof(BTLHeader.MapNumber), "地图编号"),
-        ("地图裁剪X", nameof(BTLHeader.MapClipX), "地图裁剪X坐标"),
-        ("地图裁剪Y", nameof(BTLHeader.MapClipY), "地图裁剪Y坐标"),
-        ("地图长度", nameof(BTLHeader.MapLength), "地图长度（列数，水平方向）"),
-        ("地图宽度", nameof(BTLHeader.MapWidth), "地图宽度（行数，垂直方向）"),
-        ("军团数量", nameof(BTLHeader.ArmyCount), "军团数量"),
-        ("建筑数量", nameof(BTLHeader.BuildingCount), "建筑数量"),
-        ("兵种数量", nameof(BTLHeader.TroopCount), "兵种数量"),
-        ("方案数量", nameof(BTLHeader.PlanCount), "方案数量"),
-        ("事件数量", nameof(BTLHeader.EventCount), "事件数量"),
-        ("天气数量", nameof(BTLHeader.WeatherCount), "天气数量"),
-        ("胜利条件", nameof(BTLHeader.VictoryCondition), "胜利条件"),
-        ("最小回合数", nameof(BTLHeader.MinTurns), "最小回合数"),
-        ("最大回合数", nameof(BTLHeader.MaxTurns), "最大回合数"),
-        ("援军数量", nameof(BTLHeader.ReinforcementCount), "援军数量"),
-        ("空袭数量", nameof(BTLHeader.AirRaidCount), "空袭数量"),
-        ("放置位甲", nameof(BTLHeader.PlacementA), "放置位甲"),
-        ("放置位乙", nameof(BTLHeader.PlacementB), "放置位乙"),
-        ("征服旗帜位置", nameof(BTLHeader.ConqueredFlagPosition), "征服旗帜位置"),
-        ("可选格子数量", nameof(BTLHeader.SelectableTileCount), "可选格子数量"),
-        ("累积经济", nameof(BTLHeader.AccumulatedEconomy), "累积经济"),
-        ("累积工业", nameof(BTLHeader.AccumulatedIndustry), "累积工业"),
-        ("累积科技", nameof(BTLHeader.AccumulatedTech), "累积科技"),
-        ("陷阱数量", nameof(BTLHeader.TrapCount), "陷阱数量"),
-        ("战略数量", nameof(BTLHeader.StrategyCount), "战略数量"),
-        ("空中支援数量", nameof(BTLHeader.AirSupportCount), "空中支援数量"),
-    };
+        // 提示与显示名相同的字段只用一个键
+        static (string Label, string Prop, string Tip) F(string labelKey, string prop, string? tipKey = null)
+            => (Loc.T(labelKey), prop, Loc.T(tipKey ?? labelKey));
+
+        return new[]
+        {
+            F("Assist.Header.Field.BtlVersion", nameof(BTLHeader.BtlVersion), "Assist.Header.Tip.BtlVersion"),
+            F("Assist.Header.Field.MapNumber", nameof(BTLHeader.MapNumber)),
+            F("Assist.Header.Field.MapClipX", nameof(BTLHeader.MapClipX), "Assist.Header.Tip.MapClipX"),
+            F("Assist.Header.Field.MapClipY", nameof(BTLHeader.MapClipY), "Assist.Header.Tip.MapClipY"),
+            F("Assist.Header.Field.MapLength", nameof(BTLHeader.MapLength), "Assist.Header.Tip.MapLength"),
+            F("Assist.Header.Field.MapWidth", nameof(BTLHeader.MapWidth), "Assist.Header.Tip.MapWidth"),
+            F("Assist.Header.Field.ArmyCount", nameof(BTLHeader.ArmyCount)),
+            F("Assist.Header.Field.BuildingCount", nameof(BTLHeader.BuildingCount)),
+            F("Assist.Header.Field.TroopCount", nameof(BTLHeader.TroopCount)),
+            F("Assist.Header.Field.PlanCount", nameof(BTLHeader.PlanCount)),
+            F("Assist.Header.Field.EventCount", nameof(BTLHeader.EventCount)),
+            F("Assist.Header.Field.WeatherCount", nameof(BTLHeader.WeatherCount)),
+            F("Assist.Header.Field.VictoryCondition", nameof(BTLHeader.VictoryCondition)),
+            F("Assist.Header.Field.MinTurns", nameof(BTLHeader.MinTurns)),
+            F("Assist.Header.Field.MaxTurns", nameof(BTLHeader.MaxTurns)),
+            F("Assist.Header.Field.ReinforcementCount", nameof(BTLHeader.ReinforcementCount)),
+            F("Assist.Header.Field.AirRaidCount", nameof(BTLHeader.AirRaidCount)),
+            F("Assist.Header.Field.PlacementA", nameof(BTLHeader.PlacementA)),
+            F("Assist.Header.Field.PlacementB", nameof(BTLHeader.PlacementB)),
+            F("Assist.Header.Field.ConqueredFlagPosition", nameof(BTLHeader.ConqueredFlagPosition)),
+            F("Assist.Header.Field.SelectableTileCount", nameof(BTLHeader.SelectableTileCount)),
+            F("Assist.Header.Field.AccumulatedEconomy", nameof(BTLHeader.AccumulatedEconomy)),
+            F("Assist.Header.Field.AccumulatedIndustry", nameof(BTLHeader.AccumulatedIndustry)),
+            F("Assist.Header.Field.AccumulatedTech", nameof(BTLHeader.AccumulatedTech)),
+            F("Assist.Header.Field.TrapCount", nameof(BTLHeader.TrapCount)),
+            F("Assist.Header.Field.StrategyCount", nameof(BTLHeader.StrategyCount)),
+            F("Assist.Header.Field.AirSupportCount", nameof(BTLHeader.AirSupportCount)),
+        };
+    }
 
     private static readonly Dictionary<string, PropertyInfo> HeaderProps =
         typeof(BTLHeader)
@@ -62,20 +71,20 @@ public sealed class HeaderSettingWindow : Window
 
     public HeaderSettingWindow(BTLHeader header)
     {
+        EditorTheme.Apply(this);
         _target = header ?? throw new ArgumentNullException(nameof(header));
         // 通过序列化往返得到独立副本，保证取消不产生副作用
         _working = BTLHeader.Parse(_target.ToBytes());
 
-        Title = "头部数据编辑";
+        Title = Loc.T("Assist.Header.Title");
         Width = 620;
         Height = 620;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ResizeMode = ResizeMode.NoResize;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
+        // 无边框圆角卡片 + 投影需要窗口本身透明；主题底色放在内部卡片 Border 上
         Background = Brushes.Transparent;
-        FontFamily = new FontFamily("Microsoft YaHei");
-        FontSize = 12;
 
         Content = CreateUI();
         LoadValues();
@@ -105,18 +114,18 @@ public sealed class HeaderSettingWindow : Window
     {
         var outer = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(45, 45, 48)),
-            CornerRadius = new CornerRadius(10),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(100, 100, 100, 100)),
+            Background = EditorTheme.Bg2,
+            CornerRadius = new CornerRadius(8),
+            BorderBrush = EditorTheme.Border,
             BorderThickness = new Thickness(1),
             Margin = new Thickness(10),
             Effect = new DropShadowEffect
             {
-                Color = Colors.Black,
+                Color = EditorTheme.ColorOf(EditorTheme.Bg0),
                 Direction = 270,
-                ShadowDepth = 8,
+                ShadowDepth = 6,
                 BlurRadius = 20,
-                Opacity = 0.4
+                Opacity = 0.6
             }
         };
 
@@ -147,30 +156,15 @@ public sealed class HeaderSettingWindow : Window
         panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var label = new TextBlock
-        {
-            Text = "头部数据编辑",
-            FontSize = 16,
-            FontWeight = FontWeights.Bold,
-            Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center
-        };
+        var label = EditorTheme.Title(Loc.T("Assist.Header.Title"));
         Grid.SetColumn(label, 0);
         panel.Children.Add(label);
 
-        var close = new Button
-        {
-            Content = "✕",
-            Width = 28,
-            Height = 28,
-            Background = Brushes.Transparent,
-            Foreground = new SolidColorBrush(Color.FromRgb(200, 200, 200)),
-            BorderThickness = new Thickness(0),
-            FontSize = 13,
-            Cursor = Cursors.Hand,
-            ToolTip = "取消 (Esc)"
-        };
-        close.Click += (_, _) => CancelAndClose();
+        var close = EditorTheme.GhostButton("✕", (_, _) => CancelAndClose());
+        close.Width = 28;
+        close.Height = 28;
+        close.Padding = new Thickness(0);
+        close.ToolTip = Loc.T("Assist.Common.CancelEsc");
         Grid.SetColumn(close, 1);
         panel.Children.Add(close);
 
@@ -188,38 +182,25 @@ public sealed class HeaderSettingWindow : Window
         panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         // 两列排布：左列放前半，右列放后半
-        int half = (FieldDefs.Length + 1) / 2;
-        for (int i = 0; i < FieldDefs.Length; i++)
+        int half = (_fieldDefs.Length + 1) / 2;
+        for (int i = 0; i < _fieldDefs.Length; i++)
         {
             bool rightColumn = i >= half;
             int rowIndex = rightColumn ? i - half : i;
-            var def = FieldDefs[i];
+            var def = _fieldDefs[i];
 
-            var row = new Grid { Margin = new Thickness(0, 4, 0, 4) };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(96) });
+            var row = new Grid { Margin = new Thickness(0, 3, 0, 3) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            var label = new TextBlock
-            {
-                Text = def.Label,
-                Foreground = Brushes.White,
-                FontSize = 12,
-                VerticalAlignment = VerticalAlignment.Center,
-                ToolTip = def.Tip
-            };
+            var label = EditorTheme.FieldLabel(def.Label);
+            label.ToolTip = def.Tip;
+            label.Margin = new Thickness(0, 0, 8, 0);
             Grid.SetColumn(label, 0);
             row.Children.Add(label);
 
             var box = new TextBox
             {
-                Height = 24,
-                Background = new SolidColorBrush(Color.FromRgb(70, 70, 73)),
-                Foreground = Brushes.White,
-                BorderBrush = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(4, 1, 4, 1),
-                VerticalContentAlignment = VerticalAlignment.Center,
-                FontSize = 12,
                 ToolTip = def.Tip
             };
             Grid.SetColumn(box, 1);
@@ -251,52 +232,29 @@ public sealed class HeaderSettingWindow : Window
             Margin = new Thickness(0, 0, 16, 12)
         };
 
-        panel.Children.Add(CreateButton("重置", Color.FromRgb(80, 80, 80), (_, _) => LoadValues()));
-        panel.Children.Add(CreateButton("保存并关闭", Color.FromRgb(0, 122, 204), (_, _) => SaveAndClose()));
-        panel.Children.Add(CreateButton("取消", Color.FromRgb(80, 80, 80), (_, _) => CancelAndClose()));
+        var reset = EditorTheme.Button(Loc.T("Common.Reset"), (_, _) => LoadValues());
+        reset.MinWidth = 96;
+        reset.Margin = new Thickness(8, 0, 0, 0);
+        panel.Children.Add(reset);
+
+        var save = EditorTheme.PrimaryButton(Loc.T("Assist.Header.SaveAndClose"), (_, _) => SaveAndClose());
+        save.MinWidth = 96;
+        save.Margin = new Thickness(8, 0, 0, 0);
+        panel.Children.Add(save);
+
+        var cancel = EditorTheme.Button(Loc.T("Common.Cancel"), (_, _) => CancelAndClose());
+        cancel.MinWidth = 96;
+        cancel.Margin = new Thickness(8, 0, 0, 0);
+        panel.Children.Add(cancel);
 
         return panel;
-    }
-
-    private static Button CreateButton(string content, Color background, RoutedEventHandler onClick)
-    {
-        var button = new Button
-        {
-            Content = content,
-            Width = 96,
-            Height = 30,
-            Background = new SolidColorBrush(background),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontSize = 12,
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(8, 0, 0, 0)
-        };
-        button.Click += onClick;
-
-        var template = new ControlTemplate(typeof(Button));
-        var border = new FrameworkElementFactory(typeof(Border));
-        border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Button.BackgroundProperty));
-        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
-        var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
-        presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-        presenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
-        border.AppendChild(presenter);
-        template.VisualTree = border;
-
-        var hover = new Trigger { Property = Button.IsMouseOverProperty, Value = true };
-        hover.Setters.Add(new Setter(Button.BackgroundProperty, new SolidColorBrush(Color.FromRgb(100, 149, 237))));
-        template.Triggers.Add(hover);
-        button.Template = template;
-
-        return button;
     }
 
     // -------------------------------------------------------------- 数据
 
     private void LoadValues()
     {
-        foreach (var def in FieldDefs)
+        foreach (var def in _fieldDefs)
         {
             if (!_boxes.TryGetValue(def.Prop, out var box)) continue;
             if (!HeaderProps.TryGetValue(def.Prop, out var prop)) continue;
@@ -310,7 +268,7 @@ public sealed class HeaderSettingWindow : Window
     {
         var errors = new List<string>();
 
-        foreach (var def in FieldDefs)
+        foreach (var def in _fieldDefs)
         {
             if (!_boxes.TryGetValue(def.Prop, out var box)) continue;
             if (!HeaderProps.TryGetValue(def.Prop, out var prop)) continue;
@@ -318,7 +276,7 @@ public sealed class HeaderSettingWindow : Window
             string text = box.Text.Trim();
             if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
             {
-                errors.Add($"{def.Label}: 需要整数");
+                errors.Add(Loc.F("Assist.Header.IntegerRequired", def.Label));
                 continue;
             }
 
@@ -327,7 +285,7 @@ public sealed class HeaderSettingWindow : Window
 
         if (errors.Count > 0)
         {
-            MessageBox.Show(string.Join("\n", errors), "输入有误",
+            MessageBox.Show(string.Join("\n", errors), Loc.T("Common.InputError"),
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }

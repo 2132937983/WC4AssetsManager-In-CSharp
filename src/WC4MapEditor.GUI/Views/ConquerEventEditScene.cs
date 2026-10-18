@@ -19,6 +19,9 @@ namespace WC4MapEditor.GUI.Views;
 /// </summary>
 public class ConquerEventEditScene : UserControl
 {
+    /// <summary>表单行字段名列宽：这里的标签带英文属性名，比默认的 180 宽一点。</summary>
+    private const double LabelWidth = 200;
+
     private readonly MainWindow _window;
     private readonly ConquerEventSettingParser _parser = ConquerEventSettingParser.Instance;
 
@@ -40,7 +43,7 @@ public class ConquerEventEditScene : UserControl
     public ConquerEventEditScene(MainWindow window)
     {
         _window = window;
-        Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
+        EditorTheme.Apply(this);
         BuildUI();
         Debug.WriteLine($"[ConquerEventEditScene] 构造: parser.Items.Count={_parser.Items.Count}, ConfigPath={_parser.ConfigPath}, StringTablePath={_parser.StringTablePath}");
         RefreshConquers();
@@ -56,261 +59,114 @@ public class ConquerEventEditScene : UserControl
     private void BuildUI()
     {
         _root = new Grid();
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(50) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
         _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
-        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(340) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
+        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(320) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        _root.Children.Add(MakeTopBar());
+        var topBar = EditorTheme.TopBar(Loc.T("ConquerEvent.Title"), (_, _) => _window.ReturnToMainScene(),
+            EditorTheme.Button(Loc.T("Common.Add"), OnAdd),
+            EditorTheme.DangerButton(Loc.T("Common.Delete"), OnDelete),
+            EditorTheme.PrimaryButton(Loc.T("Common.Save"), OnSave),
+            EditorTheme.Button(Loc.T("Common.Reload"), OnReload),
+            EditorTheme.Button(Loc.T("Common.Validate"), OnValidate));
+        Grid.SetRow(topBar, 0); Grid.SetColumnSpan(topBar, 3);
+        _root.Children.Add(topBar);
 
-        var left = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x26)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 0, 1, 0)
-        };
+        var left = EditorTheme.Panel(new Thickness(0, 0, 1, 0));
         Grid.SetRow(left, 1); Grid.SetColumn(left, 0);
         var leftGrid = new Grid();
-        leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(34) });
-        leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(34) });
+        leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        _conquerCombo = new ComboBox
-        {
-            Margin = new Thickness(8, 5, 8, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            FontSize = 13
-        };
+        _conquerCombo = EditorTheme.ComboBox();
+        _conquerCombo.Margin = new Thickness(8, 8, 8, 0);
         _conquerCombo.SelectionChanged += (_, _) => RefreshList();
         Grid.SetRow(_conquerCombo, 0);
         leftGrid.Children.Add(_conquerCombo);
 
-        _searchBox = new TextBox
-        {
-            Margin = new Thickness(8, 5, 8, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13,
-            Padding = new Thickness(6, 3, 6, 3),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            CaretBrush = Brushes.White
-        };
-        _searchBox.Text = "搜索 (Id / 名称 / ConquerId)...";
-        _searchBox.GotFocus += (_, _) => { if (_searchBox.Text.StartsWith("搜索")) _searchBox.Text = ""; };
-        _searchBox.LostFocus += (_, _) => { if (string.IsNullOrWhiteSpace(_searchBox.Text)) _searchBox.Text = "搜索 (Id / 名称 / ConquerId)..."; };
+        var search = EditorTheme.SearchBox(Loc.T("ConquerEvent.SearchPlaceholder"), out _searchBox);
+        search.Margin = new Thickness(8);
         _searchBox.TextChanged += (_, _) => RefreshList();
-        Grid.SetRow(_searchBox, 1);
-        leftGrid.Children.Add(_searchBox);
+        Grid.SetRow(search, 1);
+        leftGrid.Children.Add(search);
 
-        _listBox = new ListBox
-        {
-            Background = Brushes.Transparent,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontSize = 13
-        };
+        _listBox = new ListBox();
         _listBox.SelectionChanged += ListBox_SelectionChanged;
         Grid.SetRow(_listBox, 2);
         leftGrid.Children.Add(_listBox);
 
         left.Child = leftGrid;
         _root.Children.Add(left);
-        _root.Children.Add(MakeSplitter());
 
-        var right = new Border { Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)) };
-        Grid.SetRow(right, 1); Grid.SetColumn(right, 2);
+        var splitter = EditorTheme.VSplitter();
+        Grid.SetRow(splitter, 1); Grid.SetColumn(splitter, 1);
+        _root.Children.Add(splitter);
+
         BuildRightPanel();
-        right.Child = _propScroll;
-        _root.Children.Add(right);
+        Grid.SetRow(_propScroll, 1); Grid.SetColumn(_propScroll, 2);
+        _root.Children.Add(_propScroll);
 
-        var status = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 1, 0, 0)
-        };
+        var status = EditorTheme.StatusBar(out _statusText, Loc.T("Common.Ready"));
         Grid.SetRow(status, 2); Grid.SetColumnSpan(status, 3);
-        _statusText = new TextBlock
-        {
-            Text = $"已加载 {_parser.Items.Count} 条征服事件",
-            Foreground = Brushes.LightGray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 12, 0)
-        };
-        status.Child = _statusText;
         _root.Children.Add(status);
 
         Content = _root;
     }
 
-    private Grid MakeTopBar()
-    {
-        var bar = new Grid();
-        Grid.SetRow(bar, 0); Grid.SetColumnSpan(bar, 3);
-        bar.Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30));
-        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) };
-        panel.Children.Add(MakeTopBtn("返回", (_, _) => _window.ReturnToMainScene()));
-        panel.Children.Add(MakeTopBtn("新增", OnAdd));
-        panel.Children.Add(MakeTopBtn("删除", OnDelete));
-        panel.Children.Add(MakeTopBtn("保存", OnSave));
-        panel.Children.Add(MakeTopBtn("重载", OnReload));
-        panel.Children.Add(MakeTopBtn("校验", OnValidate));
-        Grid.SetColumn(panel, 0);
-        bar.Children.Add(panel);
-        return bar;
-    }
-
-    private static GridSplitter MakeSplitter()
-    {
-        var sp = new GridSplitter
-        {
-            Width = 4,
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch,
-            ResizeBehavior = GridResizeBehavior.PreviousAndNext
-        };
-        Grid.SetRow(sp, 1); Grid.SetColumn(sp, 1);
-        return sp;
-    }
-
     private void BuildRightPanel()
     {
-        _propPanel = new StackPanel { Margin = new Thickness(0) };
+        _propPanel = new StackPanel();
         _propScroll = new ScrollViewer
         {
             Content = _propPanel,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Padding = new Thickness(0, 0, 8, 0)
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
 
-        AddSection("基本信息");
-        AddNum("Id", "事件ID(Id)", 0, int.MaxValue);
-        AddText("NameIni", "名称(Name / INI conquest_event_{Id})");
-        AddText("DescIni", "描述(Desc / INI event_intro_{Id})");
-        AddNum("ConquerId", "所属征服ID(ConquerId)", 0, int.MaxValue);
+        _propPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("Common.BasicInfo")));
+        AddNum("Id", Loc.T("ConquerEvent.Field.Id"), 0, int.MaxValue);
+        AddText("NameIni", Loc.T("ConquerEvent.Field.NameIni"));
+        AddText("DescIni", Loc.T("ConquerEvent.Field.DescIni"));
+        AddNum("ConquerId", Loc.T("ConquerEvent.Field.ConquerId"), 0, int.MaxValue);
 
-        AddSection("Buff 1");
-        AddBuffField("EventBuffId1", "Buff1 ID(EventBuffId1)");
-        AddNum("Round1", "Buff1 持续回合(Round1)", int.MinValue, int.MaxValue);
-        AddCountryField("CountryId1", "Buff1 作用国家(CountryId1)");
+        _propPanel.Children.Add(EditorTheme.SectionHeader(Loc.F("ConquerEvent.Section.Buff", 1)));
+        AddBuffField("EventBuffId1", Loc.F("ConquerEvent.Field.BuffId", 1));
+        AddNum("Round1", Loc.F("ConquerEvent.Field.BuffRound", 1), int.MinValue, int.MaxValue);
+        AddCountryField("CountryId1", Loc.F("ConquerEvent.Field.BuffCountry", 1));
 
-        AddSection("Buff 2");
-        AddBuffField("EventBuffId2", "Buff2 ID(EventBuffId2)");
-        AddNum("Round2", "Buff2 持续回合(Round2)", int.MinValue, int.MaxValue);
-        AddCountryField("CountryId2", "Buff2 作用国家(CountryId2)");
+        _propPanel.Children.Add(EditorTheme.SectionHeader(Loc.F("ConquerEvent.Section.Buff", 2)));
+        AddBuffField("EventBuffId2", Loc.F("ConquerEvent.Field.BuffId", 2));
+        AddNum("Round2", Loc.F("ConquerEvent.Field.BuffRound", 2), int.MinValue, int.MaxValue);
+        AddCountryField("CountryId2", Loc.F("ConquerEvent.Field.BuffCountry", 2));
 
-        AddSection("触发条件");
-        AddNum("Trigger", "触发类型(Trigger)", 0, int.MaxValue);
-        AddText("TriggerValue", "触发参数(TriggerValue，逗号分隔)");
-        AddText("Location", "触发地点(Location，逗号分隔)");
-        AddNum("Chance", "触发概率(%)(Chance)", 0, 100);
+        _propPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("ConquerEvent.Section.Trigger")));
+        AddNum("Trigger", Loc.T("ConquerEvent.Field.Trigger"), 0, int.MaxValue);
+        AddText("TriggerValue", Loc.T("ConquerEvent.Field.TriggerValue"));
+        AddText("Location", Loc.T("ConquerEvent.Field.Location"));
+        AddNum("Chance", Loc.T("ConquerEvent.Field.Chance"), 0, 100);
 
-        AddSection("JSON 预览");
-        _jsonPreview = new TextBox
-        {
-            IsReadOnly = true,
-            Background = new SolidColorBrush(Color.FromRgb(0x16, 0x16, 0x16)),
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9C, 0xD6, 0x6B)),
-            FontFamily = new FontFamily("Consolas"),
-            FontSize = 12,
-            BorderThickness = new Thickness(0),
-            TextWrapping = TextWrapping.Wrap,
-            AcceptsReturn = true,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Margin = new Thickness(8, 4, 8, 12),
-            Height = 220
-        };
+        _propPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("Common.JsonPreview")));
+        _jsonPreview = EditorTheme.MonoTextBox(220);
+        _jsonPreview.Margin = new Thickness(10, 8, 10, 12);
         _propPanel.Children.Add(_jsonPreview);
     }
 
     // ============================================================= 控件辅助 =============================================================
-    private static Button MakeTopBtn(string label, RoutedEventHandler handler)
-    {
-        var btn = new Button
-        {
-            Content = label,
-            Height = 32,
-            Margin = new Thickness(4, 0, 4, 0),
-            Padding = new Thickness(14, 0, 14, 0),
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13
-        };
-        btn.Click += handler;
-        return btn;
-    }
-
-    private void AddSection(string title)
-    {
-        _propPanel.Children.Add(new TextBlock
-        {
-            Text = title,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB7, 0x4E)),
-            FontSize = 13,
-            FontWeight = FontWeights.Bold,
-            Margin = new Thickness(8, 10, 0, 4)
-        });
-    }
-
-    private void AddRow(string label, UIElement content)
-    {
-        var border = new Border
-        {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(8, 4, 8, 4)
-        };
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var lbl = new TextBlock
-        {
-            Text = label,
-            Foreground = Brushes.LightGray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap
-        };
-        Grid.SetColumn(lbl, 0);
-        Grid.SetColumn(content, 1);
-        grid.Children.Add(lbl);
-        grid.Children.Add(content);
-        border.Child = grid;
-        _propPanel.Children.Add(border);
-    }
-
     private NumericUpDown AddNum(string key, string label, double min = int.MinValue, double max = int.MaxValue, double inc = 1)
     {
         var ctrl = new NumericUpDown { MinValue = min, MaxValue = max, Increment = inc };
         ctrl.ValueChanged += (_, _) => { if (!_loadingUi && _current != null) ApplyPropCurrent(); };
         _numBoxes[key] = ctrl;
-        AddRow(label, ctrl);
+        _propPanel.Children.Add(EditorTheme.FormRow(label, ctrl, LabelWidth));
         return ctrl;
     }
 
     private TextBox AddText(string key, string label)
     {
-        var tb = new TextBox
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13,
-            Padding = new Thickness(6, 3, 6, 3),
-            CaretBrush = Brushes.White
-        };
+        var tb = new TextBox();
         tb.TextChanged += (_, _) =>
         {
             if (_loadingUi || _current == null) return;
@@ -319,35 +175,27 @@ public class ConquerEventEditScene : UserControl
             else if (key == "DescIni") _parser.SetEventDesc(_current.Id, tb.Text);
         };
         _textBoxes[key] = tb;
-        AddRow(label, tb);
+        _propPanel.Children.Add(EditorTheme.FormRow(label, tb, LabelWidth));
         return tb;
     }
 
     // ============================================================= 带选择器的字段 =============================================================
+    /// <summary>字段右侧的小下拉按钮：高度与输入框 / 数字框一致。</summary>
     private static Button MakePickButton()
     {
-        return new Button
-        {
-            Content = "▼", Width = 26, Height = 24, Margin = new Thickness(4, 0, 0, 0),
-            Background = new SolidColorBrush(Color.FromRgb(0, 122, 204)),
-            Foreground = Brushes.White, BorderThickness = new Thickness(0),
-            FontSize = 10, Cursor = Cursors.Hand
-        };
+        var b = EditorTheme.Button("▼");
+        b.Width = 28;
+        b.Height = 28;
+        b.MinHeight = 0;
+        b.Padding = new Thickness(0);
+        b.Margin = new Thickness(4, 0, 0, 0);
+        b.FontSize = 10;
+        return b;
     }
 
     private TextBox AddCountryField(string key, string label)
     {
-        var tb = new TextBox
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13,
-            Padding = new Thickness(6, 3, 6, 3),
-            CaretBrush = Brushes.White,
-            ToolTip = "国家 ID 列表，逗号分隔；点右侧按钮多选"
-        };
+        var tb = new TextBox { ToolTip = Loc.T("ConquerEvent.CountryTooltip") };
         tb.TextChanged += (_, _) => { if (!_loadingUi && _current != null) ApplyPropCurrent(); };
         _textBoxes[key] = tb;
 
@@ -359,7 +207,7 @@ public class ConquerEventEditScene : UserControl
         fg.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         Grid.SetColumn(tb, 0); Grid.SetColumn(pickBtn, 1);
         fg.Children.Add(tb); fg.Children.Add(pickBtn);
-        AddRow(label, fg);
+        _propPanel.Children.Add(EditorTheme.FormRow(label, fg, LabelWidth));
         return tb;
     }
 
@@ -377,8 +225,27 @@ public class ConquerEventEditScene : UserControl
         fg.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         Grid.SetColumn(ctrl, 0); Grid.SetColumn(pickBtn, 1);
         fg.Children.Add(ctrl); fg.Children.Add(pickBtn);
-        AddRow(label, fg);
+        _propPanel.Children.Add(EditorTheme.FormRow(label, fg, LabelWidth));
         return ctrl;
+    }
+
+    /// <summary>
+    /// 弹出面板的外框。Popup 的内容不在场景的可视树里，拿不到场景合并的隐式样式，
+    /// 所以这里单独把主题字典合并进外框，里面的输入框 / 列表 / 按钮才会是深色外观。
+    /// </summary>
+    private static Border MakePopupBorder(UIElement content)
+    {
+        var border = new Border
+        {
+            Child = content,
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.Border,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Effect = new DropShadowEffect { BlurRadius = 10, ShadowDepth = 2, Opacity = 0.5 }
+        };
+        EditorTheme.Apply(border);
+        return border;
     }
 
     /// <summary>弹出国家多选菜单：搜索栏 + 多选列表，确认后回填逗号分隔 ID。</summary>
@@ -387,57 +254,31 @@ public class ConquerEventEditScene : UserControl
         var countries = CountrySettingParser.Instance.Countries.OrderBy(c => c.Id).ToList();
         var selectedSet = new HashSet<int>(ParseIntList(target.Text));
 
-        var searchBox = new TextBox
-        {
-            Height = 24, Margin = new Thickness(6, 6, 6, 4),
-            Background = new SolidColorBrush(Color.FromRgb(70, 70, 73)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(4, 1, 4, 1),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            FontSize = 12
-        };
+        var search = EditorTheme.SearchBox(Loc.T("Common.SearchPlaceholder"), out var searchBox);
+        search.Margin = new Thickness(6, 6, 6, 4);
 
         var listBox = new ListBox
         {
-            MaxHeight = 320, Margin = new Thickness(6, 0, 6, 4),
-            Background = new SolidColorBrush(Color.FromRgb(58, 58, 61)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
-            BorderThickness = new Thickness(1),
-            FontSize = 12,
+            MaxHeight = 320,
+            Margin = new Thickness(6, 0, 6, 4),
             SelectionMode = SelectionMode.Multiple
         };
 
-        var okBtn = new Button
-        {
-            Content = "确认", Width = 70, Height = 24, Margin = new Thickness(6, 0, 6, 8),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Background = new SolidColorBrush(Color.FromRgb(0, 122, 204)),
-            Foreground = Brushes.White, BorderThickness = new Thickness(0), FontSize = 12
-        };
+        var okBtn = EditorTheme.PrimaryButton(Loc.T("Common.Confirm"));
+        okBtn.Width = 70;
+        okBtn.Margin = new Thickness(6, 0, 6, 8);
+        okBtn.HorizontalAlignment = HorizontalAlignment.Right;
 
         var panel = new StackPanel();
-        panel.Children.Add(searchBox);
+        panel.Children.Add(search);
         panel.Children.Add(listBox);
         panel.Children.Add(okBtn);
-
-        var border = new Border
-        {
-            Child = panel,
-            Background = new SolidColorBrush(Color.FromRgb(45, 45, 48)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0, 122, 204)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            Effect = new DropShadowEffect { BlurRadius = 10, ShadowDepth = 2, Opacity = 0.5 }
-        };
 
         var popup = new Popup
         {
             PlacementTarget = anchor, Placement = PlacementMode.Bottom,
             StaysOpen = false, AllowsTransparency = true,
-            PopupAnimation = PopupAnimation.Fade, Width = 300, Child = border
+            PopupAnimation = PopupAnimation.Fade, Width = 300, Child = MakePopupBorder(panel)
         };
 
         void CollectSelected()
@@ -487,47 +328,24 @@ public class ConquerEventEditScene : UserControl
         var bp = EventBuffSettingParser.Instance;
         var buffs = bp.Items.OrderBy(b => b.Id).ToList();
 
-        var searchBox = new TextBox
-        {
-            Height = 24, Margin = new Thickness(6, 6, 6, 4),
-            Background = new SolidColorBrush(Color.FromRgb(70, 70, 73)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(4, 1, 4, 1),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            FontSize = 12
-        };
+        var search = EditorTheme.SearchBox(Loc.T("Common.SearchPlaceholder"), out var searchBox);
+        search.Margin = new Thickness(6, 6, 6, 4);
 
         var listBox = new ListBox
         {
-            MaxHeight = 320, Margin = new Thickness(6, 0, 6, 6),
-            Background = new SolidColorBrush(Color.FromRgb(58, 58, 61)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
-            BorderThickness = new Thickness(1),
-            FontSize = 12
+            MaxHeight = 320,
+            Margin = new Thickness(6, 0, 6, 6)
         };
 
         var panel = new StackPanel();
-        panel.Children.Add(searchBox);
+        panel.Children.Add(search);
         panel.Children.Add(listBox);
-
-        var border = new Border
-        {
-            Child = panel,
-            Background = new SolidColorBrush(Color.FromRgb(45, 45, 48)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0, 122, 204)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            Effect = new DropShadowEffect { BlurRadius = 10, ShadowDepth = 2, Opacity = 0.5 }
-        };
 
         var popup = new Popup
         {
             PlacementTarget = anchor, Placement = PlacementMode.Bottom,
             StaysOpen = false, AllowsTransparency = true,
-            PopupAnimation = PopupAnimation.Fade, Width = 320, Child = border
+            PopupAnimation = PopupAnimation.Fade, Width = 320, Child = MakePopupBorder(panel)
         };
 
         void Commit()
@@ -578,9 +396,9 @@ public class ConquerEventEditScene : UserControl
     {
         var sel = _conquerCombo.SelectedValue;
         _conquerCombo.Items.Clear();
-        _conquerCombo.Items.Add(new ConquerGroupItem { Id = -1, Name = "全部征服" });
+        _conquerCombo.Items.Add(new ConquerGroupItem { Id = -1, Name = Loc.T("ConquerEvent.AllConquests") });
         foreach (var cq in _parser.Items.Select(t => t.ConquerId).Distinct().OrderBy(x => x))
-            _conquerCombo.Items.Add(new ConquerGroupItem { Id = cq, Name = $"征服 {cq}" });
+            _conquerCombo.Items.Add(new ConquerGroupItem { Id = cq, Name = Loc.F("ConquerEvent.ConquestItem", cq) });
         _conquerCombo.DisplayMemberPath = "Name";
         _conquerCombo.SelectedValuePath = "Id";
         _conquerCombo.SelectedValue = sel ?? -1;
@@ -591,7 +409,7 @@ public class ConquerEventEditScene : UserControl
     {
         int cqFilter = _conquerCombo.SelectedValue is int v ? v : -1;
         var q = _searchBox.Text;
-        bool searching = !string.IsNullOrWhiteSpace(q) && !q.StartsWith("搜索");
+        bool searching = !string.IsNullOrWhiteSpace(q);
 
         var items = _parser.Items.Where(ev =>
         {
@@ -607,7 +425,7 @@ public class ConquerEventEditScene : UserControl
         foreach (var ev in items)
         {
             var name = _parser.GetEventName(ev.Id);
-            if (string.IsNullOrEmpty(name)) name = $"事件_{ev.Id}";
+            if (string.IsNullOrEmpty(name)) name = Loc.F("ConquerEvent.UnnamedEvent", ev.Id);
             _listBox.Items.Add(new ConquerEventListEntry
             {
                 Id = ev.Id,
@@ -615,7 +433,7 @@ public class ConquerEventEditScene : UserControl
                 ConquerId = ev.ConquerId
             });
         }
-        SetStatus($"已加载 {_parser.Items.Count} 条征服事件，列表 {_listBox.Items.Count} 条");
+        SetStatus(Loc.F("ConquerEvent.Loaded", _parser.Items.Count, _listBox.Items.Count));
         Debug.WriteLine($"[ConquerEventEditScene] RefreshList: parser.Items.Count={_parser.Items.Count}, listBox.Items.Count={_listBox.Items.Count}, cqFilter={cqFilter}, searching={searching}");
     }
 
@@ -695,7 +513,7 @@ public class ConquerEventEditScene : UserControl
     {
         if (_current == null) { _jsonPreview.Text = ""; return; }
         try { _jsonPreview.Text = JsonSerializer.Serialize(_current, new JsonSerializerOptions { WriteIndented = true }); }
-        catch { _jsonPreview.Text = "(序列化失败)"; }
+        catch { _jsonPreview.Text = Loc.T("Common.SerializeFailed"); }
     }
 
     // ============================================================= 操作 =============================================================
@@ -715,19 +533,20 @@ public class ConquerEventEditScene : UserControl
             Chance = 100
         };
         _parser.AddEvent(ev);
+        // 默认名称会写进 stringtable，是数据不是界面文字，保持原样
         _parser.SetEventName(newId, $"新事件{newId}");
         _parser.SetEventDesc(newId, "");
         RefreshConquers();
         RefreshList();
         foreach (ConquerEventListEntry item in _listBox.Items)
             if (item.Id == newId) { _listBox.SelectedItem = item; break; }
-        SetStatus($"新增征服事件 ID={newId}（未保存）");
+        SetStatus(Loc.F("ConquerEvent.Added", newId));
     }
 
     private void OnDelete(object sender, RoutedEventArgs e)
     {
-        if (_current == null) { MessageBox.Show("请先在左侧选中一个事件", "提示", MessageBoxButton.OK, MessageBoxImage.Information); return; }
-        var res = MessageBox.Show($"确定删除征服事件 [{_current.Id}] {_parser.GetEventName(_current.Id)}？", "删除", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (_current == null) { MessageBox.Show(Loc.T("ConquerEvent.SelectFirst"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
+        var res = MessageBox.Show(Loc.F("ConquerEvent.DeleteConfirm", _current.Id, _parser.GetEventName(_current.Id)), Loc.T("Common.Delete"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (res != MessageBoxResult.Yes) return;
         int id = _current.Id;
         _parser.RemoveEvent(id);
@@ -735,31 +554,31 @@ public class ConquerEventEditScene : UserControl
         RefreshConquers();
         RefreshList();
         ShowEmpty();
-        SetStatus($"已删除征服事件 ID={id}（未保存）");
+        SetStatus(Loc.F("ConquerEvent.Deleted", id));
     }
 
     private void OnSave(object sender, RoutedEventArgs e)
     {
         if (_parser.SaveAll())
         {
-            SetStatus($"✔ 保存成功：{_parser.ConfigPath}");
-            MessageBox.Show($"保存成功：\nConquerEventSettings.json: {_parser.ConfigPath}\nstringtable: {_parser.StringTablePath}", "保存成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus(Loc.F("Common.SavedTo", _parser.ConfigPath));
+            MessageBox.Show(Loc.F("ConquerEvent.SaveSuccessMessage", _parser.ConfigPath, _parser.StringTablePath), Loc.T("Common.SaveSuccess"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
         else
         {
-            MessageBox.Show("保存失败，请检查权限或 Debug 输出", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Common.SaveFailed"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     private void OnReload(object sender, RoutedEventArgs e)
     {
-        var res = MessageBox.Show("重新加载磁盘上的 ConquerEventSettings.json？未保存的更改将丢失。", "重载", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var res = MessageBox.Show(Loc.F("Common.ReloadConfirm", "ConquerEventSettings.json"), Loc.T("Common.Reload"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (res != MessageBoxResult.Yes) return;
         _parser.LoadAll();
         RefreshConquers();
         RefreshList();
         ShowEmpty();
-        SetStatus("已从磁盘重新加载");
+        SetStatus(Loc.T("Common.ReloadedFromDisk"));
     }
 
     private void OnValidate(object sender, RoutedEventArgs e)
@@ -768,21 +587,20 @@ public class ConquerEventEditScene : UserControl
         var seenIds = new HashSet<int>();
         foreach (var ev in _parser.Items)
         {
-            string pfx = $"[Id={ev.Id}]";
-            if (seenIds.Contains(ev.Id)) problems.Add($"{pfx} ID 重复");
+            if (seenIds.Contains(ev.Id)) problems.Add(Loc.F("ConquerEvent.Validate.DuplicateId", ev.Id));
             else seenIds.Add(ev.Id);
-            if (ev.Chance < 0 || ev.Chance > 100) problems.Add($"{pfx} Chance={ev.Chance} 不在 0~100");
-            if (ev.EventBuffId1 < 0 || ev.EventBuffId2 < 0) problems.Add($"{pfx} Buff ID 为负");
+            if (ev.Chance < 0 || ev.Chance > 100) problems.Add(Loc.F("ConquerEvent.Validate.ChanceRange", ev.Id, ev.Chance));
+            if (ev.EventBuffId1 < 0 || ev.EventBuffId2 < 0) problems.Add(Loc.F("ConquerEvent.Validate.NegativeBuff", ev.Id));
         }
         if (problems.Count == 0)
-            MessageBox.Show($"校验通过，共 {_parser.Items.Count} 条，未发现明显问题。", "校验", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.F("Common.ValidationPassed", _parser.Items.Count), Loc.T("Common.Validate"), MessageBoxButton.OK, MessageBoxImage.Information);
         else
         {
             var msg = string.Join("\n", problems.Take(80));
-            if (problems.Count > 80) msg += $"\n… 共 {problems.Count} 条，仅显示前 80 条";
-            MessageBox.Show(msg, $"校验发现问题 {problems.Count} 条", MessageBoxButton.OK, MessageBoxImage.Warning);
+            if (problems.Count > 80) msg += "\n" + Loc.F("Common.ValidationMore", problems.Count, 80);
+            MessageBox.Show(msg, Loc.F("Common.ValidationProblems", problems.Count), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-        SetStatus($"校验完成：{problems.Count} 个问题");
+        SetStatus(Loc.F("Common.ValidationDone", problems.Count));
     }
 
     private void SetStatus(string s)
@@ -792,6 +610,7 @@ public class ConquerEventEditScene : UserControl
     }
 
     // ============================================================= 列表项类型 =============================================================
+    /// <summary>左上角征服筛选下拉框的条目（Name 在填充时按当前语言生成）。</summary>
     private class ConquerGroupItem
     {
         public int Id { get; set; }
@@ -803,6 +622,6 @@ public class ConquerEventEditScene : UserControl
         public int Id { get; set; }
         public string Name { get; set; } = "";
         public int ConquerId { get; set; }
-        public override string ToString() => $"[{Id}] {Name}  (征服:{ConquerId})";
+        public override string ToString() => Loc.F("ConquerEvent.ListEntry", Id, Name, ConquerId);
     }
 }

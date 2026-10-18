@@ -47,6 +47,14 @@ public sealed class CapitalFlagRender : IDisposable
 
     private readonly Dictionary<int, SKImage?> _flagCache = new();
 
+    /// <summary>
+    /// 省区值 → 该省区内第一个有效归属（军团索引）。
+    /// 无归属的首都格每帧都要在同省区里找归属；以前是每个首都扫一遍整张地图（O(首都数 × 格子数) / 帧），
+    /// 现在整图扫一遍建表，归属 / 省区改动时由引擎调 <see cref="InvalidateProvinceLegionCache"/> 作废。
+    /// </summary>
+    private Dictionary<ushort, int>? _provinceLegion;
+    private MapData? _provinceLegionSource;
+
     /// <summary>自己解码出来的图片（战术地图缓存返回的共享对象不在此列），Dispose 时需要释放</summary>
     private readonly HashSet<int> _ownedImages = new();
 
@@ -88,9 +96,17 @@ public sealed class CapitalFlagRender : IDisposable
         set { _stateLock.EnterWriteLock(); try { _viewportHeight = Math.Max(1, value); } finally { _stateLock.ExitWriteLock(); } }
     }
 
+    /// <summary>归属 / 省区数据变化后调用：下一帧重建省区→归属表。</summary>
+    public void InvalidateProvinceLegionCache()
+    {
+        _provinceLegion = null;
+        _provinceLegionSource = null;
+    }
+
     /// <summary>丢弃国旗缓存（图集/国家配色热重载后调用）</summary>
     public void InvalidateCache()
     {
+        InvalidateProvinceLegionCache();
         lock (_flagCacheLock)
         {
             foreach (int countryId in _ownedImages)
@@ -176,7 +192,7 @@ public sealed class CapitalFlagRender : IDisposable
     /// 解析首都格应显示的国家 ID：先取该格归属（= 军团索引），
     /// 无归属时到同省区内寻找（对齐 VB DrawCapitalFlagsOnMap + FindProvinceLegionIndex）。
     /// </summary>
-    private static int ResolveCapitalCountryId(MapData mapData, int col, int row, int hexIndex)
+    private int ResolveCapitalCountryId(MapData mapData, int col, int row, int hexIndex)
     {
         int legionIndex = mapData.GetBelongValue(col, row);
 
@@ -193,31 +209,41 @@ public sealed class CapitalFlagRender : IDisposable
         => legionIndex >= 0 && legionIndex != 0xFF && legionIndex < mapData.Legions.Count;
 
     /// <summary>
-    /// 首都格没有归属时，遍历同省区（ProvinceValue 相同）的其他格子找一个有效归属。
-    /// 对齐 VB LegionModifier.FindProvinceLegionIndex。
+    /// 首都格没有归属时，取同省区（ProvinceValue 相同）内第一个有效归属。
+    /// 对齐 VB LegionModifier.FindProvinceLegionIndex：原实现按格子下标顺序找第一个有效归属，
+    /// 这里的表同样按下标顺序只记第一个，结果一致（首都格自己没有有效归属，天然不会被记进表）。
     /// </summary>
-    private static int FindProvinceLegionIndex(MapData mapData, int capitalHexIndex)
+    private int FindProvinceLegionIndex(MapData mapData, int capitalHexIndex)
     {
         var capitalProvince = mapData.GetProvinceRef(capitalHexIndex);
         if (!capitalProvince.IsValid) return -1;
 
-        ushort provinceValue = capitalProvince.ProvinceValue;
+        var table = _provinceLegion;
+        if (table == null || !ReferenceEquals(_provinceLegionSource, mapData))
+        {
+            table = BuildProvinceLegionTable(mapData);
+            _provinceLegion = table;
+            _provinceLegionSource = mapData;
+        }
+
+        return table.TryGetValue(capitalProvince.ProvinceValue, out int legion) ? legion : -1;
+    }
+
+    private static Dictionary<ushort, int> BuildProvinceLegionTable(MapData mapData)
+    {
+        var table = new Dictionary<ushort, int>();
         int mapWidth = mapData.MapWidth;
         int totalCells = mapWidth * mapData.MapHeight;
-
         for (int i = 0; i < totalCells; i++)
         {
-            if (i == capitalHexIndex) continue;
-
             var province = mapData.GetProvinceRef(i);
-            if (!province.IsValid || province.ProvinceValue != provinceValue) continue;
+            if (!province.IsValid || table.ContainsKey(province.ProvinceValue)) continue;
 
             int belongValue = mapData.GetBelongValue(i % mapWidth, i / mapWidth);
             if (IsValidLegionIndex(belongValue, mapData))
-                return belongValue;
+                table[province.ProvinceValue] = belongValue;
         }
-
-        return -1;
+        return table;
     }
 
     /// <summary>地图裁剪区之外的格子不绘制（与归属国旗层一致）</summary>

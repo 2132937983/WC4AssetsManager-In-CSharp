@@ -10,22 +10,20 @@ namespace WC4MapEditor.GUI.Views.Assist;
 
 public sealed class RiverSettingWindow : Window
 {
-    private readonly SolidColorBrush _textBrush = Brushes.White;
-    private readonly Color _themeColor = Color.FromRgb(0x2D, 0x2D, 0x30);
-
     private readonly double _hexCenterX = 200;
     private readonly double _hexCenterY = 150;
     private readonly double _hexRadius = 80;
     private readonly double _edgeButtonRadius = 20;
 
-    private readonly Color _buttonColor = Color.FromRgb(70, 130, 180);
-    private readonly Color _buttonHoverColor = Color.FromRgb(100, 149, 237);
-    private readonly Color _activeButtonColor = Color.FromRgb(50, 205, 50);
-    private readonly Color _hexagonColor = Color.FromRgb(200, 200, 200);
-    private readonly Color _riverColor = Color.FromRgb(30, 144, 255);
+    // 六边形与河流是"状态可视化"，颜色取主题语义色：未选 = 选中底色，悬停 = 强调色，已有河流 = 成功色，河流线 = 信息色
+    private readonly Brush _buttonBrush = EditorTheme.Selection;
+    private readonly Brush _buttonHoverBrush = EditorTheme.Accent;
+    private readonly Brush _activeButtonBrush = EditorTheme.Success;
+    private readonly Brush _riverBrush = EditorTheme.Info;
 
     private readonly List<Border> _edgeButtons = new();
     private readonly bool[] _riverEdges = new bool[6];
+    private Canvas? _hexCanvas;
 
     private bool _isClosing;
     private byte _resultRiverValue;
@@ -36,17 +34,17 @@ public sealed class RiverSettingWindow : Window
 
     public RiverSettingWindow(byte initialRiverValue = 0)
     {
-        Title = "设置河流";
+        EditorTheme.Apply(this);
+        Title = Loc.T("Assist.River.Title");
         Width = 400;
         Height = 500;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
+        // 无边框圆角卡片 + 投影需要窗口本身透明；主题底色放在内部卡片 Border 上
         Background = Brushes.Transparent;
         ResizeMode = ResizeMode.NoResize;
         Opacity = 0;
-        FontFamily = new FontFamily("Microsoft YaHei");
-        FontSize = 14;
 
         // 解析初始河流状态
         for (int i = 0; i < 6; i++)
@@ -101,18 +99,18 @@ public sealed class RiverSettingWindow : Window
     {
         var outerBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(230, _themeColor.R, _themeColor.G, _themeColor.B)),
-            CornerRadius = new CornerRadius(12),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(100, 100, 100, 100)),
+            Background = EditorTheme.Bg2,
+            CornerRadius = new CornerRadius(8),
+            BorderBrush = EditorTheme.Border,
             BorderThickness = new Thickness(1),
             Margin = new Thickness(10),
             Effect = new DropShadowEffect
             {
-                Color = Colors.Black,
+                Color = EditorTheme.ColorOf(EditorTheme.Bg0),
                 Direction = 270,
-                ShadowDepth = 8,
+                ShadowDepth = 6,
                 BlurRadius = 20,
-                Opacity = 0.4
+                Opacity = 0.6
             }
         };
 
@@ -125,35 +123,18 @@ public sealed class RiverSettingWindow : Window
         titleBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         titleBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
 
-        var titleLabel = new Label
-        {
-            Content = "设置河流",
-            FontSize = 18,
-            FontWeight = FontWeights.Bold,
-            Foreground = _textBrush,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Center
-        };
+        var titleLabel = EditorTheme.Title(Loc.T("Assist.River.Title"));
+        titleLabel.HorizontalAlignment = HorizontalAlignment.Left;
         Grid.SetColumn(titleLabel, 0);
         titleBar.Children.Add(titleLabel);
 
-        var closeButton = new Button
-        {
-            Content = "×",
-            Width = 32,
-            Height = 32,
-            FontSize = 18,
-            FontWeight = FontWeights.Bold,
-            Background = Brushes.Transparent,
-            Foreground = _textBrush,
-            BorderThickness = new Thickness(0),
-            Cursor = Cursors.Hand,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        closeButton.Click += (_, _) => CancelAndClose();
-        closeButton.MouseEnter += (_, _) => closeButton.Background = new SolidColorBrush(Colors.Red);
-        closeButton.MouseLeave += (_, _) => closeButton.Background = Brushes.Transparent;
+        var closeButton = EditorTheme.GhostButton("✕", (_, _) => CancelAndClose());
+        closeButton.Width = 28;
+        closeButton.Height = 28;
+        closeButton.Padding = new Thickness(0);
+        closeButton.ToolTip = Loc.T("Assist.Common.CloseEsc");
+        closeButton.HorizontalAlignment = HorizontalAlignment.Right;
+        closeButton.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(closeButton, 1);
         titleBar.Children.Add(closeButton);
 
@@ -174,20 +155,20 @@ public sealed class RiverSettingWindow : Window
         Grid.SetRow(contentPanel, 1);
 
         // 六边形 Canvas
-        var hexCanvas = new Canvas
+        _hexCanvas = new Canvas
         {
             Width = 400,
             Height = 220,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
-        Grid.SetRow(hexCanvas, 0);
+        Grid.SetRow(_hexCanvas, 0);
 
-        DrawHexagon(hexCanvas);
-        DrawRiverEdges(hexCanvas);
-        DrawEdgeButtons(hexCanvas);
+        DrawHexagon(_hexCanvas);
+        DrawRiverEdges(_hexCanvas);
+        DrawEdgeButtons(_hexCanvas);
 
-        contentPanel.Children.Add(hexCanvas);
+        contentPanel.Children.Add(_hexCanvas);
 
         // 按钮面板
         var buttonPanel = new StackPanel
@@ -199,12 +180,14 @@ public sealed class RiverSettingWindow : Window
         };
         Grid.SetRow(buttonPanel, 1);
 
-        var cancelButton = CreateStyledButton("取消", new SolidColorBrush(Color.FromRgb(80, 80, 80)));
-        cancelButton.Click += (_, _) => CancelAndClose();
+        var cancelButton = EditorTheme.Button(Loc.T("Common.Cancel"), (_, _) => CancelAndClose());
+        cancelButton.Width = 200;
+        cancelButton.Margin = new Thickness(0, 3, 0, 3);
         buttonPanel.Children.Add(cancelButton);
 
-        var doneButton = CreateStyledButton("完成", new SolidColorBrush(_buttonColor));
-        doneButton.Click += (_, _) => ConfirmAndClose();
+        var doneButton = EditorTheme.PrimaryButton(Loc.T("Assist.Common.Done"), (_, _) => ConfirmAndClose());
+        doneButton.Width = 200;
+        doneButton.Margin = new Thickness(0, 3, 0, 3);
         buttonPanel.Children.Add(doneButton);
 
         contentPanel.Children.Add(buttonPanel);
@@ -212,25 +195,6 @@ public sealed class RiverSettingWindow : Window
 
         outerBorder.Child = mainGrid;
         return outerBorder;
-    }
-
-    private Button CreateStyledButton(string text, Brush background)
-    {
-        var btn = new Button
-        {
-            Content = text,
-            Width = 200,
-            Height = 36,
-            Margin = new Thickness(0, 3, 0, 3),
-            Background = background,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontSize = 14,
-            Cursor = Cursors.Hand
-        };
-        btn.MouseEnter += (_, _) => btn.Opacity = 0.8;
-        btn.MouseLeave += (_, _) => btn.Opacity = 1.0;
-        return btn;
     }
 
     private void DrawHexagon(Canvas canvas)
@@ -247,8 +211,8 @@ public sealed class RiverSettingWindow : Window
         var hexagon = new Polygon
         {
             Points = points,
-            Fill = new SolidColorBrush(_hexagonColor),
-            Stroke = new SolidColorBrush(Colors.Gray),
+            Fill = EditorTheme.Bg3,
+            Stroke = EditorTheme.BorderStrong,
             StrokeThickness = 2
         };
         canvas.Children.Add(hexagon);
@@ -274,7 +238,7 @@ public sealed class RiverSettingWindow : Window
                 Y1 = y1,
                 X2 = x2,
                 Y2 = y2,
-                Stroke = new SolidColorBrush(_riverColor),
+                Stroke = _riverBrush,
                 StrokeThickness = 4
             };
             canvas.Children.Add(riverLine);
@@ -296,8 +260,8 @@ public sealed class RiverSettingWindow : Window
             {
                 Width = _edgeButtonRadius * 2,
                 Height = _edgeButtonRadius * 2,
-                Background = new SolidColorBrush(_riverEdges[i] ? _activeButtonColor : _buttonColor),
-                BorderBrush = new SolidColorBrush(Colors.DarkGray),
+                Background = _riverEdges[i] ? _activeButtonBrush : _buttonBrush,
+                BorderBrush = EditorTheme.BorderStrong,
                 BorderThickness = new Thickness(2),
                 CornerRadius = new CornerRadius(_edgeButtonRadius),
                 Cursor = Cursors.Hand
@@ -309,7 +273,7 @@ public sealed class RiverSettingWindow : Window
             {
                 Text = (i + 1).ToString(),
                 FontSize = 12,
-                Foreground = Brushes.White,
+                Foreground = EditorTheme.Text,
                 FontWeight = FontWeights.Bold,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
@@ -319,12 +283,12 @@ public sealed class RiverSettingWindow : Window
             button.MouseEnter += (_, _) =>
             {
                 if (!_riverEdges[edgeIndex])
-                    button.Background = new SolidColorBrush(_buttonHoverColor);
+                    button.Background = _buttonHoverBrush;
             };
             button.MouseLeave += (_, _) =>
             {
                 if (!_riverEdges[edgeIndex])
-                    button.Background = new SolidColorBrush(_buttonColor);
+                    button.Background = _buttonBrush;
             };
             button.MouseLeftButtonDown += (_, _) => ToggleRiverEdge(edgeIndex);
 
@@ -343,39 +307,19 @@ public sealed class RiverSettingWindow : Window
     private void UpdateEdgeButtonAppearance(int edgeIndex)
     {
         if (edgeIndex < 0 || edgeIndex >= _edgeButtons.Count) return;
-        _edgeButtons[edgeIndex].Background = new SolidColorBrush(
-            _riverEdges[edgeIndex] ? _activeButtonColor : _buttonColor);
+        _edgeButtons[edgeIndex].Background = _riverEdges[edgeIndex] ? _activeButtonBrush : _buttonBrush;
     }
 
     private void RedrawRiverEdges()
     {
-        if (Content is not Border outerBorder) return;
-        if (outerBorder.Child is not Grid mainGrid) return;
-
-        Canvas? hexCanvas = null;
-        foreach (var child in mainGrid.Children)
-        {
-            if (child is Grid contentPanel)
-            {
-                foreach (var c in contentPanel.Children)
-                {
-                    if (c is Canvas canvas)
-                    {
-                        hexCanvas = canvas;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (hexCanvas == null) return;
+        if (_hexCanvas == null) return;
 
         // 清除河流线，保留六边形和按钮
-        var linesToRemove = hexCanvas.Children.OfType<Line>().Cast<UIElement>().ToList();
+        var linesToRemove = _hexCanvas.Children.OfType<Line>().Cast<UIElement>().ToList();
         foreach (var line in linesToRemove)
-            hexCanvas.Children.Remove(line);
+            _hexCanvas.Children.Remove(line);
 
-        DrawRiverEdges(hexCanvas);
+        DrawRiverEdges(_hexCanvas);
     }
 
     private void ConfirmAndClose()

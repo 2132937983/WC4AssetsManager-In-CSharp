@@ -52,6 +52,13 @@ public class ReinforceRender : IDisposable
     private SKImage? _formationIconCache;
     private readonly Dictionary<int, SKImage> _actionPlanCache = new();
 
+    /// <summary>
+    /// 将领 Id → 头像（null 表示该将领没有头像）。原先每个带将领的单位每帧都要查将领表并拼接文件名。
+    /// 只在 TacticalMapImageCache 就绪时写入；图块缓存状态翻转或 <see cref="ClearGeneralHeadCache"/> 时清空。
+    /// 头像归 TacticalMapImageCache 所有，本类不得 Dispose。
+    /// </summary>
+    private readonly Dictionary<int, SKImage?> _generalHeadCache = new();
+
     private readonly SKFont _spawnRoundFont;
     private readonly SKPaint _spawnRoundPaint;
     private readonly SKPaint _spawnRoundShadowPaint;
@@ -411,23 +418,42 @@ public class ReinforceRender : IDisposable
         float headSize = unitSize * GENERAL_HEAD_SIZE_RATIO;
         var headPos = new SKPoint(screenPos.X, screenPos.Y - unitSize * 0.3f);
 
-        SKImage? headImage = null;
-
-        var tacticalCache = TacticalMapImageCache.Instance;
-        if (tacticalCache.IsInitialized)
-        {
-            var generalSetting = GeneralSettingParser.Instance;
-            if (generalSetting != null)
-            {
-                var generalData = generalSetting.GetById((int)general);
-                string? ename = generalData?.EName;
-                if (!string.IsNullOrEmpty(ename))
-                    headImage = tacticalCache.GetImage($"head_{ename}.png");
-            }
-        }
+        SKImage? headImage = ResolveGeneralHead(general);
 
         _generalHeadPositions.Add((headPos, headSize, headImage));
     }
+
+    /// <summary>按将领 Id 取头像，结果（含"无头像"的 null）缓存在 <see cref="_generalHeadCache"/>。</summary>
+    private SKImage? ResolveGeneralHead(int general)
+    {
+        var tacticalCache = TacticalMapImageCache.Instance;
+        if (!tacticalCache.IsInitialized)
+        {
+            // 图块缓存未就绪时不写缓存，否则会把"暂时没有"永久记成"没有"；
+            // 若之前就绪过而现在被清空，缓存里的图像已失效，一并丢弃。
+            if (_generalHeadCache.Count > 0) _generalHeadCache.Clear();
+            return null;
+        }
+
+        if (_generalHeadCache.TryGetValue(general, out var cached))
+            return cached;
+
+        SKImage? headImage = null;
+        var generalSetting = GeneralSettingParser.Instance;
+        if (generalSetting != null)
+        {
+            var generalData = generalSetting.GetById(general);
+            string? ename = generalData?.EName;
+            if (!string.IsNullOrEmpty(ename))
+                headImage = tacticalCache.GetImage($"head_{ename}.png");
+        }
+
+        _generalHeadCache[general] = headImage;
+        return headImage;
+    }
+
+    /// <summary>将领表（GeneralSettings）重载后调用，丢弃已缓存的 将领 Id → 头像 映射。</summary>
+    public void ClearGeneralHeadCache() => _generalHeadCache.Clear();
 
     #endregion
 
@@ -450,12 +476,12 @@ public class ReinforceRender : IDisposable
 
         foreach (var textInfo in _spawnRoundTexts)
         {
-            float fontSize = Math.Max(8, textInfo.Size);
-            using var font = new SKFont(SKTypeface.Default, fontSize);
+            // 复用字段字体、只改字号；原先每条文本每帧 new 一个 SKFont。
+            _spawnRoundFont.Size = Math.Max(8, textInfo.Size);
             canvas.DrawText(textInfo.Text, textInfo.Position.X + 1, textInfo.Position.Y + 1,
-                SKTextAlign.Center, font, _spawnRoundShadowPaint);
+                SKTextAlign.Center, _spawnRoundFont, _spawnRoundShadowPaint);
             canvas.DrawText(textInfo.Text, textInfo.Position.X, textInfo.Position.Y,
-                SKTextAlign.Center, font, _spawnRoundPaint);
+                SKTextAlign.Center, _spawnRoundFont, _spawnRoundPaint);
         }
     }
 
@@ -520,10 +546,9 @@ public class ReinforceRender : IDisposable
 
         foreach (var textInfo in _reinforceGroupTexts)
         {
-            float fontSize = Math.Max(8, textInfo.Size * 0.5f);
-            using var font = new SKFont(SKTypeface.Default, fontSize);
+            _groupTextFont.Size = Math.Max(8, textInfo.Size * 0.5f);
             canvas.DrawText(textInfo.Text, textInfo.Position.X, textInfo.Position.Y,
-                SKTextAlign.Center, font, _groupTextPaint);
+                SKTextAlign.Center, _groupTextFont, _groupTextPaint);
         }
     }
 
@@ -584,6 +609,7 @@ public class ReinforceRender : IDisposable
         foreach (var image in _actionPlanCache.Values)
             image?.Dispose();
         _actionPlanCache.Clear();
+        _generalHeadCache.Clear(); // 头像归 TacticalMapImageCache 所有，只清引用
 
         _spawnRoundFont.Dispose();
         _spawnRoundPaint.Dispose();

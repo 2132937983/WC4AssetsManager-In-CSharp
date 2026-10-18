@@ -181,37 +181,37 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         titlePanel.Children.Add(CreateSeparator());
 
-        var undoButton = CreateToolBarButton("撤销");
+        var undoButton = CreateToolBarButton(Loc.T("Common.Undo"));
         undoButton.Click += UndoButton_Click;
         titlePanel.Children.Add(undoButton);
 
-        var redoButton = CreateToolBarButton("重做");
+        var redoButton = CreateToolBarButton(Loc.T("Common.Redo"));
         redoButton.Click += RedoButton_Click;
         titlePanel.Children.Add(redoButton);
 
         titlePanel.Children.Add(CreateSeparator());
 
-        var openButton = CreateToolBarButton("打开");
+        var openButton = CreateToolBarButton(Loc.T("Common.Open"));
         openButton.Click += OpenButton_Click;
         titlePanel.Children.Add(openButton);
 
-        var saveButton = CreateToolBarButton("保存");
+        var saveButton = CreateToolBarButton(Loc.T("Common.Save"));
         saveButton.Click += SaveButton_Click;
         titlePanel.Children.Add(saveButton);
 
-        var newButton = CreateToolBarButton("新建");
+        var newButton = CreateToolBarButton(Loc.T("Common.New"));
         newButton.Click += NewButton_Click;
         titlePanel.Children.Add(newButton);
 
         titlePanel.Children.Add(CreateSeparator());
 
-        var viewButton = CreateToolBarButton("视图层");
+        var viewButton = CreateToolBarButton(Loc.T("Render.Toolbar.ViewLayer"));
         viewButton.Click += ViewLayerButton_Click;
         titlePanel.Children.Add(viewButton);
 
         titlePanel.Children.Add(CreateSeparator());
 
-        var sceneTabButton = CreateToolBarButton("场景");
+        var sceneTabButton = CreateToolBarButton(Loc.T("Render.Toolbar.Scenes"));
         sceneTabButton.Click += SceneTabButton_Click;
         titlePanel.Children.Add(sceneTabButton);
 
@@ -380,10 +380,10 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _hexSelector.SelectionChanged += OnHexSelectionChanged;
         _hexSelector.SelectionRectChanged += OnSelectionRectChanged;
 
-        _keyboardManager.RegisterBinding("EscBack", (int)Key.Escape, KeyModifiers.None, OnEscPressed, "返回主场景");
-        _keyboardManager.RegisterBinding("ToggleConsole", (int)Key.F3, KeyModifiers.None, OnToggleConsole, "调试控制台");
-        _keyboardManager.RegisterBinding("Screenshot", (int)Key.F2, KeyModifiers.None, OnScreenshot, "截图");
-        _keyboardManager.RegisterBinding("QuickSave", (int)Key.S, KeyModifiers.Ctrl, OnQuickSave, "快速保存 (Ctrl+S)");
+        _keyboardManager.RegisterBinding("EscBack", (int)Key.Escape, KeyModifiers.None, OnEscPressed, Loc.T("Render.Key.EscBack"));
+        _keyboardManager.RegisterBinding("ToggleConsole", (int)Key.F3, KeyModifiers.None, OnToggleConsole, Loc.T("Render.Key.ToggleConsole"));
+        _keyboardManager.RegisterBinding("Screenshot", (int)Key.F2, KeyModifiers.None, OnScreenshot, Loc.T("Render.Key.Screenshot"));
+        _keyboardManager.RegisterBinding("QuickSave", (int)Key.S, KeyModifiers.Ctrl, OnQuickSave, Loc.T("Render.Key.QuickSave"));
 
         InitializeEditModeKeyBindings();
 
@@ -439,12 +439,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         ErrorCollector.Instance.RegisterStrategy(new KeyboardRecoveryStrategy(_keyboardManager));
         ErrorCollector.Instance.ErrorOccurred += (s, e) =>
         {
-            _debugConsole.WriteLine($"[错误] [{e.Severity}] {e.Message}");
+            _debugConsole.WriteLine(Loc.F("Render.Console.Error", e.Severity, e.Message));
         };
         ErrorCollector.Instance.ErrorRecovered += (s, e) =>
         {
             if (e.Recovered)
-                _debugConsole.WriteLine($"[恢复] {e.RecoveryAction}");
+                _debugConsole.WriteLine(Loc.F("Render.Console.Recovered", e.RecoveryAction));
         };
 
         _debugConsole.VisibilityChanged += isVisible =>
@@ -472,12 +472,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _commandManager.RegisterCommand("undo", _ =>
         {
             if (_fileStateManager.Undo()) { _editModeManager_DataModifiedFromUndo(); }
-            else { _debugConsole.WriteLine("无法撤销"); }
+            else { _debugConsole.WriteLine(Loc.T("Render.Console.CannotUndo")); }
         }, "撤销上一步操作");
         _commandManager.RegisterCommand("redo", _ =>
         {
             if (_fileStateManager.Redo()) { _editModeManager_DataModifiedFromUndo(); }
-            else { _debugConsole.WriteLine("无法重做"); }
+            else { _debugConsole.WriteLine(Loc.T("Render.Console.CannotRedo")); }
         }, "重做上一步操作");
         RegisterTerrainCliCommands();
         RegisterCameraCliCommands();
@@ -769,19 +769,19 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                     if (_sceneId >= 0)
                         RenderSceneManager.Instance.InvalidateSceneCache(_sceneId);
 
-                    MessageBox.Show($"地图已保存到:\n{_mapData.FilePath}", "保存成功", MessageBoxButton.OK, MessageBoxImage.Information);
-                    _debugConsole.WriteLine($"[保存] 已保存到: {_mapData.FilePath}");
+                    MessageBox.Show(Loc.F("Render.Save.SavedTo", _mapData.FilePath), Loc.T("Render.Save.SuccessTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    _debugConsole.WriteLine(Loc.F("Render.Console.SavedTo", _mapData.FilePath));
                 }
                 else
                 {
-                    MessageBox.Show("保存失败！", "保存错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                    _debugConsole.WriteLine("[保存] 保存失败！");
+                    MessageBox.Show(Loc.T("Render.Save.Failed"), Loc.T("Render.Save.ErrorTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+                    _debugConsole.WriteLine(Loc.T("Render.Console.SaveFailed"));
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"保存失败: {ex.Message}", "保存错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                _debugConsole.WriteLine($"[保存] 保存失败: {ex.Message}");
+                MessageBox.Show(Loc.F("Render.Save.FailedWithReason", ex.Message), Loc.T("Render.Save.ErrorTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+                _debugConsole.WriteLine(Loc.F("Render.Console.SaveFailedWithReason", ex.Message));
             }
         }
         else
@@ -807,7 +807,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         WC4MapEditor.Core.Services.MapScreenshotRequest request)
     {
         var mapData = _mapData;
-        if (mapData == null) return WC4MapEditor.Core.Services.MapScreenshotResult.Fail("未加载地图");
+        if (mapData == null) return WC4MapEditor.Core.Services.MapScreenshotResult.Fail(Loc.T("Render.Screenshot.NoMap"));
 
         // 路径：给了就用（相对路径按 exe 目录解析），没给就放到 screenshots/ 自动命名
         string path = request.OutputPath ?? "";
@@ -836,7 +836,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             request.MaxPixels, request.ShowGridLines, request.ShowHexLabels, RenderEngine.ShowLayer2,
             markCenter: region && request.MarkCenter);
 
-        if (!info.Ok) return WC4MapEditor.Core.Services.MapScreenshotResult.Fail($"渲染失败：{path}");
+        if (!info.Ok) return WC4MapEditor.Core.Services.MapScreenshotResult.Fail(Loc.F("Render.Screenshot.RenderFailed", path));
 
         int lastCol = info.OriginCol + info.CellsW - 1;
         int lastRow = info.OriginRow + info.CellsH - 1;
@@ -844,13 +844,13 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         // 描述里必须带"图 ↔ 格子"的换算，AI 才能指着图上某处说出它是第几格
         string desc = region
-            ? $"区域：列 {info.OriginCol}..{lastCol}、行 {info.OriginRow}..{lastRow}（{info.CellsW}×{info.CellsH} 格），每格约 {pxPerCell:0.#} 像素"
-            : $"整幅地图：列 0..{lastCol}、行 0..{lastRow}（{info.CellsW}×{info.CellsH} 格），每格约 {pxPerCell:0.#} 像素";
+            ? Loc.F("Render.Screenshot.RegionDesc", info.OriginCol, lastCol, info.OriginRow, lastRow, info.CellsW, info.CellsH, pxPerCell)
+            : Loc.F("Render.Screenshot.FullDesc", lastCol, lastRow, info.CellsW, info.CellsH, pxPerCell);
 
         if (region && request.MarkCenter)
-            desc += $"；中心格 ({request.CenterCol},{request.CenterRow}) 已用红圈十字标出";
+            desc += Loc.F("Render.Screenshot.CenterMarked", request.CenterCol, request.CenterRow);
 
-        _debugConsole.WriteLine($"[截图] {desc} → {path}");
+        _debugConsole.WriteLine(Loc.F("Main.ScreenshotLog", desc, path));
 
         return new WC4MapEditor.Core.Services.MapScreenshotResult(true, path, info.PixelWidth, info.PixelHeight, desc);
     }
@@ -861,7 +861,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             if (_mapData == null)
             {
-                _debugConsole.WriteLine("[截图] 地图数据为空，无法截图");
+                _debugConsole.WriteLine(Loc.T("Render.Console.ScreenshotNoMap"));
                 return;
             }
 
@@ -870,8 +870,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
             var saveDialog = new Microsoft.Win32.SaveFileDialog
             {
-                Filter = "PNG 图片|*.png|所有文件|*.*",
-                Title = "保存地图截图"
+                Filter = $"{Loc.T("Render.Screenshot.PngFilter")}|*.png|{Loc.T("Common.AllFiles")}|*.*",
+                Title = Loc.T("Render.Screenshot.SaveTitle")
             };
 
             saveDialog.FileName = screenshotMode == ScreenshotMode.HexBased
@@ -886,7 +886,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             if (saveDialog.ShowDialog() != true) return;
 
             string outputPath = saveDialog.FileName;
-            _debugConsole.WriteLine("[截图] 开始生成地图截图...");
+            _debugConsole.WriteLine(Loc.T("Render.Console.ScreenshotStart"));
 
             var progressWindow = new ProgressWindow();
             progressWindow.Show();
@@ -903,7 +903,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             switch (screenshotMode)
             {
                 case ScreenshotMode.HexBased:
-                    _debugConsole.WriteLine("[截图] 使用逐个六边形渲染截图");
+                    _debugConsole.WriteLine(Loc.T("Render.Console.ScreenshotHexMode"));
                     success = await Task.Run(() =>
                     {
                         using var helper = new HexBasedScreenshotHelper();
@@ -912,7 +912,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                     break;
 
                 default:
-                    _debugConsole.WriteLine("[截图] 使用标准截图");
+                    _debugConsole.WriteLine(Loc.T("Render.Console.ScreenshotStandardMode"));
                     success = await Task.Run(() =>
                     {
                         using var helper = new ScreenshotHelper();
@@ -924,13 +924,13 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             progressWindow.PlayFadeOutAndClose();
 
             if (success)
-                _debugConsole.WriteLine("[截图] 截图已保存: " + outputPath);
+                _debugConsole.WriteLine(Loc.F("Render.Console.ScreenshotSaved", outputPath));
             else
-                _debugConsole.WriteLine("[截图] 截图生成失败");
+                _debugConsole.WriteLine(Loc.T("Render.Console.ScreenshotFailed"));
         }
         catch (Exception ex)
         {
-            _debugConsole.WriteLine("[截图] 错误: " + ex.Message);
+            _debugConsole.WriteLine(Loc.F("Render.Console.ScreenshotError", ex.Message));
         }
     }
 
@@ -966,7 +966,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         var titleBlock = new TextBlock
         {
-            Text = "选择截图模式",
+            Text = Loc.T("Render.Screenshot.ModeTitle"),
             Foreground = Brushes.White,
             FontSize = 16,
             FontWeight = FontWeights.Bold,
@@ -976,7 +976,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         var descBlock = new TextBlock
         {
-            Text = "标准截图：使用渲染引擎快速生成\n逐个六边形：逐个绘制地形纹理，质量更高",
+            Text = Loc.T("Render.Screenshot.ModeDesc"),
             Foreground = new SolidColorBrush(System.Windows.Media.Color.FromArgb(180, 255, 255, 255)),
             FontSize = 12,
             Margin = new Thickness(0, 0, 0, 16),
@@ -986,7 +986,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         var standardButton = new Button
         {
-            Content = "标准截图（快速）",
+            Content = Loc.T("Render.Screenshot.ModeStandard"),
             Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 122, 204)),
             Foreground = Brushes.White,
             Padding = new Thickness(16, 8, 16, 8),
@@ -1002,7 +1002,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         var hexBasedButton = new Button
         {
-            Content = "逐个六边形渲染（高质量）",
+            Content = Loc.T("Render.Screenshot.ModeHex"),
             Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(80, 80, 80)),
             Foreground = Brushes.White,
             Padding = new Thickness(16, 8, 16, 8),
@@ -1018,7 +1018,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         var cancelButton = new Button
         {
-            Content = "取消",
+            Content = Loc.T("Common.Cancel"),
             Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(80, 80, 80)),
             Foreground = Brushes.White,
             Padding = new Thickness(16, 8, 16, 8),
@@ -1058,14 +1058,14 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         if (_mapData == null)
         {
-            MessageBox.Show("地图数据未加载", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Render.MapNotLoaded"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
         var primary = _hexSelector.PrimarySelected;
         if (!primary.HasValue)
         {
-            MessageBox.Show("请先选中一个格子", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.T("Render.Geo.SelectCellFirst"), Loc.T("Common.Info"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -1074,9 +1074,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         using var inputDialog = new Views.Assist.DoubleInputDialog(Window)
         {
-            Title = $"添加参考点 (R{row}C{col})",
-            Description1 = "纬度 (Latitude)：",
-            Description2 = "经度 (Longitude)：",
+            Title = Loc.F("Render.Geo.AddRefTitle", row, col),
+            Description1 = Loc.T("Render.Geo.Latitude"),
+            Description2 = Loc.T("Render.Geo.Longitude"),
             DefaultValue1 = "",
             DefaultValue2 = ""
         };
@@ -1086,7 +1086,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         var (latStr, lonStr) = result.Value;
         if (!double.TryParse(latStr, out double lat) || !double.TryParse(lonStr, out double lon))
         {
-            MessageBox.Show("请输入有效的经纬度数值", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Render.Geo.InvalidLatLon"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
@@ -1103,14 +1103,14 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         UpdateGeoReferenceFromRuler();
         _skElement.InvalidateVisual();
 
-        MessageBox.Show($"已添加参考点 #{ruler.Markers.Count}: R{row}C{col} = ({lat:F7}, {lon:F7})", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
+        MessageBox.Show(Loc.F("Render.Geo.RefAdded", ruler.Markers.Count, row, col, lat, lon), Loc.T("Common.Success"), MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private async Task OnGeoCalculateAsync()
     {
         if (_mapData == null)
         {
-            MessageBox.Show("地图数据未加载", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Render.MapNotLoaded"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
@@ -1120,27 +1120,22 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         if (!rp.IsValid())
         {
-            MessageBox.Show(
-                "请先设置参考点：\n" +
-                "1. 选中格子按Q键添加参考点\n" +
-                "2. 或拖动现有标记到目标位置\n" +
-                "3. 右键点击标记输入/修改经纬度\n" +
-                "4. 需要至少2个参考点",
-                "经纬度换算", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.T("Render.Geo.NeedRefPoints"),
+                Loc.T("Render.Geo.CalcTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         var saveDialog = new Microsoft.Win32.SaveFileDialog
         {
-            Filter = "JSON文件 (*.json)|*.json|所有文件 (*.*)|*.*",
-            Title = "保存经纬度换算结果",
+            Filter = $"{Loc.T("Render.Geo.JsonFilter")} (*.json)|*.json|{Loc.T("Common.AllFiles")} (*.*)|*.*",
+            Title = Loc.T("Render.Geo.SaveCalcTitle"),
             FileName = $"geo_coords_{DateTime.Now:yyyyMMddHHmmss}.json"
         };
 
         if (saveDialog.ShowDialog() != true) return;
 
         var progressWindow = new ProgressWindow();
-        progressWindow.Title = "正在计算经纬度";
+        progressWindow.Title = Loc.T("Render.Geo.Calculating");
         progressWindow.Show();
 
         try
@@ -1151,12 +1146,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 Dispatcher.Invoke(() => progressWindow.UpdateProgress(100, 100, 0, 0, 100));
             });
 
-            MessageBox.Show($"经纬度换算结果已保存到:\n{saveDialog.FileName}", "成功",
+            MessageBox.Show(Loc.F("Render.Geo.CalcSaved", saveDialog.FileName), Loc.T("Common.Success"),
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"经纬度换算失败: {ex.Message}", "错误",
+            MessageBox.Show(Loc.F("Render.Geo.CalcFailed", ex.Message), Loc.T("Common.Error"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
@@ -1172,20 +1167,15 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         var rp = _geoCalculator.ReferencePoints;
         if (!rp.IsValid())
         {
-            MessageBox.Show(
-                "请先设置参考点：\n" +
-                "1. 选中格子按Q键添加参考点\n" +
-                "2. 或拖动现有标记到目标位置\n" +
-                "3. 右键点击标记输入/修改经纬度\n" +
-                "4. 需要至少2个参考点",
-                "导出参考点", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.T("Render.Geo.NeedRefPoints"),
+                Loc.T("Render.Geo.ExportRefTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         var saveDialog = new Microsoft.Win32.SaveFileDialog
         {
-            Filter = "JSON文件 (*.json)|*.json|所有文件 (*.*)|*.*",
-            Title = "保存参考点配置",
+            Filter = $"{Loc.T("Render.Geo.JsonFilter")} (*.json)|*.json|{Loc.T("Common.AllFiles")} (*.*)|*.*",
+            Title = Loc.T("Render.Geo.SaveRefTitle"),
             FileName = $"geo_ref_{DateTime.Now:yyyyMMddHHmmss}.json"
         };
 
@@ -1194,12 +1184,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         try
         {
             await Task.Run(() => _geoCalculator.ExportReferencePointsOnly(saveDialog.FileName));
-            MessageBox.Show($"参考点配置已保存到:\n{saveDialog.FileName}", "成功",
+            MessageBox.Show(Loc.F("Render.Geo.RefSaved", saveDialog.FileName), Loc.T("Common.Success"),
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"导出失败: {ex.Message}", "错误",
+            MessageBox.Show(Loc.F("Common.ExportFailed", ex.Message), Loc.T("Common.Error"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -1208,8 +1198,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         var openDialog = new Microsoft.Win32.OpenFileDialog
         {
-            Filter = "JSON文件 (*.json)|*.json|所有文件 (*.*)|*.*",
-            Title = "导入参考点配置",
+            Filter = $"{Loc.T("Render.Geo.JsonFilter")} (*.json)|*.json|{Loc.T("Common.AllFiles")} (*.*)|*.*",
+            Title = Loc.T("Render.Geo.ImportRefTitle"),
             FileName = $"geo_ref_{DateTime.Now:yyyyMMddHHmmss}.json"
         };
 
@@ -1232,12 +1222,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             }
 
             _skElement.InvalidateVisual();
-            MessageBox.Show($"参考点配置已导入:\n{openDialog.FileName}\n共 {rp.Points.Count} 个参考点", "成功",
+            MessageBox.Show(Loc.F("Render.Geo.RefImported", openDialog.FileName, rp.Points.Count), Loc.T("Common.Success"),
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"导入失败: {ex.Message}", "错误",
+            MessageBox.Show(Loc.F("Render.ImportFailed", ex.Message), Loc.T("Common.Error"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -1251,14 +1241,14 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         if (_mapData == null)
         {
-            MessageBox.Show("地图数据未加载", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Render.MapNotLoaded"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
         var saveDialog = new Microsoft.Win32.SaveFileDialog
         {
-            Filter = "JSON文件 (*.json)|*.json|所有文件 (*.*)|*.*",
-            Title = "导出格子数据（不含经纬度）",
+            Filter = $"{Loc.T("Render.Geo.JsonFilter")} (*.json)|*.json|{Loc.T("Common.AllFiles")} (*.*)|*.*",
+            Title = Loc.T("Render.Geo.ExportGridTitle"),
             FileName = $"grid_data_{DateTime.Now:yyyyMMddHHmmss}.json"
         };
 
@@ -1267,12 +1257,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         try
         {
             await Task.Run(() => _geoCalculator.ExportGridOnly(_mapData, saveDialog.FileName));
-            MessageBox.Show($"格子数据已保存到:\n{saveDialog.FileName}", "成功",
+            MessageBox.Show(Loc.F("Render.Geo.GridSaved", saveDialog.FileName), Loc.T("Common.Success"),
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"导出失败: {ex.Message}", "错误",
+            MessageBox.Show(Loc.F("Common.ExportFailed", ex.Message), Loc.T("Common.Error"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -1374,10 +1364,10 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         using var dialog = new ConfirmDialog(Window)
         {
-            Title = "返回确认",
-            Message = "是否确认返回上一级？\n未保存的更改将会丢失。",
-            ConfirmText = "返回",
-            CancelText = "取消"
+            Title = Loc.T("Render.ReturnConfirmTitle"),
+            Message = Loc.T("Render.ReturnConfirmMessage"),
+            ConfirmText = Loc.T("Common.Back"),
+            CancelText = Loc.T("Common.Cancel")
         };
 
         bool result = await dialog.ShowAsync();
@@ -1478,9 +1468,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
             using var inputDialog = new Views.Assist.DoubleInputDialog(Window)
             {
-                Title = $"设置标记 #{markerId} (R{marker.Row}C{marker.Col})",
-                Description1 = "纬度 (Latitude)：",
-                Description2 = "经度 (Longitude)：",
+                Title = Loc.F("Render.Geo.SetMarkerTitle", markerId, marker.Row, marker.Col),
+                Description1 = Loc.T("Render.Geo.Latitude"),
+                Description2 = Loc.T("Render.Geo.Longitude"),
                 DefaultValue1 = marker.Latitude != 0 ? marker.Latitude.ToString("F7") : "",
                 DefaultValue2 = marker.Longitude != 0 ? marker.Longitude.ToString("F7") : ""
             };
@@ -1752,7 +1742,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _editModeManager.RecordBelongChange(col, row, $"设置归属 ({col},{row})",
             () => belong.SetBelongByCountryId(col, row, countryId));
 
-        _editModeManager.RaiseStatusMessage($"已设置归属 ({col},{row}) = {countryId}");
+        _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.BelongSet", col, row, countryId));
         _skElement.InvalidateVisual();
         return true;
     }
@@ -1794,7 +1784,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         int belong = _mapData.GetBelongValue(col, row);
         if (belong == 0xFF)
         {
-            _editModeManager.RaiseStatusMessage($"({col},{row}) 没有军团信息");
+            _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.NoLegionInfo", col, row));
             return true;
         }
 
@@ -1806,15 +1796,15 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         if (index < 0)
         {
-            _editModeManager.RaiseStatusMessage($"({col},{row}) 归属值 {belong} 未匹配到军团");
+            _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.BelongNoLegion", col, row, belong));
             return true;
         }
 
         var legion = _mapData.Legions[index];
-        _editModeManager.RaiseStatusMessage(
-            $"军团信息: ActionId={legion.ActionId}, CountryId={legion.CountryId}, " +
-            $"颜色=0x{legion.ColorR:X2}{legion.ColorG:X2}{legion.ColorB:X2}, " +
-            $"初始经济={legion.InitialEconomy}, 阵营={legion.Camp}");
+        _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.LegionInfo",
+            legion.ActionId, legion.CountryId,
+            legion.ColorR, legion.ColorG, legion.ColorB,
+            legion.InitialEconomy, legion.Camp));
         return true;
     }
 
@@ -1851,11 +1841,23 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         return target != null && target.BrushActive;
     }
 
+    // 上一次画笔预览的参数：鼠标在同一格里移动时不重绘整个画面（每个鼠标事件一帧太浪费）
+    private int _lastBrushCol = int.MinValue, _lastBrushRow = int.MinValue, _lastBrushSize = -1;
+    private string? _lastBrushShape;
+    private double _lastBrushZoom = double.NaN, _lastBrushOffsetX = double.NaN, _lastBrushOffsetY = double.NaN;
+
+    private void ResetBrushPreviewTracking()
+    {
+        _lastBrushCol = int.MinValue;
+        _lastBrushRow = int.MinValue;
+    }
+
     private void UpdateBrushPreview(double screenX, double screenY)
     {
         if (_camera == null || !IsBrushModeActive())
         {
             _renderEngine.HideBrushPreview();
+            ResetBrushPreviewTracking();
             return;
         }
 
@@ -1863,10 +1865,21 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         if (target == null)
         {
             _renderEngine.HideBrushPreview();
+            ResetBrushPreviewTracking();
             return;
         }
 
         var (col, row) = _camera.ScreenToHex(screenX, screenY);
+        bool unchanged = col == _lastBrushCol && row == _lastBrushRow
+                         && target.BrushSize == _lastBrushSize && target.BrushShape == _lastBrushShape
+                         && _camera.ZoomLevel == _lastBrushZoom
+                         && _camera.OffsetX == _lastBrushOffsetX && _camera.OffsetY == _lastBrushOffsetY;
+        if (unchanged) return;
+
+        _lastBrushCol = col; _lastBrushRow = row;
+        _lastBrushSize = target.BrushSize; _lastBrushShape = target.BrushShape;
+        _lastBrushZoom = _camera.ZoomLevel; _lastBrushOffsetX = _camera.OffsetX; _lastBrushOffsetY = _camera.OffsetY;
+
         _renderEngine.SetBrushPreview(
             col, row,
             target.BrushSize, target.BrushShape,
@@ -1878,6 +1891,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     private void OnWpfMouseLeave(object sender, MouseEventArgs e)
     {
         _renderEngine.HideBrushPreview();
+        ResetBrushPreviewTracking();
         _skElement.InvalidateVisual();
     }
 
@@ -2051,8 +2065,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "选择地图文件",
-            Filter = "地图文件 (*.bin)|*.bin|战役/征服文件 (*.btl)|*.btl|所有文件 (*.*)|*.*",
+            Title = Loc.T("Render.File.OpenTitle"),
+            Filter = $"{Loc.T("Render.File.MapFilter")} (*.bin)|*.bin|{Loc.T("Render.File.BtlFilter")} (*.btl)|*.btl|{Loc.T("Common.AllFiles")} (*.*)|*.*",
             InitialDirectory = System.IO.Directory.GetCurrentDirectory()
         };
 
@@ -2068,7 +2082,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                     var sceneManager = RenderSceneManager.Instance;
                     var sceneName = System.IO.Path.GetFileNameWithoutExtension(dialog.FileName);
                     var sceneCount = sceneManager.SceneCount;
-                    var fullSceneName = $"场景 {sceneCount + 1}:{sceneName}";
+                    var fullSceneName = Loc.F("Render.SceneNumbered", sceneCount + 1, sceneName);
                     var newSceneId = sceneManager.CreateScene(fullSceneName, dialog.FileName, detectedType);
                     sceneManager.RequestSceneSwitch(newSceneId);
                     return;
@@ -2077,7 +2091,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 var mapData = ReloadMapData(dialog.FileName);
                 if (mapData == null)
                 {
-                    System.Windows.MessageBox.Show("加载地图文件失败！", "错误");
+                    System.Windows.MessageBox.Show(Loc.T("Render.File.LoadFailed"), Loc.T("Common.Error"));
                     return;
                 }
 
@@ -2116,7 +2130,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
                 var sceneName2 = System.IO.Path.GetFileNameWithoutExtension(dialog.FileName);
                 var sceneCount2 = sceneManager2.SceneCount;
-                var fullSceneName2 = $"场景 {sceneCount2 + 1}:{sceneName2}";
+                var fullSceneName2 = Loc.F("Render.SceneNumbered", sceneCount2 + 1, sceneName2);
                 _sceneId = sceneManager2.CreateScene(fullSceneName2, dialog.FileName, RenderSceneManager.MapSceneTypeToRenderSceneType(SceneType));
                 sceneManager2.SetSceneMapData(_sceneId, _mapData);
                 sceneManager2.ActivateScene(_sceneId);
@@ -2126,7 +2140,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"打开文件失败: {ex.Message}", "错误");
+                System.Windows.MessageBox.Show(Loc.F("Render.File.OpenFailed", ex.Message), Loc.T("Common.Error"));
             }
         }
     }
@@ -2146,12 +2160,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         if (isBtlScene)
         {
-            filter = "BTL文件|*.btl|BIN文件|*.bin|所有文件|*.*";
+            filter = $"{Loc.T("Render.File.BtlOnly")}|*.btl|{Loc.T("Render.File.BinOnly")}|*.bin|{Loc.T("Common.AllFiles")}|*.*";
             defaultFilterIndex = 1;
         }
         else
         {
-            filter = "BIN文件|*.bin|BTL文件|*.btl|所有文件|*.*";
+            filter = $"{Loc.T("Render.File.BinOnly")}|*.bin|{Loc.T("Render.File.BtlOnly")}|*.btl|{Loc.T("Common.AllFiles")}|*.*";
             defaultFilterIndex = 1;
         }
 
@@ -2172,7 +2186,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
-            Title = "保存地图文件",
+            Title = Loc.T("Render.File.SaveTitle"),
             Filter = filter,
             FilterIndex = defaultFilterIndex,
             FileName = defaultFileName,
@@ -2185,7 +2199,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             {
                 if (!SaveMapDataByFileType(_mapData, dialog.FileName))
                 {
-                    System.Windows.MessageBox.Show("保存失败！", "错误");
+                    System.Windows.MessageBox.Show(Loc.T("Render.Save.Failed"), Loc.T("Common.Error"));
                     return;
                 }
                 _mapData.FilePath = dialog.FileName;
@@ -2195,18 +2209,18 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 if (_sceneId >= 0)
                     RenderSceneManager.Instance.InvalidateSceneCache(_sceneId);
 
-                System.Windows.MessageBox.Show($"地图已保存到:\n{dialog.FileName}", "保存成功");
+                System.Windows.MessageBox.Show(Loc.F("Render.Save.SavedTo", dialog.FileName), Loc.T("Render.Save.SuccessTitle"));
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"保存失败: {ex.Message}", "错误");
+                System.Windows.MessageBox.Show(Loc.F("Render.Save.FailedWithReason", ex.Message), Loc.T("Common.Error"));
             }
         }
     }
 
     private void NewButton_Click(object sender, RoutedEventArgs e)
     {
-        var result = System.Windows.MessageBox.Show("确定要创建新地图吗？当前未保存的修改将丢失。", "新建地图", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var result = System.Windows.MessageBox.Show(Loc.T("Render.File.NewMapConfirm"), Loc.T("Render.File.NewMapTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (result != MessageBoxResult.Yes) return;
 
         var newMapData = new MapData(60, 60);
@@ -2242,39 +2256,39 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             BorderBrush = new SolidColorBrush(Color.FromArgb(100, 255, 255, 255)),
         };
 
-        var loadItem = new MenuItem { Header = "加载视图层图片...", Foreground = Brushes.White };
+        var loadItem = new MenuItem { Header = Loc.T("Render.ViewLayer.Load"), Foreground = Brushes.White };
         loadItem.Click += ViewLayerLoad_Click;
         menu.Items.Add(loadItem);
 
         var toggleItem = new MenuItem
         {
-            Header = _renderEngine.ViewLayerVisible ? "隐藏视图层" : "显示视图层",
+            Header = _renderEngine.ViewLayerVisible ? Loc.T("Render.ViewLayer.Hide") : Loc.T("Render.ViewLayer.Show"),
             Foreground = Brushes.White,
             IsEnabled = !string.IsNullOrEmpty(_renderEngine.ViewLayerVisible.ToString())
         };
         toggleItem.Click += ViewLayerToggle_Click;
         menu.Items.Add(toggleItem);
 
-        var clearItem = new MenuItem { Header = "清除视图层", Foreground = Brushes.White };
+        var clearItem = new MenuItem { Header = Loc.T("Render.ViewLayer.Clear"), Foreground = Brushes.White };
         clearItem.Click += ViewLayerClear_Click;
         menu.Items.Add(clearItem);
 
         menu.Items.Add(new Separator());
 
-        var opacityUpItem = new MenuItem { Header = "透明度 +", Foreground = Brushes.White };
+        var opacityUpItem = new MenuItem { Header = Loc.T("Render.ViewLayer.OpacityUp"), Foreground = Brushes.White };
         opacityUpItem.Click += (s, ev) =>
         {
             _renderEngine.ViewLayerOpacity = Math.Min(1f, _renderEngine.ViewLayerOpacity + 0.1f);
-            _debugConsole.WriteLine($"[视图层] 透明度: {_renderEngine.ViewLayerOpacity:P0}");
+            _debugConsole.WriteLine(Loc.F("Render.Console.ViewLayerOpacity", _renderEngine.ViewLayerOpacity));
             _skElement.InvalidateVisual();
         };
         menu.Items.Add(opacityUpItem);
 
-        var opacityDownItem = new MenuItem { Header = "透明度 -", Foreground = Brushes.White };
+        var opacityDownItem = new MenuItem { Header = Loc.T("Render.ViewLayer.OpacityDown"), Foreground = Brushes.White };
         opacityDownItem.Click += (s, ev) =>
         {
             _renderEngine.ViewLayerOpacity = Math.Max(0f, _renderEngine.ViewLayerOpacity - 0.1f);
-            _debugConsole.WriteLine($"[视图层] 透明度: {_renderEngine.ViewLayerOpacity:P0}");
+            _debugConsole.WriteLine(Loc.F("Render.Console.ViewLayerOpacity", _renderEngine.ViewLayerOpacity));
             _skElement.InvalidateVisual();
         };
         menu.Items.Add(opacityDownItem);
@@ -2288,16 +2302,16 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "选择视图层图片",
-            Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.gif|所有文件|*.*"
+            Title = Loc.T("Render.ViewLayer.SelectImageTitle"),
+            Filter = $"{Loc.T("Render.ViewLayer.ImageFilter")}|*.png;*.jpg;*.jpeg;*.bmp;*.gif|{Loc.T("Common.AllFiles")}|*.*"
         };
 
         if (dialog.ShowDialog() == true)
         {
             if (_renderEngine.LoadViewLayerImage(dialog.FileName))
-                _debugConsole.WriteLine($"[视图层] 已加载: {dialog.FileName}");
+                _debugConsole.WriteLine(Loc.F("Render.Console.ViewLayerLoaded", dialog.FileName));
             else
-                _debugConsole.WriteLine($"[视图层] 加载失败: {dialog.FileName}");
+                _debugConsole.WriteLine(Loc.F("Render.Console.ViewLayerLoadFailed", dialog.FileName));
             _skElement.InvalidateVisual();
         }
     }
@@ -2305,14 +2319,14 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     private void ViewLayerToggle_Click(object sender, RoutedEventArgs e)
     {
         _renderEngine.ViewLayerVisible = !_renderEngine.ViewLayerVisible;
-        _debugConsole.WriteLine($"[视图层] 可见性: {(_renderEngine.ViewLayerVisible ? "显示" : "隐藏")}");
+        _debugConsole.WriteLine(Loc.F("Render.Console.ViewLayerVisibility", _renderEngine.ViewLayerVisible ? Loc.T("Render.Visible") : Loc.T("Render.Hidden")));
         _skElement.InvalidateVisual();
     }
 
     private void ViewLayerClear_Click(object sender, RoutedEventArgs e)
     {
         _renderEngine.ClearViewLayerImage();
-        _debugConsole.WriteLine("[视图层] 已清除");
+        _debugConsole.WriteLine(Loc.T("Render.Console.ViewLayerCleared"));
         _skElement.InvalidateVisual();
     }
 
@@ -2379,7 +2393,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             var emptyLabel = new TextBlock
             {
-                Text = "暂无打开的场景",
+                Text = Loc.T("Render.NoOpenScenes"),
                 Foreground = Brushes.Gray,
                 FontSize = 12,
                 Margin = new Thickness(10, 6, 10, 6),
@@ -2410,7 +2424,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             var targetScene = sceneManager.GetScene(targetSceneId);
             if (targetScene == null)
             {
-                System.Windows.MessageBox.Show("目标场景不存在！", "错误");
+                System.Windows.MessageBox.Show(Loc.T("Render.SceneNotFound"), Loc.T("Common.Error"));
                 return;
             }
 
@@ -2432,7 +2446,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             var mapData = sceneManager.LoadSceneFromDisk(targetSceneId);
             if (mapData == null)
             {
-                System.Windows.MessageBox.Show("加载场景数据失败！", "错误");
+                System.Windows.MessageBox.Show(Loc.T("Render.SceneLoadFailed"), Loc.T("Common.Error"));
                 return;
             }
 
@@ -2471,7 +2485,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         catch (Exception ex)
         {
             Debug.WriteLine($"[RenderScene] 切换场景失败: {ex.Message}");
-            System.Windows.MessageBox.Show($"切换场景失败: {ex.Message}", "错误");
+            System.Windows.MessageBox.Show(Loc.F("Render.SceneSwitchFailed", ex.Message), Loc.T("Common.Error"));
         }
     }
 
@@ -2516,8 +2530,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     /// </summary>
     private void GotoBuildingByKeyword(string keyword)
     {
-        if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
-        if (_mapData.Buildings.Count == 0) { _debugConsole.WriteLine("当前地图没有建筑"); return; }
+        if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
+        if (_mapData.Buildings.Count == 0) { _debugConsole.WriteLine(Loc.T("Render.Console.NoBuildings")); return; }
 
         // #<nameId> 形式：按字符串表 ID 精确匹配
         if (keyword.StartsWith('#') && int.TryParse(keyword.AsSpan(1), out int nameId))
@@ -2532,7 +2546,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 found = true;
                 break;
             }
-            if (!found) _debugConsole.WriteLine($"没有 NameID = {nameId} 的建筑");
+            if (!found) _debugConsole.WriteLine(Loc.F("Render.Console.NoBuildingWithNameId", nameId));
             return;
         }
 
@@ -2549,7 +2563,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         if (matches.Count == 0)
         {
-            _debugConsole.WriteLine($"没有名称包含「{keyword}」的建筑（用 list_buildings 查看可用的名称）");
+            _debugConsole.WriteLine(Loc.F("Render.Console.NoBuildingContainsHint", keyword));
             return;
         }
 
@@ -2562,7 +2576,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         if (matches.Count > 1)
         {
-            _debugConsole.WriteLine($"共有 {matches.Count} 个匹配，已跳到第 1 个；其他匹配：");
+            _debugConsole.WriteLine(Loc.F("Render.Console.MultipleMatches", matches.Count));
             const int MaxListed = 10;
             for (int i = 0; i < matches.Count && i <= MaxListed; i++)
             {
@@ -2571,7 +2585,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 _debugConsole.WriteLine($"  {n} ({c % _mapData.MapWidth}, {c / _mapData.MapWidth})");
             }
             if (matches.Count > MaxListed + 1)
-                _debugConsole.WriteLine($"  …还有 {matches.Count - MaxListed - 1} 个，可用更完整的关键字缩小范围");
+                _debugConsole.WriteLine(Loc.F("Render.Console.MoreMatches", matches.Count - MaxListed - 1));
         }
     }
 
@@ -2580,16 +2594,18 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     /// <summary>
     /// 全局按键绑定 - 与模式无关，始终可用
     /// </summary>
-    private static readonly (string Id, Key Key, KeyModifiers Mods, string Action, string Desc)[] GlobalKeyDefs =
+    // DescKey 存的是翻译键而不是文本：静态数组在类型初始化时求值一次，
+    // 若直接存 Loc 结果，运行时切换语言后按键说明不会跟着变。
+    private static readonly (string Id, Key Key, KeyModifiers Mods, string Action, string DescKey)[] GlobalKeyDefs =
     {
-        ("Global_Space", Key.Space, KeyModifiers.None, "cycle_mode", "切换模式"),
-        ("Global_Tab", Key.Tab, KeyModifiers.None, "tab_action", "查看格子信息"),
-        ("Global_F1", Key.F1, KeyModifiers.None, "toggle_show_layer2", "切换第二层地形显示"),
-        ("Global_CtrlF1", Key.F1, KeyModifiers.Ctrl, "toggle_help_text", "显示/隐藏帮助文本"),
-        ("Global_B", Key.B, KeyModifiers.None, "toggle_hex_borders", "显示/隐藏网格"),
-        ("Global_N", Key.N, KeyModifiers.None, "toggle_labels", "显示/隐藏标签"),
-        ("Global_CtrlZ", Key.Z, KeyModifiers.Ctrl, "undo", "撤销"),
-        ("Global_CtrlY", Key.Y, KeyModifiers.Ctrl, "redo", "重做"),
+        ("Global_Space", Key.Space, KeyModifiers.None, "cycle_mode", "Render.Key.CycleMode"),
+        ("Global_Tab", Key.Tab, KeyModifiers.None, "tab_action", "Render.Key.TabAction"),
+        ("Global_F1", Key.F1, KeyModifiers.None, "toggle_show_layer2", "Render.Key.ToggleLayer2"),
+        ("Global_CtrlF1", Key.F1, KeyModifiers.Ctrl, "toggle_help_text", "Render.Key.ToggleHelp"),
+        ("Global_B", Key.B, KeyModifiers.None, "toggle_hex_borders", "Render.Key.ToggleGrid"),
+        ("Global_N", Key.N, KeyModifiers.None, "toggle_labels", "Render.Key.ToggleLabels"),
+        ("Global_CtrlZ", Key.Z, KeyModifiers.Ctrl, "undo", "Common.Undo"),
+        ("Global_CtrlY", Key.Y, KeyModifiers.Ctrl, "redo", "Common.Redo"),
     };
 
     private void InitializeEditModeKeyBindings()
@@ -2598,7 +2614,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         foreach (var def in GlobalKeyDefs)
         {
             _keyboardManager.RegisterBinding(def.Id, (int)def.Key, def.Mods,
-                () => DispatchEditModeAction(def.Action), def.Desc);
+                () => DispatchEditModeAction(def.Action), Loc.T(def.DescKey));
         }
     }
 
@@ -2618,14 +2634,14 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         cm.RegisterCommand("goto", args =>
         {
-            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
 
             if (args.Length < 1)
             {
-                _debugConsole.WriteLine("用法（三种形式）：");
-                _debugConsole.WriteLine("  goto <col> <row>   按行列跳转，例: goto 12 30");
-                _debugConsole.WriteLine("  goto <坐标值>      按地块序号跳转，例: goto 1234");
-                _debugConsole.WriteLine("  goto <名称>        按建筑名称跳转，例: goto 柏林");
+                _debugConsole.WriteLine(Loc.T("Render.Console.GotoUsage.Header"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.GotoUsage.ByColRow"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.GotoUsage.ByCoord"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.GotoUsage.ByName"));
                 return;
             }
 
@@ -2634,14 +2650,14 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             {
                 if (!int.TryParse(args[0], out int c) || !int.TryParse(args[1], out int r))
                 {
-                    _debugConsole.WriteLine("坐标必须是整数");
+                    _debugConsole.WriteLine(Loc.T("Render.Console.CoordMustBeInt"));
                     return;
                 }
 
                 if (MoveCameraToHex(c, r))
-                    _debugConsole.WriteLine($"相机已移动到 ({c}, {r})");
+                    _debugConsole.WriteLine(Loc.F("Render.Console.CameraMovedTo", c, r));
                 else
-                    _debugConsole.WriteLine($"坐标越界：地图尺寸 {_mapData.MapWidth}x{_mapData.MapHeight}");
+                    _debugConsole.WriteLine(Loc.F("Render.Console.CoordOutOfRange", _mapData.MapWidth, _mapData.MapHeight));
                 return;
             }
 
@@ -2653,7 +2669,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 if (coord < 0 || coord >= _mapData.MapWidth * _mapData.MapHeight)
                 {
                     _debugConsole.WriteLine(
-                        $"坐标值越界：应在 0 ~ {_mapData.MapWidth * _mapData.MapHeight - 1}");
+                        Loc.F("Render.Console.CoordValueOutOfRange", _mapData.MapWidth * _mapData.MapHeight - 1));
                     return;
                 }
 
@@ -2661,7 +2677,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 int row2 = coord / _mapData.MapWidth;
 
                 if (MoveCameraToHex(col2, row2))
-                    _debugConsole.WriteLine($"相机已移动到坐标 {coord}（{col2}, {row2}）");
+                    _debugConsole.WriteLine(Loc.F("Render.Console.CameraMovedToCoord", coord, col2, row2));
                 return;
             }
 
@@ -2671,15 +2687,15 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         cm.RegisterCommand("goto_building", args =>
         {
-            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
-            if (_mapData.Buildings.Count == 0) { _debugConsole.WriteLine("当前地图没有建筑"); return; }
+            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
+            if (_mapData.Buildings.Count == 0) { _debugConsole.WriteLine(Loc.T("Render.Console.NoBuildings")); return; }
 
             if (args.Length < 1)
             {
-                _debugConsole.WriteLine("用法: goto_building <建筑名关键字>");
-                _debugConsole.WriteLine("  例: goto_building 柏林");
-                _debugConsole.WriteLine("  也可用 #<nameId> 按字符串表 ID 精确跳转，如: goto_building #1234");
-                _debugConsole.WriteLine("  用 list_buildings 查看地图上的建筑名称");
+                _debugConsole.WriteLine(Loc.T("Render.Console.GotoBuildingUsage.Line1"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.GotoBuildingUsage.Line2"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.GotoBuildingUsage.Line3"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.GotoBuildingUsage.Line4"));
                 return;
             }
 
@@ -2688,8 +2704,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         cm.RegisterCommand("list_buildings", args =>
         {
-            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
-            if (_mapData.Buildings.Count == 0) { _debugConsole.WriteLine("当前地图没有建筑"); return; }
+            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
+            if (_mapData.Buildings.Count == 0) { _debugConsole.WriteLine(Loc.T("Render.Console.NoBuildings")); return; }
 
             string keyword = args.Length > 0 ? string.Join(" ", args) : "";
             var cityNames = GetCityNameTable();
@@ -2706,25 +2722,26 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             if (rows.Count == 0)
             {
                 _debugConsole.WriteLine(keyword.Length > 0
-                    ? $"没有名称包含「{keyword}」的建筑"
-                    : "地图上没有具名建筑（Name 为空或不在字符串表中）");
+                    ? Loc.F("Render.Console.NoBuildingContains", keyword)
+                    : Loc.T("Render.Console.NoNamedBuildings"));
                 return;
             }
 
             rows.Sort((a, b) => a.coord.CompareTo(b.coord));
 
-            _debugConsole.WriteLine($"共 {rows.Count} 个具名建筑{(keyword.Length > 0 ? $"（筛选「{keyword}」）" : "")}，共 {_mapData.Buildings.Count} 个建筑：");
+            _debugConsole.WriteLine(Loc.F("Render.Console.NamedBuildingsHeader", rows.Count,
+                keyword.Length > 0 ? Loc.F("Render.Console.FilterSuffix", keyword) : "", _mapData.Buildings.Count));
 
             const int MaxRows = 40;
             int shown = Math.Min(rows.Count, MaxRows);
             for (int i = 0; i < shown; i++)
             {
                 var (name, coord, nameId) = rows[i];
-                _debugConsole.WriteLine($"  {name} ({coord % _mapData.MapWidth}, {coord / _mapData.MapWidth})  名称ID={nameId}");
+                _debugConsole.WriteLine(Loc.F("Render.Console.BuildingRow", name, coord % _mapData.MapWidth, coord / _mapData.MapWidth, nameId));
             }
 
             if (rows.Count > shown)
-                _debugConsole.WriteLine($"  …还有 {rows.Count - shown} 个，可加关键字缩小范围");
+                _debugConsole.WriteLine(Loc.F("Render.Console.MoreBuildings", rows.Count - shown));
         }, "列出地图上的具名建筑（含坐标与名称ID）", "[关键字]");
     }
 
@@ -2737,9 +2754,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         int row = coord / _mapData.MapWidth;
 
         if (MoveCameraToHex(col, row))
-            _debugConsole.WriteLine($"相机已移动到建筑「{displayName}」({col}, {row})");
+            _debugConsole.WriteLine(Loc.F("Render.Console.CameraMovedToBuilding", displayName, col, row));
         else
-            _debugConsole.WriteLine($"建筑「{displayName}」坐标越界: ({col}, {row})");
+            _debugConsole.WriteLine(Loc.F("Render.Console.BuildingOutOfRange", displayName, col, row));
     }
 
     /// <summary>
@@ -2775,18 +2792,18 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         cm.RegisterCommand("bg_province", args =>
         {
-            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
 
             var provider = _renderEngine.ViewLayerImageProvider;
             if (provider == null || !provider.HasImage)
             {
-                _debugConsole.WriteLine("没有可用的背景图：请先加载视图层图片");
+                _debugConsole.WriteLine(Loc.T("Render.Console.NoBackgroundImage"));
                 return;
             }
 
             if (_mapData.Capitals.Count == 0)
             {
-                _debugConsole.WriteLine("地图上还没有省会：请先在军团编辑模式按 F 设置省会");
+                _debugConsole.WriteLine(Loc.T("Render.Console.NoCapitals"));
                 return;
             }
 
@@ -2800,19 +2817,19 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 (args.Length > 2 && !int.TryParse(args[2], out minRegionPixels)) ||
                 (args.Length > 3 && !int.TryParse(args[3], out minBoundaryPixels)))
             {
-                _debugConsole.WriteLine("用法: bg_province [灰度阈值] [梯度阈值] [最小区域像素数] [最小界线像素数]");
-                _debugConsole.WriteLine("  灰度阈值: -1 = 自动（Otsu）；调大 = 更多像素算界线（区域更碎），调小 = 界线更少（区域更整）");
-                _debugConsole.WriteLine("  梯度阈值: 相邻像素灰度差达到它就判为界线，用来抓浅色界线；调小 = 界线更多，0 = 关掉");
-                _debugConsole.WriteLine("  最小区域像素数: 过滤小的省区区域，默认 50，设 0 不过滤");
-                _debugConsole.WriteLine("  最小界线像素数: 小于它的界线连通块按地名文字剔除，默认 100；设 0 不过滤");
-                _debugConsole.WriteLine("  例: bg_province                  （全自动）");
-                _debugConsole.WriteLine("  例: bg_province 200 15 100        （界线更敏感）");
-                _debugConsole.WriteLine("  例: bg_province -1 25 50 300      （更狠地剔除地名文字）");
+                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line1"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line2"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line3"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line4"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line5"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line6"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line7"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line8"));
                 return;
             }
 
             var modifier = _editModeManager.GetModifier<ProvinceModifier>();
-            if (modifier == null) { _debugConsole.WriteLine("省份修改器不可用"); return; }
+            if (modifier == null) { _debugConsole.WriteLine(Loc.T("Render.Console.ProvinceModifierUnavailable")); return; }
 
             var result = modifier.GenerateProvincesFromBackground(
                 provider, darkThreshold, gradientThreshold, minRegionPixels, minBoundaryPixels);
@@ -2858,15 +2875,15 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             double ratio = boundary.Length > 0 ? boundaryCount * 100.0 / boundary.Length : 0;
 
             _debugConsole.WriteLine(
-                $"[省份识别诊断] 灰度阈值 {threshold}，界线像素 {boundaryCount} 个（占 {ratio:F2}%）");
-            _debugConsole.WriteLine($"[省份识别诊断] 已导出到 {dir}");
-            _debugConsole.WriteLine($"  1_gray.png      灰度图 {gray.Width}x{gray.Height}（Rec.601 加权）");
-            _debugConsole.WriteLine($"  2_binary.png    按阈值 {threshold} 二值化（黑=深色界线，白=其余）");
-            _debugConsole.WriteLine($"  3_boundary.png  灰度 + 最终界线红线（含梯度判定与膨胀）");
+                Loc.F("Render.Console.ProvinceDiag.Summary", threshold, boundaryCount, ratio));
+            _debugConsole.WriteLine(Loc.F("Render.Console.ProvinceDiag.ExportedTo", dir));
+            _debugConsole.WriteLine(Loc.F("Render.Console.ProvinceDiag.Gray", gray.Width, gray.Height));
+            _debugConsole.WriteLine(Loc.F("Render.Console.ProvinceDiag.Binary", threshold));
+            _debugConsole.WriteLine(Loc.T("Render.Console.ProvinceDiag.Boundary"));
         }
         catch (Exception ex)
         {
-            _debugConsole.WriteLine($"[省份识别诊断] 导出失败: {ex.Message}");
+            _debugConsole.WriteLine(Loc.F("Render.Console.ProvinceDiag.ExportFailed", ex.Message));
         }
     }
 
@@ -2968,12 +2985,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         cm.RegisterCommand("lua", args =>
         {
-            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
 
             if (args.Length < 1)
             {
-                _debugConsole.WriteLine("用法: lua <脚本路径.lua>");
-                _debugConsole.WriteLine("  脚本里通过 map 对象操作地图，例如:");
+                _debugConsole.WriteLine(Loc.T("Render.Console.LuaUsage.Line1"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.LuaUsage.Line2"));
                 _debugConsole.WriteLine("    map.AddBuilding(10, 20, 11, \"北京\")");
                 _debugConsole.WriteLine("    map.RemoveBuildingsByProbability(30, true)");
                 _debugConsole.WriteLine("    map.ForEachBuilding(function(b) print(b.Col, b.Row, b.Name) end)");
@@ -2992,10 +3009,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
             if (result.Success)
                 _debugConsole.WriteLine(
-                    $"[Lua] 执行完成：{result.Output.Count} 行输出，影响 {result.AffectedCount} 条数据，" +
-                    $"{result.Elapsed.TotalMilliseconds:F0} ms");
+                    Loc.F("Render.Console.LuaDone", result.Output.Count, result.AffectedCount, result.Elapsed.TotalMilliseconds));
             else
-                _debugConsole.WriteLine($"[Lua] 执行失败 @ {result.ErrorLocation}: {result.Error}");
+                _debugConsole.WriteLine(Loc.F("Render.Console.LuaFailed", result.ErrorLocation, result.Error));
 
             // 脚本可能批量改过建筑，坐标索引需要重建后再刷新画面
             _mapData.RebuildBuildingCoordIndex();
@@ -3013,9 +3029,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             if (args.Length < 1)
             {
-                _debugConsole.WriteLine("用法: open <文件路径>");
-                _debugConsole.WriteLine("  支持格式: .btl（战役/征服）、.bin/.dat（世界地图）");
-                _debugConsole.WriteLine("  路径可为绝对路径、相对路径或 assets 内相对路径（如 stage/stage10101.btl）");
+                _debugConsole.WriteLine(Loc.T("Render.Console.OpenUsage.Line1"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.OpenUsage.Line2"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.OpenUsage.Line3"));
                 return;
             }
 
@@ -3023,15 +3039,15 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             string? resolved = ResolveMapFilePath(rawPath);
             if (resolved == null)
             {
-                _debugConsole.WriteLine($"找不到文件: {rawPath}");
-                _debugConsole.WriteLine("已尝试: 原路径 / assets 根 / 当前目录 / 程序目录");
+                _debugConsole.WriteLine(Loc.F("Render.Console.FileNotFound", rawPath));
+                _debugConsole.WriteLine(Loc.T("Render.Console.FileSearchedIn"));
                 return;
             }
 
             var ext = System.IO.Path.GetExtension(resolved).ToLowerInvariant();
             if (ext != ".btl" && ext != ".bin" && ext != ".dat")
             {
-                _debugConsole.WriteLine($"不支持的文件类型: {ext}");
+                _debugConsole.WriteLine(Loc.F("Render.Console.UnsupportedFileType", ext));
                 return;
             }
 
@@ -3050,7 +3066,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 newScene = new StageRenderScene(Window, resolved);
             }
 
-            _debugConsole.WriteLine($"正在加载: {resolved}");
+            _debugConsole.WriteLine(Loc.F("Render.Console.Loading", resolved));
             Window.SetCurrentScene(newScene);
         }, "打开地图文件并切换到对应编辑场景", "<文件路径>");
 
@@ -3058,24 +3074,24 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             if (args.Length < 2 || !int.TryParse(args[0], out int w) || !int.TryParse(args[1], out int h))
             {
-                _debugConsole.WriteLine("用法: new_campaign <宽度> <高度> [军团数]");
+                _debugConsole.WriteLine(Loc.T("Render.Console.NewCampaignUsage"));
                 return;
             }
             int legions = args.Length >= 3 && int.TryParse(args[2], out int l) ? l : 2;
             var parser = new Core.Parsers.Stage.StageParser();
             if (!parser.CreateNew(w, h, legions))
             {
-                _debugConsole.WriteLine($"创建战役失败（{w}x{h}，{legions}军团）");
+                _debugConsole.WriteLine(Loc.F("Render.Console.CreateCampaignFailed", w, h, legions));
                 return;
             }
             var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
                 $"NewCampaign_{w}x{h}_{DateTime.Now:yyyyMMddHHmmss}.btl");
             if (!parser.SaveData(tempPath))
             {
-                _debugConsole.WriteLine("战役保存临时文件失败");
+                _debugConsole.WriteLine(Loc.T("Render.Console.CampaignTempSaveFailed") + (parser.LastError != null ? ": " + parser.LastError : ""));
                 return;
             }
-            _debugConsole.WriteLine($"已创建战役 {w}x{h}（{legions}军团）: {tempPath}");
+            _debugConsole.WriteLine(Loc.F("Render.Console.CampaignCreated", w, h, legions, tempPath));
             Window.SetCurrentScene(new StageRenderScene(Window, tempPath));
         }, "创建新战役并打开编辑", "<宽度> <高度> [军团数]");
 
@@ -3083,7 +3099,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             if (args.Length < 2 || !int.TryParse(args[0], out int w) || !int.TryParse(args[1], out int h))
             {
-                _debugConsole.WriteLine("用法: new_conquest <宽度> <高度> [军团数] [地图编号]");
+                _debugConsole.WriteLine(Loc.T("Render.Console.NewConquestUsage"));
                 return;
             }
             int legions = args.Length >= 3 && int.TryParse(args[2], out int l) ? l : 2;
@@ -3091,17 +3107,17 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             var parser = new Core.Parsers.Conquest.ConquestParser();
             if (!parser.CreateNew(w, h, legions, mapNum))
             {
-                _debugConsole.WriteLine($"创建征服失败（{w}x{h}，{legions}军团，地图编号{mapNum}）");
+                _debugConsole.WriteLine(Loc.F("Render.Console.CreateConquestFailed", w, h, legions, mapNum));
                 return;
             }
             var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
                 $"NewConquest_{w}x{h}_{mapNum}_{DateTime.Now:yyyyMMddHHmmss}.btl");
             if (!parser.SaveData(tempPath))
             {
-                _debugConsole.WriteLine("征服保存临时文件失败");
+                _debugConsole.WriteLine(Loc.T("Render.Console.ConquestTempSaveFailed") + (parser.LastError != null ? ": " + parser.LastError : ""));
                 return;
             }
-            _debugConsole.WriteLine($"已创建征服 {w}x{h}（{legions}军团，地图编号{mapNum}）: {tempPath}");
+            _debugConsole.WriteLine(Loc.F("Render.Console.ConquestCreated", w, h, legions, mapNum, tempPath));
             Window.SetCurrentScene(new ConquestRenderScene(Window, tempPath));
         }, "创建新征服并打开编辑", "<宽度> <高度> [军团数] [地图编号]");
 
@@ -3109,19 +3125,19 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             if (args.Length < 2 || !int.TryParse(args[0], out int w) || !int.TryParse(args[1], out int h))
             {
-                _debugConsole.WriteLine("用法: new_map <宽度> <高度>");
+                _debugConsole.WriteLine(Loc.T("Render.Console.NewMapUsage"));
                 return;
             }
             if (w < 10 || w > 500 || h < 10 || h > 500)
             {
-                _debugConsole.WriteLine("地图尺寸必须在 10-500 之间");
+                _debugConsole.WriteLine(Loc.T("Render.Console.MapSizeRange"));
                 return;
             }
             var mapData = Core.Parsers.World.WorldParser.CreateNew(w, h);
             var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
                 $"NewMap_{w}x{h}_{DateTime.Now:yyyyMMddHHmmss}.bin");
             Core.Parsers.World.WorldParser.SaveToFile(mapData, tempPath);
-            _debugConsole.WriteLine($"已创建世界地图 {w}x{h}: {tempPath}");
+            _debugConsole.WriteLine(Loc.F("Render.Console.MapCreated", w, h, tempPath));
             Window.SetCurrentScene(new MapRenderScene(Window, tempPath));
         }, "创建新世界地图并打开编辑", "<宽度> <高度>");
     }
@@ -3213,8 +3229,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 {
                     var dlg = new Microsoft.Win32.SaveFileDialog
                     {
-                        Title = string.IsNullOrEmpty(title) ? "保存文件" : title,
-                        Filter = string.IsNullOrEmpty(filter) ? "所有文件|*.*" : filter,
+                        Title = string.IsNullOrEmpty(title) ? Loc.T("Render.File.SaveFileTitle") : title,
+                        Filter = string.IsNullOrEmpty(filter) ? $"{Loc.T("Common.AllFiles")}|*.*" : filter,
                         FileName = defaultFileName ?? ""
                     };
                     if (dlg.ShowDialog() == true)
@@ -3231,9 +3247,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         cm.RegisterCommand("greening", args =>
         {
-            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
             var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
 
             int prob = 50;
             if (args.Length > 0 && int.TryParse(args[0], out int p))
@@ -3242,14 +3258,14 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             _editModeManager.RecordMultiCellChange($"绿化平地 (概率={prob}%)", () => terrain.ApplyGreening(prob));
             _editModeManager_DataModifiedFromUndo();
             _skElement.InvalidateVisual();
-            _debugConsole.WriteLine($"绿化完成，概率={prob}%");
+            _debugConsole.WriteLine(Loc.F("Render.Console.GreeningDone", prob));
         }, "绿化平地", "<概率0-100>");
 
         cm.RegisterCommand("random_flat", args =>
         {
-            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
             var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
 
             int prob = 50;
             if (args.Length > 0 && int.TryParse(args[0], out int p))
@@ -3258,14 +3274,14 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             _editModeManager.RecordMultiCellChange($"随机平地变体 (概率={prob}%)", () => terrain.RandomizeFlatTerrain(prob));
             _editModeManager_DataModifiedFromUndo();
             _skElement.InvalidateVisual();
-            _debugConsole.WriteLine($"随机平地变体完成，概率={prob}%");
+            _debugConsole.WriteLine(Loc.F("Render.Console.RandomFlatDone", prob));
         }, "随机平地地形变体", "<概率0-100>");
 
         cm.RegisterCommand("random_variant", args =>
         {
-            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
             var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
 
             int prob = 50;
             if (args.Length > 0 && int.TryParse(args[0], out int p))
@@ -3274,14 +3290,14 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             _editModeManager.RecordMultiCellChange($"随机当前层变体 (概率={prob}%)", () => terrain.RandomizeVariant(prob));
             _editModeManager_DataModifiedFromUndo();
             _skElement.InvalidateVisual();
-            _debugConsole.WriteLine($"随机变体完成，编辑层={terrain.EditLayer}，概率={prob}%");
+            _debugConsole.WriteLine(Loc.F("Render.Console.RandomVariantDone", terrain.EditLayer, prob));
         }, "随机当前层地形变体", "<概率0-100>");
 
         cm.RegisterCommand("create_coast", args =>
         {
-            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
             var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
 
             var selectedHexes = _hexSelector.SelectedHexes;
             var targetHexes = selectedHexes.Count > 0
@@ -3291,14 +3307,14 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             _editModeManager.RecordMultiCellChange("创建海岸线", () => terrain.CreateCoast(targetHexes));
             _editModeManager_DataModifiedFromUndo();
             _skElement.InvalidateVisual();
-            _debugConsole.WriteLine("海岸线创建完成");
+            _debugConsole.WriteLine(Loc.T("Render.Console.CoastCreated"));
         }, "创建海岸线", "");
 
         cm.RegisterCommand("process_ocean_layer2", args =>
         {
-            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
             var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
 
             var selectedHexes = _hexSelector.SelectedHexes;
             var targetHexes = selectedHexes.Count > 0
@@ -3308,14 +3324,14 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             _editModeManager.RecordMultiCellChange("处理海洋第二层", () => terrain.ProcessOceanSecondLayer(targetHexes));
             _editModeManager_DataModifiedFromUndo();
             _skElement.InvalidateVisual();
-            _debugConsole.WriteLine("海洋第二层处理完成");
+            _debugConsole.WriteLine(Loc.T("Render.Console.OceanLayer2Done"));
         }, "处理海洋第二层", "");
 
         cm.RegisterCommand("export_hd", async args =>
         {
-            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
             var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
 
             var result = terrain.ExportHdFile();
             _debugConsole.WriteLine(result.Message ?? "");
@@ -3323,9 +3339,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         cm.RegisterCommand("scale_map", args =>
         {
-            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
             var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
 
             double scale = 1.0;
             if (args.Length > 0 && double.TryParse(args[0], out double s))
@@ -3333,35 +3349,35 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
             if (Math.Abs(scale - 1.0) < 0.001)
             {
-                _debugConsole.WriteLine("缩放比例为1.0，无需调整");
+                _debugConsole.WriteLine(Loc.T("Render.Console.ScaleNoop"));
                 return;
             }
 
             _editModeManager.RecordMapResizeChange($"缩放地图 (比例={scale:F2})", () => terrain.ScaleMap(scale));
             _editModeManager_DataModifiedFromUndo();
             _skElement.InvalidateVisual();
-            _debugConsole.WriteLine($"地图缩放完成，比例={scale:F2}");
+            _debugConsole.WriteLine(Loc.F("Render.Console.ScaleDone", scale));
         }, "按比例缩放地图", "<比例0.1-10.0>");
 
         cm.RegisterCommand("resize_map", args =>
         {
-            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
             var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine("未激活地形修改器"); return; }
+            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
 
             if (args.Length < 2)
             {
-                _debugConsole.WriteLine("用法: resize_map <direction> <amount> [ocean]");
+                _debugConsole.WriteLine(Loc.T("Render.Console.ResizeUsage.Line1"));
                 _debugConsole.WriteLine("  direction: up, down, left, right");
-                _debugConsole.WriteLine("  amount: 正数扩展，负数收缩");
-                _debugConsole.WriteLine("  ocean: 可选，扩展时新格子使用海洋");
+                _debugConsole.WriteLine(Loc.T("Render.Console.ResizeUsage.Line3"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.ResizeUsage.Line4"));
                 return;
             }
 
             string direction = args[0];
             if (!int.TryParse(args[1], out int amount) || amount == 0)
             {
-                _debugConsole.WriteLine("无效的调整量");
+                _debugConsole.WriteLine(Loc.T("Render.Console.InvalidAmount"));
                 return;
             }
 
@@ -3370,25 +3386,25 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             _editModeManager.RecordMapResizeChange($"调整地图大小 ({direction}, {amount})", () => terrain.ResizeMap(direction, amount, useOcean));
             _editModeManager_DataModifiedFromUndo();
             _skElement.InvalidateVisual();
-            _debugConsole.WriteLine($"地图大小调整完成，方向={direction}，量={amount}");
+            _debugConsole.WriteLine(Loc.F("Render.Console.ResizeDone", direction, amount));
         }, "调整地图大小", "<direction> <amount> [ocean]");
 
         cm.RegisterCommand("geo_add_ref", args =>
         {
             if (args.Length < 4)
             {
-                _debugConsole.WriteLine("用法: geo_add_ref <row> <col> <lat> <lon>");
-                _debugConsole.WriteLine("  row: 行号");
-                _debugConsole.WriteLine("  col: 列号");
-                _debugConsole.WriteLine("  lat: 纬度");
-                _debugConsole.WriteLine("  lon: 经度");
+                _debugConsole.WriteLine(Loc.T("Render.Console.GeoAddRefUsage.Line1"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.GeoAddRefUsage.Line2"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.GeoAddRefUsage.Line3"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.GeoAddRefUsage.Line4"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.GeoAddRefUsage.Line5"));
                 return;
             }
 
             if (!int.TryParse(args[0], out int row) || !int.TryParse(args[1], out int col) ||
                 !double.TryParse(args[2], out double lat) || !double.TryParse(args[3], out double lon))
             {
-                _debugConsole.WriteLine("参数格式错误");
+                _debugConsole.WriteLine(Loc.T("Render.Console.ArgFormatError"));
                 return;
             }
 
@@ -3401,7 +3417,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 ruler.AddMarker(row, col, lat, lon);
             }
 
-            _debugConsole.WriteLine($"已添加参考点: R{row}C{col} = ({lat:F7}, {lon:F7})");
+            _debugConsole.WriteLine(Loc.F("Render.Console.RefAdded", row, col, lat, lon));
             _skElement.InvalidateVisual();
         }, "添加经纬度参考点", "<row> <col> <lat> <lon>");
 
@@ -3409,15 +3425,15 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             if (args.Length < 1 || !int.TryParse(args[0], out int index) || index < 1)
             {
-                _debugConsole.WriteLine("用法: geo_remove_ref <index>");
-                _debugConsole.WriteLine("  index: 参考点序号（从1开始）");
+                _debugConsole.WriteLine(Loc.T("Render.Console.GeoRemoveRefUsage.Line1"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.GeoRemoveRefUsage.Line2"));
                 return;
             }
 
             var rp = _geoCalculator.ReferencePoints;
             if (index > rp.Points.Count)
             {
-                _debugConsole.WriteLine($"参考点序号 {index} 超出范围，当前共有 {rp.Points.Count} 个参考点");
+                _debugConsole.WriteLine(Loc.F("Render.Console.RefIndexOutOfRange", index, rp.Points.Count));
                 return;
             }
 
@@ -3431,18 +3447,18 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 ruler.RemoveMarker(marker.Id);
             }
 
-            _debugConsole.WriteLine($"已删除参考点 {index}: R{removed.Row}C{removed.Col}");
+            _debugConsole.WriteLine(Loc.F("Render.Console.RefRemoved", index, removed.Row, removed.Col));
             _skElement.InvalidateVisual();
         }, "删除经纬度参考点", "<index>");
 
         cm.RegisterCommand("geo_calc", args =>
         {
-            if (_mapData == null) { _debugConsole.WriteLine("地图数据未加载"); return; }
+            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
 
             var rp = _geoCalculator.ReferencePoints;
             if (!rp.IsValid())
             {
-                _debugConsole.WriteLine($"参考点设置不完整，当前只有 {rp.Points.Count} 个参考点，至少需要2个");
+                _debugConsole.WriteLine(Loc.F("Render.Console.RefIncomplete", rp.Points.Count));
                 return;
             }
 
@@ -3451,11 +3467,11 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             try
             {
                 _geoCalculator.CalculateAndExport(_mapData, outputPath);
-                _debugConsole.WriteLine($"经纬度换算完成，结果已保存到: {outputPath}");
+                _debugConsole.WriteLine(Loc.F("Render.Console.GeoCalcDone", outputPath));
             }
             catch (Exception ex)
             {
-                _debugConsole.WriteLine($"经纬度换算失败: {ex.Message}");
+                _debugConsole.WriteLine(Loc.F("Render.Geo.CalcFailed", ex.Message));
             }
         }, "计算并导出经纬度", "[输出文件路径]");
 
@@ -3463,19 +3479,19 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             var rp = _geoCalculator.ReferencePoints;
             var ruler = _renderEngine.GeoRuler;
-            _debugConsole.WriteLine($"参考点数量: {rp.Points.Count}");
+            _debugConsole.WriteLine(Loc.F("Render.Console.RefCount", rp.Points.Count));
             for (int i = 0; i < rp.Points.Count; i++)
             {
                 var p = rp.Points[i];
-                _debugConsole.WriteLine($"  参考点{i + 1}: R{p.Row}C{p.Col}, 纬度={p.Latitude:F7}, 经度={p.Longitude:F7}");
+                _debugConsole.WriteLine(Loc.F("Render.Console.RefRow", i + 1, p.Row, p.Col, p.Latitude, p.Longitude));
             }
-            _debugConsole.WriteLine($"参考点有效: {rp.IsValid()}");
+            _debugConsole.WriteLine(Loc.F("Render.Console.RefValid", rp.IsValid()));
             if (ruler != null)
             {
-                _debugConsole.WriteLine($"标尺标记数: {ruler.Markers.Count}");
+                _debugConsole.WriteLine(Loc.F("Render.Console.RulerMarkerCount", ruler.Markers.Count));
                 foreach (var m in ruler.Markers)
                 {
-                    _debugConsole.WriteLine($"  标记#{m.Id}: R{m.Row}C{m.Col}, 纬度={m.Latitude:F7}, 经度={m.Longitude:F7}");
+                    _debugConsole.WriteLine(Loc.F("Render.Console.MarkerRow", m.Id, m.Row, m.Col, m.Latitude, m.Longitude));
                 }
             }
         }, "显示当前经纬度参考点", "");
@@ -3484,16 +3500,17 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             if (args.Length < 1 || !double.TryParse(args[0], out double lat))
             {
-                _debugConsole.WriteLine("用法: geo_set_lat <latitude>");
-                _debugConsole.WriteLine("  latitude: 地图中心纬度（度），用于经度间距修正");
-                _debugConsole.WriteLine("  例如: geo_set_lat 45.0");
-                _debugConsole.WriteLine($"  当前值: {_geoCalculator.CentralLatitude?.ToString("F4") ?? "自动估算"}");
+                _debugConsole.WriteLine(Loc.T("Render.Console.GeoSetLatUsage.Line1"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.GeoSetLatUsage.Line2"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.GeoSetLatUsage.Line3"));
+                _debugConsole.WriteLine(Loc.F("Render.Console.GeoSetLatUsage.Current",
+                    _geoCalculator.CentralLatitude?.ToString("F4") ?? Loc.T("Render.Console.AutoEstimate")));
                 return;
             }
 
             _geoCalculator.CentralLatitude = lat;
-            _debugConsole.WriteLine($"已设置地图中心纬度: {lat:F4}°");
-            _debugConsole.WriteLine("经度换算将使用球面修正（当参考点纬度跨度>5度时自动启用）");
+            _debugConsole.WriteLine(Loc.F("Render.Console.CentralLatSet", lat));
+            _debugConsole.WriteLine(Loc.T("Render.Console.SphericalNote"));
         }, "设置地图中心纬度（用于球面修正）", "<latitude>");
 
         cm.RegisterCommand("geo_export_ref", args =>
@@ -3503,12 +3520,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             try
             {
                 _geoCalculator.ExportReferencePointsOnly(path);
-                _debugConsole.WriteLine($"参考点已导出: {path}");
-                _debugConsole.WriteLine($"参考点数量: {_geoCalculator.ReferencePoints.Points.Count}");
+                _debugConsole.WriteLine(Loc.F("Render.Console.RefExported", path));
+                _debugConsole.WriteLine(Loc.F("Render.Console.RefCount", _geoCalculator.ReferencePoints.Points.Count));
             }
             catch (Exception ex)
             {
-                _debugConsole.WriteLine($"导出失败: {ex.Message}");
+                _debugConsole.WriteLine(Loc.F("Common.ExportFailed", ex.Message));
             }
         }, "导出参考点配置到 JSON", "[filename]");
 
@@ -3516,15 +3533,15 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             if (args.Length < 1)
             {
-                _debugConsole.WriteLine("用法: geo_import_ref <filename>");
-                _debugConsole.WriteLine("  例如: geo_import_ref geo_ref_20260818.json");
+                _debugConsole.WriteLine(Loc.T("Render.Console.GeoImportRefUsage.Line1"));
+                _debugConsole.WriteLine(Loc.T("Render.Console.GeoImportRefUsage.Line2"));
                 return;
             }
 
             string path = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, args[0]);
             if (!System.IO.File.Exists(path))
             {
-                _debugConsole.WriteLine($"文件不存在: {path}");
+                _debugConsole.WriteLine(Loc.F("Render.Console.FileNotExist", path));
                 return;
             }
 
@@ -3532,8 +3549,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             {
                 _geoCalculator.ImportReferencePoints(path);
                 var rp = _geoCalculator.ReferencePoints;
-                _debugConsole.WriteLine($"参考点已导入: {path}");
-                _debugConsole.WriteLine($"参考点数量: {rp.Points.Count}");
+                _debugConsole.WriteLine(Loc.F("Render.Console.RefImported", path));
+                _debugConsole.WriteLine(Loc.F("Render.Console.RefCount", rp.Points.Count));
 
                 // 同步到标尺
                 var ruler = _renderEngine.GeoRuler;
@@ -3544,18 +3561,18 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                     {
                         ruler.AddMarker(p.Row, p.Col, p.Latitude, p.Longitude);
                     }
-                    _debugConsole.WriteLine("标尺已同步更新");
+                    _debugConsole.WriteLine(Loc.T("Render.Console.RulerSynced"));
                 }
             }
             catch (Exception ex)
             {
-                _debugConsole.WriteLine($"导入失败: {ex.Message}");
+                _debugConsole.WriteLine(Loc.F("Render.ImportFailed", ex.Message));
             }
         }, "从 JSON 导入参考点配置", "<filename>");
 
         cm.RegisterCommand("geo_ruler", _ =>
         {
-            _debugConsole.WriteLine("经纬度标尺始终显示，无需切换");
+            _debugConsole.WriteLine(Loc.T("Render.Console.RulerAlwaysOn"));
         }, "经纬度标尺状态（始终显示）", "");
     }
 
@@ -3764,7 +3781,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         var mode = ActiveProvinceMode;
         if (mode != null)
         {
-            _editModeManager.RaiseStatusMessage($"边界已画 {mode.DrawnBoundaryPixelCount} 像素");
+            _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.BoundaryDrawn", mode.DrawnBoundaryPixelCount));
         }
     }
 
@@ -3830,7 +3847,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             var terrainModifier = _editModeManager.GetModifier<TerrainModifier>();
             if (terrainModifier != null)
             {
-                _layerInfoLabel.Text = $"编辑层: {terrainModifier.EditLayer}";
+                _layerInfoLabel.Text = Loc.F("Render.EditLayer", terrainModifier.EditLayer);
                 _layerInfoLabel.Visibility = Visibility.Visible;
             }
         }
@@ -3844,15 +3861,10 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         Debug.WriteLine($"[EditMode] {message}");
 
-        // 更新地形编辑层显示
+        // 更新地形编辑层显示：不再按消息文本前缀判断（文本已本地化，且由 Core 发出），
+        // 改为直接从修改器读取当前编辑层重建标签，显示结果与原来一致。
         if (_layerInfoLabel != null && _editModeManager.CurrentMode == EditMode.TerrainPaint)
-        {
-            if (message.StartsWith("编辑层:"))
-            {
-                _layerInfoLabel.Text = message;
-                _layerInfoLabel.Visibility = Visibility.Visible;
-            }
-        }
+            UpdateLayerInfoVisibility();
     }
 
     private void OnEditModeDataModified(object? sender, EventArgs e)
@@ -3915,7 +3927,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         if (enable && _mapData != null)
             _renderEngine.PreloadBelongFlagAtlas(_mapData);
 
-        _editModeManager.RaiseStatusMessage(enable ? "国家领域显示: 开启" : "国家领域显示: 关闭");
+        _editModeManager.RaiseStatusMessage(enable ? Loc.T("Render.Status.DomainOn") : Loc.T("Render.Status.DomainOff"));
         _skElement.InvalidateVisual();
     }
 
@@ -3929,7 +3941,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _renderEngine.ShowBuildingNames = _buildingNamesVisible
                                        && _editModeManager.CurrentMode != EditMode.TerrainPaint;
 
-        _editModeManager.RaiseStatusMessage(_buildingNamesVisible ? "建筑名称: 显示" : "建筑名称: 隐藏");
+        _editModeManager.RaiseStatusMessage(_buildingNamesVisible ? Loc.T("Render.Status.BuildingNamesShown") : Loc.T("Render.Status.BuildingNamesHidden"));
         _skElement.InvalidateVisual();
     }
 
@@ -3963,7 +3975,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         if (_mapData == null)
         {
-            MessageBox.Show("地图数据未加载", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Render.MapNotLoaded"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
@@ -3971,9 +3983,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             !Core.Services.ExternalToolRunner.IsGenBuildingsAvailable)
         {
             MessageBox.Show(
-                "未找到 Lib 目录下的 ocr_map.exe / gen_buildings_zme.exe。\n" +
-                "请确认它们位于程序目录的 Lib 子目录中。",
-                "缺少外部工具", MessageBoxButton.OK, MessageBoxImage.Error);
+                Loc.T("Render.Ocr.MissingTools"),
+                Loc.T("Render.Ocr.MissingToolsTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
@@ -3982,9 +3993,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         if (string.IsNullOrEmpty(imagePath) || !System.IO.File.Exists(imagePath))
         {
             MessageBox.Show(
-                "没有可用的背景图。\n\n" +
-                "请先通过工具栏的「视图层」按钮加载一张地图图片，再按 P 识别。",
-                "未加载背景图", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Loc.T("Render.Ocr.NoBackground"),
+                Loc.T("Render.Ocr.NoBackgroundTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -3994,15 +4004,15 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         int imageHeight = _renderEngine.ViewLayerSourceHeight;
         if (imageWidth <= 0 || imageHeight <= 0)
         {
-            MessageBox.Show("无法获取背景图尺寸", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Render.Ocr.NoImageSize"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
         // 3. 选择建筑类型
         var dialogService = new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!);
         var typeInput = await dialogService.ShowInputDialogAsync(
-            "文字识别生成建筑",
-            $"图片尺寸 {imageWidth} x {imageHeight}\n建筑类型（11=一级城 ... 15=五级城）：",
+            Loc.T("Render.Ocr.Title"),
+            Loc.F("Render.Ocr.TypePrompt", imageWidth, imageHeight),
             "11", 11, 15);
         if (typeInput == null || !int.TryParse(typeInput, out int buildingType)) return;
 
@@ -4016,47 +4026,47 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         try
         {
             // 5. OCR 识别（大图可能需要数分钟）
-            _editModeManager.RaiseStatusMessage($"正在识别 {System.IO.Path.GetFileName(imagePath)} 的地名，请稍候...");
+            _editModeManager.RaiseStatusMessage(Loc.F("Render.Ocr.Recognizing", System.IO.Path.GetFileName(imagePath)));
             var ocr = await Core.Services.ExternalToolRunner.RunOcrAsync(imagePath, placesJson);
             if (!ocr.Ok)
             {
-                MessageBox.Show(ocr.Message, "OCR 识别失败", MessageBoxButton.OK, MessageBoxImage.Error);
-                _editModeManager.RaiseStatusMessage("OCR 识别失败");
+                MessageBox.Show(ocr.Message, Loc.T("Render.Ocr.FailedTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+                _editModeManager.RaiseStatusMessage(Loc.T("Render.Ocr.FailedTitle"));
                 return;
             }
 
             // 6. 导出当前地图网格数据（复用地形编辑模式 F10 的实现）
-            _editModeManager.RaiseStatusMessage("正在导出地图网格数据...");
+            _editModeManager.RaiseStatusMessage(Loc.T("Render.Ocr.ExportingGrid"));
             _geoCalculator.ExportGridOnly(_mapData, mapJson);
 
             // 7. 按比例映射生成 zme 建筑脚本
-            _editModeManager.RaiseStatusMessage("正在生成建筑脚本...");
+            _editModeManager.RaiseStatusMessage(Loc.T("Render.Ocr.GeneratingScript"));
             var gen = await Core.Services.ExternalToolRunner.RunGenBuildingsAsync(
                 mapJson, placesJson, imageWidth, imageHeight, zmePath, buildingType);
             if (!gen.Ok)
             {
-                MessageBox.Show(gen.Message, "生成建筑脚本失败", MessageBoxButton.OK, MessageBoxImage.Error);
-                _editModeManager.RaiseStatusMessage("生成建筑脚本失败");
+                MessageBox.Show(gen.Message, Loc.T("Render.Ocr.GenFailed"), MessageBoxButton.OK, MessageBoxImage.Error);
+                _editModeManager.RaiseStatusMessage(Loc.T("Render.Ocr.GenFailed"));
                 return;
             }
 
             // 8. 执行 zme，批量放置建筑
-            _editModeManager.RaiseStatusMessage("正在放置建筑...");
+            _editModeManager.RaiseStatusMessage(Loc.T("Render.Ocr.Placing"));
             _debugConsole.CommandHost.Execute($"run \"{zmePath}\"");
 
             _skElement.InvalidateVisual();
-            _editModeManager.RaiseStatusMessage($"文字识别生成建筑完成（类型 {buildingType}）");
+            _editModeManager.RaiseStatusMessage(Loc.F("Render.Ocr.Done", buildingType));
             MessageBox.Show(
-                "文字识别生成建筑完成。\n\n" +
-                $"地名 JSON：{System.IO.Path.GetFileName(placesJson)}\n" +
-                $"地图网格：{System.IO.Path.GetFileName(mapJson)}\n" +
-                $"建筑脚本：{System.IO.Path.GetFileName(zmePath)}\n\n" +
-                gen.Message,
-                "完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                Loc.F("Render.Ocr.DoneDetail",
+                    System.IO.Path.GetFileName(placesJson),
+                    System.IO.Path.GetFileName(mapJson),
+                    System.IO.Path.GetFileName(zmePath),
+                    gen.Message),
+                Loc.T("Render.Ocr.DoneTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"文字识别生成建筑失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.F("Render.Ocr.Failed", ex.Message), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -4081,7 +4091,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _hexSelector.ClearSelection();
         _hexSelector.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
 
-        _editModeManager.RaiseStatusMessage($"正在移动建筑: {building.Value.GetBuildingTypeName()}，拖到目标格后松开右键");
+        _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.MovingBuilding", building.Value.GetBuildingTypeName()));
         _skElement.InvalidateVisual();
         return true;
     }
@@ -4125,7 +4135,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             if (modifier != null)
             {
                 var result = modifier.MoveBuilding(fromCol, fromRow, col, row);
-                _editModeManager.RaiseStatusMessage(result.Message ?? "已移动建筑");
+                _editModeManager.RaiseStatusMessage(result.Message ?? Loc.T("Render.Status.BuildingMoved"));
             }
         }
 
@@ -4188,14 +4198,14 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         var header = _mapData?.Header;
         if (header == null)
         {
-            MessageBox.Show("头部数据不可用", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(Loc.T("Render.Legion.HeaderUnavailable"), Loc.T("Common.Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         if (Views.Assist.HeaderSettingWindow.ShowDialog(Window, header))
         {
             _skElement.InvalidateVisual();
-            _editModeManager.RaiseStatusMessage("头部数据已更新");
+            _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.HeaderUpdated"));
         }
     }
 
@@ -4207,7 +4217,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         var legions = _mapData.Legions.ToList();
         if (legions.Count == 0)
         {
-            _editModeManager.RaiseStatusMessage("没有可用的军团数据");
+            _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.NoLegions"));
             return;
         }
 
@@ -4227,7 +4237,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                     modifier.SelectedLegionId = legion.Value.CountryId;
             }
 
-            _editModeManager.RaiseStatusMessage($"已选择军团 ActionId={window.SelectedActionId.Value}");
+            _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.LegionSelected", window.SelectedActionId.Value));
         }
 
         _skElement.InvalidateVisual();
@@ -4244,23 +4254,23 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         var settings = WC4MapEditor.Core.Config.ConfigManager.Instance.GetConquerCountrySettingsData();
         if (settings.Count == 0)
         {
-            _editModeManager.RaiseStatusMessage("未加载征服国家配置 ConquerCountrySettings.json");
+            _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.NoConquerSettings"));
             return;
         }
 
         var dialogService = new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!);
         var input = await dialogService.ShowInputDialogAsync(
-            "更新征服国家设置", "请输入征服参数 (ConquerId)：", "1", 1, 999);
+            Loc.T("Render.Legion.UpdateConquerTitle"), Loc.T("Render.Legion.ConquerIdPrompt"), "1", 1, 999);
         if (string.IsNullOrWhiteSpace(input) || !int.TryParse(input, out int conquerId)) return;
 
         try
         {
             var result = modifier.UpdateConquerCountrySettings(conquerId, settings);
-            _editModeManager.RaiseStatusMessage(result.Message ?? "已更新征服国家设置");
+            _editModeManager.RaiseStatusMessage(result.Message ?? Loc.T("Render.Status.ConquerUpdated"));
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"更新征服国家设置失败: {ex.Message}", "错误",
+            MessageBox.Show(Loc.F("Render.Legion.UpdateConquerFailed", ex.Message), Loc.T("Common.Error"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -4272,14 +4282,14 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         try
         {
-            _editModeManager.RaiseStatusMessage("正在生成军团范围截图...");
+            _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.CapturingLegion"));
             string path = await Task.Run(() => CaptureLegionScreenshot(_mapData));
-            MessageBox.Show($"军团地图截图已保存：\n{path}", "截图完成",
+            MessageBox.Show(Loc.F("Render.Legion.ScreenshotSaved", path), Loc.T("Render.Legion.ScreenshotTitle"),
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"军团截图失败: {ex.Message}", "错误",
+            MessageBox.Show(Loc.F("Render.Legion.ScreenshotFailed", ex.Message), Loc.T("Common.Error"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -4562,7 +4572,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                     }
                 }
                 _brushSettingsWindow.Show();
-                _editModeManager.RaiseStatusMessage($"画笔已开启 - 右键绘制省份，半径: {province.Brush.Radius}");
+                _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.BrushOnProvince", province.Brush.Radius));
             }
             else
             {
@@ -4570,7 +4580,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                     _brushSettingsWindow.PlayFadeOutAndHide();
                 _renderEngine.HideBrushPreview();
                 _skElement.InvalidateVisual();
-                _editModeManager.RaiseStatusMessage("画笔已关闭");
+                _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.BrushOff"));
             }
             return;
         }
@@ -4604,7 +4614,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                     }
                 }
                 _brushSettingsWindow.Show();
-                _editModeManager.RaiseStatusMessage($"画笔已开启 - 右键绘制归属，半径: {brush.Radius}");
+                _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.BrushOnBelong", brush.Radius));
             }
             else
             {
@@ -4612,7 +4622,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                     _brushSettingsWindow.PlayFadeOutAndHide();
                 _renderEngine.HideBrushPreview();
                 _skElement.InvalidateVisual();
-                _editModeManager.RaiseStatusMessage("画笔已关闭");
+                _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.BrushOff"));
             }
             return;
         }
@@ -4645,7 +4655,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                     }
                 }
                 _brushSettingsWindow.Show();
-                _editModeManager.RaiseStatusMessage($"单位橡皮擦已开启 - 左键拖动删除单位，半径: {brush.Radius}");
+                _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.EraserOn", brush.Radius));
             }
             else
             {
@@ -4653,7 +4663,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                     _brushSettingsWindow.PlayFadeOutAndHide();
                 _renderEngine.HideBrushPreview();
                 _skElement.InvalidateVisual();
-                _editModeManager.RaiseStatusMessage("单位橡皮擦已关闭");
+                _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.EraserOff"));
             }
             return;
         }
@@ -4689,13 +4699,13 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 }
             }
             _brushSettingsWindow.Show();
-            _editModeManager.RaiseStatusMessage("画笔已开启 - 右键绘制地形");
+            _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.BrushOnTerrain"));
         }
         else
         {
             if (_brushSettingsWindow != null)
                 _brushSettingsWindow.PlayFadeOutAndHide();
-            _editModeManager.RaiseStatusMessage("画笔已关闭");
+            _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.BrushOff"));
         }
     }
 
@@ -4832,7 +4842,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         var provider = _renderEngine.ViewLayerImageProvider;
         if (provider == null)
         {
-            _editModeManager.RaiseStatusMessage("当前渲染引擎不支持视图层图片访问");
+            _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.NoViewLayerProvider"));
             return (false, 0);
         }
 

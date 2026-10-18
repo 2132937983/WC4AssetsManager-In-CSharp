@@ -15,10 +15,12 @@ public sealed class NotificationDialog : IDisposable
     private TaskCompletionSource<bool>? _tcs;
     private bool _isClosed;
 
-    public string Title { get; set; } = "通知";
+    // 默认文字在构造时取当前语言：对话框对象每次使用都新建，不会缓存旧语言
+    public string Title { get; set; } = Loc.T("Dialog.NotifyTitle");
     public string Message { get; set; } = "";
-    public string ButtonText { get; set; } = "确定";
-    public Brush AccentBrush { get; set; } = new SolidColorBrush(Color.FromArgb(180, 80, 160, 220));
+    public string ButtonText { get; set; } = Loc.T("Common.Ok");
+    /// <summary>确定按钮的强调色；调用方可替换（公开 API，保留）。</summary>
+    public Brush AccentBrush { get; set; } = EditorTheme.Accent;
 
     public NotificationDialog(Window owner)
     {
@@ -41,11 +43,13 @@ public sealed class NotificationDialog : IDisposable
 
         _overlay = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(120, 0, 0, 0)),
-            Child = CreateDialogPanel(),
+            Background = CreateScrim(),
             Effect = null,
             Focusable = true
         };
+        // 主窗口（渲染场景）本身不套编辑主题，对话框内的按钮/文字要靠合并到覆盖层的字典拿到深色样式
+        EditorTheme.Apply(_overlay);
+        _overlay.Child = CreateDialogPanel();
         _overlay.KeyDown += Overlay_KeyDown;
         Panel.SetZIndex(_overlay, 9999);
         // Tab 在对话框内部循环切换焦点，避免焦点跑到覆盖层外面落到主界面的控件上
@@ -93,18 +97,13 @@ public sealed class NotificationDialog : IDisposable
 
         var dialogBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(240, 30, 30, 30)),
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.Border,
+            BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(0),
             MinWidth = 340,
             MaxWidth = 480,
-            Effect = new DropShadowEffect
-            {
-                BlurRadius = 20,
-                ShadowDepth = 5,
-                Opacity = 0.7,
-                Color = Colors.Black
-            },
+            Effect = CreateShadow(),
             RenderTransformOrigin = new Point(0.5, 0.5),
             RenderTransform = new ScaleTransform(0.9, 0.9)
         };
@@ -114,37 +113,21 @@ public sealed class NotificationDialog : IDisposable
             Margin = new Thickness(24, 20, 24, 20)
         };
 
-        var titleBar = new DockPanel
-        {
-            Margin = new Thickness(0, 0, 0, 12)
-        };
+        var titleText = EditorTheme.Title(Title);
+        titleText.Margin = new Thickness(0, 0, 0, 10);
+        stackPanel.Children.Add(titleText);
 
-        var titleText = new TextBlock
-        {
-            Text = Title,
-            FontSize = 16,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        DockPanel.SetDock(titleText, Dock.Left);
-        titleBar.Children.Add(titleText);
-
-        var separator = new Separator
-        {
-            Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)),
-            Margin = new Thickness(0, 0, 0, 12)
-        };
+        stackPanel.Children.Add(new Separator { Margin = new Thickness(0, 0, 0, 12) });
 
         var messageText = new TextBlock
         {
             Text = Message,
-            FontSize = 14,
-            Foreground = new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)),
+            FontSize = 13,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 24),
             LineHeight = 22
         };
+        stackPanel.Children.Add(messageText);
 
         var buttonPanel = new StackPanel
         {
@@ -152,25 +135,13 @@ public sealed class NotificationDialog : IDisposable
             HorizontalAlignment = HorizontalAlignment.Right
         };
 
-        var confirmButton = new Button
-        {
-            Content = ButtonText,
-            Width = 90,
-            Height = 34,
-            FontSize = 13,
-            FontWeight = FontWeights.Medium,
-            Foreground = Brushes.White,
-            Background = AccentBrush,
-            BorderThickness = new Thickness(0),
-            Cursor = Cursors.Hand
-        };
-        confirmButton.Click += (s, e) => CloseWithResult();
-
+        var confirmButton = EditorTheme.PrimaryButton(ButtonText, (_, _) => CloseWithResult());
+        confirmButton.MinWidth = 88;
+        // AccentBrush 是公开属性，调用方可能传入自定义强调色，这里继续尊重它
+        confirmButton.Background = AccentBrush;
+        confirmButton.BorderBrush = AccentBrush;
         buttonPanel.Children.Add(confirmButton);
 
-        stackPanel.Children.Add(titleBar);
-        stackPanel.Children.Add(separator);
-        stackPanel.Children.Add(messageText);
         stackPanel.Children.Add(buttonPanel);
 
         dialogBorder.Child = stackPanel;
@@ -178,6 +149,21 @@ public sealed class NotificationDialog : IDisposable
 
         return container;
     }
+
+    /// <summary>覆盖层的半透明遮罩：由主题最深底色派生，不写死颜色。</summary>
+    private static Brush CreateScrim()
+    {
+        var c = EditorTheme.ColorOf(EditorTheme.Bg0);
+        return new SolidColorBrush(Color.FromArgb(150, c.R, c.G, c.B));
+    }
+
+    private static DropShadowEffect CreateShadow() => new()
+    {
+        BlurRadius = 20,
+        ShadowDepth = 4,
+        Opacity = 0.6,
+        Color = EditorTheme.ColorOf(EditorTheme.Bg0)
+    };
 
     private void CloseWithResult()
     {

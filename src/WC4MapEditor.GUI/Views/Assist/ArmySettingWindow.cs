@@ -1,19 +1,11 @@
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
-using System.Windows.Media.Effects;
-using System.Windows.Shapes;
-using WC4MapEditor.Core.Models;
-
 namespace WC4MapEditor.GUI.Views.Assist;
 
+/// <summary>
+/// 单位（Army）编辑窗口：左侧将领信息，右侧按分组排列的字段表单。
+/// 外观走 <see cref="EditorTheme"/>；<see cref="ArmySettingV3Window"/> 继承它复用整套界面，只换读写的数据对象。
+/// </summary>
 public class ArmySettingWindow : Window
 {
-    private readonly SolidColorBrush _textBrush = Brushes.White;
-    private readonly Color _themeColor = Color.FromRgb(0x2D, 0x2D, 0x30);
-
     private bool _isClosing;
     private bool _confirmed;
     protected Army _army;
@@ -33,20 +25,21 @@ public class ArmySettingWindow : Window
 
     public ArmySettingWindow(Army army, bool isNew = false)
     {
+        EditorTheme.Apply(this);
+
         _army = army;
         _isNewArmy = isNew;
 
-        Title = isNew ? "创建单位" : "编辑单位";
-        Width = 700;
+        Title = isNew ? Loc.T("Assist.Army.CreateTitle") : Loc.T("Assist.Army.EditTitle");
+        Width = 720;
         Height = 650;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         WindowStyle = WindowStyle.None;
+        // 淡入淡出靠 Opacity 动画，无边框窗口只有开了 AllowsTransparency 时 Opacity 才生效
         AllowsTransparency = true;
-        Background = Brushes.Transparent;
+        Background = EditorTheme.Bg1;
         ResizeMode = ResizeMode.NoResize;
         Opacity = 0;
-        FontFamily = new FontFamily("Microsoft YaHei");
-        FontSize = 12;
 
         Content = CreateWindowContent();
         Loaded += (_, _) => PlayFadeInAnimation();
@@ -97,80 +90,63 @@ public class ArmySettingWindow : Window
 
     private FrameworkElement CreateWindowContent()
     {
-        var outerBorder = new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb(230, _themeColor.R, _themeColor.G, _themeColor.B)),
-            CornerRadius = new CornerRadius(12),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(100, 80, 80, 90)),
-            BorderThickness = new Thickness(1),
-            Effect = new DropShadowEffect
-            {
-                BlurRadius = 20,
-                ShadowDepth = 8,
-                Opacity = 0.6
-            }
-        };
-
-        var mainGrid = new Grid { Margin = new Thickness(10) };
+        var mainGrid = new Grid();
         mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(40) });
         mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(60) });
+        mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        // Title bar
         var titleBar = CreateTitleBar();
         Grid.SetRow(titleBar, 0);
         mainGrid.Children.Add(titleBar);
 
-        // Edit panel
         var editPanel = CreateEditPanel();
         Grid.SetRow(editPanel, 1);
         mainGrid.Children.Add(editPanel);
 
-        // Button panel
         var buttonPanel = CreateButtonPanel();
         Grid.SetRow(buttonPanel, 2);
         mainGrid.Children.Add(buttonPanel);
 
-        outerBorder.Child = mainGrid;
-        return outerBorder;
+        // 无边框窗口描一圈边，免得与底下的主窗口连成一片
+        return new Border
+        {
+            BorderBrush = EditorTheme.BorderStrong,
+            BorderThickness = new Thickness(1),
+            Child = mainGrid
+        };
     }
 
-    private Grid CreateTitleBar()
+    /// <summary>标题栏：按住可拖动窗口，右侧 ✕ 等同取消。</summary>
+    private Border CreateTitleBar()
     {
-        var titleBar = new Grid();
-        titleBar.Background = new SolidColorBrush(Color.FromRgb(0, 122, 204));
-        titleBar.Height = 40;
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var titleText = new TextBlock
+        var titleText = EditorTheme.Title(Title);
+        titleText.Margin = new Thickness(12, 0, 0, 0);
+        // 跟着 Window.Title 走：派生类（v3）在基类构造完之后才改标题，绑定能让标题栏同步
+        titleText.SetBinding(TextBlock.TextProperty, new Binding(nameof(Title)) { Source = this });
+        Grid.SetColumn(titleText, 0);
+        grid.Children.Add(titleText);
+
+        var closeButton = EditorTheme.GhostButton("✕", (_, _) => CancelAndClose());
+        closeButton.Width = 32;
+        closeButton.Height = 28;
+        closeButton.Padding = new Thickness(0);
+        closeButton.Margin = new Thickness(0, 0, 6, 0);
+        closeButton.ToolTip = Loc.T("Common.Close");
+        Grid.SetColumn(closeButton, 1);
+        grid.Children.Add(closeButton);
+
+        var titleBar = new Border
         {
-            Text = _isNewArmy ? "创建新单位" : "编辑单位",
-            Foreground = Brushes.White,
-            FontSize = 14,
-            FontWeight = FontWeights.Bold,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.Border,
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Child = grid
         };
-        titleBar.Children.Add(titleText);
-
-        var closeButton = new Button
-        {
-            Content = "x",
-            Width = 30,
-            Height = 30,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 0, 5, 0),
-            Background = Brushes.Transparent,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontSize = 14,
-            Cursor = Cursors.Hand
-        };
-        closeButton.Click += (_, _) => CancelAndClose();
-        closeButton.MouseEnter += (_, _) => closeButton.Background = new SolidColorBrush(Color.FromRgb(200, 50, 50));
-        closeButton.MouseLeave += (_, _) => closeButton.Background = Brushes.Transparent;
-        titleBar.Children.Add(closeButton);
-
-        titleBar.MouseLeftButtonDown += (s, e) =>
+        titleBar.MouseLeftButtonDown += (_, e) =>
         {
             if (e.ButtonState == MouseButtonState.Pressed)
                 DragMove();
@@ -179,17 +155,8 @@ public class ArmySettingWindow : Window
         return titleBar;
     }
 
-    private Border CreateEditPanel()
+    private Grid CreateEditPanel()
     {
-        var editBorder = new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb(100, 60, 60, 63)),
-            CornerRadius = new CornerRadius(8),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(80, 100, 100, 100)),
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 10, 0, 10)
-        };
-
         var mainPanel = new Grid();
         mainPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
         mainPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -200,18 +167,13 @@ public class ArmySettingWindow : Window
         // Right panel - input fields
         CreateInputPanel(mainPanel);
 
-        editBorder.Child = mainPanel;
-        return editBorder;
+        return mainPanel;
     }
 
     private void CreateGeneralPanel(Grid parentGrid)
     {
-        var generalBorder = new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb(50, 0, 0, 0)),
-            BorderThickness = new Thickness(0, 0, 1, 0),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255))
-        };
+        var generalBorder = EditorTheme.Panel(new Thickness(0, 0, 1, 0));
+        generalBorder.Background = EditorTheme.Bg2;
         Grid.SetColumn(generalBorder, 0);
 
         var scrollViewer = new ScrollViewer
@@ -239,12 +201,12 @@ public class ArmySettingWindow : Window
         {
             Width = 100,
             Height = 100,
-            Fill = new SolidColorBrush(Color.FromRgb(80, 80, 85)),
-            Stroke = new SolidColorBrush(Color.FromRgb(0, 150, 255)),
+            Fill = EditorTheme.Bg3,
+            Stroke = EditorTheme.Accent,
             StrokeThickness = 3,
             Effect = new DropShadowEffect
             {
-                Color = Color.FromRgb(0, 150, 255),
+                Color = EditorTheme.ColorOf(EditorTheme.Accent),
                 ShadowDepth = 0,
                 BlurRadius = 15,
                 Opacity = 0.7
@@ -267,11 +229,12 @@ public class ArmySettingWindow : Window
         // General name
         _generalNameText = new TextBlock
         {
-            Text = "无将领",
+            Text = Loc.T("Assist.Army.NoGeneral"),
             FontSize = 14,
             FontWeight = FontWeights.Bold,
-            Foreground = Brushes.White,
             HorizontalAlignment = HorizontalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 10)
         };
         generalPanel.Children.Add(_generalNameText);
@@ -291,106 +254,84 @@ public class ArmySettingWindow : Window
 
     private void CreateInputPanel(Grid parentGrid)
     {
-        var inputBorder = new Border
-        {
-            Background = Brushes.Transparent
-        };
-        Grid.SetColumn(inputBorder, 1);
-
         var scrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
+        Grid.SetColumn(scrollViewer, 1);
 
-        var contentPanel = new StackPanel { Margin = new Thickness(10) };
+        var contentPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
 
         // Basic info group
-        contentPanel.Children.Add(CreateAttributeGroup("基础信息", new[]
+        contentPanel.Children.Add(CreateAttributeGroup(Loc.T("Common.BasicInfo"), new[]
         {
-            ("坐标", "coordinate"),
-            ("兵种", "unit_type"),
-            ("等级", "level"),
-            ("编制", "organization"),
-            ("方向", "direction"),
+            (Loc.T("Assist.Army.Field.Coordinate"), "coordinate"),
+            (Loc.T("Assist.Army.Field.UnitType"), "unit_type"),
+            (Loc.T("Common.Level"), "level"),
+            (Loc.T("Assist.Army.Field.Organization"), "organization"),
+            (Loc.T("Assist.Army.Field.Direction"), "direction"),
         }));
 
         // Attributes group
-        contentPanel.Children.Add(CreateAttributeGroup("属性", new[]
+        contentPanel.Children.Add(CreateAttributeGroup(Loc.T("Assist.Army.Section.Attributes"), new[]
         {
-            ("移动力", "mobility"),
-            ("建造回合", "built_round"),
-            ("兵种经验", "experience"),
-            ("血量加成", "health_bonus"),
-            ("当前血量", "current_health"),
-            ("血量上限", "max_health"),
+            (Loc.T("Assist.Army.Field.Mobility"), "mobility"),
+            (Loc.T("Assist.Army.Field.BuiltRound"), "built_round"),
+            (Loc.T("Assist.Army.Field.Experience"), "experience"),
+            (Loc.T("Assist.Army.Field.HealthBonus"), "health_bonus"),
+            (Loc.T("Assist.Army.Field.CurrentHealth"), "current_health"),
+            (Loc.T("Assist.Army.Field.MaxHealth"), "max_health"),
         }));
 
         // General group
-        contentPanel.Children.Add(CreateAttributeGroup("将领", new[]
+        contentPanel.Children.Add(CreateAttributeGroup(Loc.T("Assist.Army.Section.General"), new[]
         {
-            ("将领", "general"),
-            ("军衔", "rank"),
-            ("爵位", "nobility"),
+            (Loc.T("Assist.Army.Field.General"), "general"),
+            (Loc.T("Assist.Army.Field.Rank"), "rank"),
+            (Loc.T("Assist.Army.Field.Nobility"), "nobility"),
         }));
 
         // Equipment group
-        contentPanel.Children.Add(CreateAttributeGroup("装备", new[]
+        contentPanel.Children.Add(CreateAttributeGroup(Loc.T("Assist.Army.Section.Equipment"), new[]
         {
-            ("胸章一", "badge1"),
-            ("胸章二", "badge2"),
-            ("胸章三", "badge3"),
+            (Loc.T("Assist.Army.Field.Badge1"), "badge1"),
+            (Loc.T("Assist.Army.Field.Badge2"), "badge2"),
+            (Loc.T("Assist.Army.Field.Badge3"), "badge3"),
         }));
 
         // Skills group
-        contentPanel.Children.Add(CreateAttributeGroup("技能", new[]
+        contentPanel.Children.Add(CreateAttributeGroup(Loc.T("Assist.Army.Section.Skills"), new[]
         {
-            ("技能等级1", "skill_level1"),
-            ("技能等级2", "skill_level2"),
-            ("技能等级3", "skill_level3"),
-            ("技能等级4", "skill_level4"),
-            ("技能等级5", "skill_level5"),
+            (Loc.T("Assist.Army.Field.SkillLevel1"), "skill_level1"),
+            (Loc.T("Assist.Army.Field.SkillLevel2"), "skill_level2"),
+            (Loc.T("Assist.Army.Field.SkillLevel3"), "skill_level3"),
+            (Loc.T("Assist.Army.Field.SkillLevel4"), "skill_level4"),
+            (Loc.T("Assist.Army.Field.SkillLevel5"), "skill_level5"),
         }));
 
         // Others group
-        contentPanel.Children.Add(CreateAttributeGroup("其他", new[]
+        contentPanel.Children.Add(CreateAttributeGroup(Loc.T("Assist.Army.Section.Others"), new[]
         {
-            ("关键据点", "key_point"),
-            ("方针", "policy"),
-            ("方案", "plan"),
-            ("改变回合", "change_round"),
-            ("士气", "morale"),
-            ("持续回合", "duration"),
-            ("关联对话", "dialogue"),
-            ("能否攻击", "can_attack"),
+            (Loc.T("Assist.Army.Field.KeyPoint"), "key_point"),
+            (Loc.T("Assist.Army.Field.Policy"), "policy"),
+            (Loc.T("Assist.Army.Field.Plan"), "plan"),
+            (Loc.T("Assist.Army.Field.ChangeRound"), "change_round"),
+            (Loc.T("Assist.Army.Field.Morale"), "morale"),
+            (Loc.T("Assist.Army.Field.Duration"), "duration"),
+            (Loc.T("Assist.Army.Field.Dialogue"), "dialogue"),
+            (Loc.T("Assist.Army.Field.CanAttack"), "can_attack"),
         }));
 
         scrollViewer.Content = contentPanel;
-        inputBorder.Child = scrollViewer;
-        parentGrid.Children.Add(inputBorder);
+        parentGrid.Children.Add(scrollViewer);
     }
 
-    private Border CreateAttributeGroup(string title, (string label, string key)[] fields)
+    /// <summary>一个分组：主题分组标题 + 两列表单行（字段多，单列会拉得太长）。</summary>
+    private StackPanel CreateAttributeGroup(string title, (string label, string key)[] fields)
     {
-        var groupBorder = new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb(60, 80, 80, 85)),
-            CornerRadius = new CornerRadius(6),
-            Margin = new Thickness(0, 0, 0, 10),
-            Padding = new Thickness(10)
-        };
-
         var groupPanel = new StackPanel();
-
-        var titleText = new TextBlock
-        {
-            Text = title,
-            Foreground = new SolidColorBrush(Color.FromRgb(0, 150, 255)),
-            FontSize = 12,
-            FontWeight = FontWeights.Bold,
-            Margin = new Thickness(0, 0, 0, 10)
-        };
-        groupPanel.Children.Add(titleText);
+        groupPanel.Children.Add(EditorTheme.SectionHeader(title));
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -401,105 +342,59 @@ public class ArmySettingWindow : Window
         {
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-            var panel1 = CreateFieldPanel(fields[i].label, fields[i].key);
-            Grid.SetRow(panel1, rowIndex);
-            Grid.SetColumn(panel1, 0);
-            grid.Children.Add(panel1);
+            var row1 = CreateFieldRow(fields[i].label, fields[i].key);
+            Grid.SetRow(row1, rowIndex);
+            Grid.SetColumn(row1, 0);
+            grid.Children.Add(row1);
 
             if (i + 1 < fields.Length)
             {
-                var panel2 = CreateFieldPanel(fields[i + 1].label, fields[i + 1].key);
-                Grid.SetRow(panel2, rowIndex);
-                Grid.SetColumn(panel2, 1);
-                grid.Children.Add(panel2);
+                var row2 = CreateFieldRow(fields[i + 1].label, fields[i + 1].key);
+                Grid.SetRow(row2, rowIndex);
+                Grid.SetColumn(row2, 1);
+                grid.Children.Add(row2);
             }
 
             rowIndex++;
         }
 
         groupPanel.Children.Add(grid);
-        groupBorder.Child = groupPanel;
-
-        return groupBorder;
+        return groupPanel;
     }
 
-    private StackPanel CreateFieldPanel(string label, string key)
+    private Border CreateFieldRow(string label, string key)
     {
-        var panel = new StackPanel { Margin = new Thickness(5) };
-
-        var labelText = new TextBlock
-        {
-            Text = label,
-            Foreground = new SolidColorBrush(Color.FromRgb(200, 200, 200)),
-            FontSize = 11,
-            Margin = new Thickness(0, 0, 0, 3)
-        };
-        panel.Children.Add(labelText);
-
-        var textBox = new TextBox
-        {
-            Background = new SolidColorBrush(Color.FromRgb(60, 60, 65)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 85)),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(5),
-            FontSize = 11,
-            Height = 26
-        };
-
-        textBox.GotFocus += (_, _) => textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0, 150, 255));
-        textBox.LostFocus += (_, _) => textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 85));
-
-        panel.Children.Add(textBox);
+        var textBox = new TextBox();
         _textBoxes[key] = textBox;
-
-        return panel;
+        return EditorTheme.FormRow(label, textBox, 96);
     }
 
-    private Grid CreateButtonPanel()
+    private Border CreateButtonPanel()
     {
-        var buttonPanel = new Grid
-        {
-            Background = new SolidColorBrush(Color.FromArgb(100, 0, 0, 0)),
-            Height = 60
-        };
-
         var buttonStack = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        var confirmButton = CreateStyledButton("确定", new SolidColorBrush(Color.FromRgb(0, 122, 204)));
-        confirmButton.Click += (_, _) => ConfirmAndClose();
+        var confirmButton = EditorTheme.PrimaryButton(Loc.T("Common.Ok"), (_, _) => ConfirmAndClose());
+        confirmButton.MinWidth = 84;
         buttonStack.Children.Add(confirmButton);
 
-        var cancelButton = CreateStyledButton("取消", new SolidColorBrush(Color.FromRgb(80, 80, 80)));
-        cancelButton.Click += (_, _) => CancelAndClose();
+        var cancelButton = EditorTheme.Button(Loc.T("Common.Cancel"), (_, _) => CancelAndClose());
+        cancelButton.MinWidth = 84;
+        cancelButton.Margin = new Thickness(8, 0, 0, 0);
         buttonStack.Children.Add(cancelButton);
 
-        buttonPanel.Children.Add(buttonStack);
-        return buttonPanel;
-    }
-
-    private Button CreateStyledButton(string text, Brush background)
-    {
-        var btn = new Button
+        return new Border
         {
-            Content = text,
-            Width = 80,
-            Height = 32,
-            Margin = new Thickness(5),
-            Background = background,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontSize = 12,
-            Cursor = Cursors.Hand
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.Border,
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(12, 10, 12, 10),
+            Child = buttonStack
         };
-        btn.MouseEnter += (_, _) => btn.Opacity = 0.8;
-        btn.MouseLeave += (_, _) => btn.Opacity = 1.0;
-        return btn;
     }
 
     protected virtual void LoadArmyData()
@@ -612,7 +507,7 @@ public class ArmySettingWindow : Window
         }
 
         if (_generalNameText != null)
-            _generalNameText.Text = $"将领ID: {generalId}";
+            _generalNameText.Text = Loc.F("Assist.Army.GeneralId", generalId);
 
         // TODO: Load general avatar and data from TacticalMapParser / GeneralSettingParser
         // For now, just show the ID
@@ -623,8 +518,8 @@ public class ArmySettingWindow : Window
         if (_generalAvatarImage != null)
             _generalAvatarImage.Visibility = Visibility.Collapsed;
         if (_generalAvatarEllipse != null)
-            _generalAvatarEllipse.Fill = new SolidColorBrush(Color.FromRgb(80, 80, 85));
+            _generalAvatarEllipse.Fill = EditorTheme.Bg3;
         if (_generalNameText != null)
-            _generalNameText.Text = "无将领";
+            _generalNameText.Text = Loc.T("Assist.Army.NoGeneral");
     }
 }

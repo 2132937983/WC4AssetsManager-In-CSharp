@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -85,7 +86,10 @@ public class FlagEditScene : UserControl
     private TextBox _offsetXBox = null!, _offsetYBox = null!, _scaleBox = null!;
     private CheckBox _extendEdgesCheck = null!;
     private Button _makeFlagBtn = null!;
-    private Button _paintModeBtn = null!;
+    // 模式开关统一用主题 ToggleButton 的选中态表示，不再手动换背景色
+    private ToggleButton _legacyBtn = null!;
+    private ToggleButton _tiledBtn = null!;
+    private ToggleButton _paintModeBtn = null!;
     private TextBox _brushRadiusBox = null!;
     private Border _brushColorPreview = null!;
 
@@ -96,6 +100,7 @@ public class FlagEditScene : UserControl
 
     public FlagEditScene(MainWindow window, int countryId, string countryName)
     {
+        EditorTheme.Apply(this);
         _window = window;
         _countryId = countryId;
         _countryName = countryName;
@@ -120,18 +125,16 @@ public class FlagEditScene : UserControl
         _paintLayer = new SKBitmap(new SKImageInfo(150, 150, SKColorType.Rgba8888, SKAlphaType.Premul));
         using (var c = new SKCanvas(_paintLayer)) c.Clear(SKColors.Transparent);
         UpdateDisplay();
-        SetStatus("请打开图片或拖入图片开始编辑，R键切换平铺模式，E键拉伸边缘");
+        SetStatus(Loc.T("Flag.StatusInit"));
     }
 
     private void InitializeUI()
     {
-        Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
-
         _root = new Grid();
-        _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
         _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
 
         BuildTopBar();
         BuildMainArea();
@@ -143,95 +146,24 @@ public class FlagEditScene : UserControl
 
     private void BuildTopBar()
     {
-        var topBar = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            Height = 50
-        };
-        var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        _makeFlagBtn = EditorTheme.PrimaryButton(Loc.T("Flag.MakeFlag"), OnMakeFlag);
+        _makeFlagBtn.IsEnabled = false;
 
-        var backBtn = new Button
+        _legacyBtn = MakeToggle(Loc.T("Flag.LegacyMode"), (_, _) =>
         {
-            Content = "返回",
-            Margin = new Thickness(10, 0, 0, 0),
-            Padding = new Thickness(15, 5, 15, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0)
-        };
-        backBtn.Click += (_, _) => _window.SetCurrentScene(new CountryEditScene(_window));
-        sp.Children.Add(backBtn);
-
-        var openBtn = new Button
-        {
-            Content = "打开图片",
-            Margin = new Thickness(10, 0, 0, 0),
-            Padding = new Thickness(15, 5, 15, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0)
-        };
-        openBtn.Click += OnOpenImage;
-        sp.Children.Add(openBtn);
-
-        _makeFlagBtn = new Button
-        {
-            Content = "生成国旗",
-            Margin = new Thickness(10, 0, 0, 0),
-            Padding = new Thickness(15, 5, 15, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0x0E, 0x63, 0x9C)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            IsEnabled = false
-        };
-        _makeFlagBtn.Click += OnMakeFlag;
-        sp.Children.Add(_makeFlagBtn);
-
-        var legacyBtn = new Button
-        {
-            Content = "旧模式",
-            Margin = new Thickness(10, 0, 0, 0),
-            Padding = new Thickness(15, 5, 15, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0)
-        };
-        legacyBtn.Click += (_, _) =>
-        {
-            _legacyMode = !_legacyMode;
-            legacyBtn.Content = _legacyMode ? "新模式" : "旧模式";
-            legacyBtn.Background = _legacyMode
-                ? new SolidColorBrush(Color.FromRgb(0x0E, 0x63, 0x9C))
-                : new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42));
+            _legacyMode = _legacyBtn.IsChecked == true;
+            _legacyBtn.Content = _legacyMode ? Loc.T("Flag.NewMode") : Loc.T("Flag.LegacyMode");
             UpdateDisplay();
-            SetStatus(_legacyMode ? "切换到旧模式（圆形裁剪）" : "切换到新模式（国旗制作）");
-        };
-        sp.Children.Add(legacyBtn);
+            SetStatus(Loc.T(_legacyMode ? "Flag.StatusSwitchedLegacy" : "Flag.StatusSwitchedNew"));
+        });
 
-        var saveBtn = new Button
-        {
-            Content = "保存(旧)",
-            Margin = new Thickness(10, 0, 0, 0),
-            Padding = new Thickness(15, 5, 15, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0)
-        };
-        saveBtn.Click += OnSaveLegacy;
-        sp.Children.Add(saveBtn);
-
-        var titleTb = new TextBlock
-        {
-            Text = $"国旗编辑 - {_countryName} (ID:{_countryId})",
-            Foreground = Brushes.White,
-            FontSize = 18,
-            FontWeight = FontWeights.Bold,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(20, 0, 0, 0)
-        };
-        sp.Children.Add(titleTb);
-
-        topBar.Child = sp;
+        var topBar = EditorTheme.TopBar(Loc.F("Flag.Title", _countryName, _countryId),
+            (_, _) => _window.SetCurrentScene(new CountryEditScene(_window)),
+            EditorTheme.Button(Loc.T("Flag.OpenImage"), OnOpenImage),
+            _legacyBtn,
+            EditorTheme.Button(Loc.T("Flag.SaveLegacy"), OnSaveLegacy),
+            _makeFlagBtn);
+        Grid.SetRow(topBar, 0);
         _root.Children.Add(topBar);
     }
 
@@ -242,90 +174,62 @@ public class FlagEditScene : UserControl
         mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
         mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        // Left panel
-        var leftPanel = new StackPanel
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x26)),
-            Margin = new Thickness(5)
-        };
+        // 左栏：现有国旗预览
+        var leftPanel = new StackPanel { Margin = new Thickness(10, 8, 10, 8) };
 
-        leftPanel.Children.Add(new TextBlock
-        {
-            Text = "现有国旗预览",
-            Foreground = Brushes.White,
-            FontWeight = FontWeights.Bold,
-            Margin = new Thickness(5)
-        });
+        var header = EditorTheme.Section(Loc.T("Flag.ExistingPreview"));
+        header.Margin = new Thickness(0, 0, 0, 6);
+        leftPanel.Children.Add(header);
 
-        leftPanel.Children.Add(new TextBlock
-        {
-            Text = "UI国旗 (HD图集)",
-            Foreground = Brushes.Gray,
-            FontSize = 11,
-            Margin = new Thickness(5, 2, 5, 2)
-        });
+        leftPanel.Children.Add(EditorTheme.Muted(Loc.T("Flag.HdFlag")));
         _hdFlagPreview = new Image
         {
             Width = 100,
             Height = 100,
             Stretch = Stretch.Uniform,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(5)
+            Margin = new Thickness(0, 4, 0, 0)
         };
         leftPanel.Children.Add(_hdFlagPreview);
 
-        leftPanel.Children.Add(new TextBlock
-        {
-            Text = "征服大国旗",
-            Foreground = Brushes.Gray,
-            FontSize = 11,
-            Margin = new Thickness(5, 10, 5, 2)
-        });
+        var bigLabel = EditorTheme.Muted(Loc.T("Flag.BigFlag"));
+        bigLabel.Margin = new Thickness(0, 10, 0, 0);
+        leftPanel.Children.Add(bigLabel);
         _tacticalFlagPreview = new Image
         {
             Width = 100,
             Height = 100,
             Stretch = Stretch.Uniform,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(5)
+            Margin = new Thickness(0, 4, 0, 0)
         };
         leftPanel.Children.Add(_tacticalFlagPreview);
 
-        leftPanel.Children.Add(new TextBlock
-        {
-            Text = "征服小国旗",
-            Foreground = Brushes.Gray,
-            FontSize = 11,
-            Margin = new Thickness(5, 10, 5, 2)
-        });
+        var smallLabel = EditorTheme.Muted(Loc.T("Flag.SmallFlag"));
+        smallLabel.Margin = new Thickness(0, 10, 0, 0);
+        leftPanel.Children.Add(smallLabel);
         _smallFlagPreview = new Image
         {
             Width = 50,
             Height = 50,
             Stretch = Stretch.Uniform,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(5)
+            Margin = new Thickness(0, 4, 0, 0)
         };
         leftPanel.Children.Add(_smallFlagPreview);
 
-        var leftBorder = new Border
-        {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            Margin = new Thickness(5),
-            Child = leftPanel
-        };
+        var leftBorder = EditorTheme.Panel(new Thickness(0, 0, 1, 0));
+        leftBorder.Child = leftPanel;
         Grid.SetColumn(leftBorder, 0);
         mainGrid.Children.Add(leftBorder);
 
-        // Right: canvas area
+        // 右侧：画布区（画布按显示缩放自适应大小，居中摆放）
         var canvasBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x26)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
+            Background = EditorTheme.Bg1,
+            BorderBrush = EditorTheme.Border,
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(5),
+            Margin = new Thickness(8),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -341,6 +245,7 @@ public class FlagEditScene : UserControl
         _displayControl = new Image { Stretch = Stretch.None };
         _imageCanvas.Children.Add(_displayControl);
 
+        // 选区框 / 涂鸦光标叠在国旗像素上，必须与任意图片都有对比，保留固定颜色
         _selectionBorder = new Border
         {
             BorderBrush = new SolidColorBrush(Colors.LimeGreen),
@@ -378,131 +283,72 @@ public class FlagEditScene : UserControl
 
     private void BuildControlBar()
     {
-        var controlBorder = new Border
+        var panel = new WrapPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+        void AddLabel(string text)
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            Padding = new Thickness(10),
-            Margin = new Thickness(0, 5, 0, 0)
-        };
-        Grid.SetRow(controlBorder, 2);
-
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        int col = 0;
+            var lbl = EditorTheme.FieldLabel(text);
+            lbl.Margin = new Thickness(panel.Children.Count == 0 ? 0 : 10, 0, 4, 0);
+            panel.Children.Add(lbl);
+        }
 
         // Offset X
-        var lblX = new TextBlock { Text = "X偏移:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 2, 0) };
-        Grid.SetColumn(lblX, col++);
-        grid.Children.Add(lblX);
-
-        _offsetXBox = new TextBox { Text = "0", Width = 60, VerticalAlignment = VerticalAlignment.Center };
+        AddLabel(Loc.T("Flag.OffsetX"));
+        _offsetXBox = new TextBox { Text = "0", Width = 60 };
         _offsetXBox.TextChanged += (_, _) => UpdateTransformFromUI();
-        Grid.SetColumn(_offsetXBox, col++);
-        grid.Children.Add(_offsetXBox);
+        panel.Children.Add(_offsetXBox);
 
         // Offset Y
-        var lblY = new TextBlock { Text = "Y偏移:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 2, 0) };
-        Grid.SetColumn(lblY, col++);
-        grid.Children.Add(lblY);
-
-        _offsetYBox = new TextBox { Text = "0", Width = 60, VerticalAlignment = VerticalAlignment.Center };
+        AddLabel(Loc.T("Flag.OffsetY"));
+        _offsetYBox = new TextBox { Text = "0", Width = 60 };
         _offsetYBox.TextChanged += (_, _) => UpdateTransformFromUI();
-        Grid.SetColumn(_offsetYBox, col++);
-        grid.Children.Add(_offsetYBox);
+        panel.Children.Add(_offsetYBox);
 
         // Scale
-        var lblS = new TextBlock { Text = "缩放:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 2, 0) };
-        Grid.SetColumn(lblS, col++);
-        grid.Children.Add(lblS);
-
-        _scaleBox = new TextBox { Text = "1.0", Width = 60, VerticalAlignment = VerticalAlignment.Center };
+        AddLabel(Loc.T("Flag.Scale"));
+        _scaleBox = new TextBox { Text = "1.0", Width = 60 };
         _scaleBox.TextChanged += (_, _) => UpdateTransformFromUI();
-        Grid.SetColumn(_scaleBox, col++);
-        grid.Children.Add(_scaleBox);
+        panel.Children.Add(_scaleBox);
 
         // Extend edges checkbox
         _extendEdgesCheck = new CheckBox
         {
-            Content = "拉伸边缘(E)",
-            Foreground = Brushes.White,
+            Content = Loc.T("Flag.ExtendEdges"),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0)
+            Margin = new Thickness(10, 0, 0, 0)
         };
         _extendEdgesCheck.Checked += (_, _) => { if (_sourceImage != null) { _extendEdges = true; UpdateWorkingCanvas(); } };
         _extendEdgesCheck.Unchecked += (_, _) => { _extendEdges = false; UpdateWorkingCanvas(); };
-        Grid.SetColumn(_extendEdgesCheck, col++);
-        grid.Children.Add(_extendEdgesCheck);
+        panel.Children.Add(_extendEdgesCheck);
 
-        // Tiled mode button
-        var tiledBtn = new Button
+        panel.Children.Add(EditorTheme.VSeparator());
+
+        // Tiled mode toggle
+        _tiledBtn = MakeToggle(Loc.T("Flag.Tiled"), (_, _) =>
         {
-            Content = "平铺(R)",
-            Margin = new Thickness(8, 0, 0, 0),
-            Padding = new Thickness(10, 3, 10, 3),
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0)
-        };
-        tiledBtn.Click += (_, _) =>
-        {
-            if (_sourceImage == null) { SetStatus("请先加载图片"); return; }
-            _tiledMode = !_tiledMode;
-            tiledBtn.Background = _tiledMode
-                ? new SolidColorBrush(Color.FromRgb(0x0E, 0x63, 0x9C))
-                : new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42));
+            if (_sourceImage == null)
+            {
+                // 没有图片时不允许进入平铺，把刚被点击翻转的选中态还原
+                _tiledBtn.IsChecked = false;
+                SetStatus(Loc.T("Flag.LoadImageFirst"));
+                return;
+            }
+            _tiledMode = _tiledBtn.IsChecked == true;
             UpdateWorkingCanvas();
-            SetStatus(_tiledMode ? "平铺模式已开启 (R)" : "平铺模式已关闭 (R)");
-        };
-        Grid.SetColumn(tiledBtn, col++);
-        grid.Children.Add(tiledBtn);
+            SetStatus(Loc.T(_tiledMode ? "Flag.TiledOn" : "Flag.TiledOff"));
+        }, tool: true);
+        panel.Children.Add(_tiledBtn);
 
         // Reset button
-        var resetBtn = new Button
-        {
-            Content = "重置",
-            Margin = new Thickness(8, 0, 0, 0),
-            Padding = new Thickness(10, 3, 10, 3),
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0)
-        };
-        resetBtn.Click += (_, _) => ResetTransform();
-        Grid.SetColumn(resetBtn, col++);
-        grid.Children.Add(resetBtn);
+        panel.Children.Add(EditorTheme.ToolButton(Loc.T("Common.Reset"), (_, _) => ResetTransform()));
 
-        // Paint mode button
-        _paintModeBtn = new Button
-        {
-            Content = "涂鸦(P)",
-            Margin = new Thickness(8, 0, 0, 0),
-            Padding = new Thickness(10, 3, 10, 3),
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0)
-        };
-        _paintModeBtn.Click += (_, _) => TogglePaintMode();
-        Grid.SetColumn(_paintModeBtn, col++);
-        grid.Children.Add(_paintModeBtn);
+        // Paint mode toggle
+        _paintModeBtn = MakeToggle(Loc.T("Flag.Paint"), (_, _) => TogglePaintMode(), tool: true);
+        panel.Children.Add(_paintModeBtn);
 
         // Brush radius
-        var lblRadius = new TextBlock { Text = "笔刷:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 2, 0) };
-        Grid.SetColumn(lblRadius, col++);
-        grid.Children.Add(lblRadius);
-
-        _brushRadiusBox = new TextBox { Text = "5", Width = 40, VerticalAlignment = VerticalAlignment.Center };
+        AddLabel(Loc.T("Flag.Brush"));
+        _brushRadiusBox = new TextBox { Text = "5", Width = 40 };
         _brushRadiusBox.TextChanged += (_, _) =>
         {
             if (int.TryParse(_brushRadiusBox.Text, out var r))
@@ -511,33 +357,43 @@ public class FlagEditScene : UserControl
                 UpdatePaintCursorSize();
             }
         };
-        Grid.SetColumn(_brushRadiusBox, col++);
-        grid.Children.Add(_brushRadiusBox);
+        panel.Children.Add(_brushRadiusBox);
 
-        // Brush color preview
+        // Brush color preview（色块本身是当前笔刷颜色，属于数据）
         _brushColorPreview = new Border
         {
             Width = 20,
             Height = 20,
             Background = new SolidColorBrush(Color.FromRgb(_brushColor.Red, _brushColor.Green, _brushColor.Blue)),
-            BorderBrush = Brushes.White,
+            BorderBrush = EditorTheme.BorderStrong,
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(4, 0, 0, 0),
+            CornerRadius = new CornerRadius(3),
+            Margin = new Thickness(6, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
-        Grid.SetColumn(_brushColorPreview, col++);
-        grid.Children.Add(_brushColorPreview);
+        panel.Children.Add(_brushColorPreview);
 
-        controlBorder.Child = grid;
-        _root.Children.Add(controlBorder);
+        var controlBar = EditorTheme.ToolBar(panel);
+        controlBar.BorderThickness = new Thickness(0, 1, 0, 0);
+        Grid.SetRow(controlBar, 2);
+        _root.Children.Add(controlBar);
     }
 
     private void BuildStatusBar()
     {
-        _statusText = new TextBlock { Foreground = Brushes.Gray, Margin = new Thickness(10, 5, 10, 5) };
-        var statusBar = new Border { Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)), Child = _statusText };
+        var statusBar = EditorTheme.StatusBar(out _statusText);
         Grid.SetRow(statusBar, 3);
         _root.Children.Add(statusBar);
+    }
+
+    /// <summary>开关按钮：顶栏尺寸与主题 Button 对齐，工具条尺寸与 ToolButton 对齐；选中态由主题 ToggleButton 样式绘制。</summary>
+    private static ToggleButton MakeToggle(string text, RoutedEventHandler onClick, bool tool = false)
+    {
+        var t = tool
+            ? new ToggleButton { Content = text, MinHeight = 26, FontSize = 12, Margin = new Thickness(0, 0, 6, 0) }
+            : new ToggleButton { Content = text, MinHeight = 28, FontSize = 13 };
+        t.Click += onClick;
+        return t;
     }
 
     private void LoadExistingFlags()
@@ -550,16 +406,16 @@ public class FlagEditScene : UserControl
             {
                 _hdFlagPreview.Source = SkBitmapToBitmapSource(hdFlag);
                 hdFlag.Dispose();
-                SetStatus($"已加载UI国旗 (ID:{_countryId})");
+                SetStatus(Loc.F("Flag.StatusHdLoaded", _countryId));
             }
             else
             {
-                SetStatus($"未找到UI国旗 (ID:{_countryId})");
+                SetStatus(Loc.F("Flag.StatusHdNotFound", _countryId));
             }
         }
         catch (Exception ex)
         {
-            SetStatus($"加载UI国旗失败: {ex.Message}");
+            SetStatus(Loc.F("Flag.StatusHdLoadFailed", ex.Message));
         }
 
         // Load tactical map flag
@@ -573,16 +429,16 @@ public class FlagEditScene : UserControl
                 _canvasWidth = tacticalFlag.Width;
                 _canvasHeight = tacticalFlag.Height;
                 UpdateWorkingCanvas();
-                SetStatus($"已加载现有国旗: {tacticalFlag.Width}x{tacticalFlag.Height}");
+                SetStatus(Loc.F("Flag.StatusExistingLoaded", tacticalFlag.Width, tacticalFlag.Height));
             }
             else
             {
-                SetStatus("未找到现有国旗，请打开图片或拖入图片");
+                SetStatus(Loc.T("Flag.StatusExistingNotFound"));
             }
         }
         catch (Exception ex)
         {
-            SetStatus($"加载国旗失败: {ex.Message}");
+            SetStatus(Loc.F("Flag.StatusFlagLoadFailed", ex.Message));
         }
 
         // Load small flag
@@ -637,7 +493,7 @@ public class FlagEditScene : UserControl
     {
         var dlg = new OpenFileDialog
         {
-            Filter = "图片|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|所有文件|*.*"
+            Filter = $"{Loc.T("Flag.ImageFilter")}|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|{Loc.T("Common.AllFiles")}|*.*"
         };
         if (dlg.ShowDialog() != true) return;
         LoadImage(dlg.FileName);
@@ -648,7 +504,7 @@ public class FlagEditScene : UserControl
         var loaded = _editorService.LoadSourceImage(path);
         if (loaded == null)
         {
-            SetStatus("加载图片失败");
+            SetStatus(Loc.T("Flag.StatusLoadFailed"));
             return;
         }
 
@@ -660,7 +516,7 @@ public class FlagEditScene : UserControl
         ResetTransform();
 
         _makeFlagBtn.IsEnabled = true;
-        SetStatus($"已加载: {Path.GetFileName(path)} ({loaded.Width}x{loaded.Height})，滚轮缩放，拖动移动");
+        SetStatus(Loc.F("Flag.StatusLoaded", Path.GetFileName(path), loaded.Width, loaded.Height));
     }
 
     private void ResetTransform()
@@ -671,6 +527,7 @@ public class FlagEditScene : UserControl
         _extendEdges = false;
         _extendEdgesCheck.IsChecked = false;
         _tiledMode = false;
+        _tiledBtn.IsChecked = false;
 
         _offsetXBox.Text = "0";
         _offsetYBox.Text = "0";
@@ -885,7 +742,7 @@ public class FlagEditScene : UserControl
             var color = _editorService.GetPixelColor(_workingCanvas, (int)canvasPos.X, (int)canvasPos.Y);
             _brushColor = color;
             _brushColorPreview.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(color.Alpha, color.Red, color.Green, color.Blue));
-            SetStatus($"取色: RGB({color.Red},{color.Green},{color.Blue})");
+            SetStatus(Loc.F("Flag.StatusPicked", color.Red, color.Green, color.Blue));
             e.Handled = true;
             return;
         }
@@ -975,7 +832,7 @@ public class FlagEditScene : UserControl
             {
                 _displayScale = newScale;
                 UpdateDisplay();
-                SetStatus($"显示缩放: {_displayScale:F1}x");
+                SetStatus(Loc.F("Flag.StatusDisplayZoom", _displayScale));
             }
             return;
         }
@@ -987,7 +844,7 @@ public class FlagEditScene : UserControl
             _imageScale = Math.Max(0.1f, _imageScale + scaleDelta);
             _scaleBox.Text = _imageScale.ToString("F1");
             UpdateWorkingCanvas();
-            SetStatus($"图片缩放: {_imageScale:F1}x");
+            SetStatus(Loc.F("Flag.StatusImageZoom", _imageScale));
         }
     }
 
@@ -1058,14 +915,14 @@ public class FlagEditScene : UserControl
                     _brushRadius = Math.Max(1, _brushRadius - 1);
                     _brushRadiusBox.Text = _brushRadius.ToString();
                     UpdatePaintCursorSize();
-                    SetStatus($"笔刷大小: {_brushRadius}");
+                    SetStatus(Loc.F("Flag.StatusBrushSize", _brushRadius));
                     e.Handled = true;
                     return;
                 case Key.OemCloseBrackets: // ] 增大笔刷
                     _brushRadius = Math.Min(50, _brushRadius + 1);
                     _brushRadiusBox.Text = _brushRadius.ToString();
                     UpdatePaintCursorSize();
-                    SetStatus($"笔刷大小: {_brushRadius}");
+                    SetStatus(Loc.F("Flag.StatusBrushSize", _brushRadius));
                     e.Handled = true;
                     return;
             }
@@ -1103,7 +960,7 @@ public class FlagEditScene : UserControl
                 _offsetXBox.Text = _offsetX.ToString("F1");
                 _offsetYBox.Text = _offsetY.ToString("F1");
                 UpdateWorkingCanvas();
-                SetStatus($"位置: ({_offsetX:F1}, {_offsetY:F1})");
+                SetStatus(Loc.F("Flag.StatusPosition", _offsetX, _offsetY));
                 e.Handled = true;
                 return;
             }
@@ -1113,14 +970,14 @@ public class FlagEditScene : UserControl
         {
             if (_sourceImage == null)
             {
-                SetStatus("请先加载图片");
+                SetStatus(Loc.T("Flag.LoadImageFirst"));
                 e.Handled = true;
                 return;
             }
             _extendEdges = !_extendEdges;
             _extendEdgesCheck.IsChecked = _extendEdges;
             UpdateWorkingCanvas();
-            SetStatus(_extendEdges ? "边缘拉伸已开启 (E)" : "边缘拉伸已关闭 (E)");
+            SetStatus(Loc.T(_extendEdges ? "Flag.ExtendOn" : "Flag.ExtendOff"));
             e.Handled = true;
             return;
         }
@@ -1129,13 +986,14 @@ public class FlagEditScene : UserControl
         {
             if (_sourceImage == null)
             {
-                SetStatus("请先加载图片");
+                SetStatus(Loc.T("Flag.LoadImageFirst"));
                 e.Handled = true;
                 return;
             }
             _tiledMode = !_tiledMode;
+            _tiledBtn.IsChecked = _tiledMode;
             UpdateWorkingCanvas();
-            SetStatus(_tiledMode ? "平铺模式已开启 (R)" : "平铺模式已关闭 (R)");
+            SetStatus(Loc.T(_tiledMode ? "Flag.TiledOn" : "Flag.TiledOff"));
             e.Handled = true;
             return;
         }
@@ -1157,9 +1015,7 @@ public class FlagEditScene : UserControl
     private void TogglePaintMode()
     {
         _paintMode = !_paintMode;
-        _paintModeBtn.Background = _paintMode
-            ? new SolidColorBrush(Color.FromRgb(0x0E, 0x63, 0x9C))
-            : new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42));
+        _paintModeBtn.IsChecked = _paintMode;
 
         if (_paintMode)
         {
@@ -1167,14 +1023,14 @@ public class FlagEditScene : UserControl
             _paintCursor.Visibility = Visibility.Visible;
             UpdatePaintCursorSize();
             _imageCanvas.Cursor = Cursors.None;
-            SetStatus("涂鸦模式已开启: 左键绘制, 右键取色, [ ]调整笔刷大小, P键退出");
+            SetStatus(Loc.T("Flag.PaintOn"));
         }
         else
         {
             // 退出涂鸦模式
             _paintCursor.Visibility = Visibility.Collapsed;
             _imageCanvas.Cursor = Cursors.Arrow;
-            SetStatus("涂鸦模式已关闭");
+            SetStatus(Loc.T("Flag.PaintOff"));
         }
     }
 
@@ -1216,7 +1072,7 @@ public class FlagEditScene : UserControl
     {
         if (_workingCanvas == null)
         {
-            MessageBox.Show("请先加载图片或编辑画布", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.T("Flag.LoadOrEditFirst"), Loc.T("Common.Info"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -1230,20 +1086,20 @@ public class FlagEditScene : UserControl
         {
             _flagService.RefreshCache();
 
-            var msg = "国旗生成成功！\n\n";
-            if (result.FlagPath != null) msg += $"大国旗: {result.FlagPath}\n";
-            if (result.SmallFlagPath != null) msg += $"小国旗: {result.SmallFlagPath}\n";
-            if (result.HdFlagPath != null) msg += $"HD国旗: {result.HdFlagPath}\n";
-            MessageBox.Show(msg, "成功", MessageBoxButton.OK, MessageBoxImage.Information);
-            SetStatus($"国旗生成成功: flag_{_countryId}.png");
+            var msg = Loc.T("Flag.MakeSuccessHeader") + "\n\n";
+            if (result.FlagPath != null) msg += Loc.F("Flag.Path.Big", result.FlagPath) + "\n";
+            if (result.SmallFlagPath != null) msg += Loc.F("Flag.Path.Small", result.SmallFlagPath) + "\n";
+            if (result.HdFlagPath != null) msg += Loc.F("Flag.Path.Hd", result.HdFlagPath) + "\n";
+            MessageBox.Show(msg, Loc.T("Common.Success"), MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus(Loc.F("Flag.StatusMade", _countryId));
 
             // 刷新预览
             LoadExistingFlags();
         }
         else
         {
-            MessageBox.Show($"生成失败: {result.ErrorMessage}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            SetStatus($"生成失败: {result.ErrorMessage}");
+            MessageBox.Show(Loc.F("Flag.MakeFailed", result.ErrorMessage), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            SetStatus(Loc.F("Flag.MakeFailed", result.ErrorMessage));
         }
     }
 
@@ -1253,12 +1109,12 @@ public class FlagEditScene : UserControl
     {
         if (_legacyCanvasImage == null)
         {
-            MessageBox.Show("没有可保存的图片", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.T("Flag.NothingToSave"), Loc.T("Common.Info"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         if (_selectRect.Width <= 0 || _selectRect.Height <= 0)
         {
-            MessageBox.Show("请先在画布上拖动选择要裁剪的圆形区域", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.T("Flag.SelectRegionFirst"), Loc.T("Common.Info"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -1283,17 +1139,17 @@ public class FlagEditScene : UserControl
 
         if (result.Success)
         {
-            var msg = $"保存成功！\n\n";
-            if (result.FlagPath != null) msg += $"国旗: {result.FlagPath}\n";
-            if (result.CirclePath != null) msg += $"圆形国旗: {result.CirclePath}\n";
-            if (result.SmallPath != null) msg += $"小国旗: {result.SmallPath}\n";
-            MessageBox.Show(msg, "保存成功", MessageBoxButton.OK, MessageBoxImage.Information);
-            SetStatus($"保存成功: flag_{_countryId}.png");
+            var msg = Loc.T("Flag.SavedHeader") + "\n\n";
+            if (result.FlagPath != null) msg += Loc.F("Flag.Path.Flag", result.FlagPath) + "\n";
+            if (result.CirclePath != null) msg += Loc.F("Flag.Path.Circle", result.CirclePath) + "\n";
+            if (result.SmallPath != null) msg += Loc.F("Flag.Path.Small", result.SmallPath) + "\n";
+            MessageBox.Show(msg, Loc.T("Common.SaveSuccess"), MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus(Loc.F("Flag.StatusSaved", _countryId));
         }
         else
         {
-            MessageBox.Show($"保存失败: {result.ErrorMessage}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            SetStatus($"保存失败: {result.ErrorMessage}");
+            MessageBox.Show(Loc.F("Flag.SaveFailed", result.ErrorMessage), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            SetStatus(Loc.F("Flag.SaveFailed", result.ErrorMessage));
         }
     }
 

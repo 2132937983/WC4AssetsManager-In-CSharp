@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using WC4MapEditor.Core.Parsers.Country;
 
 namespace WC4MapEditor.GUI.Views;
@@ -16,6 +15,8 @@ namespace WC4MapEditor.GUI.Views;
 /// </summary>
 public class EventBuffEditScene : UserControl
 {
+    private const double LabelWidth = 200;
+
     private readonly MainWindow _window;
     private readonly EventBuffSettingParser _parser = EventBuffSettingParser.Instance;
 
@@ -35,8 +36,8 @@ public class EventBuffEditScene : UserControl
 
     public EventBuffEditScene(MainWindow window)
     {
+        EditorTheme.Apply(this);
         _window = window;
-        Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
         BuildUI();
         RefreshList();
         Loaded += (_, _) => Dispatcher.BeginInvoke(() =>
@@ -50,216 +51,91 @@ public class EventBuffEditScene : UserControl
     private void BuildUI()
     {
         _root = new Grid();
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(50) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
         _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(320) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        _root.Children.Add(MakeTopBar());
+        var topBar = EditorTheme.TopBar(Loc.T("EventBuff.Title"), (_, _) => _window.ReturnToMainScene(),
+            EditorTheme.Button(Loc.T("Common.Add"), OnAdd),
+            EditorTheme.DangerButton(Loc.T("Common.Delete"), OnDelete),
+            EditorTheme.PrimaryButton(Loc.T("Common.Save"), OnSave),
+            EditorTheme.Button(Loc.T("Common.Reload"), OnReload),
+            EditorTheme.Button(Loc.T("Common.Validate"), OnValidate));
+        Grid.SetRow(topBar, 0); Grid.SetColumnSpan(topBar, 3);
+        _root.Children.Add(topBar);
 
-        var left = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x26)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 0, 1, 0)
-        };
+        // 左栏：搜索 + 列表
+        var left = EditorTheme.Panel(new Thickness(0, 0, 1, 0));
         Grid.SetRow(left, 1); Grid.SetColumn(left, 0);
         var leftGrid = new Grid();
-        leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(34) });
+        leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        _searchBox = new TextBox
-        {
-            Margin = new Thickness(8, 5, 8, 5),
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13,
-            Padding = new Thickness(6, 3, 6, 3),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            CaretBrush = Brushes.White
-        };
-        _searchBox.Text = "搜索 (Id / Type / Value)...";
-        _searchBox.GotFocus += (_, _) => { if (_searchBox.Text.StartsWith("搜索")) _searchBox.Text = ""; };
-        _searchBox.LostFocus += (_, _) => { if (string.IsNullOrWhiteSpace(_searchBox.Text)) _searchBox.Text = "搜索 (Id / Type / Value)..."; };
+        var search = EditorTheme.SearchBox(Loc.T("EventBuff.SearchPlaceholder"), out _searchBox);
+        search.Margin = new Thickness(8);
         _searchBox.TextChanged += (_, _) => RefreshList();
-        Grid.SetRow(_searchBox, 0);
-        leftGrid.Children.Add(_searchBox);
+        Grid.SetRow(search, 0);
+        leftGrid.Children.Add(search);
 
-        _listBox = new ListBox
-        {
-            Background = Brushes.Transparent,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontSize = 13
-        };
+        _listBox = new ListBox();
         _listBox.SelectionChanged += ListBox_SelectionChanged;
         Grid.SetRow(_listBox, 1);
         leftGrid.Children.Add(_listBox);
 
         left.Child = leftGrid;
         _root.Children.Add(left);
-        _root.Children.Add(MakeSplitter());
 
-        var right = new Border { Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)) };
-        Grid.SetRow(right, 1); Grid.SetColumn(right, 2);
+        var splitter = EditorTheme.VSplitter();
+        Grid.SetRow(splitter, 1); Grid.SetColumn(splitter, 1);
+        _root.Children.Add(splitter);
+
+        // 右栏：属性面板
         BuildRightPanel();
-        right.Child = _propScroll;
-        _root.Children.Add(right);
+        Grid.SetRow(_propScroll, 1); Grid.SetColumn(_propScroll, 2);
+        _root.Children.Add(_propScroll);
 
-        var status = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            BorderThickness = new Thickness(0, 1, 0, 0)
-        };
+        var status = EditorTheme.StatusBar(out _statusText);
         Grid.SetRow(status, 2); Grid.SetColumnSpan(status, 3);
-        _statusText = new TextBlock
-        {
-            Text = $"已加载 {_parser.Items.Count} 条事件 Buff",
-            Foreground = Brushes.LightGray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 12, 0)
-        };
-        status.Child = _statusText;
         _root.Children.Add(status);
 
         Content = _root;
     }
 
-    private Grid MakeTopBar()
-    {
-        var bar = new Grid();
-        Grid.SetRow(bar, 0); Grid.SetColumnSpan(bar, 3);
-        bar.Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x30));
-        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) };
-        panel.Children.Add(MakeTopBtn("返回", (_, _) => _window.ReturnToMainScene()));
-        panel.Children.Add(MakeTopBtn("新增", OnAdd));
-        panel.Children.Add(MakeTopBtn("删除", OnDelete));
-        panel.Children.Add(MakeTopBtn("保存", OnSave));
-        panel.Children.Add(MakeTopBtn("重载", OnReload));
-        panel.Children.Add(MakeTopBtn("校验", OnValidate));
-        Grid.SetColumn(panel, 0);
-        bar.Children.Add(panel);
-        return bar;
-    }
-
-    private static GridSplitter MakeSplitter()
-    {
-        var sp = new GridSplitter
-        {
-            Width = 4,
-            Background = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x42)),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch,
-            ResizeBehavior = GridResizeBehavior.PreviousAndNext
-        };
-        Grid.SetRow(sp, 1); Grid.SetColumn(sp, 1);
-        return sp;
-    }
-
     private void BuildRightPanel()
     {
-        _propPanel = new StackPanel { Margin = new Thickness(0) };
+        _propPanel = new StackPanel();
         _propScroll = new ScrollViewer
         {
             Content = _propPanel,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Padding = new Thickness(0, 0, 8, 0)
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
 
-        AddSection("基本信息");
-        AddNum("Id", "Buff ID(Id)", 0, int.MaxValue);
-        AddNum("Type", "效果类型(Type)", 0, int.MaxValue);
-        AddNum("Value", "效果值(Value)", int.MinValue, int.MaxValue);
-        AddNum("Round", "持续回合(Round, -1=永久, 0=即时)", int.MinValue, int.MaxValue);
+        AddSection(Loc.T("Common.BasicInfo"));
+        AddNum("Id", Loc.T("EventBuff.Field.Id"), 0, int.MaxValue);
+        AddNum("Type", Loc.T("EventBuff.Field.Type"), 0, int.MaxValue);
+        AddNum("Value", Loc.T("EventBuff.Field.Value"), int.MinValue, int.MaxValue);
+        AddNum("Round", Loc.T("EventBuff.Field.Round"), int.MinValue, int.MaxValue);
 
-        AddSection("关联");
-        AddText("ArmyBuffs", "附带军队Buff ID(ArmyBuffs，逗号分隔)");
+        AddSection(Loc.T("EventBuff.Section.Links"));
+        AddText("ArmyBuffs", Loc.T("EventBuff.Field.ArmyBuffs"));
 
-        AddSection("描述 (INI event_buff_desc_{Id})");
-        AddText("DescIni", "描述");
+        AddSection(Loc.T("EventBuff.Section.Desc"));
+        AddText("DescIni", Loc.T("Common.Description"));
 
-        AddSection("JSON 预览");
-        _jsonPreview = new TextBox
-        {
-            IsReadOnly = true,
-            Background = new SolidColorBrush(Color.FromRgb(0x16, 0x16, 0x16)),
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9C, 0xD6, 0x6B)),
-            FontFamily = new FontFamily("Consolas"),
-            FontSize = 12,
-            BorderThickness = new Thickness(0),
-            TextWrapping = TextWrapping.Wrap,
-            AcceptsReturn = true,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Margin = new Thickness(8, 4, 8, 12),
-            Height = 220
-        };
+        AddSection(Loc.T("Common.JsonPreview"));
+        _jsonPreview = EditorTheme.MonoTextBox(220);
+        _jsonPreview.Margin = new Thickness(10, 8, 10, 12);
         _propPanel.Children.Add(_jsonPreview);
     }
 
     // ============================================================= 控件辅助 =============================================================
-    private static Button MakeTopBtn(string label, RoutedEventHandler handler)
-    {
-        var btn = new Button
-        {
-            Content = label,
-            Height = 32,
-            Margin = new Thickness(4, 0, 4, 0),
-            Padding = new Thickness(14, 0, 14, 0),
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13
-        };
-        btn.Click += handler;
-        return btn;
-    }
+    // Add* 只负责把控件登记进字典并挂上变更回调，外观全部交给 EditorTheme 的隐式样式
+    private void AddSection(string title) => _propPanel.Children.Add(EditorTheme.SectionHeader(title));
 
-    private void AddSection(string title)
-    {
-        _propPanel.Children.Add(new TextBlock
-        {
-            Text = title,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB7, 0x4E)),
-            FontSize = 13,
-            FontWeight = FontWeights.Bold,
-            Margin = new Thickness(8, 10, 0, 4)
-        });
-    }
-
-    private void AddRow(string label, UIElement content)
-    {
-        var border = new Border
-        {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(8, 4, 8, 4)
-        };
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var lbl = new TextBlock
-        {
-            Text = label,
-            Foreground = Brushes.LightGray,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap
-        };
-        Grid.SetColumn(lbl, 0);
-        Grid.SetColumn(content, 1);
-        grid.Children.Add(lbl);
-        grid.Children.Add(content);
-        border.Child = grid;
-        _propPanel.Children.Add(border);
-    }
+    private void AddRow(string label, UIElement content) => _propPanel.Children.Add(EditorTheme.FormRow(label, content, LabelWidth));
 
     private NumericUpDown AddNum(string key, string label, double min = int.MinValue, double max = int.MaxValue, double inc = 1)
     {
@@ -272,16 +148,7 @@ public class EventBuffEditScene : UserControl
 
     private TextBox AddText(string key, string label)
     {
-        var tb = new TextBox
-        {
-            Background = new SolidColorBrush(Color.FromRgb(0x3C, 0x3C, 0x3C)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            BorderThickness = new Thickness(1),
-            FontSize = 13,
-            Padding = new Thickness(6, 3, 6, 3),
-            CaretBrush = Brushes.White
-        };
+        var tb = new TextBox();
         tb.TextChanged += (_, _) =>
         {
             if (_loadingUi || _current == null) return;
@@ -297,7 +164,7 @@ public class EventBuffEditScene : UserControl
     private void RefreshList()
     {
         var q = _searchBox.Text;
-        bool searching = !string.IsNullOrWhiteSpace(q) && !q.StartsWith("搜索");
+        bool searching = !string.IsNullOrWhiteSpace(q);
 
         var items = _parser.Items.Where(b =>
         {
@@ -320,7 +187,7 @@ public class EventBuffEditScene : UserControl
                 Type = b.Type
             });
         }
-        SetStatus($"已加载 {_parser.Items.Count} 条事件 Buff，列表 {_listBox.Items.Count} 条");
+        SetStatus(Loc.F("EventBuff.Loaded", _parser.Items.Count, _listBox.Items.Count));
     }
 
     private void ListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -384,7 +251,7 @@ public class EventBuffEditScene : UserControl
     {
         if (_current == null) { _jsonPreview.Text = ""; return; }
         try { _jsonPreview.Text = JsonSerializer.Serialize(_current, new JsonSerializerOptions { WriteIndented = true }); }
-        catch { _jsonPreview.Text = "(序列化失败)"; }
+        catch { _jsonPreview.Text = Loc.T("Common.SerializeFailed"); }
     }
 
     // ============================================================= 操作 =============================================================
@@ -399,47 +266,47 @@ public class EventBuffEditScene : UserControl
             Round = -1
         };
         _parser.AddBuff(buff);
-        _parser.SetBuffDesc(newId, $"新Buff{newId}");
+        _parser.SetBuffDesc(newId, $"新Buff{newId}");   // 写入 stringtable 的游戏文本，不属于界面语言
         RefreshList();
         foreach (EventBuffListEntry item in _listBox.Items)
             if (item.Id == newId) { _listBox.SelectedItem = item; break; }
-        SetStatus($"新增事件 Buff ID={newId}（未保存）");
+        SetStatus(Loc.F("EventBuff.Added", newId));
     }
 
     private void OnDelete(object sender, RoutedEventArgs e)
     {
-        if (_current == null) { MessageBox.Show("请先在左侧选中一条 Buff", "提示", MessageBoxButton.OK, MessageBoxImage.Information); return; }
-        var res = MessageBox.Show($"确定删除事件 Buff [{_current.Id}]？", "删除", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (_current == null) { MessageBox.Show(Loc.T("Common.SelectItemFirst"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
+        var res = MessageBox.Show(Loc.F("EventBuff.DeleteConfirm", _current.Id), Loc.T("Common.Delete"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (res != MessageBoxResult.Yes) return;
         int id = _current.Id;
         _parser.RemoveBuff(id);
         _current = null;
         RefreshList();
         ShowEmpty();
-        SetStatus($"已删除事件 Buff ID={id}（未保存）");
+        SetStatus(Loc.F("EventBuff.Deleted", id));
     }
 
     private void OnSave(object sender, RoutedEventArgs e)
     {
         if (_parser.SaveAll())
         {
-            SetStatus($"✔ 保存成功：{_parser.ConfigPath}");
-            MessageBox.Show($"保存成功：\nEventBuffSettings.json: {_parser.ConfigPath}\nstringtable: {_parser.StringTablePath}", "保存成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("✔ " + Loc.F("Common.SavedTo", _parser.ConfigPath));
+            MessageBox.Show(Loc.F("EventBuff.SaveSuccessDetail", _parser.ConfigPath, _parser.StringTablePath), Loc.T("Common.SaveSuccess"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
         else
         {
-            MessageBox.Show("保存失败，请检查权限或 Debug 输出", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Loc.T("Common.SaveFailed"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     private void OnReload(object sender, RoutedEventArgs e)
     {
-        var res = MessageBox.Show("重新加载磁盘上的 EventBuffSettings.json？未保存的更改将丢失。", "重载", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var res = MessageBox.Show(Loc.F("Common.ReloadConfirm", "EventBuffSettings.json"), Loc.T("Common.Reload"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (res != MessageBoxResult.Yes) return;
         _parser.LoadAll();
         RefreshList();
         ShowEmpty();
-        SetStatus("已从磁盘重新加载");
+        SetStatus(Loc.T("Common.ReloadedFromDisk"));
     }
 
     private void OnValidate(object sender, RoutedEventArgs e)
@@ -449,19 +316,19 @@ public class EventBuffEditScene : UserControl
         foreach (var b in _parser.Items)
         {
             string pfx = $"[Id={b.Id}]";
-            if (seenIds.Contains(b.Id)) problems.Add($"{pfx} ID 重复");
+            if (seenIds.Contains(b.Id)) problems.Add($"{pfx} {Loc.T("Common.DuplicateId")}");
             else seenIds.Add(b.Id);
-            if (b.Round < -1) problems.Add($"{pfx} Round={b.Round} 不应小于 -1");
+            if (b.Round < -1) problems.Add($"{pfx} {Loc.F("EventBuff.Validate.RoundTooSmall", b.Round)}");
         }
         if (problems.Count == 0)
-            MessageBox.Show($"校验通过，共 {_parser.Items.Count} 条，未发现明显问题。", "校验", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.F("Common.ValidationPassed", _parser.Items.Count), Loc.T("Common.Validate"), MessageBoxButton.OK, MessageBoxImage.Information);
         else
         {
             var msg = string.Join("\n", problems.Take(80));
-            if (problems.Count > 80) msg += $"\n… 共 {problems.Count} 条，仅显示前 80 条";
-            MessageBox.Show(msg, $"校验发现问题 {problems.Count} 条", MessageBoxButton.OK, MessageBoxImage.Warning);
+            if (problems.Count > 80) msg += "\n" + Loc.F("Common.ValidationMore", problems.Count, 80);
+            MessageBox.Show(msg, Loc.F("Common.ValidationProblems", problems.Count), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-        SetStatus($"校验完成：{problems.Count} 个问题");
+        SetStatus(Loc.F("Common.ValidationDone", problems.Count));
     }
 
     private void SetStatus(string s)
@@ -476,6 +343,6 @@ public class EventBuffEditScene : UserControl
         public int Id { get; set; }
         public string Desc { get; set; } = "";
         public int Type { get; set; }
-        public override string ToString() => $"[{Id}] {Desc}  (Type:{Type})";
+        public override string ToString() => Loc.F("EventBuff.ListEntry", Id, Desc, Type);
     }
 }

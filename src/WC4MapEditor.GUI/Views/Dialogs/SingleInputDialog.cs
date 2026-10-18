@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Threading;
 
 namespace WC4MapEditor.GUI.Views.Dialogs;
@@ -16,11 +17,12 @@ public sealed class SingleInputDialog : IDisposable
     private TaskCompletionSource<string?>? _tcs;
     private bool _isClosed;
 
-    public string Title { get; set; } = "输入";
+    // 默认文字在构造时取当前语言：对话框对象每次使用都新建，不会缓存旧语言
+    public string Title { get; set; } = Loc.T("Dialog.InputTitle");
     public string Description { get; set; } = "";
     public string DefaultValue { get; set; } = "";
-    public string ConfirmText { get; set; } = "确定";
-    public string CancelText { get; set; } = "取消";
+    public string ConfirmText { get; set; } = Loc.T("Common.Ok");
+    public string CancelText { get; set; } = Loc.T("Common.Cancel");
     public double? MinValue { get; set; }
     public double? MaxValue { get; set; }
 
@@ -45,10 +47,12 @@ public sealed class SingleInputDialog : IDisposable
 
         _overlay = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(120, 0, 0, 0)),
-            Child = CreateDialogPanel(),
+            Background = CreateScrim(),
             Focusable = true
         };
+        // 主窗口（渲染场景）本身不套编辑主题，对话框内的输入框/按钮要靠合并到覆盖层的字典拿到深色样式
+        EditorTheme.Apply(_overlay);
+        _overlay.Child = CreateDialogPanel();
         _overlay.KeyDown += Overlay_KeyDown;
         Panel.SetZIndex(_overlay, 9999);
         // Tab 在对话框内部循环切换焦点，避免焦点跑到覆盖层外面落到主界面的控件上
@@ -65,55 +69,38 @@ public sealed class SingleInputDialog : IDisposable
     {
         _dialogPanel = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(45, 45, 48)),
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.Border,
+            BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(24),
             Width = 340,
-            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            Effect = new DropShadowEffect
             {
-                BlurRadius = 16,
+                BlurRadius = 20,
                 ShadowDepth = 4,
-                Opacity = 0.5,
-                Color = Colors.Black
-            }
+                Opacity = 0.6,
+                Color = EditorTheme.ColorOf(EditorTheme.Bg0)
+            },
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
-
-        _dialogPanel.HorizontalAlignment = HorizontalAlignment.Center;
-        _dialogPanel.VerticalAlignment = VerticalAlignment.Center;
 
         var stack = new StackPanel();
 
-        var titleBlock = new TextBlock
-        {
-            Text = Title,
-            FontSize = 14,
-            FontWeight = FontWeights.Bold,
-            Foreground = Brushes.White,
-            Margin = new Thickness(0, 0, 0, 12)
-        };
+        var titleBlock = EditorTheme.Title(Title);
+        titleBlock.Margin = new Thickness(0, 0, 0, 12);
         stack.Children.Add(titleBlock);
 
-        var descBlock = new TextBlock
-        {
-            Text = Description,
-            FontSize = 12,
-            Foreground = new SolidColorBrush(Color.FromRgb(200, 200, 200)),
-            Margin = new Thickness(0, 0, 0, 12),
-            TextWrapping = TextWrapping.Wrap
-        };
+        var descBlock = EditorTheme.Muted(Description);
+        descBlock.TextWrapping = TextWrapping.Wrap;
+        descBlock.Margin = new Thickness(0, 0, 0, 12);
         stack.Children.Add(descBlock);
 
         _inputBox = new TextBox
         {
             Text = DefaultValue,
-            FontSize = 13,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 80)),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(8, 6, 8, 6),
-            Margin = new Thickness(0, 0, 0, 16),
-            CaretBrush = Brushes.White
+            Margin = new Thickness(0, 0, 0, 16)
         };
         _inputBox.KeyDown += InputBox_KeyDown;
         stack.Children.Add(_inputBox);
@@ -124,37 +111,26 @@ public sealed class SingleInputDialog : IDisposable
             HorizontalAlignment = HorizontalAlignment.Right
         };
 
-        var cancelButton = new Button
-        {
-            Content = CancelText,
-            FontSize = 12,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromRgb(80, 80, 80)),
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(16, 6, 16, 6),
-            Margin = new Thickness(0, 0, 8, 0),
-            Cursor = Cursors.Hand
-        };
-        cancelButton.Click += CancelButton_Click;
+        var cancelButton = EditorTheme.Button(CancelText, CancelButton_Click);
+        cancelButton.MinWidth = 80;
+        cancelButton.Margin = new Thickness(0, 0, 8, 0);
         buttonPanel.Children.Add(cancelButton);
 
-        var confirmButton = new Button
-        {
-            Content = ConfirmText,
-            FontSize = 12,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromRgb(0, 122, 204)),
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(16, 6, 16, 6),
-            Cursor = Cursors.Hand
-        };
-        confirmButton.Click += ConfirmButton_Click;
+        var confirmButton = EditorTheme.PrimaryButton(ConfirmText, ConfirmButton_Click);
+        confirmButton.MinWidth = 80;
         buttonPanel.Children.Add(confirmButton);
 
         stack.Children.Add(buttonPanel);
         _dialogPanel.Child = stack;
 
         return _dialogPanel;
+    }
+
+    /// <summary>覆盖层的半透明遮罩：由主题最深底色派生，不写死颜色。</summary>
+    private static Brush CreateScrim()
+    {
+        var c = EditorTheme.ColorOf(EditorTheme.Bg0);
+        return new SolidColorBrush(Color.FromArgb(150, c.R, c.G, c.B));
     }
 
     private void InputBox_KeyDown(object sender, KeyEventArgs e)
@@ -190,7 +166,7 @@ public sealed class SingleInputDialog : IDisposable
         {
             if (!double.TryParse(inputText, out double inputValue))
             {
-                MessageBox.Show(GetValidationMessage(), "输入错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(GetValidationMessage(), Loc.T("Common.InputError"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 _inputBox.Focus();
                 _inputBox.SelectAll();
                 return;
@@ -198,7 +174,7 @@ public sealed class SingleInputDialog : IDisposable
 
             if (MinValue.HasValue && inputValue < MinValue.Value)
             {
-                MessageBox.Show(GetValidationMessage(), "输入错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(GetValidationMessage(), Loc.T("Common.InputError"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 _inputBox.Focus();
                 _inputBox.SelectAll();
                 return;
@@ -206,7 +182,7 @@ public sealed class SingleInputDialog : IDisposable
 
             if (MaxValue.HasValue && inputValue > MaxValue.Value)
             {
-                MessageBox.Show(GetValidationMessage(), "输入错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(GetValidationMessage(), Loc.T("Common.InputError"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 _inputBox.Focus();
                 _inputBox.SelectAll();
                 return;
@@ -224,12 +200,12 @@ public sealed class SingleInputDialog : IDisposable
     private string GetValidationMessage()
     {
         if (MinValue.HasValue && MaxValue.HasValue)
-            return $"请输入 {MinValue} 到 {MaxValue} 之间的数值";
+            return Loc.F("Common.InputRange", MinValue, MaxValue);
         if (MinValue.HasValue)
-            return $"请输入大于等于 {MinValue} 的数值";
+            return Loc.F("Common.InputMin", MinValue);
         if (MaxValue.HasValue)
-            return $"请输入小于等于 {MaxValue} 的数值";
-        return "输入无效";
+            return Loc.F("Common.InputMax", MaxValue);
+        return Loc.T("Common.InvalidInput");
     }
 
     private void CloseDialog(string? result)

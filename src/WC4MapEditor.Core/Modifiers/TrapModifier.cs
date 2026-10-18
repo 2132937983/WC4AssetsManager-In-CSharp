@@ -414,7 +414,8 @@ public sealed class TrapModifier : ModifierBase
     {
         if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
         if (probability < 0 || probability > 100) return ModifierResult.Fail("概率必须在0-100之间");
-        if (_mapData.Provinces == null || _mapData.Provinces.Count == 0)
+        int cellCount = _mapData.MapWidth * _mapData.MapHeight;
+        if (cellCount == 0)
             return ModifierResult.Fail("没有省区数据");
 
         int generatedCount = 0;
@@ -423,9 +424,10 @@ public sealed class TrapModifier : ModifierBase
             existingCoords.Add(trap.Coordinate);
 
         var provinceMap = new Dictionary<int, List<int>>();
-        for (int i = 0; i < _mapData.Provinces.Count; i++)
+        // 直接按下标读省区（旧写法每次访问 Provinces 都会复制整张地图，循环条件里更是每轮一次）
+        for (int i = 0; i < cellCount; i++)
         {
-            int pv = _mapData.Provinces[i].ProvinceValue;
+            int pv = _mapData.GetProvinceRef(i).ProvinceValue;
             if (!provinceMap.ContainsKey(pv))
                 provinceMap[pv] = new List<int>();
             provinceMap[pv].Add(i);

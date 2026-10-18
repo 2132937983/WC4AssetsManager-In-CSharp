@@ -668,14 +668,19 @@ public class StageParser
         }
         catch (Exception ex)
         {
+            LastError = ex.Message;
             Debug.WriteLine($"[StageParser] 创建新战役失败: {ex.Message}");
             return false;
         }
     }
 
+    /// <summary>最近一次 SaveData 失败的原因（成功时为 null），供界面提示；SaveData 本身保持返回 bool 的旧契约。</summary>
+    public string? LastError { get; private set; }
+
     public bool SaveData(string outputPath)
     {
-        if (Header == null) { Debug.WriteLine("[StageParser] 错误：头部数据尚未初始化"); return false; }
+        LastError = null;
+        if (Header == null) { LastError = "头部数据尚未初始化"; Debug.WriteLine("[StageParser] 错误：头部数据尚未初始化"); return false; }
 
         Header.ArmyCount = Legions.Count;
         Header.BuildingCount = Buildings.Count;

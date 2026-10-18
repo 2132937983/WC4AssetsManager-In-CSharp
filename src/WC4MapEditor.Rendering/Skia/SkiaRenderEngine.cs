@@ -348,6 +348,10 @@ public class SkiaRenderEngine : IRenderEngine
     public void InitializeTacticalMapImageCache()
     {
         TacticalMapImageCache.Instance.Initialize();
+        // 战术图集刚就绪：之前按"没有头像"缓存下来的将领头像要作废，否则一直显示不出来
+        _armyRender?.ClearGeneralHeadCache();
+        _reinforceRender?.ClearGeneralHeadCache();
+        _reinforceRenderNew?.ClearGeneralHeadCache();
     }
 
     public void Render(SKCanvas canvas, MapData mapData, Camera camera)
@@ -808,16 +812,21 @@ public class SkiaRenderEngine : IRenderEngine
     public void InvalidateProvinceCache()
     {
         _provinceRender?.InvalidateCache();
+        // 首都国旗的"省区→归属"表依赖省区数据
+        _capitalFlagRender?.InvalidateProvinceLegionCache();
     }
 
     public void InvalidateLegionDomainCache()
     {
         _legionDomainRender?.InvalidateCache();
+        // 宿主在每次 DataModified 都会调到这里，顺带让首都国旗的省区→归属表失效
+        _capitalFlagRender?.InvalidateProvinceLegionCache();
     }
 
     public void InvalidateBelongFlagCache()
     {
         _belongFlagRender?.InvalidateCache();
+        _capitalFlagRender?.InvalidateProvinceLegionCache();
     }
 
     public void InvalidateCoastCache(MapData mapData)

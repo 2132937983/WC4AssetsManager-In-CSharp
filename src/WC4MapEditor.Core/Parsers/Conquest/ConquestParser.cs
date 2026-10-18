@@ -461,8 +461,8 @@ public class ConquestParser
             MapNumber = mapNumber,
             MapClipX = 0,
             MapClipY = 2,
-            MapLength = mapHeight,
-            MapWidth = mapWidth,
+            MapLength = mapWidth,   // 列数（宽），与读取端 PopulateMapData 一致
+            MapWidth = mapHeight,   // 行数（高）
             ArmyCount = numLegions,
             BuildingCount = 0,
             TroopCount = 0,
@@ -703,8 +703,10 @@ public class ConquestParser
                 MapNumber = mapNumber,
                 MapClipX = 0,
                 MapClipY = 2,
-                MapLength = mapHeight,
-                MapWidth = mapWidth,
+                // 与 StageParser / 两个读取端一致：MapLength = 列数（宽），MapWidth = 行数（高）。
+                // 以前写反了，非正方形的新征服地图重新打开会被转置。
+                MapLength = mapWidth,
+                MapWidth = mapHeight,
                 ArmyCount = numLegions,
                 BuildingCount = 0,
                 TroopCount = 0,
@@ -759,10 +761,15 @@ public class ConquestParser
         }
     }
 
+    /// <summary>最近一次 SaveData 失败的原因（成功时为 null），供界面提示。</summary>
+    public string? LastError { get; private set; }
+
     public bool SaveData(string outputPath)
     {
+        LastError = null;
         if (Header == null)
         {
+            LastError = "头部数据尚未解析";
             Debug.WriteLine("[ConquestParser] 错误：头部数据尚未解析");
             return false;
         }
@@ -936,6 +943,7 @@ public class ConquestParser
         }
         catch (Exception ex)
         {
+            LastError = ex.Message;
             Debug.WriteLine($"[ConquestParser] 保存失败: {ex.Message}");
             return false;
         }

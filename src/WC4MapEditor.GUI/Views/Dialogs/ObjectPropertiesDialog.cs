@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using SkiaSharp.Views.WPF;
 using WC4MapEditor.Core.Parsers;
 using WC4MapEditor.Rendering.Imaging;
@@ -52,10 +53,12 @@ public sealed class ObjectPropertiesDialog : IDisposable
 
         _overlay = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(140, 0, 0, 0)),
-            Child = CreateDialogPanel(),
+            Background = CreateScrim(),
             Focusable = true
         };
+        // 主窗口（渲染场景）本身不套编辑主题，对话框内的输入框/按钮要靠合并到覆盖层的字典拿到深色样式
+        EditorTheme.Apply(_overlay);
+        _overlay.Child = CreateDialogPanel();
         _overlay.KeyDown += Overlay_KeyDown;
         Panel.SetZIndex(_overlay, 9999);
         // Tab 在对话框内部循环切换焦点，避免焦点跑到覆盖层外面落到主界面的控件上
@@ -72,16 +75,18 @@ public sealed class ObjectPropertiesDialog : IDisposable
     {
         var dialogPanel = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(45, 45, 48)),
-            CornerRadius = new CornerRadius(10),
+            Background = EditorTheme.Bg2,
+            BorderBrush = EditorTheme.Border,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
             Padding = new Thickness(26),
             Width = 520,
             Effect = new DropShadowEffect
             {
                 BlurRadius = 20,
-                ShadowDepth = 6,
-                Opacity = 0.55,
-                Color = Colors.Black
+                ShadowDepth = 4,
+                Opacity = 0.6,
+                Color = EditorTheme.ColorOf(EditorTheme.Bg0)
             },
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
@@ -90,24 +95,17 @@ public sealed class ObjectPropertiesDialog : IDisposable
         var root = new StackPanel();
 
         // 标题
-        root.Children.Add(new TextBlock
-        {
-            Text = "编辑对象属性",
-            FontSize = 16,
-            FontWeight = FontWeights.Bold,
-            Foreground = Brushes.White,
-            Margin = new Thickness(0, 0, 0, 4)
-        });
+        var title = EditorTheme.Title(Loc.T("Dialog.Props.Title"));
+        title.Margin = new Thickness(0, 0, 0, 4);
+        root.Children.Add(title);
 
-        // 对象名称（只读辅助说明）
-        root.Children.Add(new TextBlock
-        {
-            Text = $"对象矩形在源图: ({_target.X}, {_target.Y}) + {_target.Width}x{_target.Height}  ref=({_target.RefX}, {_target.RefY})",
-            FontSize = 11,
-            Foreground = new SolidColorBrush(Color.FromRgb(160, 160, 170)),
-            Margin = new Thickness(0, 0, 0, 16),
-            TextWrapping = TextWrapping.Wrap
-        });
+        // 对象在源图中的位置（只读辅助说明）
+        var info = EditorTheme.Muted(Loc.F("Dialog.Props.SourceRect",
+            _target.X, _target.Y, _target.Width, _target.Height, _target.RefX, _target.RefY));
+        info.FontSize = 11;
+        info.Margin = new Thickness(0, 0, 0, 16);
+        info.TextWrapping = TextWrapping.Wrap;
+        root.Children.Add(info);
 
         // ---------- 网格布局 2列 ----------
         var grid = new Grid();
@@ -124,7 +122,7 @@ public sealed class ObjectPropertiesDialog : IDisposable
 
         // ---- 名称 ----
         grid.RowDefinitions[row].Height = GridLength.Auto;
-        grid.Children.Add(MakeLabel("名称", 0, row, 4));
+        grid.Children.Add(MakeLabel(Loc.T("Common.Name"), 0, row, 4));
         _nameBox = MakeTextBox(_target.Name, hasLabel: false);
         Grid.SetColumn(_nameBox, 0); Grid.SetRow(_nameBox, row);
         Grid.SetColumnSpan(_nameBox, 4);
@@ -132,7 +130,7 @@ public sealed class ObjectPropertiesDialog : IDisposable
         grid.Children.Add(_nameBox);
         row++;
 
-        // ---- 坐标 X / Y ----
+        // ---- 坐标 X / Y ----（X / Y / Ref X / Ref Y 是技术标识，不翻译）
         grid.Children.Add(MakeLabel("X:", 0, row));
         _xBox = MakeTextBox(_target.X.ToString());
         Grid.SetColumn(_xBox, 1); Grid.SetRow(_xBox, row);
@@ -145,12 +143,12 @@ public sealed class ObjectPropertiesDialog : IDisposable
         row++;
 
         // ---- 尺寸 W / H ----
-        grid.Children.Add(MakeLabel("宽度:", 0, row));
+        grid.Children.Add(MakeLabel(Loc.T("Common.Width") + ":", 0, row));
         _wBox = MakeTextBox(_target.Width.ToString());
         Grid.SetColumn(_wBox, 1); Grid.SetRow(_wBox, row);
         grid.Children.Add(_wBox);
 
-        grid.Children.Add(MakeLabel("高度:", 2, row));
+        grid.Children.Add(MakeLabel(Loc.T("Common.Height") + ":", 2, row));
         _hBox = MakeTextBox(_target.Height.ToString());
         Grid.SetColumn(_hBox, 3); Grid.SetRow(_hBox, row);
         grid.Children.Add(_hBox);
@@ -171,20 +169,17 @@ public sealed class ObjectPropertiesDialog : IDisposable
         root.Children.Add(grid);
 
         // 快捷说明
-        root.Children.Add(new TextBlock
-        {
-            Text = "提示: 整数坐标。参考点 (Ref X/Y) 是图像的「对齐锚点」，通常设为 (0,0) 或 (宽/2, 高) 等。",
-            FontSize = 10,
-            Foreground = new SolidColorBrush(Color.FromRgb(150, 150, 165)),
-            Margin = new Thickness(0, 12, 0, 6),
-            TextWrapping = TextWrapping.Wrap
-        });
+        var hint = EditorTheme.Muted(Loc.T("Dialog.Props.Hint"));
+        hint.FontSize = 11;
+        hint.Margin = new Thickness(0, 12, 0, 6);
+        hint.TextWrapping = TextWrapping.Wrap;
+        root.Children.Add(hint);
 
         // 错误提示
         _errorBlock = new TextBlock
         {
             FontSize = 12,
-            Foreground = new SolidColorBrush(Color.FromRgb(255, 120, 120)),
+            Foreground = EditorTheme.Danger,
             FontWeight = FontWeights.SemiBold,
             Margin = new Thickness(0, 0, 0, 10),
             TextWrapping = TextWrapping.Wrap,
@@ -200,45 +195,17 @@ public sealed class ObjectPropertiesDialog : IDisposable
             Margin = new Thickness(0, 6, 0, 0)
         };
 
-        var resetBtn = new Button
-        {
-            Content = "重置",
-            FontSize = 12,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromRgb(90, 80, 120)),
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(14, 6, 14, 6),
-            Margin = new Thickness(0, 0, 8, 0),
-            Cursor = Cursors.Hand
-        };
-        resetBtn.Click += (s, e) => ResetToOriginal();
+        var resetBtn = EditorTheme.Button(Loc.T("Common.Reset"), (_, _) => ResetToOriginal());
+        resetBtn.Margin = new Thickness(0, 0, 8, 0);
         buttons.Children.Add(resetBtn);
 
-        var cancelBtn = new Button
-        {
-            Content = "取消",
-            FontSize = 12,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromRgb(85, 85, 90)),
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(18, 6, 18, 6),
-            Margin = new Thickness(0, 0, 8, 0),
-            Cursor = Cursors.Hand
-        };
-        cancelBtn.Click += (s, e) => Cancel();
+        var cancelBtn = EditorTheme.Button(Loc.T("Common.Cancel"), (_, _) => Cancel());
+        cancelBtn.MinWidth = 80;
+        cancelBtn.Margin = new Thickness(0, 0, 8, 0);
         buttons.Children.Add(cancelBtn);
 
-        var okBtn = new Button
-        {
-            Content = "确定",
-            FontSize = 12,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromRgb(0, 122, 204)),
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(24, 6, 24, 6),
-            Cursor = Cursors.Hand
-        };
-        okBtn.Click += (s, e) => Confirm();
+        var okBtn = EditorTheme.PrimaryButton(Loc.T("Common.Ok"), (_, _) => Confirm());
+        okBtn.MinWidth = 88;
         buttons.Children.Add(okBtn);
 
         root.Children.Add(buttons);
@@ -246,16 +213,17 @@ public sealed class ObjectPropertiesDialog : IDisposable
         return dialogPanel;
     }
 
+    /// <summary>覆盖层的半透明遮罩：由主题最深底色派生，不写死颜色。</summary>
+    private static Brush CreateScrim()
+    {
+        var c = EditorTheme.ColorOf(EditorTheme.Bg0);
+        return new SolidColorBrush(Color.FromArgb(150, c.R, c.G, c.B));
+    }
+
     private static TextBlock MakeLabel(string text, int col, int row, int colSpan = 1)
     {
-        var tb = new TextBlock
-        {
-            Text = text,
-            FontSize = 12,
-            Foreground = new SolidColorBrush(Color.FromRgb(220, 220, 230)),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 6, 8, 0)
-        };
+        var tb = EditorTheme.FieldLabel(text);
+        tb.Margin = new Thickness(0, 6, 8, 0);
         Grid.SetColumn(tb, col);
         Grid.SetRow(tb, row);
         if (colSpan > 1) Grid.SetColumnSpan(tb, colSpan);
@@ -267,13 +235,6 @@ public sealed class ObjectPropertiesDialog : IDisposable
         var tb = new TextBox
         {
             Text = value,
-            FontSize = 13,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromRgb(28, 28, 32)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(85, 85, 95)),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(8, 6, 8, 6),
-            CaretBrush = Brushes.White,
             Margin = hasLabel ? new Thickness(0, 4, 10, 0) : new Thickness(0)
         };
         tb.KeyDown += (s, e) =>
@@ -317,7 +278,7 @@ public sealed class ObjectPropertiesDialog : IDisposable
         SetError("");
         if (string.IsNullOrWhiteSpace(_nameBox?.Text))
         {
-            SetError("名称不能为空");
+            SetError(Loc.T("Dialog.Props.NameRequired"));
             return;
         }
         string name = _nameBox!.Text.Trim();
@@ -325,21 +286,21 @@ public sealed class ObjectPropertiesDialog : IDisposable
         static bool ReadInt(TextBox? box, string fieldName, int min, int max, out int val, out string? err)
         {
             val = 0; err = null;
-            if (box == null) { err = $"{fieldName}控件丢失"; return false; }
+            if (box == null) { err = Loc.F("Dialog.Props.ControlMissing", fieldName); return false; }
             if (!int.TryParse(box.Text.Trim(), out val))
             {
-                err = $"{fieldName}: 必须是整数 (收到 '{box.Text}')";
+                err = Loc.F("Dialog.Props.MustBeInteger", fieldName, box.Text);
                 return false;
             }
-            if (val < min) { err = $"{fieldName}: 不能小于 {min} (收到 {val})"; return false; }
-            if (val > max) { err = $"{fieldName}: 不能大于 {max} (收到 {val})"; return false; }
+            if (val < min) { err = Loc.F("Dialog.Props.TooSmall", fieldName, min, val); return false; }
+            if (val > max) { err = Loc.F("Dialog.Props.TooLarge", fieldName, max, val); return false; }
             return true;
         }
 
         if (!ReadInt(_xBox, "X", 0, _srcMaxX, out int x, out var e1)) { SetError(e1!); return; }
         if (!ReadInt(_yBox, "Y", 0, _srcMaxY, out int y, out var e2)) { SetError(e2!); return; }
-        if (!ReadInt(_wBox, "宽度", 1, _srcMaxX + 1 - x, out int w, out var e3)) { SetError(e3!); return; }
-        if (!ReadInt(_hBox, "高度", 1, _srcMaxY + 1 - y, out int h, out var e4)) { SetError(e4!); return; }
+        if (!ReadInt(_wBox, Loc.T("Common.Width"), 1, _srcMaxX + 1 - x, out int w, out var e3)) { SetError(e3!); return; }
+        if (!ReadInt(_hBox, Loc.T("Common.Height"), 1, _srcMaxY + 1 - y, out int h, out var e4)) { SetError(e4!); return; }
 
         if (!ReadInt(_refXBox, "Ref X", 0, w, out int rx, out var e5)) { SetError(e5!); return; }
         if (!ReadInt(_refYBox, "Ref Y", 0, h, out int ry, out var e6)) { SetError(e6!); return; }

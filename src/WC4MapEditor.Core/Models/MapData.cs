@@ -41,13 +41,11 @@ public class MapData : INotifyPropertyChanged
         set { _header = value; OnPropertyChanged(); }
     }
 
-    public ReadOnlyObservableCollection<Terrain> Terrains => new(GetTerrainCollection());
-    public ReadOnlyObservableCollection<Province> Provinces => new(GetProvinceCollection());
-
     public ObservableCollection<Building> Buildings
     {
         get => _buildings;
-        set { _buildings = value; OnPropertyChanged(); }
+        // 解析器 / 撤销会整体替换集合，坐标索引必须跟着作废，否则会按旧下标找建筑
+        set { _buildings = value; _buildingCoordIndex.Clear(); OnPropertyChanged(); }
     }
 
     public ObservableCollection<Army> Armies
@@ -354,37 +352,6 @@ public class MapData : INotifyPropertyChanged
             Legions.Add(Legion.CreateDefault(i));
     }
 
-    private ObservableCollection<Terrain> GetTerrainCollection()
-    {
-        var collection = new ObservableCollection<Terrain>();
-        if (_terrains == null) return collection;
-
-        for (int row = 0; row < MapHeight; row++)
-        {
-            for (int col = 0; col < MapWidth; col++)
-            {
-                TerrainData terrainData = GetTerrain(col, row);
-                collection.Add(Terrain.FromTerrainData(terrainData));
-            }
-        }
-        return collection;
-    }
-
-    private ObservableCollection<Province> GetProvinceCollection()
-    {
-        var collection = new ObservableCollection<Province>();
-        if (_provinces == null) return collection;
-
-        for (int row = 0; row < MapHeight; row++)
-        {
-            for (int col = 0; col < MapWidth; col++)
-            {
-                collection.Add(GetProvince(col, row));
-            }
-        }
-        return collection;
-    }
-
     public TerrainData GetTerrain(int col, int row)
     {
         if (col < 0 || col >= _mapWidth || row < 0 || row >= _mapHeight)
@@ -543,25 +510,11 @@ public class MapData : INotifyPropertyChanged
         return Terrain.FromTerrainData(terrainData);
     }
 
-    public void SetTerrainAt(int col, int row, Terrain terrain)
-    {
-        if (col < 0 || row < 0 || col >= MapWidth || row >= MapHeight) return;
-        SetTerrain(col, row, terrain.ToTerrainData());
-        IsModified = true;
-    }
-
     public Province GetProvinceAt(int col, int row)
     {
         if (col < 0 || row < 0 || col >= MapWidth || row >= MapHeight)
             return Province.CreateDefault();
         return GetProvince(col, row);
-    }
-
-    public void SetProvinceAt(int col, int row, Province province)
-    {
-        if (col < 0 || row < 0 || col >= MapWidth || row >= MapHeight) return;
-        SetProvince(col, row, province);
-        IsModified = true;
     }
 
     public Building? GetBuildingAt(int col, int row)
@@ -611,55 +564,6 @@ public class MapData : INotifyPropertyChanged
 
         var capitalCoord = HexCoord.FromIndex(capitalIndex, MapWidth);
         return GetBelongValue(capitalCoord.Col, capitalCoord.Row);
-    }
-
-    public void AddBuilding(Building building)
-    {
-        HexCoord coord = HexCoord.FromIndex(building.Coordinate, MapWidth);
-        int idx = FindBuildingIndex(coord.Col, coord.Row);
-        if (idx >= 0)
-        {
-            _buildings[idx] = building;
-            _buildingCoordIndex[building.Coordinate] = idx;
-        }
-        else
-        {
-            _buildings.Add(building);
-            _buildingCoordIndex[building.Coordinate] = _buildings.Count - 1;
-        }
-        IsModified = true;
-    }
-
-    public void AddArmy(Army army)
-    {
-        HexCoord coord = HexCoord.FromIndex(army.Coordinate, MapWidth);
-        int idx = FindArmyIndex(coord.Col, coord.Row);
-        if (idx >= 0)
-            _armies[idx] = army;
-        else
-            _armies.Add(army);
-        IsModified = true;
-    }
-
-    public void AddArmyV3(Army_3 army)
-    {
-        HexCoord coord = HexCoord.FromIndex(army.Coordinate, MapWidth);
-        int idx = FindArmyV3Index(coord.Col, coord.Row);
-        if (idx >= 0)
-            _armiesV3[idx] = army;
-        else
-            _armiesV3.Add(army);
-        IsModified = true;
-    }
-
-    public void RemoveBuildingAt(int col, int row)
-    {
-        int idx = FindBuildingIndex(col, row);
-        if (idx >= 0)
-        {
-            _buildings.RemoveAt(idx);
-            IsModified = true;
-        }
     }
 
     public void RemoveArmyAt(int col, int row)
@@ -715,21 +619,6 @@ public class MapData : INotifyPropertyChanged
         Header.MapWidth = newHeight;
 
         IsModified = true;
-    }
-
-    public void ClearSelection()
-    {
-        // 结构体不可变，清除选择状态由渲染层处理
-    }
-
-    public List<Army> GetArmiesByLegion(int legionId)
-    {
-        return Armies.Where(a => a.LegionId == legionId).ToList();
-    }
-
-    public List<Building> GetBuildingsByLegion(int legionId)
-    {
-        return new List<Building>();
     }
 
     public double GetMemoryUsageMB()
@@ -796,11 +685,19 @@ public class MapData : INotifyPropertyChanged
     public int FindBuildingIndex(int col, int row)
     {
         int coordIndex = row * _mapWidth + col;
+        // 索引可能过期（搬动建筑 / 外部直接改集合），命中后核对一次坐标，不对就走线性查找并修正
         if (_buildingCoordIndex.Count > 0 && _buildingCoordIndex.TryGetValue(coordIndex, out int idx))
-            return idx;
+        {
+            if ((uint)idx < (uint)_buildings.Count && _buildings[idx].Coordinate == coordIndex) return idx;
+            _buildingCoordIndex.Remove(coordIndex);
+        }
         for (int i = 0; i < _buildings.Count; i++)
         {
-            if (_buildings[i].Coordinate == coordIndex) return i;
+            if (_buildings[i].Coordinate == coordIndex)
+            {
+                if (_buildingCoordIndex.Count > 0) _buildingCoordIndex[coordIndex] = i;
+                return i;
+            }
         }
         return -1;
     }
@@ -900,8 +797,15 @@ public class MapData : INotifyPropertyChanged
     {
         if ((uint)index < (uint)_buildings.Count)
         {
+            int oldCoord = _buildings[index].Coordinate;
             _buildings[index] = building;
-            _buildingCoordIndex[building.Coordinate] = index;
+            if (_buildingCoordIndex.Count > 0)
+            {
+                // 建筑搬到新格子：旧格子的索引项必须删掉，否则旧位置仍会"找到"这栋建筑
+                if (oldCoord != building.Coordinate && _buildingCoordIndex.TryGetValue(oldCoord, out int oldIdx) && oldIdx == index)
+                    _buildingCoordIndex.Remove(oldCoord);
+                _buildingCoordIndex[building.Coordinate] = index;
+            }
         }
     }
 
@@ -958,11 +862,6 @@ public class MapData : INotifyPropertyChanged
     public void RemoveReinforcementAt(int index)
     {
         if ((uint)index < (uint)_reinforcements.Count) _reinforcements.RemoveAt(index);
-    }
-
-    public void RemoveReinforcementV3At(int index)
-    {
-        if ((uint)index < (uint)_reinforcementsV3.Count) _reinforcementsV3.RemoveAt(index);
     }
 
     #endregion

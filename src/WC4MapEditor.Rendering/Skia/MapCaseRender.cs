@@ -41,6 +41,16 @@ public class MapCaseRender : IDisposable
     private readonly SKPaint _eventPaint;
     private readonly SKPaint _eventShadowPaint;
 
+    // 「方案列表」面板与目标标记十字的常量画笔 / 字体 / 路径。原先每帧重新创建
+    // （面板标题还每帧 SKTypeface.FromFamilyName 查字体），这些设置不随帧变化，常驻复用即可。
+    private static readonly SKTypeface PanelTitleTypeface = SKTypeface.FromFamilyName("Microsoft YaHei") ?? SKTypeface.Default;
+    private readonly SKPaint _panelBgPaint;
+    private readonly SKPaint _panelBorderPaint;
+    private readonly SKFont _panelTitleFont;
+    private readonly SKPaint _panelTitlePaint;
+    private readonly SKPaint _crossPaint;
+    private readonly SKPath _crossPath = new();
+
     public bool ShowMapCases
     {
         get => _showMapCases;
@@ -68,6 +78,12 @@ public class MapCaseRender : IDisposable
         _eventFont = new SKFont(SKTypeface.Default, 9);
         _eventPaint = new SKPaint { IsAntialias = true, Color = SKColors.Cyan };
         _eventShadowPaint = new SKPaint { IsAntialias = true, Color = SKColors.Black };
+
+        _panelBgPaint = new SKPaint { IsAntialias = true, Color = new SKColor(0, 0, 0, 160) };
+        _panelBorderPaint = new SKPaint { IsAntialias = true, Color = new SKColor(255, 165, 0, 180), Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
+        _panelTitleFont = new SKFont(PanelTitleTypeface, 13);
+        _panelTitlePaint = new SKPaint { IsAntialias = true, Color = SKColors.Orange };
+        _crossPaint = new SKPaint { IsAntialias = true, Color = SKColors.White, StrokeWidth = 2 };
     }
 
     public void Render(SKCanvas canvas)
@@ -137,15 +153,14 @@ public class MapCaseRender : IDisposable
             canvas.DrawOval(rect, _targetFillPaint);
             canvas.DrawOval(rect, _targetBorderPaint);
 
-            using var path = new SKPath();
+            // 复用路径（Reset 后重填）与画笔，避免每个目标标记每帧分配 SKPath / SKPaint。
             float crossSize = halfSize * 0.5f;
-            path.MoveTo(target.Position.X - crossSize, target.Position.Y);
-            path.LineTo(target.Position.X + crossSize, target.Position.Y);
-            path.MoveTo(target.Position.X, target.Position.Y - crossSize);
-            path.LineTo(target.Position.X, target.Position.Y + crossSize);
-
-            using var crossPaint = new SKPaint { IsAntialias = true, Color = SKColors.White, StrokeWidth = 2 };
-            canvas.DrawPath(path, crossPaint);
+            _crossPath.Reset();
+            _crossPath.MoveTo(target.Position.X - crossSize, target.Position.Y);
+            _crossPath.LineTo(target.Position.X + crossSize, target.Position.Y);
+            _crossPath.MoveTo(target.Position.X, target.Position.Y - crossSize);
+            _crossPath.LineTo(target.Position.X, target.Position.Y + crossSize);
+            canvas.DrawPath(_crossPath, _crossPaint);
         }
     }
 
@@ -168,17 +183,12 @@ public class MapCaseRender : IDisposable
         float panelX = viewportWidth - panelWidth - panelMargin;
         float panelY = panelMargin + 40f;
 
-        using var bgPaint = new SKPaint { IsAntialias = true, Color = new SKColor(0, 0, 0, 160) };
-        using var borderPaint = new SKPaint { IsAntialias = true, Color = new SKColor(255, 165, 0, 180), Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
-
         var panelRect = new SKRect(panelX, panelY, panelX + panelWidth, panelY + panelHeight);
-        canvas.DrawRoundRect(panelRect, 6, 6, bgPaint);
-        canvas.DrawRoundRect(panelRect, 6, 6, borderPaint);
+        canvas.DrawRoundRect(panelRect, 6, 6, _panelBgPaint);
+        canvas.DrawRoundRect(panelRect, 6, 6, _panelBorderPaint);
 
-        using var titleFont = new SKFont(SKTypeface.FromFamilyName("Microsoft YaHei"), 13);
-        using var titlePaint = new SKPaint { IsAntialias = true, Color = SKColors.Orange };
         float titleY = panelY + panelPadding + lineHeight * 0.8f;
-        canvas.DrawText("方案列表", panelX + panelPadding, titleY, SKTextAlign.Left, titleFont, titlePaint);
+        canvas.DrawText("方案列表", panelX + panelPadding, titleY, SKTextAlign.Left, _panelTitleFont, _panelTitlePaint);
 
         float itemY = titleY + lineHeight * 0.4f;
 
@@ -266,5 +276,11 @@ public class MapCaseRender : IDisposable
         _eventFont.Dispose();
         _eventPaint.Dispose();
         _eventShadowPaint.Dispose();
+        _panelBgPaint.Dispose();
+        _panelBorderPaint.Dispose();
+        _panelTitleFont.Dispose();
+        _panelTitlePaint.Dispose();
+        _crossPaint.Dispose();
+        _crossPath.Dispose();
     }
 }

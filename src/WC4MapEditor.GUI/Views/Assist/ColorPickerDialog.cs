@@ -14,6 +14,7 @@ namespace WC4MapEditor.GUI.Views.Assist;
 /// 组成：HSV 取色画布（饱和度×明度）+ 色相滑块 + 颜色预览 + RGB/Hex 输入 + 预设色板。
 /// 确认后通过 <see cref="SelectedColor"/> 返回所选颜色。
 /// </para>
+/// <para>取色画布、色相条、色板、预览里的颜色都是"数据"本身，不走主题；只有窗体 chrome 使用主题色。</para>
 /// </summary>
 public sealed class ColorPickerDialog : Window
 {
@@ -54,16 +55,16 @@ public sealed class ColorPickerDialog : Window
 
     public ColorPickerDialog(Color initial)
     {
-        Title = "选择颜色";
+        EditorTheme.Apply(this);
+        Title = Loc.T("Assist.Color.Title");
         Width = 470;
-        Height = 470;
+        Height = 480;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.NoResize;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
+        // 无边框圆角卡片 + 投影需要窗口本身透明；主题底色放在内部卡片 Border 上
         Background = Brushes.Transparent;
-        FontFamily = new FontFamily("Microsoft YaHei");
-        FontSize = 12;
 
         Content = CreateUI();
         SyncUiFromColor(initial);
@@ -87,18 +88,18 @@ public sealed class ColorPickerDialog : Window
     {
         var outer = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(45, 45, 48)),
-            CornerRadius = new CornerRadius(10),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(100, 100, 100, 100)),
+            Background = EditorTheme.Bg2,
+            CornerRadius = new CornerRadius(8),
+            BorderBrush = EditorTheme.Border,
             BorderThickness = new Thickness(1),
             Margin = new Thickness(10),
             Effect = new DropShadowEffect
             {
-                Color = Colors.Black,
+                Color = EditorTheme.ColorOf(EditorTheme.Bg0),
                 Direction = 270,
-                ShadowDepth = 8,
+                ShadowDepth = 6,
                 BlurRadius = 20,
-                Opacity = 0.4
+                Opacity = 0.6
             }
         };
 
@@ -121,29 +122,16 @@ public sealed class ColorPickerDialog : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var title = new TextBlock
-        {
-            Text = "选择颜色",
-            FontSize = 15,
-            FontWeight = FontWeights.Bold,
-            Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center
-        };
+        var title = EditorTheme.Title(Loc.T("Assist.Color.Title"));
         Grid.SetColumn(title, 0);
         grid.Children.Add(title);
 
-        var close = new Button
-        {
-            Content = "✕",
-            Width = 26,
-            Height = 26,
-            Background = Brushes.Transparent,
-            Foreground = new SolidColorBrush(Color.FromRgb(200, 200, 200)),
-            BorderThickness = new Thickness(0),
-            FontSize = 12,
-            Cursor = Cursors.Hand
-        };
-        close.Click += (_, _) => CancelAndClose();
+        var close = EditorTheme.GhostButton("✕", (_, _) => CancelAndClose());
+        close.Width = 26;
+        close.Height = 26;
+        close.Padding = new Thickness(0);
+        close.MinHeight = 0;
+        close.ToolTip = Loc.T("Assist.Common.CancelEsc");
         Grid.SetColumn(close, 1);
         grid.Children.Add(close);
 
@@ -209,13 +197,8 @@ public sealed class ColorPickerDialog : Window
         host.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         host.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var label = new TextBlock
-        {
-            Text = "色相",
-            Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0)
-        };
+        var label = EditorTheme.FieldLabel(Loc.T("Assist.Color.Hue"));
+        label.Margin = new Thickness(0, 0, 8, 0);
         Grid.SetColumn(label, 0);
         host.Children.Add(label);
 
@@ -276,19 +259,15 @@ public sealed class ColorPickerDialog : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var label = new TextBlock
-        {
-            Text = "预览",
-            Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0)
-        };
+        var label = EditorTheme.FieldLabel(Loc.T("Common.Preview"));
+        label.Margin = new Thickness(0, 0, 8, 0);
         Grid.SetColumn(label, 0);
         grid.Children.Add(label);
 
         _preview.Height = 28;
-        _preview.BorderBrush = new SolidColorBrush(Color.FromRgb(120, 120, 120));
+        _preview.BorderBrush = EditorTheme.BorderStrong;
         _preview.BorderThickness = new Thickness(1);
+        _preview.CornerRadius = new CornerRadius(4);
         Grid.SetColumn(_preview, 1);
         grid.Children.Add(_preview);
 
@@ -301,10 +280,11 @@ public sealed class ColorPickerDialog : Window
         for (int i = 0; i < 4; i++)
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        AddLabeledInput(grid, 0, "R", _rBox);
-        AddLabeledInput(grid, 1, "G", _gBox);
-        AddLabeledInput(grid, 2, "B", _bBox);
-        AddLabeledInput(grid, 3, "Hex", _hexBox);
+        // R / G / B / Hex 是通用技术标识，不翻译
+        AddLabeledInput(grid, 0, "R", _rBox, 56);
+        AddLabeledInput(grid, 1, "G", _gBox, 56);
+        AddLabeledInput(grid, 2, "B", _bBox, 56);
+        AddLabeledInput(grid, 3, "Hex", _hexBox, 76);
 
         void Commit()
         {
@@ -336,27 +316,16 @@ public sealed class ColorPickerDialog : Window
         return grid;
     }
 
-    private static void AddLabeledInput(Grid grid, int column, string label, TextBox box)
+    private static void AddLabeledInput(Grid grid, int column, string label, TextBox box, double width)
     {
         var panel = new StackPanel { Orientation = Orientation.Horizontal };
         if (column > 0) panel.Margin = new Thickness(6, 0, 0, 0);
 
-        panel.Children.Add(new TextBlock
-        {
-            Text = label,
-            Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 4, 0)
-        });
+        var lbl = EditorTheme.FieldLabel(label);
+        lbl.Margin = new Thickness(0, 0, 4, 0);
+        panel.Children.Add(lbl);
 
-        box.Width = 52;
-        box.Height = 24;
-        box.Background = new SolidColorBrush(Color.FromRgb(70, 70, 73));
-        box.Foreground = Brushes.White;
-        box.BorderBrush = new SolidColorBrush(Color.FromRgb(100, 100, 100));
-        box.BorderThickness = new Thickness(1);
-        box.Padding = new Thickness(4, 1, 4, 1);
-        box.VerticalContentAlignment = VerticalAlignment.Center;
+        box.Width = width;
         panel.Children.Add(box);
 
         Grid.SetColumn(panel, column);
@@ -375,8 +344,9 @@ public sealed class ColorPickerDialog : Window
                 Height = 22,
                 Margin = new Thickness(0, 0, 4, 4),
                 Background = new SolidColorBrush(color),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(90, 90, 90)),
+                BorderBrush = EditorTheme.BorderStrong,
                 BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(3),
                 Cursor = Cursors.Hand,
                 ToolTip = $"#{color.R:X2}{color.G:X2}{color.B:X2}"
             };
@@ -396,44 +366,17 @@ public sealed class ColorPickerDialog : Window
             Margin = new Thickness(0, 12, 0, 0)
         };
 
-        panel.Children.Add(CreateButton("确定", Color.FromRgb(0, 122, 204), (_, _) => ConfirmAndClose()));
-        panel.Children.Add(CreateButton("取消", Color.FromRgb(80, 80, 80), (_, _) => CancelAndClose()));
+        var ok = EditorTheme.PrimaryButton(Loc.T("Common.Ok"), (_, _) => ConfirmAndClose());
+        ok.MinWidth = 80;
+        ok.Margin = new Thickness(8, 0, 0, 0);
+        panel.Children.Add(ok);
+
+        var cancel = EditorTheme.Button(Loc.T("Common.Cancel"), (_, _) => CancelAndClose());
+        cancel.MinWidth = 80;
+        cancel.Margin = new Thickness(8, 0, 0, 0);
+        panel.Children.Add(cancel);
 
         return panel;
-    }
-
-    private static Button CreateButton(string content, Color background, RoutedEventHandler onClick)
-    {
-        var button = new Button
-        {
-            Content = content,
-            Width = 80,
-            Height = 30,
-            Background = new SolidColorBrush(background),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            FontSize = 12,
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(8, 0, 0, 0)
-        };
-        button.Click += onClick;
-
-        var template = new ControlTemplate(typeof(Button));
-        var border = new FrameworkElementFactory(typeof(Border));
-        border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Button.BackgroundProperty));
-        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
-        var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
-        presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-        presenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
-        border.AppendChild(presenter);
-        template.VisualTree = border;
-
-        var hover = new Trigger { Property = Button.IsMouseOverProperty, Value = true };
-        hover.Setters.Add(new Setter(Button.BackgroundProperty, new SolidColorBrush(Color.FromRgb(100, 149, 237))));
-        template.Triggers.Add(hover);
-        button.Template = template;
-
-        return button;
     }
 
     // -------------------------------------------------------------- 交互
