@@ -33,7 +33,7 @@
 
 #### P0-1: File.ReadAllBytes() 一次性读取整个文件
 
-- **文件**: `WC4MapEditor.Core\Parsers\World\WorldParser.cs:27`
+- **文件**: `src/WC4MapEditor.Core\Parsers\World\WorldParser.cs:27`
 - **问题**: 小于 1GB 的文件使用 `File.ReadAllBytes()` 一次性读入内存，~297 MB 的原始 byte 数组与结构体数组共存，峰值 ~593 MB
 - **方案**: 将阈值降低或始终使用流式读取（已有 `LoadFromFileStream` 方法）
 - **预估收益**: 峰值减少 ~297 MB
@@ -57,7 +57,7 @@ if (fileSize < 100L * 1024 * 1024)
 
 #### P0-2: Terrains 属性每次访问创建 263 MB 集合
 
-- **文件**: `WC4MapEditor.Core\Models\MapData.cs:38`
+- **文件**: `src/WC4MapEditor.Core\Models\MapData.cs:38`
 - **问题**: `public ReadOnlyObservableCollection<Terrain> Terrains => new(GetTerrainCollection());` 每次访问都遍历全部格子创建新 ObservableCollection，每次分配 ~263 MB
 - **方案**:
   - 方案A: 移除此属性，渲染代码直接使用 `GetTerrain()`/`GetTerrainAt()` 访问结构体数组
@@ -88,7 +88,7 @@ public ReadOnlyObservableCollection<Terrain> Terrains
 
 #### P0-3: Provinces 属性同样的问题
 
-- **文件**: `WC4MapEditor.Core\Models\MapData.cs:39`
+- **文件**: `src/WC4MapEditor.Core\Models\MapData.cs:39`
 - **问题**: 与 Terrains 相同，每次访问创建新 ObservableCollection
 - **方案**: 同 P0-2
 - **预估收益**: 避免每次访问 +33 MB
@@ -100,7 +100,7 @@ public ReadOnlyObservableCollection<Terrain> Terrains
 
 #### P1-1: _coastDecorationArray 改为一维数组
 
-- **文件**: `WC4MapEditor.Rendering\Skia\BackGroundRender.cs:75`
+- **文件**: `src/WC4MapEditor.Rendering\Skia\BackGroundRender.cs:75`
 - **问题**: `byte[,]` 二维数组在 CLR 中有额外开销，且 LOH 分配不连续
 - **方案**: 改为 `byte[]` 一维数组，用 `row * mapWidth + col` 索引
 - **预估收益**: 减少少量内存开销，提升访问速度（一维数组缓存友好）
@@ -122,7 +122,7 @@ _coastDecorationArray[row * _coastArrayWidth + col] = value;
 
 #### P1-2: PreCalculateAllCoastlines 全图遍历优化
 
-- **文件**: `WC4MapEditor.Rendering\Skia\BackGroundRender.cs:793`
+- **文件**: `src/WC4MapEditor.Rendering\Skia\BackGroundRender.cs:793`
 - **问题**: 遍历 17,280,000 个格子预计算海岸线，CPU 密集且创建临时 `byte[,]` 数组
 - **方案**:
   - 方案A: 改为按需计算（lazy），仅计算视口内可见格子的海岸线
@@ -133,7 +133,7 @@ _coastDecorationArray[row * _coastArrayWidth + col] = value;
 
 #### P1-3: GetTerrainAt() 返回 Terrain struct 的冗余转换
 
-- **文件**: `WC4MapEditor.Core\Models\MapData.cs:316`
+- **文件**: `src/WC4MapEditor.Core\Models\MapData.cs:316`
 - **问题**: `GetTerrainAt()` 调用 `Terrain.FromTerrainData()` 做字段复制，渲染循环中大量调用
 - **方案**: 渲染代码直接使用 `GetTerrain()` 返回 `TerrainData`，避免中间转换
 - **预估收益**: 微小性能提升，无内存影响
@@ -145,7 +145,7 @@ _coastDecorationArray[row * _coastArrayWidth + col] = value;
 
 #### P2-1: RenderWithMasks 每个格子创建临时 SKSurface
 
-- **文件**: `WC4MapEditor.Rendering\Helpers\CoastMaskProcessor.cs:129-142`
+- **文件**: `src/WC4MapEditor.Rendering\Helpers\CoastMaskProcessor.cs:129-142`
 - **问题**: 渲染每个海岸格子时创建 `SKSurface.Create(info)`，高频分配
 - **方案**: 预分配一个可复用的 SKSurface，每帧只创建一次
 - **预估收益**: 减少 SkiaSharp 内部内存池压力
@@ -179,7 +179,7 @@ private SKSurface GetOrCreateSurface(int width, int height)
 
 #### P2-2: SKSurface 缓存大小优化
 
-- **文件**: `WC4MapEditor.Rendering\Skia\BackGroundRender.cs:407`
+- **文件**: `src/WC4MapEditor.Rendering\Skia\BackGroundRender.cs:407`
 - **问题**: 两个 2 倍视口大小的 SKSurface + 快照，~99 MB
 - **方案**: 可考虑缩小为 1.5 倍视口，或使用单个缓存 + 部分重绘
 - **预估收益**: 减少 ~30-50 MB

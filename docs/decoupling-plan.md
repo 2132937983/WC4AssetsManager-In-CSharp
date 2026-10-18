@@ -114,7 +114,7 @@ WC4MapEditor.Cli (Exe, net10.0-windows)
 
 ### 🔴 P0-1：WPF 泄漏导致 Rendering / CLI 锁死 Windows
 
-**位置**：`WC4MapEditor.Rendering/Skia/DebugConsole.cs`
+**位置**：`src/WC4MapEditor.Rendering/Skia/DebugConsole.cs`
 
 ```csharp
 82:  private System.Windows.Window? _window;
@@ -258,7 +258,7 @@ public static string GetTerrainName(int terrainId)
 | `Cli.csproj` | `net10.0-windows` → `net10.0` |
 
 **验证结果**：
-- `dotnet build WC4MapEditor.Rendering -c Release` → **0 错误**（32 个既有警告，与本次改动无关）
+- `dotnet build src/WC4MapEditor.Rendering -c Release` → **0 错误**（32 个既有警告，与本次改动无关）
 - `Rendering/` 目录下 `System.Windows` / `SKElement` / `SkiaSharp.Views` 引用数 → **0**（仅剩一处注释文字）
 - `SKElement` 的使用者全部收敛到 WPF 根项目（`Views/RenderSceneBase.cs`），根项目自带 `SkiaSharp.Views.WPF` 包引用，不受影响
 
@@ -328,7 +328,7 @@ void Initialize(int width, int height);
 </PropertyGroup>
 ```
 
-**验收**：`dotnet build WC4MapEditor.Cli -c Release` 成功，且 `dotnet publish -r linux-x64` 可产出可执行文件。
+**验收**：`dotnet build src/WC4MapEditor.Cli -c Release` 成功，且 `dotnet publish -r linux-x64` 可产出可执行文件。
 
 </details>
 
@@ -454,7 +454,7 @@ global using WC4MapEditor.Core.Models;
 global using WC4MapEditor.Core.Parsers;
 ```
 
-**验收**：全库 `grep -rn "namespace WC4MapEditor\." | grep -v "WC4MapEditor.Core\."` 只返回根项目的 `Views` / `ViewModels` / `Services`。
+**验收**：全库 `grep -rn "namespace WC4MapEditor\." | grep -v "src/WC4MapEditor.Core\."` 只返回根项目的 `Views` / `ViewModels` / `Services`。
 
 #### C-4. 实际执行记录
 
@@ -491,9 +491,9 @@ foreach ($f in $files) {
 |---|---|
 | 项目内残留 `WC4MapEditor.Models` / `WC4MapEditor.Parsers` | **0** |
 | 完全重复的 using 指令 | **0** |
-| `dotnet build WC4MapEditor.Rendering -t:Rebuild` | 0 错误 |
+| `dotnet build src/WC4MapEditor.Rendering -t:Rebuild` | 0 错误 |
 | `dotnet build WC4MapEditor.csproj`（WPF 根项目） | **0 错误**（2 个既有警告） |
-| `dotnet build WC4MapEditor.Cli` | **0 错误 0 警告** |
+| `dotnet build src/WC4MapEditor.Cli` | **0 错误 0 警告** |
 
 **替换后的命名空间分布**（已完全对齐程序集边界）：
 
@@ -556,10 +556,10 @@ foreach ($f in $files) {
 
 | 检查 | 结果 |
 |---|---|
-| `grep -rn "SkiaSharp\.\|\bSK[A-Z]\w+\b" WC4MapEditor.Core/` | **0** ✅ |
-| `dotnet build WC4MapEditor.Core` | **0 错误**（24 个既有 nullable 警告） |
+| `grep -rn "SkiaSharp\.\|\bSK[A-Z]\w+\b" src/WC4MapEditor.Core/` | **0** ✅ |
+| `dotnet build src/WC4MapEditor.Core` | **0 错误**（24 个既有 nullable 警告） |
 | `dotnet build WC4MapEditor.csproj`（WPF 根项目） | **0 错误**（2 个既有警告） |
-| `dotnet build WC4MapEditor.Cli` | **0 错误 0 警告** |
+| `dotnet build src/WC4MapEditor.Cli` | **0 错误 0 警告** |
 | `Core.csproj` 剩余包引用 | 仅 `System.CommandLine` |
 
 ---
@@ -595,7 +595,7 @@ WC4MapEditor.Imaging/
 <PackageReference Include="SkiaSharp" Version="3.119.2" />
 ```
 
-**验收**：`Core.csproj` 仅剩 `System.CommandLine`（阶段 E 也会移除），`grep -r "using SkiaSharp" WC4MapEditor.Core/` 返回 0。
+**验收**：`Core.csproj` 仅剩 `System.CommandLine`（阶段 E 也会移除），`grep -r "using SkiaSharp" src/WC4MapEditor.Core/` 返回 0。
 
 </details>
 
@@ -619,9 +619,9 @@ WC4MapEditor.Imaging/
 #### E-1. 移动 `CliCommandHost`
 
 ```
-WC4MapEditor.Core/Commands/CliCommandHost.cs
+src/WC4MapEditor.Core/Commands/CliCommandHost.cs
    ↓
-WC4MapEditor.Cli/Commands/CliCommandHost.cs
+src/WC4MapEditor.Cli/Commands/CliCommandHost.cs
 ```
 
 同时为 WPF 调试控制台保留能力：让 `WC4MapEditor` 根项目可直接引用 `WC4MapEditor.Cli`（或把命令构建逻辑下沉到 `WC4MapEditor.Application`）。
@@ -668,10 +668,10 @@ HexCellInfo.cs:101 public static string GetTerrainName(int tileType)   => Config
 
 | 检查 | 结果 |
 |---|---|
-| `grep -rn "\.Instance" WC4MapEditor.Core/Models/` | **0** ✅ |
-| `grep -rn "using WC4MapEditor.Core.Config" WC4MapEditor.Core/Models/` | **0** ✅ |
+| `grep -rn "\.Instance" src/WC4MapEditor.Core/Models/` | **0** ✅ |
+| `grep -rn "using WC4MapEditor.Core.Config" src/WC4MapEditor.Core/Models/` | **0** ✅ |
 | `dotnet build WC4MapEditor.csproj` | **0 错误** |
-| `dotnet build WC4MapEditor.Cli` | **0 错误 0 警告** |
+| `dotnet build src/WC4MapEditor.Cli` | **0 错误 0 警告** |
 
 **结论**：`Core.Models` 现在不含任何全局状态引用，可独立进行单元测试。
 
@@ -721,7 +721,7 @@ public sealed class TerrainNameService
 #### G-2. `RenderSceneManager` 下沉到根项目
 
 ```
-WC4MapEditor.Core/SceneManagement/RenderSceneManager.cs
+src/WC4MapEditor.Core/SceneManagement/RenderSceneManager.cs
    ↓ (git mv)
 Services/RenderSceneManager.cs
 ```
@@ -759,9 +759,9 @@ clipboard.GlobalCopiedTerrain = ...;
 
 | 检查 | 结果 |
 |---|---|
-| `grep -rn "RenderSceneManager\|SceneManagement" WC4MapEditor.Core/` | **0**（仅剩 `MapClipboard.cs` 注释中的说明文字） ✅ |
+| `grep -rn "RenderSceneManager\|SceneManagement" src/WC4MapEditor.Core/` | **0**（仅剩 `MapClipboard.cs` 注释中的说明文字） ✅ |
 | `dotnet build WC4MapEditor.csproj` | **0 错误** |
-| `dotnet build WC4MapEditor.Cli` | **0 错误 0 警告** |
+| `dotnet build src/WC4MapEditor.Cli` | **0 错误 0 警告** |
 
 **结论**：Core 不再持有任何"渲染场景"概念；跨场景剪贴板成为 Core 内的纯数据服务。
 
@@ -1001,8 +1001,8 @@ dotnet build WC4MapEditor.csproj -c Release
 # 期望：0 Error
 
 # 2. CLI 冒烟
-dotnet run --project WC4MapEditor.Cli -- stage <测试.btl> -o out.json
-dotnet run --project WC4MapEditor.Cli -- screenshot <测试.bin> out.png
+dotnet run --project src/WC4MapEditor.Cli -- stage <测试.btl> -o out.json
+dotnet run --project src/WC4MapEditor.Cli -- screenshot <测试.bin> out.png
 
 # 3. GUI 冒烟（手动）
 #   - 启动主程序，开场动画正常
@@ -1017,23 +1017,23 @@ dotnet run --project WC4MapEditor.Cli -- screenshot <测试.bin> out.png
 
 | 阶段 | 验收命令 / 动作 | 期望结果 | 状态 |
 |------|----------------|---------|------|
-| A | `dotnet build WC4MapEditor.Rendering -c Release` | 0 错误 | ✅ 已实测 |
-| A | `grep -rn "System.Windows" WC4MapEditor.Rendering/` | 返回 0 | ✅ 已实测 |
-| A | `dotnet publish WC4MapEditor.Cli -r linux-x64 --self-contained false` | 构建成功 | ⏳ 待验证 |
-| B | `grep -rn "CliCommandHost" WC4MapEditor.Rendering/` | 返回 0 | ✅ 已实测 |
+| A | `dotnet build src/WC4MapEditor.Rendering -c Release` | 0 错误 | ✅ 已实测 |
+| A | `grep -rn "System.Windows" src/WC4MapEditor.Rendering/` | 返回 0 | ✅ 已实测 |
+| A | `dotnet publish src/WC4MapEditor.Cli -r linux-x64 --self-contained false` | 构建成功 | ⏳ 待验证 |
+| B | `grep -rn "CliCommandHost" src/WC4MapEditor.Rendering/` | 返回 0 | ✅ 已实测 |
 | C | `grep -rn "namespace WC4MapEditor\.Models" --include=*.cs .` | 返回 0 | ✅ 已实测 |
 | C | `grep -rn "namespace WC4MapEditor\.Parsers" --include=*.cs .` | 返回 0 | ✅ 已实测 |
 | C | `dotnet build WC4MapEditor.csproj`（WPF 根项目） | 0 错误 | ✅ 已实测 |
-| C | `dotnet build WC4MapEditor.Cli` | 0 错误 0 警告 | ✅ 已实测 |
-| D | `grep -rn "SkiaSharp\.\|\bSK[A-Z]\w+\b" WC4MapEditor.Core/` | 返回 0 | ✅ 已实测 |
-| D | `dotnet build WC4MapEditor.Core` 后检查输出目录 | 无 `libSkiaSharp` | ✅ 已实测 |
+| C | `dotnet build src/WC4MapEditor.Cli` | 0 错误 0 警告 | ✅ 已实测 |
+| D | `grep -rn "SkiaSharp\.\|\bSK[A-Z]\w+\b" src/WC4MapEditor.Core/` | 返回 0 | ✅ 已实测 |
+| D | `dotnet build src/WC4MapEditor.Core` 后检查输出目录 | 无 `libSkiaSharp` | ✅ 已实测 |
 | D | `dotnet build WC4MapEditor.csproj`（WPF 根项目） | 0 错误 | ✅ 已实测 |
-| D | `dotnet build WC4MapEditor.Cli` | 0 错误 0 警告 | ✅ 已实测 |
+| D | `dotnet build src/WC4MapEditor.Cli` | 0 错误 0 警告 | ✅ 已实测 |
 | E | — | 已重新评估，建议跳过 | 🔄 已修订 |
-| F | `grep -rn "\.Instance" WC4MapEditor.Core/Models/` | 返回 0 | ✅ 已实测 |
-| G | `grep -rn "RenderSceneManager" WC4MapEditor.Core/` | 返回 0 | ✅ 已实测 |
+| F | `grep -rn "\.Instance" src/WC4MapEditor.Core/Models/` | 返回 0 | ✅ 已实测 |
+| G | `grep -rn "RenderSceneManager" src/WC4MapEditor.Core/` | 返回 0 | ✅ 已实测 |
 | G | `dotnet build WC4MapEditor.csproj` | 0 错误 | ✅ 已实测 |
-| G | `dotnet build WC4MapEditor.Cli` | 0 错误 0 警告 | ✅ 已实测 |
+| G | `dotnet build src/WC4MapEditor.Cli` | 0 错误 0 警告 | ✅ 已实测 |
 
 ### 5.2.1 阶段 A/B 后尚未执行的验证
 
@@ -1044,10 +1044,10 @@ dotnet run --project WC4MapEditor.Cli -- screenshot <测试.bin> out.png
 dotnet build WC4MapEditor.csproj -c Release
 
 # CLI：验证 net10.0 目标框架切换
-dotnet build WC4MapEditor.Cli/WC4MapEditor.Cli.csproj -c Release
+dotnet build src/WC4MapEditor.Cli/WC4MapEditor.Cli.csproj -c Release
 
 # 跨平台验证（阶段 A 的核心收益）
-dotnet publish WC4MapEditor.Cli/WC4MapEditor.Cli.csproj -c Release -r linux-x64 --self-contained false
+dotnet publish src/WC4MapEditor.Cli/WC4MapEditor.Cli.csproj -c Release -r linux-x64 --self-contained false
 ```
 
 **GUI 冒烟重点**（阶段 A 涉及控制台窗口生命周期）：
@@ -1065,9 +1065,9 @@ dotnet publish WC4MapEditor.Cli/WC4MapEditor.Cli.csproj -c Release -r linux-x64 
 $orig = "测试.btl"
 
 # 加载 → 保存 → 再加载
-dotnet run --project WC4MapEditor.Cli -- stage $orig -o before.json -d
-dotnet run --project WC4MapEditor.Cli -- modify stage $orig info   # 触发一次回写
-dotnet run --project WC4MapEditor.Cli -- stage $orig -o after.json -d
+dotnet run --project src/WC4MapEditor.Cli -- stage $orig -o before.json -d
+dotnet run --project src/WC4MapEditor.Cli -- modify stage $orig info   # 触发一次回写
+dotnet run --project src/WC4MapEditor.Cli -- stage $orig -o after.json -d
 
 # 对比
 Compare-Object (Get-Content before.json) (Get-Content after.json)
@@ -1105,9 +1105,9 @@ Compare-Object (Get-Content before.json) (Get-Content after.json)
 ```powershell
 dotnet new sln -n WC4MapEditor
 dotnet sln add WC4MapEditor.csproj
-dotnet sln add WC4MapEditor.Core/WC4MapEditor.Core.csproj
-dotnet sln add WC4MapEditor.Rendering/WC4MapEditor.Rendering.csproj
-dotnet sln add WC4MapEditor.Cli/WC4MapEditor.Cli.csproj
+dotnet sln add src/WC4MapEditor.Core/WC4MapEditor.Core.csproj
+dotnet sln add src/WC4MapEditor.Rendering/WC4MapEditor.Rendering.csproj
+dotnet sln add src/WC4MapEditor.Cli/WC4MapEditor.Cli.csproj
 ```
 
 > 注：阶段 A 最终未新建 `Rendering.Wpf` 项目，故无需追加。

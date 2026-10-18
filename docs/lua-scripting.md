@@ -105,7 +105,7 @@ lua D:/maps/tool.lua       -- 绝对路径，随意放
 | `goto` / 标签 | ✅ |
 | `//` 整除（5.3 特性） | ❌ 用 `math.floor(a / b)` |
 | 全局 `unpack` | ✅ |
-| `loadstring` | ❌ 用 `load` |
+| `loadstring` | ✅ 等价于 `load`（5.1 兼容写法） |
 
 默认开放的标准库：
 
@@ -114,11 +114,27 @@ lua D:/maps/tool.lua       -- 绝对路径，随意放
 | `string` | ✅ | `format` `rep` `sub` `find` `gsub` … |
 | `table` | ✅ | `insert` `remove` `sort` `concat` … |
 | `math` | ✅ | `floor` `max` `min` `random` … |
-| `os` | ⚠️ | 表存在，但 `os.clock()` 实测返回 `nil`，**别用它计时** |
-| `io` | ✅ | 存在（脚本通常用不到） |
+| `os` | ✅ | `clock` / `time` / `date` 可用；`exit` / `execute` 已禁用 |
+| `io` | ✅ | `open` / `lines` 可读写文件；`io.write` 并入脚本输出 |
 | `coroutine` | ✅ | 存在 |
-| `debug` | ❌ | 未开放 |
-| `utf8` | ❌ | 未开放 |
+| `debug` | ✅ | 仅用于 `debug.traceback` 与错误定位 |
+| `utf8` | ✅ | `len` / `char` / `codepoint` / `offset` |
+| `require` / `dofile` | ✅ | 搜索顺序：脚本目录 → `scripts/` → 程序目录 |
+
+### 运行时环境细节
+
+| 项 | 行为 |
+|---|---|
+| `os.clock()` | 进程启动以来的秒数（单调），可直接做耗时统计 |
+| `os.time()` | 整数秒；`os.date('%Y-%m-%d %H:%M', os.time())` 可直接用 |
+| `os.exit()` / `os.execute()` | **已禁用**：调用会抛错（`pcall` 能捕获），避免脚本杀掉编辑器或执行外部命令 |
+| `require('mod')` | 依次在「脚本所在目录 → 程序目录\scripts → 程序目录」找 `mod.lua` / `mod/init.lua`；`require('a.b')` 对应 `a/b.lua` |
+| `package.path` | 上述路径拼成的字符串，可读，也可在脚本里改成自定义值 |
+| `utf8.len(s)` | 按**字符**计数（不是字节）：`utf8.len('北京abc') == 5` |
+| `utf8.offset(s, n)` | 返回第 n 个字符的**字节位置**，配合 `string.sub` 截取中文 |
+| `io.write(...)` | 输出并入脚本日志（与 `print` 一样脚本结束后统一显示）；`io.flush()` 为空操作 |
+| `debug.traceback()` | 可用；运行时错误会**自动附上调用栈** |
+| 输出上限 | 单次执行最多保留 50000 行，超出会提示截断（防止死循环刷屏） |
 
 ### 变量
 
@@ -1189,6 +1205,7 @@ print('hello'    -- 少个右括号
 - 多行脚本也准：`multi.lua:(2,10-11): unexpected symbol near '='`
 - 运行时错误同样带位置：`runtime.lua:(2,5-12): attempt to index a nil value`
 - 消息里文件名会出现两次（`@ x.lua:` 一次、错误详情里又一次），不影响定位
+- 运行时错误在消息下方还会给出**调用栈**（最多 8 层），能看出是哪一层函数调用的
 
 ---
 
@@ -1431,20 +1448,20 @@ print(string.format('已将 %dx%d 区域从 (%d,%d) 复制到 (%d,%d)',
 
 脚本能调用的能力完全由 `IMapScriptApi` 决定。**加一个新能力只需三步**，不用设计任何命令语法：
 
-**① 在接口里加方法** — `WC4MapEditor.Scripting/IMapScriptApi.cs`
+**① 在接口里加方法** — `src/WC4MapEditor.Scripting/IMapScriptApi.cs`
 
 ```csharp
 /// <summary>取指定格子的陷阱数量</summary>
 int GetTrapCount(int col, int row);
 ```
 
-**② 在 Lua 包装层暴露它** — `WC4MapEditor.Scripting/LuaMapApi.cs`
+**② 在 Lua 包装层暴露它** — `src/WC4MapEditor.Scripting/LuaMapApi.cs`
 
 ```csharp
 public int GetTrapCount(int col, int row) => _api.GetTrapCount(col, row);
 ```
 
-**③ 在 Core 实现它** — `WC4MapEditor.Core/Scripting/MapScriptApi.cs`
+**③ 在 Core 实现它** — `src/WC4MapEditor.Core/Scripting/MapScriptApi.cs`
 
 ```csharp
 public int GetTrapCount(int col, int row)
@@ -1469,14 +1486,14 @@ public int GetTrapCount(int col, int row)
 
 | 文件 | 职责 |
 |---|---|
-| `WC4MapEditor.Scripting/IMapScriptApi.cs` | 接口定义（能力的唯一来源） |
-| `WC4MapEditor.Scripting/LuaMapApi.cs` | Lua 侧 `map` 对象，薄包装 + 输出/统计 |
-| `WC4MapEditor.Scripting/LuaScriptEngine.cs` | MoonSharp 引擎、`print` 接管、错误捕获 |
-| `WC4MapEditor.Scripting/ScriptBuildingInfo.cs` | 建筑快照对象 |
-| `WC4MapEditor.Scripting/ScriptOperationResult.cs` | 操作结果对象 |
-| `WC4MapEditor.Scripting/ScriptResult.cs` | 一次执行的整体结果 |
-| `WC4MapEditor.Core/Scripting/MapScriptApi.cs` | 接口的 Core 实现（转发到 Modifier） |
-| `WC4MapEditor.Core/Scripting/ScriptRunner.cs` | 执行入口，负责包撤销单元 |
+| `src/WC4MapEditor.Scripting/IMapScriptApi.cs` | 接口定义（能力的唯一来源） |
+| `src/WC4MapEditor.Scripting/LuaMapApi.cs` | Lua 侧 `map` 对象，薄包装 + 输出/统计 |
+| `src/WC4MapEditor.Scripting/LuaScriptEngine.cs` | MoonSharp 引擎、`print` 接管、错误捕获 |
+| `src/WC4MapEditor.Scripting/ScriptBuildingInfo.cs` | 建筑快照对象 |
+| `src/WC4MapEditor.Scripting/ScriptOperationResult.cs` | 操作结果对象 |
+| `src/WC4MapEditor.Scripting/ScriptResult.cs` | 一次执行的整体结果 |
+| `src/WC4MapEditor.Core/Scripting/MapScriptApi.cs` | 接口的 Core 实现（转发到 Modifier） |
+| `src/WC4MapEditor.Core/Scripting/ScriptRunner.cs` | 执行入口，负责包撤销单元 |
 | `Views/RenderSceneBase.cs` → `RegisterScriptCliCommands` | `lua` 命令注册 |
 | `Views/Assist/DebugConsoleWindow.cs` | 拖放 `.lua` 的处理 |
 
@@ -1511,7 +1528,7 @@ static LuaScriptEngine()
 | `attempt to concatenate a userdata value` | 用 `..` 拼了 C# 对象。改用 `tostring(r)` 或 `r.Message` |
 | `attempt to concatenate a boolean value` | 用 `..` 拼了布尔值。改用 `tostring(r.Success)` |
 | 脚本输出正常、没报错，但数据没变 | 多半是给只读快照 `b` 赋了值（静默无效）。改数据必须调 `map.*` 方法，见 [6.1](#61-建筑对象-scriptbuildinginfo) |
-| `attempt to perform arithmetic on a nil value` | 常见于 `os.clock()`（实测返回 `nil`）参与运算。别用它计时 |
+| `attempt to perform arithmetic on a nil value` | 对 `nil` 做算术。`os.clock()` 已修复为返回数字；仍报错说明变量本身没取到值 |
 | `cannot convert clr type ...` | MoonSharp 类型没注册。见 [9.3](#新增-c-类型要记得注册) |
 | 撤销撤不回脚本的改动 | 脚本执行是包在撤销单元里的，`Ctrl+Z` 应能整体退回。若不行，检查是否在批处理模式下执行 |
 | 循环里改集合报「集合已修改」 | `ForEachBuilding` 内部已用快照，不会出现。若自己用别的遍历方式，需自行处理 |

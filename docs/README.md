@@ -26,6 +26,6 @@
 
 ## 给新接手的人的三句话
 
-1. **命令的能力来源只有一处**：`WC4MapEditor.Core/Commands/CliCommandHost.cs`。加命令就在那里加，然后同步更新 `cli-commands.md`。
-2. **Lua 的能力来源只有一处**：`WC4MapEditor.Scripting/IMapScriptApi.cs`。加接口的三步走见 `lua-scripting.md` 第九节。
+1. **命令的能力来源只有一处**：`src/WC4MapEditor.Core/Commands/CliCommandHost.cs`。加命令就在那里加，然后同步更新 `cli-commands.md`。
+2. **Lua 的能力来源只有一处**：`src/WC4MapEditor.Scripting/IMapScriptApi.cs`。加接口的三步走见 `lua-scripting.md` 第九节。
 3. **文档与源码的一致性**：`cli-commands.md` 第五节的命令表是按源码提取的，改了命令请一并改文档（否则下次照着文档写会失败）。

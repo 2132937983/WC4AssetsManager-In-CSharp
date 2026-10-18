@@ -33,17 +33,9 @@
        </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="WC4MapEditor.Core\**\*.cs" />
-    <Compile Remove="WC4MapEditor.Rendering\**\*.cs" />
-    <Compile Remove="WC4MapEditor.Cli\**\*.cs" />
-    <Compile Remove="WC4MapEditor.Scripting\**\*.cs" />
-    <Compile Remove="WC4MapEditor.AI\**\*.cs" />
-    <Compile Remove="WC4MapEditor.GUI\**\*.cs" />
-    <Page Remove="WC4MapEditor.Core\**\*.xaml" />
-    <Page Remove="WC4MapEditor.Rendering\**\*.xaml" />
-    <Page Remove="WC4MapEditor.Cli\**\*.xaml" />
-    <Page Remove="WC4MapEditor.Scripting\**\*.xaml" />
-    <Page Remove="WC4MapEditor.GUI\**\*.xaml" />
+    <!-- 子项目统一放在 src/ 下，这里把它们的源码排除出宿主项目 -->
+    <Compile Remove="src\**\*.cs" />
+    <Page Remove="src\**\*.xaml" />
   </ItemGroup>
 
   <ItemGroup>
@@ -52,9 +44,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="WC4MapEditor.Core\WC4MapEditor.Core.csproj" />
-    <ProjectReference Include="WC4MapEditor.Rendering\WC4MapEditor.Rendering.csproj" />
-    <ProjectReference Include="WC4MapEditor.GUI\WC4MapEditor.GUI.csproj" />
+    <ProjectReference Include="src\WC4MapEditor.Core\WC4MapEditor.Core.csproj" />
+    <ProjectReference Include="src\WC4MapEditor.Rendering\WC4MapEditor.Rendering.csproj" />
+    <ProjectReference Include="src\WC4MapEditor.GUI\WC4MapEditor.GUI.csproj" />
   </ItemGroup>
 
   <ItemGroup>

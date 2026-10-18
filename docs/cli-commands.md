@@ -37,7 +37,7 @@ terrain greening -p 60
 
 | 来源 | 谁注册的 | 例子 |
 |---|---|---|
-| **CLI 命令树** | `WC4MapEditor.Core/Commands/CliCommandHost.cs` | `building`、`belong`、`legion`、`army`、`terrain`、`province`、`trap`、`info`、`check`、`fix`、`run` |
+| **CLI 命令树** | `src/WC4MapEditor.Core/Commands/CliCommandHost.cs` | `building`、`belong`、`legion`、`army`、`terrain`、`province`、`trap`、`info`、`check`、`fix`、`run` |
 | **控制台本地命令** | `DebugConsole` | `help`、`clear`、`exit`、`echo`、`history`、`log` |
 | **场景层命令** | 当前场景（`RenderSceneBase`） | `undo`、`redo`、`lua`、`goto`、`geo_*`、`bg_province` 等 |
 
@@ -59,6 +59,28 @@ terrain greening -p 60
 | 把 `.zme` / `.lua` 文件拖到窗口上 | 自动执行（`.lua` 等价于 `lua "<路径>"`） |
 
 输出的每一条都会同时进控制台日志缓冲，`log` 命令可以回看最近的日志。
+
+### 在命令行（无界面）里用同一套指令
+
+`WC4MapEditor.Cli` 的 `modify` / `run` 入口**不重复定义命令**，而是把命令体原样交给同一个命令宿主执行：
+
+```powershell
+# 语法：wc4me modify <stage|conquest> <文件> [选项] <控制台命令...>
+dotnet run --project src/WC4MapEditor.Cli -- modify stage map.btl terrain greening -p 60
+dotnet run --project src/WC4MapEditor.Cli -- modify stage map.btl -o out.btl terrain change-type -t 5
+dotnet run --project src/WC4MapEditor.Cli -- modify conquest c.btl info
+
+# 多行命令写进 .zme 后整批执行
+dotnet run --project src/WC4MapEditor.Cli -- run map.btl batch.zme -o out.btl
+```
+
+| `modify` 选项 | 说明 |
+|---|---|
+| `-o`, `--output` | 输出文件（默认覆盖原文件） |
+| `--no-save` | 只执行不写回；`info` / `check` 默认就不写回 |
+
+> 选项要写在**命令体之前**。命令体（含它自己的选项，如 `-p 60`）按原顺序透传。
+> 命令规则只有一份（`Core/Commands/CliCommandHost.cs`），改一处 GUI 与 CLI 同时生效。
 
 ---
 
@@ -383,8 +405,8 @@ check D:\maps\my.btl --out
 
 | 路径 | 说明 |
 |---|---|
-| `WC4MapEditor.Core/Commands/CliCommandHost.cs` | CLI 命令树定义（本文档第五节的数据来源） |
-| `WC4MapEditor.Rendering/Skia/DebugConsole.cs` | 控制台本地命令 |
+| `src/WC4MapEditor.Core/Commands/CliCommandHost.cs` | CLI 命令树定义（本文档第五节的数据来源） |
+| `src/WC4MapEditor.Rendering/Skia/DebugConsole.cs` | 控制台本地命令 |
 | `Views/RenderSceneBase.cs` | 场景层命令注册 |
 | `docs/lua-scripting.md` | Lua 脚本接口 |
 | `docs/zme-scripts.md` | .zme 指令脚本写法 |

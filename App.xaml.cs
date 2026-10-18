@@ -81,6 +81,11 @@ public partial class App : Application
 
         Services = services.BuildServiceProvider();
 
+        // 让容器里的 ICommandHost 注册真正生效：
+        // DebugConsole 默认会自行回落到内置实现，这里显式注入一次，
+        // 以后要换命令宿主只改上面的注册即可（GUI 侧只依赖 ICommandHost）。
+        Services.GetRequiredService<DebugConsole>().CommandHost = Services.GetRequiredService<ICommandHost>();
+
         ConfigManager.Instance.Initialize();
 
         var mainWindow = Services.GetRequiredService<MainWindow>();
