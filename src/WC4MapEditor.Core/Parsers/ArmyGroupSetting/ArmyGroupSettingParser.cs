@@ -1,21 +1,15 @@
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Unicode;
-using WC4MapEditor.Core.Assets;
 using WC4MapEditor.Core.Config;
-using WC4MapEditor.Core.Parsers.General;
+using WC4MapEditor.Core.Services;
 
 namespace WC4MapEditor.Core.Parsers.ArmyGroupSetting;
 
 /// <summary>
 /// 集团军模式解析器（五表联动：ArmyGroupSettings + ArmyGroupReinforcementSettings +
 /// EventSettings + EventStageSettings + EventCalendarSettings，外加 stringtable 的 event_{EventId}）。
-/// 采用与 CountryTechSettingParser 相同的单例与路径解析约定。
+/// 五张表一起加载、一起保存；任意一张加载失败时整组禁止保存，避免联动数据只写了一半。
 /// </summary>
-public class ArmyGroupSettingParser
+public sealed class ArmyGroupSettingParser : IGameSettingsSource
 {
     private static readonly object _lock = new();
     private static ArmyGroupSettingParser? _instance;
@@ -34,184 +28,114 @@ public class ArmyGroupSettingParser
         }
     }
 
-    private readonly AssetManager _manager = AssetManager.Default;
-    private List<ArmyGroupSettingData> _armyGroups = new();
-    private List<ArmyGroupReinforcementData> _reinforcements = new();
-    private List<EventSettingData> _events = new();
-    private List<EventStageSettingData> _stages = new();
-    private List<EventCalendarSettingData> _calendars = new();
-    private StringTableParser? _stringTable;
-
-    public IReadOnlyList<ArmyGroupSettingData> All => _armyGroups;
-    public List<ArmyGroupSettingData> Items => _armyGroups;
-    public List<ArmyGroupReinforcementData> Reinforcements => _reinforcements;
-    public List<EventSettingData> Events => _events;
-    public List<EventStageSettingData> Stages => _stages;
-    public List<EventCalendarSettingData> Calendars => _calendars;
-
-    public string ConfigPath { get; private set; } = "";
-    public string ReinforcementPath { get; private set; } = "";
-    public string EventPath { get; private set; } = "";
-    public string EventStagePath { get; private set; } = "";
-    public string EventCalendarPath { get; private set; } = "";
-    public string StringTablePath { get; private set; } = "";
-
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
-        PropertyNameCaseInsensitive = true,
-        AllowTrailingCommas = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        NumberHandling = JsonNumberHandling.AllowReadingFromString,
-        Converters = { new SafeInt32Converter(), new SafeIntListConverter() }
-    };
-
     private ArmyGroupSettingParser()
     {
-        ResolvePaths();
+        GroupTable = new GameJsonTable<ArmyGroupSettingData>(GameJson.AssetPath("json", "ArmyGroupSettings.json"));
+        ReinforcementTable = new GameJsonTable<ArmyGroupReinforcementData>(GameJson.AssetPath("json", "ArmyGroupReinforcementSettings.json"));
+        EventTable = new GameJsonTable<EventSettingData>(GameJson.AssetPath("json", "EventSettings.json"));
+        StageTable = new GameJsonTable<EventStageSettingData>(GameJson.AssetPath("json", "EventStageSettings.json"));
+        CalendarTable = new GameJsonTable<EventCalendarSettingData>(GameJson.AssetPath("json", "EventCalendarSettings.json"));
+        Strings = StringTableStore.Default;
+        EventTexts = new RecordTextKeys(Strings, this, "event_{0}");
         LoadAll();
     }
 
-    private void ResolvePaths()
-    {
-        if (!_manager.IsLoaded)
-        {
-            try { _manager.ScanDefault(); } catch { }
-        }
+    public GameJsonTable<ArmyGroupSettingData> GroupTable { get; }
+    public GameJsonTable<ArmyGroupReinforcementData> ReinforcementTable { get; }
+    public GameJsonTable<EventSettingData> EventTable { get; }
+    public GameJsonTable<EventStageSettingData> StageTable { get; }
+    public GameJsonTable<EventCalendarSettingData> CalendarTable { get; }
+    public StringTableParser Strings { get; }
 
-        var root = _manager.AssetsRoot;
-        if (string.IsNullOrEmpty(root) || !Directory.Exists(root))
-        {
-            var baseDir = AppContext.BaseDirectory;
-            string? candidate = null;
-            string? current = baseDir;
-            for (int i = 0; i < 8 && !string.IsNullOrEmpty(current); i++)
-            {
-                var test = Path.Combine(current, "Resource", "WC4DATA", "assets");
-                if (Directory.Exists(test)) { candidate = test; break; }
-                current = Path.GetDirectoryName(current);
-            }
-            candidate ??= Path.GetFullPath(Path.Combine(baseDir ?? "", "..", "..", "..", "..", "Resource", "WC4DATA", "assets"));
-            root = candidate;
-        }
+    /// <summary>活动（事件组）的文本键，按 EventId：0 = 介绍。多个集团军可能共用同一个活动。</summary>
+    public RecordTextKeys EventTexts { get; }
 
-        ConfigPath = Path.Combine(root, "json", "ArmyGroupSettings.json");
-        ReinforcementPath = Path.Combine(root, "json", "ArmyGroupReinforcementSettings.json");
-        EventPath = Path.Combine(root, "json", "EventSettings.json");
-        EventStagePath = Path.Combine(root, "json", "EventStageSettings.json");
-        EventCalendarPath = Path.Combine(root, "json", "EventCalendarSettings.json");
-        StringTablePath = Path.Combine(root, "stringtable_tw.ini");
-        Debug.WriteLine($"[ArmyGroupSettingParser] ConfigPath={ConfigPath}");
-    }
+    public IReadOnlyList<IEditableTable> Tables => [GroupTable, ReinforcementTable, EventTable, StageTable, CalendarTable];
+    StringTableParser? IGameSettingsSource.Strings => Strings;
+
+    public List<ArmyGroupSettingData> Items => GroupTable.Items;
+    public List<ArmyGroupReinforcementData> Reinforcements => ReinforcementTable.Items;
+    public List<EventSettingData> Events => EventTable.Items;
+    public List<EventStageSettingData> Stages => StageTable.Items;
+    public List<EventCalendarSettingData> Calendars => CalendarTable.Items;
+
+    public string ConfigPath => GroupTable.FilePath;
+    public string ReinforcementPath => ReinforcementTable.FilePath;
+    public string EventPath => EventTable.FilePath;
+    public string EventStagePath => StageTable.FilePath;
+    public string EventCalendarPath => CalendarTable.FilePath;
+    public string StringTablePath => Strings.FilePath;
 
     public void LoadAll()
     {
-        _armyGroups = LoadTable<ArmyGroupSettingData>(ConfigPath, _armyGroups);
-        _reinforcements = LoadTable<ArmyGroupReinforcementData>(ReinforcementPath, _reinforcements);
-        _events = LoadTable<EventSettingData>(EventPath, _events);
-        _stages = LoadTable<EventStageSettingData>(EventStagePath, _stages);
-        _calendars = LoadTable<EventCalendarSettingData>(EventCalendarPath, _calendars);
-        _stringTable = new StringTableParser(StringTablePath);
-    }
-
-    private List<T> LoadTable<T>(string path, List<T> fallback)
-    {
-        try
-        {
-            if (!File.Exists(path))
-            {
-                Debug.WriteLine($"[ArmyGroupSettingParser] 文件不存在: {path}");
-                return new List<T>();
-            }
-            var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<List<T>>(json, JsonOpts) ?? new List<T>();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ArmyGroupSettingParser] 加载失败 {path}: {ex.Message}");
-            return fallback;
-        }
+        foreach (var table in Tables) table.Reload();
     }
 
     // ---------- 查询 ----------
 
-    public ArmyGroupSettingData? GetById(int id)
-    {
-        foreach (var a in _armyGroups) if (a.Id == id) return a;
-        return null;
-    }
+    public ArmyGroupSettingData? GetById(int id) => Items.FirstOrDefault(a => a.Id == id);
 
-    public List<ArmyGroupReinforcementData> GetReinforcements(int armyGroupId)
-    {
-        var list = new List<ArmyGroupReinforcementData>();
-        foreach (var r in _reinforcements) if (r.ArmyGroupId == armyGroupId) list.Add(r);
-        return list;
-    }
+    public List<ArmyGroupReinforcementData> GetReinforcements(int armyGroupId) => Reinforcements.Where(r => r.ArmyGroupId == armyGroupId).ToList();
 
-    public EventSettingData? GetEventByEventId(int eventId)
-    {
-        foreach (var e in _events) if (e.Id == eventId) return e;
-        return null;
-    }
+    public EventSettingData? GetEventByEventId(int eventId) => Events.FirstOrDefault(e => e.Id == eventId);
 
-    public EventStageSettingData? GetStageByEventId(int eventId)
-    {
-        foreach (var s in _stages) if (s.EventId == eventId) return s;
-        return null;
-    }
+    public EventStageSettingData? GetStageByEventId(int eventId) => Stages.FirstOrDefault(s => s.EventId == eventId);
 
-    public EventCalendarSettingData? GetCalendarByEventId(int eventId)
+    public EventCalendarSettingData? GetCalendarByEventId(int eventId) => Calendars.FirstOrDefault(c => c.EventId == eventId);
+
+    /// <summary>没有任何援军的集团军（游戏会闪退），保存前必须拦下。</summary>
+    public List<int> GetGroupsWithoutReinforcement()
     {
-        foreach (var c in _calendars) if (c.EventId == eventId) return c;
-        return null;
+        var withRe = Reinforcements.Select(r => r.ArmyGroupId).ToHashSet();
+        return Items.Where(a => !withRe.Contains(a.Id)).Select(a => a.Id).ToList();
     }
 
     // ---------- 文本 ----------
 
-    public string GetEventDesc(int eventId) => _stringTable?.GetValue($"event_{eventId}", "") ?? "";
-    public void SetEventDesc(int eventId, string desc) => _stringTable?.SetValue($"event_{eventId}", desc);
+    public string GetEventDesc(int eventId) => EventTexts.Get(0, eventId);
+    public void SetEventDesc(int eventId, string desc) => EventTexts.Set(0, eventId, desc);
 
     // ---------- 主键分配 ----------
 
     private static int NextId<T>(List<T> list, Func<T, int> getId, int floor)
+        => Math.Max(floor, list.Count == 0 ? 0 : list.Max(getId)) + 1;
+
+    public int GetNextArmyGroupId() => NextId(Items, x => x.Id, 100);
+    public int GetNextEventId() => NextId(Events, x => x.Id, 800);
+    public int GetNextStageId() => NextId(Stages, x => x.Id, 0);
+    public int GetNextCalendarId() => NextId(Calendars, x => x.Id, 0);
+    public int GetNextReinforcementId() => NextId(Reinforcements, x => x.Id, 90000);
+
+    // ---------- 记录操作 ----------
+
+    /// <summary>删除集团军及其专属援军（活动数据可能被别的集团军共用，不删除）。</summary>
+    public void RemoveGroup(ArmyGroupSettingData group)
     {
-        int max = floor;
-        foreach (var item in list)
-        {
-            int id = getId(item);
-            if (id > max) max = id;
-        }
-        return max + 1;
+        Items.Remove(group);
+        Reinforcements.RemoveAll(r => r.ArmyGroupId == group.Id);
     }
 
-    public int GetNextArmyGroupId() => NextId(_armyGroups, x => x.Id, 100);
-    public int GetNextEventId() => NextId(_events, x => x.Id, 800);
-    public int GetNextStageId() => NextId(_stages, x => x.Id, 0);
-    public int GetNextCalendarId() => NextId(_calendars, x => x.Id, 0);
-    public int GetNextReinforcementId() => NextId(_reinforcements, x => x.Id, 90000);
-
-    public bool SaveAll()
+    /// <summary>改集团军 Id：新 Id 已被占用时返回 false；专属援军的 ArmyGroupId 跟着改。</summary>
+    public bool ChangeGroupId(ArmyGroupSettingData group, int newId)
     {
-        try
-        {
-            File.WriteAllText(ConfigPath, JsonSerializer.Serialize(_armyGroups, JsonOpts));
-            File.WriteAllText(ReinforcementPath, JsonSerializer.Serialize(_reinforcements, JsonOpts));
-            File.WriteAllText(EventPath, JsonSerializer.Serialize(_events, JsonOpts));
-            File.WriteAllText(EventStagePath, JsonSerializer.Serialize(_stages, JsonOpts));
-            File.WriteAllText(EventCalendarPath, JsonSerializer.Serialize(_calendars, JsonOpts));
-            _stringTable?.Save();
-            Debug.WriteLine("[ArmyGroupSettingParser] 五表保存成功");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ArmyGroupSettingParser] 保存失败: {ex.Message}");
-            return false;
-        }
+        if (group.Id == newId) return true;
+        if (Items.Any(a => a.Id == newId)) return false;
+        foreach (var r in Reinforcements.Where(r => r.ArmyGroupId == group.Id)) r.ArmyGroupId = newId;
+        group.Id = newId;
+        return true;
     }
 
-    public void Reload() => LoadAll();
+    /// <summary>复制集团军时复制它的援军（新援军 Id，归属新集团军），副本保存时不会因缺少援军被拦截。</summary>
+    public void CopyReinforcements(int fromGroupId, int toGroupId)
+    {
+        foreach (var source in GetReinforcements(fromGroupId))
+        {
+            var copy = ReinforcementTable.Clone(source);
+            copy.Id = GetNextReinforcementId();
+            copy.ArmyGroupId = toGroupId;
+            Reinforcements.Add(copy);
+        }
+    }
 
     public static void ClearInstance()
     {
@@ -237,7 +161,7 @@ public class ArmyGroupSettingData
     [JsonPropertyName("PrizeIndustry")] public int PrizeIndustry { get; set; }
     [JsonPropertyName("PrizeEnergy")] public int PrizeEnergy { get; set; }
     [JsonPropertyName("PrizeTech")] public int PrizeTech { get; set; }
-    [JsonPropertyName("Photo")] public string Photo { get; set; } = "";
+    [JsonPropertyName("Photo")] public string? Photo { get; set; } = "";
     [JsonPropertyName("TechCategoryIds")] public List<int> TechCategoryIds { get; set; } = new();
     [JsonPropertyName("CloseTechTypes")] public List<int> CloseTechTypes { get; set; } = new();
     [JsonPropertyName("CloseCardTypes")] public List<int> CloseCardTypes { get; set; } = new();

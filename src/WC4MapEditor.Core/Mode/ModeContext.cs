@@ -50,27 +50,11 @@ public sealed class ModeContext
     /// <summary>军团范围截图（F4 键）- 由 GUI 层实现并注入</summary>
     public Action? NotifyCaptureLegionScreenshot { get; init; }
 
-    /// <summary>打开军团设置窗口（Q 键）- 由 GUI 层实现并注入</summary>
-    public Action? NotifyOpenLegionSetting { get; init; }
-
-    /// <summary>
-    /// 打开军团列表窗口 - 由 GUI 层实现并注入。
-    /// 军团编辑模式原来的 F 键已让给首都编辑模块，该窗口改由归属编辑模式使用
-    /// （对齐 VB 中 LegionBelongList「用于编辑归属模式的 Q 键」的定位）。
-    /// </summary>
-    public Action? NotifyOpenLegionList { get; init; }
-
     /// <summary>
     /// 当前背景图（视图层图片）的像素入口 - 由 GUI 层注入。
     /// 省份编辑模式的"从背景图识别省区"（P 键）靠它读取像素做灰度与边界分析。
     /// </summary>
     public IViewLayerImageProvider? ViewLayerImage { get; init; }
-
-    /// <summary>打开头部数据编辑窗口（E 键）- 由 GUI 层实现并注入</summary>
-    public Action? NotifyOpenHeaderSetting { get; init; }
-
-    /// <summary>更新征服国家设置（F6 键）- 由 GUI 层实现并注入</summary>
-    public Action? NotifyUpdateConquerSettings { get; init; }
 
     /// <summary>把相机中心移动到指定格子（建筑编辑模式 Enter 键）- 由 GUI 层实现并注入</summary>
     public Action<int, int>? NotifyMoveCameraToHex { get; init; }
@@ -150,6 +134,15 @@ public sealed class ModeContext
     }
 
     /// <summary>
+    /// 记录范围不确定的批量变更 - 快照所有实体列表（建筑 / 单位 / 陷阱 / 援军 / 事件 / 天气……）+ 省份 + 归属。
+    /// 一次操作同时改到多种实体时用它，比 <see cref="RecordBuildingsSnapshot"/> 覆盖面全。
+    /// </summary>
+    public void RecordEntitiesSnapshot(string description, Action applyChange)
+    {
+        Owner.RecordEntitiesSnapshot(description, applyChange);
+    }
+
+    /// <summary>
     /// 地理计算回调 - 由 GUI 层实现并注入，负责执行经纬度换算并导出
     /// </summary>
     public Func<Task>? GeoCalculateCallback { get; init; }
@@ -174,4 +167,23 @@ public sealed class ModeContext
     /// 添加地理参考点回调 - 由 GUI 层实现并注入
     /// </summary>
     public Func<Task>? AddGeoRefCallback { get; init; }
+
+    // ------------------------- 通用扩展：新功能统一走这些，不再为每个窗口 / 集合加专用回调 -------------------------
+
+    /// <summary>
+    /// 请求 GUI 打开某种编辑窗口（种类见 <see cref="EditorKinds"/>）。
+    /// 没有 GUI（命令行 / 脚本）或该种窗口尚未实现时返回 false，并在状态栏说明原因。
+    /// </summary>
+    public bool OpenEditor(string kind, int col = -1, int row = -1, object? argument = null)
+        => Owner.OpenEditor(new EditorRequest(kind, col, row, argument));
+
+    /// <summary>
+    /// 记录一次实体列表（事件 / 天气 / 方案 / 空袭 / 援军 / 军团……）修改的撤销：执行前后各拍一份列表快照。
+    /// 元素是含引用类型字段的结构体时传入 <paramref name="clone"/> 做深拷贝。
+    /// </summary>
+    public void RecordCollectionChange<T>(string description, IList<T> list, Action applyChange, Func<T, T>? clone = null)
+        => Owner.RecordCollectionChange(description, list, applyChange, clone);
+
+    /// <summary>当前选区（只读）。批量操作的目标格请用 <see cref="ModeActionArgs.TargetCells"/>。</summary>
+    public IReadOnlySet<HexCoord> Selection => HexSelector.Instance.SelectedHexes;
 }

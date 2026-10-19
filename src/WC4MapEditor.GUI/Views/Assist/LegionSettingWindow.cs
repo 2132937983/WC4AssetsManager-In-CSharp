@@ -1,33 +1,34 @@
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Globalization;
 using System.Reflection;
 using System.Windows.Controls.Primitives;
-using System.Windows.Media.Imaging;
+using WC4MapEditor.Core.Mode;
 using WC4MapEditor.Core.Modifiers;
+using WC4MapEditor.GUI.Services;
 
 namespace WC4MapEditor.GUI.Views.Assist;
 
 /// <summary>
-/// 军团设置窗口 - 对齐 VB 版 Assist/LegionSetting。
+/// 军团设置窗口 - 对齐 VB 版 Assist/LegionSetting（军团编辑模式 Q 键，<see cref="EditorKinds.LegionSetting"/>）。
 /// <para>
-/// 左侧为军团列表（含颜色块与行动顺序），右侧为所选军团的字段编辑面板，
-/// 支持全部字段：行动顺序/国家ID/阵营/经济/工业/科技/玩家控制/战败条件/
-/// 血率/税率/颜色/科技等级/未知字段1-4/激光等级。
-/// </para>
-/// <para>
-/// 非模态窗口：修改后立即写回 MapData 并触发 <see cref="DataModified"/>，
-/// 由场景层刷新军团领域与归属国旗渲染。
+/// 左侧为军团列表（颜色条 + 国旗 + 序号 / 行动顺序 / 国家 / 阵营），右侧为所选军团的字段编辑面板。
+/// 字段改动后按 Enter 或"应用"提交；切换军团、关闭窗口时自动提交有效的改动（无效输入会留在当前军团并提示），
+/// Esc 先撤回未提交的改动、再按一次关闭。提交只写回用户改过的字段，窗口打开期间别处（C/U/R/P 键、撤销）
+/// 改动的其它字段不会被旧值覆盖；列表会跟着刷新。所有修改都经由军团模块并记录撤销。
 /// </para>
 /// </summary>
-public sealed class LegionSettingWindow : Window
+[AssistEditor(EditorKinds.LegionSetting)]
+public sealed class LegionSettingWindow : Window, IAssistEditor
 {
-    /// <summary>字段定义：显示名的翻译键 / Legion 字段名 / 是否为浮点</summary>
-    private sealed record FieldDef(string LabelKey, string FieldName, bool IsFloat);
+    /// <summary>字段定义：显示名的翻译键 / Legion 字段名 / 是否为浮点 / 提示的翻译键（null = 与显示名相同）</summary>
+    private sealed record FieldDef(string LabelKey, string FieldName, bool IsFloat, string? TipKey = null);
 
     /// <summary>颜色字段（R/G/B 三字节）在编辑面板中的虚拟键名</summary>
     private const string ColorFieldKey = "__color";
 
     /// <summary>
-    /// 全部可编辑字段，顺序即界面顺序（对齐 VB 版 LegionSetting）。
+    /// 全部可编辑字段，顺序即界面顺序（对齐 VB 版 LegionSetting，末尾补上两版都没有开放的 AI 行为与核弹数量）。
     /// 静态数组里只放翻译键不放文本：类型初始化只跑一次，之后切换语言时文本还要能跟着变。
     /// </summary>
     private static readonly FieldDef[] FieldDefs =
@@ -38,17 +39,22 @@ public sealed class LegionSettingWindow : Window
         new("Assist.Legion.Field.InitialEconomy", nameof(Legion.InitialEconomy), false),
         new("Assist.Legion.Field.InitialIndustry", nameof(Legion.InitialIndustry), false),
         new("Assist.Legion.Field.InitialTech", nameof(Legion.InitialTech), false),
-        new("Assist.Legion.Field.PlayerControlled", nameof(Legion.IsPlayerControlled), false),
+        new("Assist.Legion.Field.PlayerControlled", nameof(Legion.IsPlayerControlled), false, "Assist.Legion.PlayerControlledTooltip"),
         new("Assist.Legion.Field.DefeatCondition", nameof(Legion.DefeatCondition), false),
         new("Assist.Legion.Field.CountryHpRate", nameof(Legion.CountryHpRate), true),
         new("Assist.Legion.Field.CountryTaxRate", nameof(Legion.CountryTaxRate), true),
-        new("Common.Color", ColorFieldKey, false),
+        new("Common.Color", ColorFieldKey, false, "Assist.Legion.ColorHexTooltip"),
         new("Assist.Legion.Field.TechLevel", nameof(Legion.InitialTechLevel), false),
         new("Assist.Legion.Field.Unknown1", nameof(Legion.Unknown1), false),
         new("Assist.Legion.Field.Unknown2", nameof(Legion.Unknown2), false),
         new("Assist.Legion.Field.Unknown3", nameof(Legion.Unknown3), false),
         new("Assist.Legion.Field.Unknown4", nameof(Legion.Unknown4), false),
         new("Assist.Legion.Field.LaserLevel", nameof(Legion.InitialLaserGunLevel), false),
+        new("Assist.Legion.Field.AiBehavior", nameof(Legion.CountryAiBehavior), false),
+        new("Assist.Legion.Field.AtomicBombs", nameof(Legion.AtomicBombCount), false),
+        new("Assist.Legion.Field.HydrogenBombs", nameof(Legion.HydrogenBombCount), false),
+        new("Assist.Legion.Field.NeutronBombs", nameof(Legion.NeutronBombCount), false),
+        new("Assist.Legion.Field.AntimatterBombs", nameof(Legion.AntimatterBombCount), false),
     };
 
     private static string LabelOf(FieldDef def) => Loc.T(def.LabelKey);
@@ -60,32 +66,39 @@ public sealed class LegionSettingWindow : Window
             .Where(f => f.FieldType == typeof(int) || f.FieldType == typeof(float))
             .ToDictionary(f => f.Name);
 
-    private readonly MapData _mapData;
-    private readonly LegionModifier _modifier;
     private readonly ListBox _legionListBox = new();
     private readonly StackPanel _editorPanel = new();
     private readonly Dictionary<string, TextBox> _fieldBoxes = new();
+
+    /// <summary>每个输入框载入时的文本：提交时只写回与它不同的字段</summary>
+    private readonly Dictionary<string, string> _loadedText = new();
+
     private readonly Border _colorPreview = new();
+    private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+    private Button? _applyButton;
 
     /// <summary>批量操作栏里共用的数值输入框（统一经济/工业/科技都用它）</summary>
     private readonly TextBox _batchValueBox = new();
 
+    private AssistEditorContext _context = null!;
     private int _selectedIndex = -1;
     private bool _isSyncing;
+    private bool _dirty;
 
-    /// <summary>数据被修改时触发，供场景层即时刷新渲染</summary>
-    public event EventHandler? DataModified;
+    /// <summary>本窗口自己在改军团列表：期间的集合变更通知不当作"别处改动"</summary>
+    private bool _isApplying;
+    private bool _reloadQueued;
 
-    public LegionSettingWindow(MapData mapData, LegionModifier modifier)
+    /// <summary>排队中的刷新里是否有增删 / 移动 / 整体替换（军团序号可能已变）</summary>
+    private bool _structuralChangeQueued;
+
+    public LegionSettingWindow()
     {
         EditorTheme.Apply(this);
 
-        _mapData = mapData ?? throw new ArgumentNullException(nameof(mapData));
-        _modifier = modifier ?? throw new ArgumentNullException(nameof(modifier));
-
         Title = Loc.T("Assist.Legion.Title");
         Width = 660;
-        Height = 640;
+        Height = 680;
         MinWidth = 560;
         MinHeight = 480;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -94,20 +107,49 @@ public sealed class LegionSettingWindow : Window
         // 淡入靠 Opacity 动画，无边框窗口只有开了 AllowsTransparency 时 Opacity 才生效
         AllowsTransparency = true;
         Background = EditorTheme.Bg1;
+        ShowInTaskbar = false;
 
         // 清掉上次"没找到国旗"的缓存：之后补上了国旗资源，重开窗口就能显示出来
         FlagImageLoader.ClearMisses();
 
-        Content = CreateUI();
-        LoadLegionList();
-
         PreviewKeyDown += OnPreviewKeyDown;
         Opacity = 0;
-        Loaded += (_, _) =>
-        {
-            var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150));
-            BeginAnimation(OpacityProperty, fadeIn);
-        };
+        Loaded += (_, _) => BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150)));
+    }
+
+    private MapData Map => _context.MapData;
+    private LegionModifier Module => _context.Module<LegionModifier>()
+        ?? throw new InvalidOperationException("LegionModifier is not registered");
+
+    // ------------------------------------------------------------------ IAssistEditor
+
+    void IAssistEditor.Attach(AssistEditorContext context)
+    {
+        _context = context;
+        Content = CreateUI();
+        Map.Legions.CollectionChanged += OnLegionsCollectionChanged;
+        ReloadLegionList(InitialSelection(context.Request));
+    }
+
+    /// <summary>窗口已打开时又按了 Q：切到该格所属的军团（先提交当前改动）。</summary>
+    void IAssistEditor.Retarget(EditorRequest request)
+    {
+        int index = LegionIndexAt(request.Col, request.Row);
+        if (index >= 0 && index != _selectedIndex) _legionListBox.SelectedIndex = index;
+    }
+
+    /// <summary>首次打开时选中请求格所属的军团，没有则选中当前军团。</summary>
+    private int InitialSelection(EditorRequest request)
+    {
+        int index = LegionIndexAt(request.Col, request.Row);
+        return index >= 0 ? index : Module.SelectedLegionId - 1;
+    }
+
+    private int LegionIndexAt(int col, int row)
+    {
+        if (col < 0 || row < 0 || col >= Map.MapWidth || row >= Map.MapHeight) return -1;
+        int belong = Map.GetBelongValue(col, row);
+        return belong >= 0 && belong < Map.Legions.Count ? belong : -1;
     }
 
     // ------------------------------------------------------------------ UI
@@ -187,7 +229,7 @@ public sealed class LegionSettingWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        // 左侧：军团列表 + 增删按钮
+        // 左侧：军团列表 + 增删 / 上下移按钮
         var leftGrid = new Grid();
         leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -197,19 +239,23 @@ public sealed class LegionSettingWindow : Window
         Grid.SetRow(_legionListBox, 0);
         leftGrid.Children.Add(_legionListBox);
 
-        // 底部增删按钮（对齐 VB 版 LegionSetting 的 "+" / "-"）
-        var addRemovePanel = new StackPanel
+        // 底部按钮（"+" / "-" 对齐 VB 版 LegionSetting；▲ / ▼ 调整军团顺序，领地与单位跟着军团走）
+        var listButtons = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 6, 0, 8)
         };
-        addRemovePanel.Children.Add(CreateSmallButton(EditorTheme.Button("+", (_, _) => OnAddLegion()),
+        listButtons.Children.Add(CreateSmallButton(EditorTheme.Button("+", (_, _) => OnAddLegion()),
             Loc.T("Assist.Legion.AddLegion")));
-        addRemovePanel.Children.Add(CreateSmallButton(EditorTheme.DangerButton("-", (_, _) => OnDeleteLegion()),
+        listButtons.Children.Add(CreateSmallButton(EditorTheme.DangerButton("-", (_, _) => OnDeleteLegion()),
             Loc.T("Assist.Legion.DeleteLegion")));
-        Grid.SetRow(addRemovePanel, 1);
-        leftGrid.Children.Add(addRemovePanel);
+        listButtons.Children.Add(CreateSmallButton(EditorTheme.Button("▲", (_, _) => OnMoveLegion(-1)),
+            Loc.T("Assist.Legion.MoveUpTooltip", "上移（领地与单位跟着军团走，行动顺序不变）")));
+        listButtons.Children.Add(CreateSmallButton(EditorTheme.Button("▼", (_, _) => OnMoveLegion(+1)),
+            Loc.T("Assist.Legion.MoveDownTooltip", "下移（领地与单位跟着军团走，行动顺序不变）")));
+        Grid.SetRow(listButtons, 1);
+        leftGrid.Children.Add(listButtons);
 
         var leftPanel = EditorTheme.Panel(new Thickness(0, 0, 1, 0));
         leftPanel.Child = leftGrid;
@@ -242,7 +288,7 @@ public sealed class LegionSettingWindow : Window
         button.Padding = new Thickness(0, 3, 0, 3);
         button.FontSize = 14;
         button.FontWeight = FontWeights.Bold;
-        button.Margin = new Thickness(4, 0, 4, 0);
+        button.Margin = new Thickness(3, 0, 3, 0);
         button.ToolTip = tooltip;
         return button;
     }
@@ -259,12 +305,12 @@ public sealed class LegionSettingWindow : Window
         foreach (var def in FieldDefs)
         {
             string label = LabelOf(def);
-            var box = new TextBox { IsEnabled = false };
+            var box = new TextBox { IsEnabled = false, ToolTip = Loc.T(def.TipKey ?? def.LabelKey) };
+            box.TextChanged += (_, _) => MarkDirty();
             UIElement content;
 
             if (def.FieldName == ColorFieldKey)
             {
-                box.ToolTip = Loc.T("Assist.Legion.ColorHexTooltip");
                 box.TextChanged += (_, _) => UpdateColorPreview();
 
                 var colorRow = new Grid();
@@ -316,19 +362,18 @@ public sealed class LegionSettingWindow : Window
             }
             else
             {
-                box.ToolTip = label;
                 content = box;
             }
 
             _fieldBoxes[def.FieldName] = box;
-            _editorPanel.Children.Add(EditorTheme.FormRow(label, content, 100));
+            _editorPanel.Children.Add(EditorTheme.FormRow(label, content, 110));
         }
     }
 
     /// <summary>
     /// 弹出国家选择菜单：首行是搜索栏，下方是按 ID 排序的国家列表（ID - 名称）。
     /// 国家名取 string table 的 <c>country_{id}</c>，不取 CountrySettings.json 的 Name。
-    /// 回车 / 双击确认后回填到目标输入框（会触发既有的写回逻辑）。
+    /// 回车 / 双击确认后回填到目标输入框（之后照常按 Enter / 应用提交）。
     /// </summary>
     private void ShowCountryPicker(Button anchor, TextBox target)
     {
@@ -336,7 +381,6 @@ public sealed class LegionSettingWindow : Window
             .OrderBy(c => c.Id)
             .ToList();
 
-        // 显示名取 string table 的 country_{id}，不取 CountrySettings.json 的 Name
         var displayNames = new Dictionary<int, string>();
         foreach (var c in countries)
         {
@@ -390,7 +434,7 @@ public sealed class LegionSettingWindow : Window
 
             if (listBox.SelectedItem is ListBoxItem item && item.Tag is int id)
             {
-                target.Text = id.ToString();
+                target.Text = id.ToString(CultureInfo.InvariantCulture);
                 popup.IsOpen = false;
             }
         }
@@ -452,14 +496,7 @@ public sealed class LegionSettingWindow : Window
 
     /// <summary>
     /// 批量操作栏：一个共用的数值输入框 + 三个"统一"按钮 + 两个直接执行的按钮。
-    /// <para>
-    /// 这一栏作用于【所有军团】，与右侧编辑面板（只改当前选中的那一个）语义不同，
-    /// 所以放在编辑区之外、底部按钮栏之上，免得误以为是在改选中的军团。
-    /// </para>
-    /// <para>
-    /// 经济/工业/科技共用一个输入框：三者语义相同（把某个字段统一成同一个值），
-    /// 分开三个框反而更啰嗦。
-    /// </para>
+    /// 这一栏作用于【所有军团】，与右侧编辑面板（只改当前选中的那一个）语义不同，所以放在编辑区之外。
     /// </summary>
     private Border CreateBatchBar()
     {
@@ -491,11 +528,11 @@ public sealed class LegionSettingWindow : Window
         }
 
         AddBatchButton(Loc.T("Assist.Legion.UnifyEconomy"),
-            () => ApplyBatchValue(Loc.T("Assist.Legion.Economy"), _modifier.SetAllLegionsEconomy));
+            () => ApplyBatchValue(Loc.T("Assist.Legion.Economy"), Module.SetAllLegionsEconomy));
         AddBatchButton(Loc.T("Assist.Legion.UnifyIndustry"),
-            () => ApplyBatchValue(Loc.T("Assist.Legion.Industry"), _modifier.SetAllLegionsIndustry));
+            () => ApplyBatchValue(Loc.T("Assist.Legion.Industry"), Module.SetAllLegionsIndustry));
         AddBatchButton(Loc.T("Assist.Legion.UnifyTech"),
-            () => ApplyBatchValue(Loc.T("Assist.Legion.Tech"), _modifier.SetAllLegionsTech));
+            () => ApplyBatchValue(Loc.T("Assist.Legion.Tech"), Module.SetAllLegionsTech));
         AddBatchButton(Loc.T("Assist.Legion.RandomizeLevels"), OnRandomizeAllLegionLevels);
         AddBatchButton(Loc.T("Assist.Legion.ApplyDefaultColors"), OnApplyDefaultColors);
 
@@ -509,82 +546,15 @@ public sealed class LegionSettingWindow : Window
         };
     }
 
-    /// <summary>
-    /// 把批量输入框里的整数应用到所有军团的指定字段。
-    /// </summary>
-    private void ApplyBatchValue(string fieldLabel, Func<int, ModifierResult> apply)
-    {
-        if (!int.TryParse(_batchValueBox.Text.Trim(), out int value))
-        {
-            MessageBox.Show(
-                Loc.F("Assist.Legion.BatchNeedInteger", fieldLabel),
-                Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information);
-            _batchValueBox.Focus();
-            return;
-        }
-
-        var result = apply(value);
-        if (!result.Success)
-        {
-            MessageBox.Show(result.Message ?? Loc.F("Assist.Legion.UnifyFailed", fieldLabel), Loc.T("Common.Error"),
-                MessageBoxButton.OK, MessageBoxImage.Error);
-            return;
-        }
-
-        ReloadAfterBatchChange();
-    }
-
-    private void OnRandomizeAllLegionLevels()
-    {
-        var confirm = MessageBox.Show(
-            Loc.T("Assist.Legion.RandomizeConfirm"),
-            Loc.T("Common.Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (confirm != MessageBoxResult.Yes) return;
-
-        var result = _modifier.RandomizeAllLegionLevels();
-        if (!result.Success)
-        {
-            MessageBox.Show(result.Message ?? Loc.T("Assist.Legion.RandomizeFailed"), Loc.T("Common.Error"),
-                MessageBoxButton.OK, MessageBoxImage.Error);
-            return;
-        }
-
-        ReloadAfterBatchChange();
-    }
-
-    private void OnApplyDefaultColors()
-    {
-        var result = _modifier.ApplyDefaultColorsToAllLegions();
-        if (!result.Success)
-        {
-            MessageBox.Show(result.Message ?? Loc.T("Assist.Legion.ApplyDefaultColorsFailed"), Loc.T("Common.Error"),
-                MessageBoxButton.OK, MessageBoxImage.Error);
-            return;
-        }
-
-        ReloadAfterBatchChange();
-    }
-
-    /// <summary>
-    /// 批量操作后整体刷新。
-    /// <para>
-    /// 必须重载整张列表，而不是只刷当前项：这些操作一次性改动所有军团，
-    /// 而编辑面板只绑定"当前选中"的那一个，不重载的话其它项显示的还是旧值
-    /// （颜色类操作尤其明显 —— 左侧列表的色块全都得跟着变）。
-    /// 顺便尽量保住原来的选中位置。
-    /// </para>
-    /// </summary>
-    private void ReloadAfterBatchChange()
-    {
-        int keep = _selectedIndex;
-        if (keep < 0 || keep >= _mapData.Legions.Count) keep = 0;
-
-        ReloadLegionList(keep);
-        DataModified?.Invoke(this, EventArgs.Empty);
-    }
-
     private Border CreateButtonBar()
     {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        Grid.SetColumn(_status, 0);
+        grid.Children.Add(_status);
+
         var panel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -592,9 +562,16 @@ public sealed class LegionSettingWindow : Window
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        panel.Children.Add(CreateBarButton(EditorTheme.Button(Loc.T("Common.Reset"), (_, _) => ReloadSelected())));
-        panel.Children.Add(CreateBarButton(EditorTheme.PrimaryButton(Loc.T("Common.Apply"), (_, _) => ApplyToSelected())));
+        var reset = CreateBarButton(EditorTheme.Button(Loc.T("Common.Reset"), (_, _) => RevertPending()));
+        reset.ToolTip = Loc.T("Assist.Legion.ResetTooltip", "撤回未提交的修改（Esc）");
+        panel.Children.Add(reset);
+        _applyButton = CreateBarButton(EditorTheme.PrimaryButton(Loc.T("Common.Apply"), (_, _) => CommitPending()));
+        _applyButton.ToolTip = Loc.T("Assist.Legion.ApplyTooltip", "提交当前军团的修改（Enter）");
+        _applyButton.IsEnabled = false;
+        panel.Children.Add(_applyButton);
         panel.Children.Add(CreateBarButton(EditorTheme.Button(Loc.T("Common.Close"), (_, _) => Close())));
+        Grid.SetColumn(panel, 1);
+        grid.Children.Add(panel);
 
         return new Border
         {
@@ -602,7 +579,7 @@ public sealed class LegionSettingWindow : Window
             BorderBrush = EditorTheme.Border,
             BorderThickness = new Thickness(0, 1, 0, 0),
             Padding = new Thickness(12, 10, 12, 10),
-            Child = panel
+            Child = grid
         };
     }
 
@@ -613,27 +590,51 @@ public sealed class LegionSettingWindow : Window
         return button;
     }
 
-    // -------------------------------------------------------------- 数据
+    // -------------------------------------------------------------- 列表
 
-    private void LoadLegionList()
+    /// <summary>重新填充列表并选中指定项（越界时就近选择）。</summary>
+    private void ReloadLegionList(int selectIndex)
     {
         _isSyncing = true;
-        _legionListBox.Items.Clear();
+        try
+        {
+            _legionListBox.Items.Clear();
+            for (int i = 0; i < Map.Legions.Count; i++)
+                _legionListBox.Items.Add(CreateLegionListItem(i, Map.Legions[i]));
 
-        for (int i = 0; i < _mapData.Legions.Count; i++)
-            _legionListBox.Items.Add(CreateLegionListItem(i, _mapData.Legions[i]));
+            if (_legionListBox.Items.Count > 0)
+            {
+                _legionListBox.SelectedIndex = Math.Clamp(selectIndex, 0, _legionListBox.Items.Count - 1);
+                _legionListBox.ScrollIntoView(_legionListBox.SelectedItem);
+            }
+        }
+        finally
+        {
+            _isSyncing = false;
+        }
+        ShowSelected();
+    }
 
-        _isSyncing = false;
-
-        if (_legionListBox.Items.Count > 0)
-            _legionListBox.SelectedIndex = 0;
-        else
-            SetEditorEnabled(false);
+    /// <summary>只重建列表项（保留选中项与输入框里未提交的内容），用于别处改了军团而本窗口有未提交改动时。</summary>
+    private void RefreshListItems()
+    {
+        _isSyncing = true;
+        try
+        {
+            int keep = _legionListBox.SelectedIndex;
+            _legionListBox.Items.Clear();
+            for (int i = 0; i < Map.Legions.Count; i++)
+                _legionListBox.Items.Add(CreateLegionListItem(i, Map.Legions[i]));
+            if (keep >= 0 && keep < _legionListBox.Items.Count) _legionListBox.SelectedIndex = keep;
+        }
+        finally
+        {
+            _isSyncing = false;
+        }
     }
 
     /// <summary>
-    /// 构建单个军团列表项：压缩后的颜色条 + 国旗 + 两行文本。
-    /// 第二行用 string table 里的国家名称（与 ini 配置一致）替代原先固定的"国家{id}"。
+    /// 构建单个军团列表项：压缩后的颜色条 + 国旗 + 两行文本（序号、行动顺序、国家名、阵营；玩家军团带标记）。
     /// </summary>
     private FrameworkElement CreateLegionListItem(int index, Legion legion)
     {
@@ -657,8 +658,7 @@ public sealed class LegionSettingWindow : Window
         Grid.SetColumn(colorBar, 0);
         row.Children.Add(colorBar);
 
-        // 国旗 flag_{countryId}.png
-        var flag = GetFlagImage(legion.CountryId);
+        var flag = FlagImageLoader.Load(legion.CountryId);
         FrameworkElement flagElement;
         if (flag != null)
         {
@@ -685,93 +685,74 @@ public sealed class LegionSettingWindow : Window
         Grid.SetColumn(flagElement, 1);
         row.Children.Add(flagElement);
 
-        var text = new TextBlock
+        string text = Loc.F("Assist.Legion.ListItem", index + 1, legion.ActionId,
+            WC4MapEditor.Core.Config.CountryNameProvider.Get(legion.CountryId), legion.Camp);
+        if (legion.IsPlayer) text += Loc.T("Assist.Legion.PlayerMark", "  [玩家]");
+        var label = new TextBlock
         {
-            Text = Loc.F("Assist.Legion.ListItem", index + 1, legion.ActionId, GetCountryName(legion.CountryId), legion.Camp),
+            Text = text,
             FontSize = 11,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(6, 0, 0, 0)
         };
-        Grid.SetColumn(text, 2);
-        row.Children.Add(text);
+        Grid.SetColumn(label, 2);
+        row.Children.Add(label);
 
         return row;
     }
 
-    /// <summary>
-    /// 加载国家国旗 flag_{countryId}.png。
-    /// 实际由 <see cref="FlagImageLoader"/> 完成：战术地图图集优先，文件回退。
-    /// </summary>
-    private static BitmapSource? GetFlagImage(int countryId) => FlagImageLoader.Load(countryId);
-
-    /// <summary>
-    /// 取国家名称（CountrySettings.json → string table 的 country_{id} → 国家{id}）。
-    /// 解析顺序收进 <see cref="WC4MapEditor.Core.Config.CountryNameProvider"/>，
-    /// 与 CLI 的 legion list 共用一份，避免两处各写一套。
-    /// </summary>
-    private static string GetCountryName(int countryId)
-        => WC4MapEditor.Core.Config.CountryNameProvider.Get(countryId);
-
-    /// <summary>
-    /// 新增军团。行动顺序 / 国家 ID 自动取现有最大值 +1，
-    /// 其余字段取 Legion.CreateDefault 的默认值（经济 1000 / 工业 100 / 科技 50 /
-    /// 血率 1.0 / 税率 0.1 / 颜色白色）。
-    /// </summary>
-    private void OnAddLegion()
+    private void OnLegionSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var result = _modifier.AddLegion();
-        if (!result.Success)
+        if (_isSyncing) return;
+        int target = _legionListBox.SelectedIndex;
+        if (target == _selectedIndex) return;
+
+        // 切换前自动提交；输入无效则留在当前军团
+        if (_dirty && !CommitPending())
         {
-            MessageBox.Show(result.Message ?? Loc.T("Assist.Legion.AddFailed"), Loc.T("Common.Error"),
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            _isSyncing = true;
+            _legionListBox.SelectedIndex = _selectedIndex;
+            _isSyncing = false;
             return;
         }
-
-        ReloadLegionList(_mapData.Legions.Count - 1);
-        DataModified?.Invoke(this, EventArgs.Empty);
+        ShowSelected();
     }
 
-    /// <summary>删除当前选中的军团（对齐 VB 版 "-" 按钮）</summary>
-    private void OnDeleteLegion()
+    /// <summary>把列表当前选中的军团显示到编辑面板。</summary>
+    private void ShowSelected()
     {
-        if (_selectedIndex < 0 || _selectedIndex >= _mapData.Legions.Count)
+        int index = _legionListBox.SelectedIndex;
+        _selectedIndex = index >= 0 && index < Map.Legions.Count ? index : -1;
+        SetEditorEnabled(_selectedIndex >= 0);
+
+        _isSyncing = true;
+        try
         {
-            MessageBox.Show(Loc.T("Common.SelectItemFirst"), Loc.T("Common.Hint"),
-                MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
+            _loadedText.Clear();
+            foreach (var def in FieldDefs)
+            {
+                if (!_fieldBoxes.TryGetValue(def.FieldName, out var box)) continue;
+                string text = _selectedIndex >= 0 ? FormatField(Map.Legions[_selectedIndex], def) : string.Empty;
+                box.Text = text;
+                _loadedText[def.FieldName] = text;
+            }
+        }
+        finally
+        {
+            _isSyncing = false;
         }
 
-        var confirm = MessageBox.Show(
-            Loc.F("Assist.Legion.DeleteConfirm", _selectedIndex + 1), Loc.T("Assist.Legion.DeleteConfirmTitle"),
-            MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (confirm != MessageBoxResult.Yes) return;
-
-        var result = _modifier.RemoveLegionAt(_selectedIndex);
-        if (!result.Success)
-        {
-            MessageBox.Show(result.Message ?? Loc.T("Assist.Legion.DeleteFailed"), Loc.T("Common.Error"),
-                MessageBoxButton.OK, MessageBoxImage.Error);
-            return;
-        }
-
-        ReloadLegionList(Math.Min(_selectedIndex, _mapData.Legions.Count - 1));
-        DataModified?.Invoke(this, EventArgs.Empty);
+        _dirty = false;
+        UpdateColorPreview();
+        UpdateApplyButton();
     }
 
-    /// <summary>重新加载列表并选中指定项</summary>
-    private void ReloadLegionList(int selectIndex)
+    private static string FormatField(Legion legion, FieldDef def)
     {
-        _selectedIndex = -1;
-        LoadLegionList();
-
-        if (_legionListBox.Items.Count == 0)
-        {
-            SetEditorEnabled(false);
-            return;
-        }
-
-        _legionListBox.SelectedIndex = Math.Clamp(selectIndex, 0, _legionListBox.Items.Count - 1);
-        ReloadSelected();
+        if (def.FieldName == ColorFieldKey)
+            return $"{legion.ColorR:X2}{legion.ColorG:X2}{legion.ColorB:X2}";
+        if (!LegionFields.TryGetValue(def.FieldName, out var field)) return string.Empty;
+        return Convert.ToString(field.GetValue(legion), CultureInfo.InvariantCulture) ?? string.Empty;
     }
 
     private void SetEditorEnabled(bool enabled)
@@ -780,103 +761,43 @@ public sealed class LegionSettingWindow : Window
             box.IsEnabled = enabled;
     }
 
-    private void OnLegionSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void MarkDirty()
     {
-        if (_isSyncing) return;
-        ReloadSelected();
+        if (_isSyncing || _selectedIndex < 0) return;
+        _dirty = true;
+        UpdateApplyButton();
     }
 
-    private void ReloadSelected()
+    private void UpdateApplyButton()
     {
-        int index = _legionListBox.SelectedIndex;
-        if (index < 0 || index >= _mapData.Legions.Count)
-        {
-            _selectedIndex = -1;
-            SetEditorEnabled(false);
-            return;
-        }
-
-        _selectedIndex = index;
-        SetEditorEnabled(true);
-
-        var legion = _mapData.Legions[index];
-        _isSyncing = true;
-
-        foreach (var def in FieldDefs)
-        {
-            if (!_fieldBoxes.TryGetValue(def.FieldName, out var box)) continue;
-
-            if (def.FieldName == ColorFieldKey)
-            {
-                box.Text = $"{legion.ColorR:X2}{legion.ColorG:X2}{legion.ColorB:X2}";
-                continue;
-            }
-
-            if (!LegionFields.TryGetValue(def.FieldName, out var field)) continue;
-            object? value = field.GetValue(legion);
-            box.Text = value == null
-                ? string.Empty
-                : Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
-        }
-
-        _isSyncing = false;
-        UpdateColorPreview();
+        if (_applyButton != null) _applyButton.IsEnabled = _dirty && _selectedIndex >= 0;
     }
 
-    private void UpdateColorPreview()
+    private void SetStatus(string? message, bool isError = false)
     {
-        if (!_fieldBoxes.TryGetValue(ColorFieldKey, out var box)) return;
-
-        if (TryParseColor(box.Text, out byte r, out byte g, out byte b))
-            _colorPreview.Background = new SolidColorBrush(Color.FromRgb(r, g, b));
-        else
-            _colorPreview.Background = Brushes.Transparent;
+        _status.Text = message ?? string.Empty;
+        _status.Foreground = isError ? EditorTheme.Danger : EditorTheme.TextMuted;
     }
 
-    /// <summary>打开调色板，把结果写回颜色输入框与预览</summary>
-    private void PickColor()
+    // -------------------------------------------------------------- 提交 / 撤回
+
+    /// <summary>
+    /// 提交当前军团的修改：只把用户改过的输入框写到军团的<b>当前</b>数据上（别处改过的其它字段不会被旧值覆盖），
+    /// 经军团模块校验（国家 ID / 行动顺序不能与其它军团重复）后写回，并记录撤销。
+    /// 没有改动或提交成功返回 true；输入无效返回 false 并在状态栏说明原因（数据不变）。
+    /// </summary>
+    private bool CommitPending()
     {
-        if (!_fieldBoxes.TryGetValue(ColorFieldKey, out var box)) return;
+        if (!_dirty || _selectedIndex < 0 || _selectedIndex >= Map.Legions.Count) return true;
 
-        Color initial = TryParseColor(box.Text, out byte r, out byte g, out byte b)
-            ? Color.FromRgb(r, g, b)
-            : Colors.White;
-
-        var picked = ColorPickerDialog.Pick(Window.GetWindow(this), initial);
-        if (picked == null) return;
-
-        box.Text = $"{picked.Value.R:X2}{picked.Value.G:X2}{picked.Value.B:X2}";
-        UpdateColorPreview();
-    }
-
-    private static bool TryParseColor(string? text, out byte r, out byte g, out byte b)
-    {
-        r = g = b = 0;
-        if (string.IsNullOrWhiteSpace(text)) return false;
-
-        string hex = text.Trim().TrimStart('#');
-        if (hex.Length != 6) return false;
-
-        if (!byte.TryParse(hex.AsSpan(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out r)) return false;
-        if (!byte.TryParse(hex.AsSpan(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out g)) return false;
-        if (!byte.TryParse(hex.AsSpan(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out b)) return false;
-        return true;
-    }
-
-    /// <summary>把编辑面板的输入写回当前选中的军团</summary>
-    private void ApplyToSelected()
-    {
-        if (_selectedIndex < 0 || _selectedIndex >= _mapData.Legions.Count) return;
-
-        // Legion 是值类型：先装箱修改，再整体写回
-        object boxed = _mapData.Legions[_selectedIndex];
+        object boxed = Map.Legions[_selectedIndex];
         var errors = new List<string>();
 
         foreach (var def in FieldDefs)
         {
             if (!_fieldBoxes.TryGetValue(def.FieldName, out var box)) continue;
             string text = box.Text.Trim();
-            if (text.Length == 0) continue;
+            if (_loadedText.TryGetValue(def.FieldName, out var loaded) && text == loaded.Trim()) continue;
 
             if (def.FieldName == ColorFieldKey)
             {
@@ -914,52 +835,283 @@ public sealed class LegionSettingWindow : Window
 
         if (errors.Count > 0)
         {
-            MessageBox.Show(string.Join("\n", errors), Loc.T("Common.InputError"),
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            SetStatus(string.Join("；", errors), isError: true);
+            return false;
         }
 
+        // 按列表索引写回（按 CountryId 查表的 UpdateLegion 会把改了国家 ID 的军团当成新军团插入）
+        int index = _selectedIndex;
         var updated = (Legion)boxed;
-
-        // 按列表索引写回（不能用按 CountryId 查表的 UpdateLegion，
-        // 否则改了 CountryId 就会被当成新军团插入）
-        var result = _modifier.UpdateLegionAt(_selectedIndex, updated);
+        ModifierResult result = default;
+        RunOwnChange(() => _context.Editor.RecordCollectionChange(
+            Loc.F("Assist.Legion.UndoEdit", index + 1), Map.Legions, () => result = Module.UpdateLegionAt(index, updated)));
         if (!result.Success)
         {
-            MessageBox.Show(result.Message ?? Loc.T("Assist.Legion.ApplyFailed"), Loc.T("Common.Error"),
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            SetStatus(result.Message ?? Loc.T("Assist.Legion.ApplyFailed"), isError: true);
+            return false;
+        }
+
+        _context.NotifyChanged(EditorDataScope.Legions);
+        RefreshListItems();
+        ShowSelected();
+        SetStatus(Loc.T("Assist.Legion.Applied", "已应用"));
+        return true;
+    }
+
+    /// <summary>撤回未提交的修改（重新载入当前军团）。</summary>
+    private void RevertPending()
+    {
+        if (_selectedIndex < 0) return;
+        bool wasDirty = _dirty;
+        ShowSelected();
+        if (wasDirty) SetStatus(Loc.T("Assist.Legion.Reverted", "已撤回未提交的修改"));
+    }
+
+    /// <summary>执行本窗口自己发起的军团改动：期间的集合变更通知不当作"别处改动"。</summary>
+    private void RunOwnChange(Action change)
+    {
+        _isApplying = true;
+        try { change(); }
+        finally { _isApplying = false; }
+    }
+
+    /// <summary>
+    /// 军团列表在别处被改了（C/U/R/P 键、撤销 / 重做、脚本……）：合并成一次刷新。
+    /// 只是字段被改（替换元素）且有未提交改动时，只刷新列表项，输入框保持用户的内容
+    /// （提交时只写改过的字段，不会把别处的修改覆盖回去）；否则整体重载 ——
+    /// 增删 / 移动后军团序号可能已变，未提交的改动无法再对应到原来的军团，只能撤回。
+    /// </summary>
+    private void OnLegionsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (_isApplying) return;
+        _structuralChangeQueued |= e.Action != NotifyCollectionChangedAction.Replace;
+        if (_reloadQueued) return;
+        _reloadQueued = true;
+        Dispatcher.BeginInvoke(() =>
+        {
+            bool structural = _structuralChangeQueued;
+            _reloadQueued = false;
+            _structuralChangeQueued = false;
+
+            if (_dirty && !structural)
+            {
+                RefreshListItems();
+                return;
+            }
+            bool dropped = _dirty;
+            ReloadLegionList(_selectedIndex);
+            if (dropped) SetStatus(Loc.T("Assist.Legion.PendingDropped", "军团列表在别处被增删或调整了顺序，未提交的修改已撤回"), isError: true);
+        }, DispatcherPriority.Background);
+    }
+
+    // -------------------------------------------------------------- 增删 / 排序 / 批量
+
+    /// <summary>新增军团：行动顺序 / 国家 ID 取现有最大值 +1，由 AI 控制，其余取默认值。</summary>
+    private void OnAddLegion()
+    {
+        if (!CommitPending()) return;
+        ModifierResult result = default;
+        RunOwnChange(() => _context.Editor.RecordCollectionChange(Loc.T("Assist.Legion.UndoAdd", "新增军团"),
+            Map.Legions, () => result = Module.AddLegion()));
+        if (!result.Success)
+        {
+            SetStatus(result.Message ?? Loc.T("Assist.Legion.AddFailed"), isError: true);
             return;
         }
 
-        RefreshListItem(_selectedIndex, updated);
-        DataModified?.Invoke(this, EventArgs.Empty);
+        _context.NotifyChanged(EditorDataScope.Legions);
+        ReloadLegionList(Map.Legions.Count - 1);
+        SetStatus(result.Message);
     }
 
-    private void RefreshListItem(int index, Legion legion)
+    /// <summary>
+    /// 删除当前军团（对齐 VB "-" 按钮）。确认框里列出受影响的格子与单位数量：
+    /// 被删军团的归属与所属军团清空，后面军团的序号整体前移（军团模块统一改写），可撤销。
+    /// </summary>
+    private void OnDeleteLegion()
     {
-        if (index < 0 || index >= _legionListBox.Items.Count) return;
+        if (_selectedIndex < 0 || _selectedIndex >= Map.Legions.Count)
+        {
+            SetStatus(Loc.T("Common.SelectItemFirst"), isError: true);
+            return;
+        }
 
-        // 直接重建该项：CountryId 可能已变，国旗需要一起换
-        bool wasSelected = _legionListBox.SelectedIndex == index;
+        int index = _selectedIndex;
+        var refs = Module.CountReferences(index);
+        var confirm = MessageBox.Show(this,
+            Loc.F("Assist.Legion.DeleteConfirm", index + 1) + "\n\n" +
+            Loc.F("Assist.Legion.DeleteImpact", refs.Cells, refs.Units, refs.Others),
+            Loc.T("Assist.Legion.DeleteConfirmTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes) return;
 
-        _isSyncing = true;
-        _legionListBox.Items[index] = CreateLegionListItem(index, legion);
-        if (wasSelected) _legionListBox.SelectedIndex = index;
-        _isSyncing = false;
+        _dirty = false;
+        ModifierResult result = default;
+        RunOwnChange(() => _context.Editor.RecordEntitiesSnapshot(Loc.F("Assist.Legion.UndoDelete", index + 1),
+            () => result = Module.RemoveLegionAt(index)));
+        if (!result.Success)
+        {
+            SetStatus(result.Message ?? Loc.T("Assist.Legion.DeleteFailed"), isError: true);
+            return;
+        }
+
+        _context.NotifyChanged(EditorDataScope.Legions | EditorDataScope.Belongs | EditorDataScope.Entities);
+        ReloadLegionList(Math.Min(index, Map.Legions.Count - 1));
+        SetStatus(result.Message);
     }
+
+    /// <summary>▲ / ▼：与相邻军团交换位置，归属与所有实体的所属军团序号随之改写，行动顺序不变。</summary>
+    private void OnMoveLegion(int step)
+    {
+        int from = _selectedIndex;
+        int to = from + step;
+        if (from < 0 || to < 0 || to >= Map.Legions.Count) return;
+        if (!CommitPending()) return;
+
+        ModifierResult result = default;
+        RunOwnChange(() => _context.Editor.RecordEntitiesSnapshot(Loc.F("Assist.Legion.UndoMove", from + 1, to + 1),
+            () => result = Module.MoveLegion(from, to, renumberActionIds: false)));
+        if (!result.Success)
+        {
+            SetStatus(result.Message, isError: true);
+            return;
+        }
+
+        _context.NotifyChanged(EditorDataScope.Legions | EditorDataScope.Belongs | EditorDataScope.Entities);
+        ReloadLegionList(to);
+        SetStatus(result.Message);
+    }
+
+    /// <summary>把批量输入框里的整数应用到所有军团的指定字段（可撤销）。</summary>
+    private void ApplyBatchValue(string fieldLabel, Func<int, ModifierResult> apply)
+    {
+        if (!int.TryParse(_batchValueBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+        {
+            SetStatus(Loc.F("Assist.Legion.BatchNeedInteger", fieldLabel), isError: true);
+            _batchValueBox.Focus();
+            return;
+        }
+
+        RunLegionBatch(Loc.F("Assist.Legion.UndoUnify", fieldLabel, value), () => apply(value),
+            Loc.F("Assist.Legion.UnifyFailed", fieldLabel));
+    }
+
+    private void OnRandomizeAllLegionLevels()
+    {
+        var confirm = MessageBox.Show(this,
+            Loc.T("Assist.Legion.RandomizeConfirm"),
+            Loc.T("Common.Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes) return;
+
+        RunLegionBatch(Loc.T("Assist.Legion.RandomizeLevels"), Module.RandomizeAllLegionLevels,
+            Loc.T("Assist.Legion.RandomizeFailed"));
+    }
+
+    private void OnApplyDefaultColors()
+        => RunLegionBatch(Loc.T("Assist.Legion.ApplyDefaultColors"), Module.ApplyDefaultColorsToAllLegions,
+            Loc.T("Assist.Legion.ApplyDefaultColorsFailed"));
+
+    /// <summary>
+    /// 作用于所有军团的批量操作：先提交当前军团的改动，按军团列表快照记录撤销，然后整体刷新
+    /// （颜色类操作尤其需要 —— 左侧列表的色块全都得跟着变），尽量保住原来的选中位置。
+    /// </summary>
+    private void RunLegionBatch(string undoText, Func<ModifierResult> operation, string failText)
+    {
+        if (!CommitPending()) return;
+        ModifierResult result = default;
+        RunOwnChange(() => _context.Editor.RecordCollectionChange(undoText, Map.Legions, () => result = operation()));
+        if (!result.Success)
+        {
+            SetStatus(result.Message ?? failText, isError: true);
+            return;
+        }
+
+        _context.NotifyChanged(EditorDataScope.Legions);
+        ReloadLegionList(_selectedIndex);
+        SetStatus(result.Message);
+    }
+
+    // -------------------------------------------------------------- 颜色
+
+    private void UpdateColorPreview()
+    {
+        if (!_fieldBoxes.TryGetValue(ColorFieldKey, out var box)) return;
+
+        if (TryParseColor(box.Text, out byte r, out byte g, out byte b))
+            _colorPreview.Background = new SolidColorBrush(Color.FromRgb(r, g, b));
+        else
+            _colorPreview.Background = Brushes.Transparent;
+    }
+
+    /// <summary>打开调色板，把结果写回颜色输入框与预览（之后照常提交）</summary>
+    private void PickColor()
+    {
+        if (!_fieldBoxes.TryGetValue(ColorFieldKey, out var box) || !box.IsEnabled) return;
+
+        Color initial = TryParseColor(box.Text, out byte r, out byte g, out byte b)
+            ? Color.FromRgb(r, g, b)
+            : Colors.White;
+
+        var picked = ColorPickerDialog.Pick(this, initial);
+        if (picked == null) return;
+
+        box.Text = $"{picked.Value.R:X2}{picked.Value.G:X2}{picked.Value.B:X2}";
+    }
+
+    private static bool TryParseColor(string? text, out byte r, out byte g, out byte b)
+    {
+        r = g = b = 0;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        string hex = text.Trim().TrimStart('#');
+        if (hex.Length != 6) return false;
+
+        if (!byte.TryParse(hex.AsSpan(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out r)) return false;
+        if (!byte.TryParse(hex.AsSpan(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out g)) return false;
+        if (!byte.TryParse(hex.AsSpan(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out b)) return false;
+        return true;
+    }
+
+    // -------------------------------------------------------------- 键盘 / 关闭
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         switch (e.Key)
         {
             case Key.Escape:
-                Close();
                 e.Handled = true;
+                if (_dirty) RevertPending();
+                else Close();
                 break;
-            case Key.Enter:
-                ApplyToSelected();
+            case Key.Enter when Keyboard.Modifiers == ModifierKeys.None:
                 e.Handled = true;
+                CommitPending();
                 break;
         }
+    }
+
+    /// <summary>
+    /// 关闭时提交有效的改动（对齐 VB 关闭按钮自动保存）。输入无效时询问：
+    /// 放弃这些修改并关闭，或者留在窗口里改正。
+    /// </summary>
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        if (_dirty && !CommitPending())
+        {
+            var answer = MessageBox.Show(this,
+                Loc.F("Assist.Legion.DiscardOnClose", _status.Text),
+                Loc.T("Assist.Legion.Title"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (answer != MessageBoxResult.Yes)
+            {
+                e.Cancel = true;
+                return;
+            }
+        }
+        base.OnClosing(e);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        if (_context != null) Map.Legions.CollectionChanged -= OnLegionsCollectionChanged;
+        base.OnClosed(e);
     }
 }

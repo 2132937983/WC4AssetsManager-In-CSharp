@@ -35,7 +35,7 @@ using SkiaSharp.Views.Desktop;
 
 namespace WC4MapEditor.GUI.Views;
 
-public abstract class RenderSceneBase : UserControl, IDisposable
+public abstract partial class RenderSceneBase : UserControl, IDisposable
 {
     protected readonly MainWindow Window;
     private MainRender _renderEngine = null!;
@@ -88,48 +88,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         return ext switch
         {
             ".bin" or ".dat" => WorldParser.LoadFromFile(filePath),
-            ".btl" => LoadBtlByFileName(filePath),
+            ".btl" => LoadBtlByHeader(filePath),
             _ => null
         };
-    }
-
-    protected static bool SaveMapDataByFileType(MapData mapData, string filePath)
-    {
-        try
-        {
-            var ext = System.IO.Path.GetExtension(filePath).ToLowerInvariant();
-            switch (ext)
-            {
-                case ".bin":
-                case ".dat":
-                    WorldParser.SaveToFile(mapData, filePath);
-                    return true;
-                case ".btl":
-                    var name = System.IO.Path.GetFileNameWithoutExtension(filePath).ToLowerInvariant();
-                    if (name.StartsWith("conquest"))
-                        return ConquestParser.SaveFromMapData(mapData, filePath);
-                    return StageParser.SaveFromMapData(mapData, filePath);
-                default:
-                    return false;
-            }
-        }
-        catch (Exception ex)
-        {
-            // 关键：不要在这里把异常吞掉！调用方（OnQuickSave / 保存对话框）靠捕获异常
-            // 才能把"文件被 Excel 等程序锁定 / 无写权限 / 磁盘空间不足"等真实原因展示出来。
-            // 之前 return false 导致外层 catch 永远不触发，界面只显示无信息的"保存失败！"，无从排查。
-            System.Diagnostics.Trace.WriteLine($"[RenderSceneBase] 保存失败: {filePath}{Environment.NewLine}" +
-                                               $"  {ex.GetType().Name}: {ex.Message}");
-            throw;
-        }
-    }
-
-    private static MapData? LoadBtlByFileName(string filePath)
-    {
-        var name = System.IO.Path.GetFileNameWithoutExtension(filePath).ToLowerInvariant();
-        if (name.StartsWith("conquest"))
-            return ConquestParser.LoadToMapData(filePath);
-        return StageParser.LoadToMapData(filePath);
     }
 
     protected RenderSceneBase(MainWindow window)
@@ -188,6 +149,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         var redoButton = CreateToolBarButton(Loc.T("Common.Redo"));
         redoButton.Click += RedoButton_Click;
         titlePanel.Children.Add(redoButton);
+        AttachUndoRedoButtons(undoButton, redoButton);
 
         titlePanel.Children.Add(CreateSeparator());
 
@@ -258,11 +220,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         var closeButton = CreateToolBarButton("✕", 28);
         closeButton.Foreground = Brushes.Red;
-        closeButton.Click += (s, e) => Window.CloseApplication();
+        closeButton.Click += CloseButton_Click;
         rightPanel.Children.Add(closeButton);
 
         titleBar.Children.Add(titlePanel);
         titleBar.Children.Add(rightPanel);
+        BuildSceneStatusArea(titleBar, titlePanel, rightPanel);
         _rootGrid.Children.Add(titleBar);
 
         // 菜单栏空白区域拖动窗口
@@ -304,7 +267,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             BorderThickness = new Thickness(0),
             Cursor = Cursors.Hand,
             Padding = new Thickness(6, 4, 6, 4),
-            Margin = new Thickness(2, 0, 2, 0)
+            Margin = new Thickness(2, 0, 2, 0),
+            // 不抢键盘焦点：否则点过按钮后空格 / Enter 会再次点击它，而不是交给地图（切换模式等）
+            Focusable = false
         };
 
         if (width > 0)
@@ -333,7 +298,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _renderEngine = new MainRender(RenderEngineFactory.Create());
         Debug.WriteLine($"[Timing] 创建渲染引擎: {sw.ElapsedMilliseconds}ms"); sw.Restart();
 
-        _mapData = LoadMapData();
+        _mapData = LoadInitialMapData();
         Debug.WriteLine($"[Timing] LoadMapData: {sw.ElapsedMilliseconds}ms"); sw.Restart();
         if (_mapData == null)
         {
@@ -391,11 +356,6 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _editModeManager.SetUndoManager(_fileStateManager.UndoManager);
         _editModeManager.SetDialogService(new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!));
         _editModeManager.SetViewLayerImageProvider(_renderEngine.ViewLayerImageProvider);
-        // 【临时诊断】省份 P 键识别时导出灰度图与界线掩码，便于人工核对识别效果。
-        // 挂钩在 modifier 实例上，而 EditModeManager.Initialize 只转调 modifier.Initialize、
-        // 不会重建实例，所以这里设一次即可（新建地图后依然有效）。
-        // 不需要时：删掉这一行 + ExportProvinceDebugImages / SaveGrayPng 两个方法。
-        _editModeManager.GetModifier<ProvinceModifier>()?.DebugSink = ExportProvinceDebugImages;
         _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(_commandManager));
         _editModeManager.SetRecognizeTerrainCallback(RecognizeTerrainFromViewLayer);
         _editModeManager.SetGeoCalculateCallback(OnGeoCalculateAsync);
@@ -415,13 +375,13 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _editModeManager.DomainToggled += OnDomainToggled;
         _editModeManager.BuildingNamesToggled += OnBuildingNamesToggled;
         _editModeManager.CaptureLegionScreenshotRequested += OnCaptureLegionScreenshotRequested;
-        _editModeManager.OpenLegionSettingRequested += OnOpenLegionSettingRequested;
-        _editModeManager.OpenLegionListRequested += OnOpenLegionListRequested;
-        _editModeManager.OpenHeaderSettingRequested += OnOpenHeaderSettingRequested;
-        _editModeManager.UpdateConquerSettingsRequested += OnUpdateConquerSettingsRequested;
         _editModeManager.MoveCameraToHexRequested += OnMoveCameraToHexRequested;
         _editModeManager.BuildingMoveToolToggled += OnBuildingMoveToolToggled;
         _editModeManager.RecognizeTextBuildingsRequested += OnRecognizeTextBuildingsRequested;
+
+        // 通用编辑窗口：模式按种类请求（EditorKinds），带 [AssistEditor] 标注的窗口类自动接上
+        _assistEditors ??= new Services.AssistEditorHost(CreateAssistEditorContext, () => Window);
+        _editModeManager.EditorHost = _assistEditors.Open;
 
         _fileStateManager.OpenFile(_mapData, _mapData.FilePath, SceneType);
         _editModeManager.SetSceneType(SceneType);
@@ -434,51 +394,15 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         _keyboardManager.KeyDown += OnKeyboardManagerKeyDown;
 
-        // 注册错误恢复策略
-        ErrorCollector.Instance.RegisterStrategy(new ModeSwitchRecoveryStrategy(_editModeManager));
-        ErrorCollector.Instance.RegisterStrategy(new KeyboardRecoveryStrategy(_keyboardManager));
-        ErrorCollector.Instance.ErrorOccurred += (s, e) =>
-        {
-            _debugConsole.WriteLine(Loc.F("Render.Console.Error", e.Severity, e.Message));
-        };
-        ErrorCollector.Instance.ErrorRecovered += (s, e) =>
-        {
-            if (e.Recovered)
-                _debugConsole.WriteLine(Loc.F("Render.Console.Recovered", e.RecoveryAction));
-        };
-
-        _debugConsole.VisibilityChanged += isVisible =>
-        {
-            // 控制台已改成独立弹窗，不再盖住主窗口，所以主窗口标题栏保持可见；
-            // 只把地图上的帮助文本让出来。
-            _renderEngine.ShowHelp = !isVisible;
-            _skElement.InvalidateVisual();
-        };
         _commandManager.SetContext(new CommandContext { MapData = _mapData });
         // 只依赖 ICommandHost 抽象：具体实现由 DebugConsole 决定（默认内置实现，可由 DI 替换）
         var commandHost = _debugConsole.CommandHost;
         commandHost.SetOutput(new Core.Commands.DebugConsoleWriter(_debugConsole));
-        commandHost.DataModified += () =>
-        {
-            _editModeManager_DataModifiedFromUndo();
-            _skElement.InvalidateVisual();
-        };
+        // 错误恢复策略、控制台显隐、命令改数据、字符串表重载（卸载时全部解除）
+        RegisterSceneEventHandlers(commandHost);
         RegisterAiBridge();
-        Core.Config.ConfigManager.StringTableChanged += () =>
-        {
-            _renderEngine.ReloadBuildingCityNames();
-            _skElement.InvalidateVisual();
-        };
-        _commandManager.RegisterCommand("undo", _ =>
-        {
-            if (_fileStateManager.Undo()) { _editModeManager_DataModifiedFromUndo(); }
-            else { _debugConsole.WriteLine(Loc.T("Render.Console.CannotUndo")); }
-        }, "撤销上一步操作");
-        _commandManager.RegisterCommand("redo", _ =>
-        {
-            if (_fileStateManager.Redo()) { _editModeManager_DataModifiedFromUndo(); }
-            else { _debugConsole.WriteLine(Loc.T("Render.Console.CannotRedo")); }
-        }, "重做上一步操作");
+        _commandManager.RegisterCommand("undo", _ => PerformUndo(), "撤销上一步操作");
+        _commandManager.RegisterCommand("redo", _ => PerformRedo(), "重做上一步操作");
         RegisterTerrainCliCommands();
         RegisterCameraCliCommands();
         RegisterProvinceCliCommands();
@@ -520,6 +444,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         // 若本场景的初始模式与切换前相同（同类场景之间切换时很常见），事件不会触发，
         // 选区渲染就会一直停留在关闭状态，表现为"切换场景后选区高光消失"。
         UpdateRenderLayersByMode(_editModeManager.CurrentMode);
+        AttachSceneUx();
+        ReportSceneMemory();
 
         _skElement.InvalidateVisual();
         Debug.WriteLine($"[Timing] ===== OnLoaded 总计: {swTotal.ElapsedMilliseconds}ms =====");
@@ -544,8 +470,10 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _hexSelector.SelectionRectChanged -= OnSelectionRectChanged;
         _keyboardManager.UnregisterBinding("EscBack");
         _keyboardManager.UnregisterBinding("ToggleConsole");
+        _keyboardManager.UnregisterBinding("Screenshot");
         _keyboardManager.UnregisterBinding("QuickSave");
         UnregisterEditModeKeyBindings();
+        DetachSceneUx();
         _keyboardManager.KeyDown -= OnKeyboardManagerKeyDown;
         _editModeManager.ModeChanged -= OnEditModeChanged;
         _editModeManager.StatusMessageChanged -= OnEditModeStatusMessageChanged;
@@ -556,13 +484,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _editModeManager.DomainToggled -= OnDomainToggled;
         _editModeManager.BuildingNamesToggled -= OnBuildingNamesToggled;
         _editModeManager.CaptureLegionScreenshotRequested -= OnCaptureLegionScreenshotRequested;
-        _editModeManager.OpenLegionSettingRequested -= OnOpenLegionSettingRequested;
-        _editModeManager.OpenLegionListRequested -= OnOpenLegionListRequested;
-        _editModeManager.OpenHeaderSettingRequested -= OnOpenHeaderSettingRequested;
-        _editModeManager.UpdateConquerSettingsRequested -= OnUpdateConquerSettingsRequested;
         _editModeManager.MoveCameraToHexRequested -= OnMoveCameraToHexRequested;
         _editModeManager.BuildingMoveToolToggled -= OnBuildingMoveToolToggled;
         _editModeManager.RecognizeTextBuildingsRequested -= OnRecognizeTextBuildingsRequested;
+        if (_assistEditors != null && _editModeManager.EditorHost == (Func<EditorRequest, bool>)_assistEditors.Open)
+            _editModeManager.EditorHost = null;
+        _assistEditors?.CloseAll();
         _editModeManager.Deinitialize();
 
         RenderSceneManager.Instance.SceneListChanged -= OnSceneListChanged;
@@ -582,6 +509,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
         _renderEngine.UpdateHelpFadeAnimation();
         _renderEngine.Render(canvas, _mapData, _camera);
+        AfterScenePaint();
     }
 
     #region 相机控制
@@ -633,7 +561,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         _keyboardManager.SetModifierState(GetCurrentKeyModifiers());
-        _keyboardManager.ProcessKeyDown((int)key);
+        if (!TryHandleSceneKeyDown(key, e.IsRepeat))
+            _keyboardManager.ProcessKeyDown((int)key);
         e.Handled = true;
     }
 
@@ -641,6 +570,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         _keyboardManager.SetModifierState(GetCurrentKeyModifiers());
+        HandleSceneKeyUp(key);
         _keyboardManager.ProcessKeyUp((int)key);
         e.Handled = true;
     }
@@ -654,7 +584,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         _keyboardManager.SetModifierState(GetCurrentKeyModifiers());
-        _keyboardManager.ProcessKeyDown((int)key);
+        if (!TryHandleSceneKeyDown(key, e.IsRepeat))
+            _keyboardManager.ProcessKeyDown((int)key);
         base.OnKeyDown(e);
     }
 
@@ -662,6 +593,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         _keyboardManager.SetModifierState(GetCurrentKeyModifiers());
+        HandleSceneKeyUp(key);
         _keyboardManager.ProcessKeyUp((int)key);
         base.OnKeyUp(e);
     }
@@ -751,46 +683,6 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         await CaptureMapScreenshotAsync();
     }
 
-    private void OnQuickSave()
-    {
-        if (_mapData == null) return;
-
-        // 如果已有文件路径，直接保存；否则弹出保存对话框
-        if (!string.IsNullOrEmpty(_mapData.FilePath))
-        {
-            try
-            {
-                if (SaveMapDataByFileType(_mapData, _mapData.FilePath))
-                {
-                    _fileStateManager.MarkSaved();
-
-                    // 已写回原始文件，场景的磁盘缓存就过期了：不失效的话，
-                    // 切走再切回来会加载到比原文件更旧的缓存，看起来像"保存没生效"。
-                    if (_sceneId >= 0)
-                        RenderSceneManager.Instance.InvalidateSceneCache(_sceneId);
-
-                    MessageBox.Show(Loc.F("Render.Save.SavedTo", _mapData.FilePath), Loc.T("Render.Save.SuccessTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
-                    _debugConsole.WriteLine(Loc.F("Render.Console.SavedTo", _mapData.FilePath));
-                }
-                else
-                {
-                    MessageBox.Show(Loc.T("Render.Save.Failed"), Loc.T("Render.Save.ErrorTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
-                    _debugConsole.WriteLine(Loc.T("Render.Console.SaveFailed"));
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(Loc.F("Render.Save.FailedWithReason", ex.Message), Loc.T("Render.Save.ErrorTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
-                _debugConsole.WriteLine(Loc.F("Render.Console.SaveFailedWithReason", ex.Message));
-            }
-        }
-        else
-        {
-            // 没有文件路径，调用保存对话框
-            SaveButton_Click(this, new RoutedEventArgs());
-        }
-    }
-
     private enum ScreenshotMode { Standard, HexBased, Cancel }
 
     /// <summary>
@@ -855,13 +747,18 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         return new WC4MapEditor.Core.Services.MapScreenshotResult(true, path, info.PixelWidth, info.PixelHeight, desc);
     }
 
+    /// <summary>F2 截图流程进行中（选模式、选路径、生成）：期间再按 F2 不会再开一套流程</summary>
+    private bool _screenshotBusy;
+
     private async Task CaptureMapScreenshotAsync()
     {
+        if (_screenshotBusy) return;
+        _screenshotBusy = true;
         try
         {
             if (_mapData == null)
             {
-                _debugConsole.WriteLine(Loc.T("Render.Console.ScreenshotNoMap"));
+                PostSceneStatus(Loc.T("Render.Console.ScreenshotNoMap"));
                 return;
             }
 
@@ -886,7 +783,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             if (saveDialog.ShowDialog() != true) return;
 
             string outputPath = saveDialog.FileName;
-            _debugConsole.WriteLine(Loc.T("Render.Console.ScreenshotStart"));
+            PostSceneStatus(Loc.T("Render.Console.ScreenshotStart"));
 
             var progressWindow = new ProgressWindow();
             progressWindow.Show();
@@ -923,119 +820,39 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
             progressWindow.PlayFadeOutAndClose();
 
-            if (success)
-                _debugConsole.WriteLine(Loc.F("Render.Console.ScreenshotSaved", outputPath));
-            else
-                _debugConsole.WriteLine(Loc.T("Render.Console.ScreenshotFailed"));
+            PostSceneStatus(success
+                ? Loc.F("Render.Console.ScreenshotSaved", outputPath)
+                : Loc.T("Render.Console.ScreenshotFailed"));
         }
         catch (Exception ex)
         {
-            _debugConsole.WriteLine(Loc.F("Render.Console.ScreenshotError", ex.Message));
+            PostSceneStatus(Loc.F("Render.Console.ScreenshotError", ex.Message));
+        }
+        finally
+        {
+            _screenshotBusy = false;
         }
     }
 
-    private Task<ScreenshotMode> ShowScreenshotModeDialogAsync()
+    /// <summary>
+    /// 选截图方式。对话框挂在主窗口上并拿走键盘焦点（模态）：打开期间场景快捷键不会在背后触发，Esc 取消。
+    /// </summary>
+    private async Task<ScreenshotMode> ShowScreenshotModeDialogAsync()
     {
-        var tcs = new TaskCompletionSource<ScreenshotMode>();
-
-        var parentGrid = Content as Grid;
-        if (parentGrid == null)
+        using var dialog = new ChoiceDialog(Window)
         {
-            tcs.SetResult(ScreenshotMode.Cancel);
-            return tcs.Task;
-        }
-
-        var overlay = new Border
-        {
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(128, 0, 0, 0)),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch
+            Title = Loc.T("Render.Screenshot.ModeTitle"),
+            Message = Loc.T("Render.Screenshot.ModeDesc"),
+            Choices = new[] { Loc.T("Render.Screenshot.ModeStandard"), Loc.T("Render.Screenshot.ModeHex") }
         };
-
-        var dialogPanel = new Border
+        int choice = await dialog.ShowAsync();
+        RestoreFocus();
+        return choice switch
         {
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(45, 45, 48)),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(24),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Effect = new DropShadowEffect { ShadowDepth = 4, Opacity = 0.5 }
+            0 => ScreenshotMode.Standard,
+            1 => ScreenshotMode.HexBased,
+            _ => ScreenshotMode.Cancel
         };
-
-        var stackPanel = new StackPanel();
-
-        var titleBlock = new TextBlock
-        {
-            Text = Loc.T("Render.Screenshot.ModeTitle"),
-            Foreground = Brushes.White,
-            FontSize = 16,
-            FontWeight = FontWeights.Bold,
-            Margin = new Thickness(0, 0, 0, 16)
-        };
-        stackPanel.Children.Add(titleBlock);
-
-        var descBlock = new TextBlock
-        {
-            Text = Loc.T("Render.Screenshot.ModeDesc"),
-            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromArgb(180, 255, 255, 255)),
-            FontSize = 12,
-            Margin = new Thickness(0, 0, 0, 16),
-            TextWrapping = TextWrapping.Wrap
-        };
-        stackPanel.Children.Add(descBlock);
-
-        var standardButton = new Button
-        {
-            Content = Loc.T("Render.Screenshot.ModeStandard"),
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 122, 204)),
-            Foreground = Brushes.White,
-            Padding = new Thickness(16, 8, 16, 8),
-            Margin = new Thickness(0, 0, 0, 8),
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
-        standardButton.Click += (s, e) =>
-        {
-            parentGrid.Children.Remove(overlay);
-            tcs.TrySetResult(ScreenshotMode.Standard);
-        };
-        stackPanel.Children.Add(standardButton);
-
-        var hexBasedButton = new Button
-        {
-            Content = Loc.T("Render.Screenshot.ModeHex"),
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(80, 80, 80)),
-            Foreground = Brushes.White,
-            Padding = new Thickness(16, 8, 16, 8),
-            Margin = new Thickness(0, 0, 0, 8),
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
-        hexBasedButton.Click += (s, e) =>
-        {
-            parentGrid.Children.Remove(overlay);
-            tcs.TrySetResult(ScreenshotMode.HexBased);
-        };
-        stackPanel.Children.Add(hexBasedButton);
-
-        var cancelButton = new Button
-        {
-            Content = Loc.T("Common.Cancel"),
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(80, 80, 80)),
-            Foreground = Brushes.White,
-            Padding = new Thickness(16, 8, 16, 8),
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
-        cancelButton.Click += (s, e) =>
-        {
-            parentGrid.Children.Remove(overlay);
-            tcs.TrySetResult(ScreenshotMode.Cancel);
-        };
-        stackPanel.Children.Add(cancelButton);
-
-        dialogPanel.Child = stackPanel;
-        overlay.Child = dialogPanel;
-        parentGrid.Children.Add(overlay);
-
-        return tcs.Task;
     }
 
     /// <summary>
@@ -1043,14 +860,6 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     /// 全局生效且跨模式保持：关闭后切换到任何模式都不再显示建筑名称。
     /// </summary>
     private bool _buildingNamesVisible = true;
-
-    /// <summary>建筑移动工具是否开启（建筑编辑模式 K 键触发，状态由 GUI 层持有）。</summary>
-    private bool _buildingMoveToolActive;
-
-    /// <summary>右键拖拽移动建筑时的源格坐标（-1 表示当前未在拖拽）。</summary>
-    private int _dragBuildingSourceCol = -1;
-    private int _dragBuildingSourceRow = -1;
-    private bool _isDraggingBuilding;
 
     private readonly GeoCoordinateCalculator _geoCalculator = new();
 
@@ -1267,37 +1076,6 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         }
     }
 
-    private void OnToggleHexInfo()
-    {
-        if (_hexInfoWindow != null)
-        {
-            try
-            {
-                if (_hexInfoWindow.IsVisible)
-                {
-                    _hexInfoWindow.PlayFadeOutAndClose();
-                    _hexInfoWindow = null;
-                    RestoreFocus();
-                    return;
-                }
-            }
-            catch { _hexInfoWindow = null; }
-        }
-
-        _hexInfoWindow = new HexInfoWindow();
-        var mainWindow = Window;
-        _hexInfoWindow.Left = mainWindow.Left + 10;
-        _hexInfoWindow.Top = mainWindow.Top + 10;
-        _hexInfoWindow.SetDisplayMode(HexInfoDisplayMode.Default);
-
-        var primary = _hexSelector.PrimarySelected;
-        if (primary.HasValue && _mapData != null)
-            _hexInfoWindow.UpdateHexInfo(primary.Value.Col, primary.Value.Row);
-
-        _hexInfoWindow.Show();
-        RestoreFocus();
-    }
-
     private async void OnEscPressed()
     {
         // 有子窗口（军团编辑器 / 调色板 / 输入框等）处于活动状态时，Esc 归该子窗口处理。
@@ -1309,6 +1087,28 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             _debugConsole.HideConsole();
             return;
         }
+
+        // 模式先处理 Esc（取消区域移动、清空选区……）；模式返回 false（没有可取消的东西）才弹出返回确认
+        var escHandler = _editModeManager.CurrentHandler;
+        string? escAction = escHandler?.GetGestureAction(ModeGesture.Escape);
+        if (escHandler != null && escAction != null && _mapData != null)
+        {
+            var primary = _hexSelector.PrimarySelected;
+            bool handled = false;
+            try
+            {
+                handled = await _editModeManager.HandleKeyAction(escAction, primary?.Col ?? -1, primary?.Row ?? -1);
+            }
+            catch (Exception ex)
+            {
+                ErrorCollector.Instance.RecordError(ErrorSeverity.Error,
+                    $"模式 Esc 动作失败: {escHandler.Mode}/{escAction}", nameof(OnEscPressed), ex);
+                _editModeManager.RaiseStatusMessage(Loc.F("Mode.Status.ActionFailed", escHandler.DisplayName, escAction, ex.Message));
+            }
+            _skElement.InvalidateVisual();
+            if (handled) return;
+        }
+
         Debug.WriteLine("[Keyboard] Esc pressed - showing return confirm dialog");
         if (_confirmDialogShowing) return;
         await ShowReturnConfirmDialog();
@@ -1337,6 +1137,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
     private void CloseAllAssistWindows()
     {
+        _assistEditors?.CloseAll();
         if (_hexInfoWindow != null)
         {
             _hexInfoWindow.PlayFadeOutAndClose();
@@ -1347,11 +1148,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             _brushSettingsWindow.PlayFadeOutAndHide();
             _brushSettingsWindow = null;
         }
-        if (_legionSettingWindow != null)
-        {
-            _legionSettingWindow.Close();
-            _legionSettingWindow = null;
-        }
+        DeactivateBrushOfMode(_editModeManager.CurrentMode);
         if (_debugConsole.IsVisible)
         {
             _debugConsole.HideConsole();
@@ -1362,12 +1159,15 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         _confirmDialogShowing = true;
 
+        // 有未保存的修改时明确告诉用户（以前不论有没有改过都是同一句泛泛的提示）
+        bool dirty = _fileStateManager.IsDirty;
         using var dialog = new ConfirmDialog(Window)
         {
             Title = Loc.T("Render.ReturnConfirmTitle"),
-            Message = Loc.T("Render.ReturnConfirmMessage"),
+            Message = dirty ? Loc.T("Scene.Return.DirtyMessage") : Loc.T("Render.ReturnConfirmMessage"),
             ConfirmText = Loc.T("Common.Back"),
-            CancelText = Loc.T("Common.Cancel")
+            CancelText = Loc.T("Common.Cancel"),
+            Destructive = dirty
         };
 
         bool result = await dialog.ShowAsync();
@@ -1527,6 +1327,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
     private void OnWpfMouseMove(object sender, MouseEventArgs e)
     {
+        TrackHoverPoint(e.GetPosition(_skElement));
+
         // 右键拖拽画边界：把上一落点连到当前位置，形成连续的线。
         // 命中时直接返回，避免同时刷新省区画笔预览。
         if (ContinueBoundaryDraw(e)) return;
@@ -1568,6 +1370,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 break;
             case MouseActionKind.Click when e.Button == MouseButtons.Left:
                 HandleHexSelect(e);
+                TryModeGesture(ModeGesture.LeftClick, e);
                 break;
             case MouseActionKind.Wheel:
                 // 控制台现在使用WPF窗口，不再通过SkElement接收滚轮事件
@@ -1590,11 +1393,45 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 break;
             case MouseActionKind.Click when e.Button == MouseButtons.Right:
                 if (TryBrushClick(e)) break;
-                if (TrySetBelongAtRightClick(e)) break;
-                if (TryShowLegionInfoAtRightClick(e)) break;
+                if (TryModeGesture(ModeGesture.RightClick, e)) break;
                 HandleRightClickSelect(e);
                 break;
         }
+    }
+
+    /// <summary>
+    /// 把鼠标手势交给当前模式：模式在 Core 的动作表里声明"手势 → 动作"（<see cref="IModeHandler.GetGestureAction"/>），
+    /// 这里只负责换算格子并分发。返回 true 表示模式接管了这次点击。
+    /// </summary>
+    private bool TryModeGesture(ModeGesture gesture, MouseActionEventArgs e)
+    {
+        var handler = _editModeManager.CurrentHandler;
+        if (handler == null || _mapData == null || _camera == null) return false;
+        if ((e.Modifiers & (Core.Input.KeyModifiers.Shift | Core.Input.KeyModifiers.Ctrl)) != 0) return false;
+
+        string? action = handler.GetGestureAction(gesture);
+        if (action == null) return false;
+
+        var (col, row) = _camera.ScreenToHex(e.Position.X, e.Position.Y);
+        if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight) return false;
+
+        _ = RunModeGestureAsync(handler, action, col, row);
+        return true;
+    }
+
+    private async Task RunModeGestureAsync(IModeHandler handler, string action, int col, int row)
+    {
+        try
+        {
+            await _editModeManager.HandleKeyAction(action, col, row);
+        }
+        catch (Exception ex)
+        {
+            ErrorCollector.Instance.RecordError(ErrorSeverity.Error,
+                $"模式鼠标动作失败: {handler.Mode}/{action}", nameof(TryModeGesture), ex);
+            _editModeManager.RaiseStatusMessage(Loc.F("Mode.Status.ActionFailed", handler.DisplayName, action, ex.Message));
+        }
+        _skElement.InvalidateVisual();
     }
 
     private void HandlePan(MouseActionEventArgs e)
@@ -1607,10 +1444,16 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
     private void HandleHexSelect(MouseActionEventArgs e)
     {
-        if (!_editModeManager.IsSelectionActive) return;
         if (_mapData == null || _camera == null) return;
         var (col, row) = _camera.ScreenToHex(e.Position.X, e.Position.Y);
         if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight) return;
+
+        if (!_editModeManager.IsSelectionActive)
+        {
+            // 非选区模式不改选区，只显示这一格的位置与概况（以前单击毫无反馈）
+            InspectHex(col, row);
+            return;
+        }
 
         bool shiftPressed = (e.Modifiers & Core.Input.KeyModifiers.Shift) != 0;
         bool ctrlPressed = (e.Modifiers & Core.Input.KeyModifiers.Ctrl) != 0;
@@ -1720,118 +1563,11 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _skElement.InvalidateVisual();
         }
 
-    /// <summary>
-    /// 归属编辑模式下右键单击：为光标所在格子设置归属。
-    /// 对齐 VB 版 BelongModifier.HandleMouseDown 的右键分支 —— 归属值优先取「复制的归属」，
-    /// 未复制过时回退到当前选中的国家ID。
-    /// 仅在非画笔模式下生效（画笔模式右键用于绘制），右键拖动仍用于框选多选。
-    /// </summary>
-    private bool TrySetBelongAtRightClick(MouseActionEventArgs e)
-    {
-        if (_editModeManager.CurrentMode != EditMode.BelongEdit) return false;
-        if (_mapData == null || _camera == null) return false;
-
-        var belong = _editModeManager.GetModifier<BelongModifier>();
-        if (belong == null) return false;
-
-        var (col, row) = _camera.ScreenToHex(e.Position.X, e.Position.Y);
-        if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight) return false;
-
-        byte countryId = belong.ResolveBrushCountryId();
-
-        _editModeManager.RecordBelongChange(col, row, $"设置归属 ({col},{row})",
-            () => belong.SetBelongByCountryId(col, row, countryId));
-
-        _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.BelongSet", col, row, countryId));
-        _skElement.InvalidateVisual();
-        return true;
-    }
-
-    /// <summary>
-    /// 军团编辑模式下左键单击：把当前选中军团的领域设到该格
-    /// （对齐 VB 版 LegionModifier 的"左键点击设置军团"提示，军团由 [ / ] 切换）。
-    /// <para>
-    /// Shift / Ctrl 是选择器的加选、减选手势，这两种情况下不写数据，
-    /// 避免批量选格（比如为 F 键挑首都位置）时误改归属。
-    /// </para>
-    /// </summary>
-    private void TryLegionApplyAtClick(MouseActionEventArgs e)
-    {
-        if (_editModeManager.CurrentMode != EditMode.LegionEdit) return;
-        if (_mapData == null || _camera == null) return;
-
-        if ((e.Modifiers & Core.Input.KeyModifiers.Shift) != 0) return;
-        if ((e.Modifiers & Core.Input.KeyModifiers.Ctrl) != 0) return;
-
-        var (col, row) = _camera.ScreenToHex(e.Position.X, e.Position.Y);
-        if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight) return;
-
-        // 交给模式层的 apply 动作：撤销记录、状态消息都在那里统一处理
-        _ = _editModeManager.HandleKeyAction("apply", col, row);
-    }
-
-    /// <summary>
-    /// 军团编辑模式下右键查看该格军团信息（对齐 VB 版 LegionModifier.HandleMouseDown 右键分支）。
-    /// </summary>
-    private bool TryShowLegionInfoAtRightClick(MouseActionEventArgs e)
-    {
-        if (_editModeManager.CurrentMode != EditMode.LegionEdit) return false;
-        if (_mapData == null || _camera == null) return false;
-
-        var (col, row) = _camera.ScreenToHex(e.Position.X, e.Position.Y);
-        if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight) return false;
-
-        int belong = _mapData.GetBelongValue(col, row);
-        if (belong == 0xFF)
-        {
-            _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.NoLegionInfo", col, row));
-            return true;
-        }
-
-        // 归属值约定为军团在 Legions 中的索引（与 LegionDomainRender / BelongFlagRender 一致）；
-        // 个别地图可能把 CountryId 写进了归属值，索引非法时回退按 CountryId 再查一次。
-        int index = belong;
-        if (index < 0 || index >= _mapData.Legions.Count)
-            index = _mapData.FindLegionIndex(belong);
-
-        if (index < 0)
-        {
-            _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.BelongNoLegion", col, row, belong));
-            return true;
-        }
-
-        var legion = _mapData.Legions[index];
-        _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.LegionInfo",
-            legion.ActionId, legion.CountryId,
-            legion.ColorR, legion.ColorG, legion.ColorB,
-            legion.InitialEconomy, legion.Camp));
-        return true;
-    }
-
+    /// <summary>框选 / 点选的命中过滤：由当前模式声明（<see cref="IModeHandler.CreateSelectionFilter"/>）。</summary>
     protected virtual Func<HexCoord, bool>? GetSelectionFilter()
     {
         if (_mapData == null) return null;
-        if (_editModeManager.CurrentMode == EditMode.BuildingDeploy)
-        {
-            return coord => _mapData.FindBuildingIndex(coord.Col, coord.Row) >= 0;
-        }
-        if (_editModeManager.CurrentMode == EditMode.BelongEdit)
-        {
-            // 归属编辑引入了建筑/单位/陷阱/归属四个模块，框选多选需同时覆盖这四类目标：
-            // 有归属值、或有建筑、或有单位（v1/v3）、或有陷阱的格子都算命中。
-            return coord => _mapData.GetBelongValue(coord.Col, coord.Row) != 0xFF
-                         || _mapData.FindBuildingIndex(coord.Col, coord.Row) >= 0
-                         || _mapData.GetArmyAt(coord.Col, coord.Row) != null
-                         || _mapData.GetArmyV3At(coord.Col, coord.Row) != null
-                         || _mapData.FindTrapIndex(coord.Col, coord.Row) >= 0;
-        }
-        if (_editModeManager.CurrentMode == EditMode.ArmyDeploy)
-        {
-            // 单位部署模式：框选只命中存在单位的格子（v1 或 v3 均算）。
-            return coord => _mapData.GetArmyAt(coord.Col, coord.Row) != null
-                         || _mapData.GetArmyV3At(coord.Col, coord.Row) != null;
-        }
-        return null;
+        return _editModeManager.CurrentHandler?.CreateSelectionFilter(_mapData);
     }
 
     private bool IsBrushModeActive()
@@ -1890,6 +1626,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
     private void OnWpfMouseLeave(object sender, MouseEventArgs e)
     {
+        ClearHoverPoint();
         _renderEngine.HideBrushPreview();
         ResetBrushPreviewTracking();
         _skElement.InvalidateVisual();
@@ -1956,22 +1693,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             return;
         }
 
-        var terrain = _editModeManager.GetModifier<TerrainModifier>();
-        if (terrain == null) return;
-
-        var maskIds = _brushSettingsWindow?.IsMaskEnabled == true
-            ? _brushSettingsWindow!.MaskedTerrainIds
-            : null;
-        bool maskInclude = _brushSettingsWindow?.MaskIncludeMode ?? true;
-
-        if (maskIds != null && maskIds.Count > 0)
-            terrain.PaintWithBrushMasked(col, row, maskIds, maskInclude);
-        else
-            terrain.PaintWithBrush(col, row);
-
-        _renderEngine.InvalidateTerrainCache();
-        _renderEngine.InvalidateCoastCacheRegion(_mapData, col, row, terrain.BrushSize + 2);
-        _skElement.InvalidateVisual();
+        PaintTerrainBrushAt(col, row);
     }
 
     private void ApplyBrushStrokeSegment(MousePosition from, MousePosition to)
@@ -2043,209 +1765,16 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _skElement.InvalidateVisual();
     }
 
-    private void BackButton_Click(object sender, RoutedEventArgs e)
+    private async void BackButton_Click(object sender, RoutedEventArgs e)
     {
-        CloseAllAssistWindows();
-        Window.ReturnToMainScene();
+        // 与 Esc 一样先确认（以前点 ← 直接返回，未保存的修改一并丢掉）
+        if (_confirmDialogShowing) return;
+        await ShowReturnConfirmDialog();
     }
 
-    private void UndoButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_fileStateManager.Undo())
-            _editModeManager_DataModifiedFromUndo();
-    }
+    private void UndoButton_Click(object sender, RoutedEventArgs e) => PerformUndo();
 
-    private void RedoButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_fileStateManager.Redo())
-            _editModeManager_DataModifiedFromUndo();
-    }
-
-    private void OpenButton_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Title = Loc.T("Render.File.OpenTitle"),
-            Filter = $"{Loc.T("Render.File.MapFilter")} (*.bin)|*.bin|{Loc.T("Render.File.BtlFilter")} (*.btl)|*.btl|{Loc.T("Common.AllFiles")} (*.*)|*.*",
-            InitialDirectory = System.IO.Directory.GetCurrentDirectory()
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            try
-            {
-                var detectedType = RenderSceneManager.GetSceneTypeByFilePath(dialog.FileName);
-                var currentType = RenderSceneManager.MapSceneTypeToRenderSceneType(SceneType);
-
-                if (detectedType != currentType)
-                {
-                    var sceneManager = RenderSceneManager.Instance;
-                    var sceneName = System.IO.Path.GetFileNameWithoutExtension(dialog.FileName);
-                    var sceneCount = sceneManager.SceneCount;
-                    var fullSceneName = Loc.F("Render.SceneNumbered", sceneCount + 1, sceneName);
-                    var newSceneId = sceneManager.CreateScene(fullSceneName, dialog.FileName, detectedType);
-                    sceneManager.RequestSceneSwitch(newSceneId);
-                    return;
-                }
-
-                var mapData = ReloadMapData(dialog.FileName);
-                if (mapData == null)
-                {
-                    System.Windows.MessageBox.Show(Loc.T("Render.File.LoadFailed"), Loc.T("Common.Error"));
-                    return;
-                }
-
-                mapData.FilePath = dialog.FileName;
-
-                var sceneManager2 = RenderSceneManager.Instance;
-
-                if (_sceneId >= 0)
-                {
-                    sceneManager2.CacheSceneToDisk(_sceneId);
-                    sceneManager2.ReleaseSceneMemory(_sceneId);
-                }
-
-                _mapData = mapData;
-                _camera = new Camera
-                {
-                    MapWidth = _mapData.MapWidth,
-                    MapHeight = _mapData.MapHeight,
-                    ViewportWidth = (int)_skElement.ActualWidth,
-                    ViewportHeight = (int)_skElement.ActualHeight
-                };
-                _camera.CenterOnMap();
-
-                InitializeRenderers();
-                _renderEngine.InvalidateTerrainCache();
-                _renderEngine.InvalidateCoastCacheFull(_mapData);
-                _skElement.InvalidateVisual();
-
-                _editModeManager.Initialize(_mapData);
-                _editModeManager.SetUndoManager(_fileStateManager.UndoManager);
-                _editModeManager.SetDialogService(new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!));
-        _editModeManager.SetViewLayerImageProvider(_renderEngine.ViewLayerImageProvider);
-                _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(_commandManager));
-                _editModeManager.SetRecognizeTerrainCallback(RecognizeTerrainFromViewLayer);
-                _fileStateManager.OpenFile(_mapData, dialog.FileName, SceneType);
-
-                var sceneName2 = System.IO.Path.GetFileNameWithoutExtension(dialog.FileName);
-                var sceneCount2 = sceneManager2.SceneCount;
-                var fullSceneName2 = Loc.F("Render.SceneNumbered", sceneCount2 + 1, sceneName2);
-                _sceneId = sceneManager2.CreateScene(fullSceneName2, dialog.FileName, RenderSceneManager.MapSceneTypeToRenderSceneType(SceneType));
-                sceneManager2.SetSceneMapData(_sceneId, _mapData);
-                sceneManager2.ActivateScene(_sceneId);
-
-                if (_sceneNameLabel != null)
-                    _sceneNameLabel.Text = fullSceneName2;
-            }
-            catch (Exception ex)
-            {
-                System.Windows.MessageBox.Show(Loc.F("Render.File.OpenFailed", ex.Message), Loc.T("Common.Error"));
-            }
-        }
-    }
-
-    private void SaveButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_mapData == null) return;
-
-        bool isBtlScene = SceneType == "stage" || SceneType == "conquest";
-        string currentExt = !string.IsNullOrEmpty(_mapData.FilePath)
-            ? System.IO.Path.GetExtension(_mapData.FilePath).ToLowerInvariant()
-            : "";
-
-        string filter;
-        int defaultFilterIndex;
-        string defaultFileName;
-
-        if (isBtlScene)
-        {
-            filter = $"{Loc.T("Render.File.BtlOnly")}|*.btl|{Loc.T("Render.File.BinOnly")}|*.bin|{Loc.T("Common.AllFiles")}|*.*";
-            defaultFilterIndex = 1;
-        }
-        else
-        {
-            filter = $"{Loc.T("Render.File.BinOnly")}|*.bin|{Loc.T("Render.File.BtlOnly")}|*.btl|{Loc.T("Common.AllFiles")}|*.*";
-            defaultFilterIndex = 1;
-        }
-
-        if (!string.IsNullOrEmpty(_mapData.FilePath))
-        {
-            defaultFileName = System.IO.Path.GetFileName(_mapData.FilePath);
-        }
-        else if (isBtlScene)
-        {
-            defaultFileName = SceneType == "conquest"
-                ? $"conquest_{_mapData.MapWidth}x{_mapData.MapHeight}.btl"
-                : $"stage_{_mapData.MapWidth}x{_mapData.MapHeight}.btl";
-        }
-        else
-        {
-            defaultFileName = $"new_map_{_mapData.MapWidth}x{_mapData.MapHeight}.bin";
-        }
-
-        var dialog = new Microsoft.Win32.SaveFileDialog
-        {
-            Title = Loc.T("Render.File.SaveTitle"),
-            Filter = filter,
-            FilterIndex = defaultFilterIndex,
-            FileName = defaultFileName,
-            InitialDirectory = System.IO.Directory.GetCurrentDirectory()
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            try
-            {
-                if (!SaveMapDataByFileType(_mapData, dialog.FileName))
-                {
-                    System.Windows.MessageBox.Show(Loc.T("Render.Save.Failed"), Loc.T("Common.Error"));
-                    return;
-                }
-                _mapData.FilePath = dialog.FileName;
-                _fileStateManager.MarkSaved();
-
-                // 同 Ctrl+S：已写回文件，场景磁盘缓存作废
-                if (_sceneId >= 0)
-                    RenderSceneManager.Instance.InvalidateSceneCache(_sceneId);
-
-                System.Windows.MessageBox.Show(Loc.F("Render.Save.SavedTo", dialog.FileName), Loc.T("Render.Save.SuccessTitle"));
-            }
-            catch (Exception ex)
-            {
-                System.Windows.MessageBox.Show(Loc.F("Render.Save.FailedWithReason", ex.Message), Loc.T("Common.Error"));
-            }
-        }
-    }
-
-    private void NewButton_Click(object sender, RoutedEventArgs e)
-    {
-        var result = System.Windows.MessageBox.Show(Loc.T("Render.File.NewMapConfirm"), Loc.T("Render.File.NewMapTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (result != MessageBoxResult.Yes) return;
-
-        var newMapData = new MapData(60, 60);
-        _mapData = newMapData;
-        _camera = new Camera
-        {
-            MapWidth = _mapData.MapWidth,
-            MapHeight = _mapData.MapHeight,
-            ViewportWidth = (int)_skElement.ActualWidth,
-            ViewportHeight = (int)_skElement.ActualHeight
-        };
-        _camera.CenterOnMap();
-
-        InitializeRenderers();
-        _renderEngine.InvalidateTerrainCache();
-        _skElement.InvalidateVisual();
-
-        _editModeManager.Initialize(_mapData);
-        _editModeManager.SetUndoManager(_fileStateManager.UndoManager);
-        _editModeManager.SetDialogService(new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!));
-        _editModeManager.SetViewLayerImageProvider(_renderEngine.ViewLayerImageProvider);
-        _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(_commandManager));
-        _editModeManager.SetRecognizeTerrainCallback(RecognizeTerrainFromViewLayer);
-        _fileStateManager.OpenFile(_mapData, "", SceneType);
-    }
+    private void RedoButton_Click(object sender, RoutedEventArgs e) => PerformRedo();
 
     private void ViewLayerButton_Click(object sender, RoutedEventArgs e)
     {
@@ -2264,7 +1793,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             Header = _renderEngine.ViewLayerVisible ? Loc.T("Render.ViewLayer.Hide") : Loc.T("Render.ViewLayer.Show"),
             Foreground = Brushes.White,
-            IsEnabled = !string.IsNullOrEmpty(_renderEngine.ViewLayerVisible.ToString())
+            // 没加载底图时显示 / 隐藏没有意义（原条件对布尔值取 ToString，永远为真）
+            IsEnabled = !string.IsNullOrEmpty(_renderEngine.ViewLayerImagePath)
         };
         toggleItem.Click += ViewLayerToggle_Click;
         menu.Items.Add(toggleItem);
@@ -2316,12 +1846,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         }
     }
 
-    private void ViewLayerToggle_Click(object sender, RoutedEventArgs e)
-    {
-        _renderEngine.ViewLayerVisible = !_renderEngine.ViewLayerVisible;
-        _debugConsole.WriteLine(Loc.F("Render.Console.ViewLayerVisibility", _renderEngine.ViewLayerVisible ? Loc.T("Render.Visible") : Loc.T("Render.Hidden")));
-        _skElement.InvalidateVisual();
-    }
+    private void ViewLayerToggle_Click(object sender, RoutedEventArgs e) => ToggleViewLayerVisibility();
 
     private void ViewLayerClear_Click(object sender, RoutedEventArgs e)
     {
@@ -2330,20 +1855,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _skElement.InvalidateVisual();
     }
 
-    private void SceneTabButton_Click(object sender, RoutedEventArgs e)
-    {
-        var popup = _sceneTabPopup;
-        if (popup == null || _sceneTabPanel == null) return;
-
-        if (popup.IsOpen)
-        {
-            popup.IsOpen = false;
-            return;
-        }
-
-        RefreshSceneTabButtons();
-        popup.IsOpen = true;
-    }
+    private void SceneTabButton_Click(object sender, RoutedEventArgs e) => ToggleSceneTabPopup();
 
     private void RefreshSceneTabButtons()
     {
@@ -2372,7 +1884,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 Cursor = Cursors.Hand,
                 Padding = new Thickness(12, 6, 12, 6),
                 Margin = new Thickness(1, 2, 1, 2),
-                Tag = scene.SceneId
+                Tag = scene.SceneId,
+                Focusable = false
             };
 
             btn.MouseEnter += (s, ev) =>
@@ -2416,79 +1929,6 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         SwitchToScene(targetSceneId);
     }
 
-    private void SwitchToScene(int targetSceneId)
-    {
-        try
-        {
-            var sceneManager = RenderSceneManager.Instance;
-            var targetScene = sceneManager.GetScene(targetSceneId);
-            if (targetScene == null)
-            {
-                System.Windows.MessageBox.Show(Loc.T("Render.SceneNotFound"), Loc.T("Common.Error"));
-                return;
-            }
-
-            Debug.WriteLine($"[RenderScene] 切换到场景 {targetSceneId}");
-
-            var targetType = RenderSceneManager.MapSceneTypeToRenderSceneType(SceneType);
-            if (targetScene.SceneType != targetType)
-            {
-                sceneManager.RequestSceneSwitch(targetSceneId);
-                return;
-            }
-
-            if (_sceneId >= 0)
-            {
-                sceneManager.CacheSceneToDisk(_sceneId);
-                sceneManager.ReleaseSceneMemory(_sceneId);
-            }
-
-            var mapData = sceneManager.LoadSceneFromDisk(targetSceneId);
-            if (mapData == null)
-            {
-                System.Windows.MessageBox.Show(Loc.T("Render.SceneLoadFailed"), Loc.T("Common.Error"));
-                return;
-            }
-
-            _mapData = mapData;
-            _camera = new Camera
-            {
-                MapWidth = _mapData.MapWidth,
-                MapHeight = _mapData.MapHeight,
-                ViewportWidth = (int)_skElement.ActualWidth,
-                ViewportHeight = (int)_skElement.ActualHeight
-            };
-            _camera.CenterOnMap();
-
-            InitializeRenderers();
-            _renderEngine.InvalidateTerrainCache();
-            _renderEngine.InvalidateCoastCacheFull(_mapData);
-            _skElement.InvalidateVisual();
-
-            _editModeManager.Initialize(_mapData!);
-            _editModeManager.SetUndoManager(_fileStateManager.UndoManager);
-            _editModeManager.SetDialogService(new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!));
-        _editModeManager.SetViewLayerImageProvider(_renderEngine.ViewLayerImageProvider);
-            _editModeManager.SetCliCommandExecutor(new Services.WpfCliCommandExecutor(_commandManager));
-            _editModeManager.SetRecognizeTerrainCallback(RecognizeTerrainFromViewLayer);
-            _editModeManager.SetSceneType(SceneType);
-            _fileStateManager.OpenFile(_mapData, targetScene.MapFilePath, SceneType);
-
-            sceneManager.ActivateScene(targetSceneId);
-            _sceneId = targetSceneId;
-
-            if (_sceneNameLabel != null)
-                _sceneNameLabel.Text = targetScene.SceneName;
-
-            Debug.WriteLine($"[RenderScene] 已切换到场景 {targetSceneId}: {targetScene.SceneName}");
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[RenderScene] 切换场景失败: {ex.Message}");
-            System.Windows.MessageBox.Show(Loc.F("Render.SceneSwitchFailed", ex.Message), Loc.T("Common.Error"));
-        }
-    }
-
     private void RegisterToSceneManager()
     {
         var sceneManager = RenderSceneManager.Instance;
@@ -2505,18 +1945,9 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     private void OnHexSelectionChanged(object? sender, HexSelectionChangedEventArgs e)
     {
         _skElement.InvalidateVisual();
-
-        if (_hexInfoWindow == null) return;
-        try
-        {
-            if (!_hexInfoWindow.IsVisible) return;
-        }
-        catch { return; }
-
-        if (e.CurrentPrimary.HasValue && _mapData != null)
-            _hexInfoWindow.UpdateHexInfo(e.CurrentPrimary.Value.Col, e.CurrentPrimary.Value.Row);
-        else
-            _hexInfoWindow.ClearHexInfo();
+        TrackPrimaryForModeSwitch(e);
+        ShowHexInfoTarget();
+        QueueSceneReadoutRefresh();
     }
 
     private void OnSelectionRectChanged(object? sender, SelectionRectChangedEventArgs e)
@@ -2783,199 +2214,6 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     }
 
     /// <summary>
-    /// 注册省区编辑相关命令。主要服务于"从背景图识别省区"（省份编辑模式 P 键）的现场调参：
-    /// 阈值不合适时直接改参数重跑，不必改代码重编译。
-    /// </summary>
-    private void RegisterProvinceCliCommands()
-    {
-        var cm = _commandManager;
-
-        cm.RegisterCommand("bg_province", args =>
-        {
-            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
-
-            var provider = _renderEngine.ViewLayerImageProvider;
-            if (provider == null || !provider.HasImage)
-            {
-                _debugConsole.WriteLine(Loc.T("Render.Console.NoBackgroundImage"));
-                return;
-            }
-
-            if (_mapData.Capitals.Count == 0)
-            {
-                _debugConsole.WriteLine(Loc.T("Render.Console.NoCapitals"));
-                return;
-            }
-
-            int darkThreshold = Core.Services.BackgroundProvinceGenerator.AutoDarkThreshold;
-            int gradientThreshold = Core.Services.BackgroundProvinceGenerator.DefaultGradientThreshold;
-            int minRegionPixels = Core.Services.BackgroundProvinceGenerator.DefaultMinRegionPixels;
-            int minBoundaryPixels = Core.Services.BackgroundProvinceGenerator.DefaultMinBoundaryPixels;
-
-            if ((args.Length > 0 && !int.TryParse(args[0], out darkThreshold)) ||
-                (args.Length > 1 && !int.TryParse(args[1], out gradientThreshold)) ||
-                (args.Length > 2 && !int.TryParse(args[2], out minRegionPixels)) ||
-                (args.Length > 3 && !int.TryParse(args[3], out minBoundaryPixels)))
-            {
-                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line1"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line2"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line3"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line4"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line5"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line6"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line7"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.BgProvinceUsage.Line8"));
-                return;
-            }
-
-            var modifier = _editModeManager.GetModifier<ProvinceModifier>();
-            if (modifier == null) { _debugConsole.WriteLine(Loc.T("Render.Console.ProvinceModifierUnavailable")); return; }
-
-            var result = modifier.GenerateProvincesFromBackground(
-                provider, darkThreshold, gradientThreshold, minRegionPixels, minBoundaryPixels);
-            _debugConsole.WriteLine(result.Message);
-
-            _editModeManager.RaiseStatusMessage(result.Message);
-            _skElement.InvalidateVisual();
-        }, "从背景图识别省区（同省份编辑模式 P 键），可附带阈值调参", "[灰度阈值] [梯度阈值] [最小区域像素数]");
-    }
-
-    /// <summary>
-    /// 【临时诊断】省份 P 键识别时，导出灰度图与界线掩码，用于人工核对识别效果。
-    /// <para>
-    /// 重点看 <c>2_boundary.png</c>：合格的界线在图上应当<b>闭合连续</b>。
-    /// 有断口就会让相邻两省在像素级连通，之后按"最近省会"扩展时越过真实省界去抢地盘，
-    /// 表现为"某个省的地盘明显伸进了邻省"。
-    /// </para>
-    /// <para>
-    /// 不需要时：删掉本方法与 <c>SaveGrayPng</c>，并移除 <c>OnLoaded</c> 里给 DebugSink 赋值的那一行。
-    /// </para>
-    /// </summary>
-    private void ExportProvinceDebugImages(GrayscaleImage gray, bool[] boundary, int threshold)
-    {
-        try
-        {
-            string dir = System.IO.Path.Combine(AppContext.BaseDirectory, "province_debug");
-            System.IO.Directory.CreateDirectory(dir);
-
-            string grayPath = System.IO.Path.Combine(dir, "1_gray.png");
-            string binaryPath = System.IO.Path.Combine(dir, "2_binary.png");
-            string boundaryPath = System.IO.Path.Combine(dir, "3_boundary.png");
-
-            SaveGrayPng(grayPath, gray, null);
-            SaveBinaryPng(binaryPath, gray, threshold);
-            SaveGrayPng(boundaryPath, gray, boundary);
-
-            long boundaryCount = 0;
-            for (int i = 0; i < boundary.Length; i++)
-            {
-                if (boundary[i]) boundaryCount++;
-            }
-
-            double ratio = boundary.Length > 0 ? boundaryCount * 100.0 / boundary.Length : 0;
-
-            _debugConsole.WriteLine(
-                Loc.F("Render.Console.ProvinceDiag.Summary", threshold, boundaryCount, ratio));
-            _debugConsole.WriteLine(Loc.F("Render.Console.ProvinceDiag.ExportedTo", dir));
-            _debugConsole.WriteLine(Loc.F("Render.Console.ProvinceDiag.Gray", gray.Width, gray.Height));
-            _debugConsole.WriteLine(Loc.F("Render.Console.ProvinceDiag.Binary", threshold));
-            _debugConsole.WriteLine(Loc.T("Render.Console.ProvinceDiag.Boundary"));
-        }
-        catch (Exception ex)
-        {
-            _debugConsole.WriteLine(Loc.F("Render.Console.ProvinceDiag.ExportFailed", ex.Message));
-        }
-    }
-
-    /// <summary>
-    /// 按识别所用阈值二值化：低于阈值的像素（即被判为深色界线的）画黑，其余画白。
-    /// <para>
-    /// 与灰度图相比，这张图直接呈现"算法眼中的界线"，边界是否清晰一眼可见。
-    /// 注意它只反映<b>深色</b>判定，不含梯度判定与膨胀 —— 那两者体现在 3_boundary.png 上。
-    /// </para>
-    /// </summary>
-    private static void SaveBinaryPng(string path, GrayscaleImage gray, int threshold)
-    {
-        int width = gray.Width;
-        int height = gray.Height;
-        int rowStride = gray.RowStride;
-
-        var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque);
-        var buffer = new byte[width * height * 4];
-
-        for (int y = 0; y < height; y++)
-        {
-            int srcRow = y * rowStride;
-            int dstRow = y * width * 4;
-
-            for (int x = 0; x < width; x++)
-            {
-                byte v = gray.Pixels[srcRow + x] < threshold ? (byte)0 : (byte)255;
-                int dst = dstRow + x * 4;
-
-                buffer[dst] = v;
-                buffer[dst + 1] = v;
-                buffer[dst + 2] = v;
-                buffer[dst + 3] = 255;
-            }
-        }
-
-        using var image = SKImage.FromPixelCopy(info, buffer);
-        using var data = image.Encode(SKEncodedImageFormat.Png, 95);
-        using var stream = System.IO.File.Create(path);
-        data.SaveTo(stream);
-    }
-
-    /// <summary>
-    /// 把灰度图写成 PNG。<paramref name="boundary"/> 非 null 时，界线像素画成红色。
-    /// <para>
-    /// 手工铺一整块像素缓冲后一次编码，不走逐像素 SetPixel —— 后者在大图上慢到不可用。
-    /// </para>
-    /// </summary>
-    private static void SaveGrayPng(string path, GrayscaleImage gray, bool[]? boundary)
-    {
-        int width = gray.Width;
-        int height = gray.Height;
-        int rowStride = gray.RowStride;
-
-        var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque);
-        var buffer = new byte[width * height * 4];
-
-        for (int y = 0; y < height; y++)
-        {
-            int srcRow = y * rowStride;
-            int dstRow = y * width * 4;
-
-            for (int x = 0; x < width; x++)
-            {
-                int src = srcRow + x;
-                int dst = dstRow + x * 4;
-                byte g = gray.Pixels[src];
-
-                if (boundary != null && boundary[src])
-                {
-                    buffer[dst] = 255;      // R
-                    buffer[dst + 1] = 0;    // G
-                    buffer[dst + 2] = 0;    // B
-                }
-                else
-                {
-                    buffer[dst] = g;
-                    buffer[dst + 1] = g;
-                    buffer[dst + 2] = g;
-                }
-
-                buffer[dst + 3] = 255;      // A
-            }
-        }
-
-        using var image = SKImage.FromPixelCopy(info, buffer);
-        using var data = image.Encode(SKEncodedImageFormat.Png, 95);
-        using var stream = System.IO.File.Create(path);
-        data.SaveTo(stream);
-    }
-
-    /// <summary>
     /// 注册 Lua 脚本命令。脚本通过 <c>map</c> 对象直接操作地图数据，
     /// 新增能力只需扩展 IMapScriptApi，不必再设计命令行语法。
     /// </summary>
@@ -3051,20 +2289,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
                 return;
             }
 
-            string fileName = System.IO.Path.GetFileNameWithoutExtension(resolved).ToLowerInvariant();
-            RenderSceneBase newScene;
-            if (ext == ".bin" || ext == ".dat")
-            {
-                newScene = new MapRenderScene(Window, resolved);
-            }
-            else if (fileName.StartsWith("conquest"))
-            {
-                newScene = new ConquestRenderScene(Window, resolved);
-            }
-            else
-            {
-                newScene = new StageRenderScene(Window, resolved);
-            }
+            // .btl 按文件头区分战役 / 征服（地图编号大于 0 即征服布局），不看文件名
+            RenderSceneBase newScene = Window.CreateRenderSceneForFile(resolved);
 
             _debugConsole.WriteLine(Loc.F("Render.Console.Loading", resolved));
             Window.SetCurrentScene(newScene);
@@ -3241,433 +2467,94 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             log: msg => _debugConsole.WriteLine(msg));
     }
 
-    private void RegisterTerrainCliCommands()
-    {
-        var cm = _commandManager;
-
-        cm.RegisterCommand("greening", args =>
-        {
-            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
-            var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
-
-            int prob = 50;
-            if (args.Length > 0 && int.TryParse(args[0], out int p))
-                prob = Math.Clamp(p, 0, 100);
-
-            _editModeManager.RecordMultiCellChange($"绿化平地 (概率={prob}%)", () => terrain.ApplyGreening(prob));
-            _editModeManager_DataModifiedFromUndo();
-            _skElement.InvalidateVisual();
-            _debugConsole.WriteLine(Loc.F("Render.Console.GreeningDone", prob));
-        }, "绿化平地", "<概率0-100>");
-
-        cm.RegisterCommand("random_flat", args =>
-        {
-            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
-            var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
-
-            int prob = 50;
-            if (args.Length > 0 && int.TryParse(args[0], out int p))
-                prob = Math.Clamp(p, 0, 100);
-
-            _editModeManager.RecordMultiCellChange($"随机平地变体 (概率={prob}%)", () => terrain.RandomizeFlatTerrain(prob));
-            _editModeManager_DataModifiedFromUndo();
-            _skElement.InvalidateVisual();
-            _debugConsole.WriteLine(Loc.F("Render.Console.RandomFlatDone", prob));
-        }, "随机平地地形变体", "<概率0-100>");
-
-        cm.RegisterCommand("random_variant", args =>
-        {
-            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
-            var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
-
-            int prob = 50;
-            if (args.Length > 0 && int.TryParse(args[0], out int p))
-                prob = Math.Clamp(p, 0, 100);
-
-            _editModeManager.RecordMultiCellChange($"随机当前层变体 (概率={prob}%)", () => terrain.RandomizeVariant(prob));
-            _editModeManager_DataModifiedFromUndo();
-            _skElement.InvalidateVisual();
-            _debugConsole.WriteLine(Loc.F("Render.Console.RandomVariantDone", terrain.EditLayer, prob));
-        }, "随机当前层地形变体", "<概率0-100>");
-
-        cm.RegisterCommand("create_coast", args =>
-        {
-            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
-            var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
-
-            var selectedHexes = _hexSelector.SelectedHexes;
-            var targetHexes = selectedHexes.Count > 0
-                ? selectedHexes.Select(h => (h.Col, h.Row)).ToList()
-                : null;
-
-            _editModeManager.RecordMultiCellChange("创建海岸线", () => terrain.CreateCoast(targetHexes));
-            _editModeManager_DataModifiedFromUndo();
-            _skElement.InvalidateVisual();
-            _debugConsole.WriteLine(Loc.T("Render.Console.CoastCreated"));
-        }, "创建海岸线", "");
-
-        cm.RegisterCommand("process_ocean_layer2", args =>
-        {
-            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
-            var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
-
-            var selectedHexes = _hexSelector.SelectedHexes;
-            var targetHexes = selectedHexes.Count > 0
-                ? selectedHexes.Select(h => (h.Col, h.Row)).ToList()
-                : null;
-
-            _editModeManager.RecordMultiCellChange("处理海洋第二层", () => terrain.ProcessOceanSecondLayer(targetHexes));
-            _editModeManager_DataModifiedFromUndo();
-            _skElement.InvalidateVisual();
-            _debugConsole.WriteLine(Loc.T("Render.Console.OceanLayer2Done"));
-        }, "处理海洋第二层", "");
-
-        cm.RegisterCommand("export_hd", async args =>
-        {
-            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
-            var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
-
-            var result = terrain.ExportHdFile();
-            _debugConsole.WriteLine(result.Message ?? "");
-        }, "导出HD文件", "");
-
-        cm.RegisterCommand("scale_map", args =>
-        {
-            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
-            var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
-
-            double scale = 1.0;
-            if (args.Length > 0 && double.TryParse(args[0], out double s))
-                scale = Math.Clamp(s, 0.1, 10.0);
-
-            if (Math.Abs(scale - 1.0) < 0.001)
-            {
-                _debugConsole.WriteLine(Loc.T("Render.Console.ScaleNoop"));
-                return;
-            }
-
-            _editModeManager.RecordMapResizeChange($"缩放地图 (比例={scale:F2})", () => terrain.ScaleMap(scale));
-            _editModeManager_DataModifiedFromUndo();
-            _skElement.InvalidateVisual();
-            _debugConsole.WriteLine(Loc.F("Render.Console.ScaleDone", scale));
-        }, "按比例缩放地图", "<比例0.1-10.0>");
-
-        cm.RegisterCommand("resize_map", args =>
-        {
-            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
-            var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) { _debugConsole.WriteLine(Loc.T("Render.Console.TerrainModifierInactive")); return; }
-
-            if (args.Length < 2)
-            {
-                _debugConsole.WriteLine(Loc.T("Render.Console.ResizeUsage.Line1"));
-                _debugConsole.WriteLine("  direction: up, down, left, right");
-                _debugConsole.WriteLine(Loc.T("Render.Console.ResizeUsage.Line3"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.ResizeUsage.Line4"));
-                return;
-            }
-
-            string direction = args[0];
-            if (!int.TryParse(args[1], out int amount) || amount == 0)
-            {
-                _debugConsole.WriteLine(Loc.T("Render.Console.InvalidAmount"));
-                return;
-            }
-
-            bool useOcean = args.Length > 2 && args[2].Equals("ocean", StringComparison.OrdinalIgnoreCase);
-
-            _editModeManager.RecordMapResizeChange($"调整地图大小 ({direction}, {amount})", () => terrain.ResizeMap(direction, amount, useOcean));
-            _editModeManager_DataModifiedFromUndo();
-            _skElement.InvalidateVisual();
-            _debugConsole.WriteLine(Loc.F("Render.Console.ResizeDone", direction, amount));
-        }, "调整地图大小", "<direction> <amount> [ocean]");
-
-        cm.RegisterCommand("geo_add_ref", args =>
-        {
-            if (args.Length < 4)
-            {
-                _debugConsole.WriteLine(Loc.T("Render.Console.GeoAddRefUsage.Line1"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.GeoAddRefUsage.Line2"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.GeoAddRefUsage.Line3"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.GeoAddRefUsage.Line4"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.GeoAddRefUsage.Line5"));
-                return;
-            }
-
-            if (!int.TryParse(args[0], out int row) || !int.TryParse(args[1], out int col) ||
-                !double.TryParse(args[2], out double lat) || !double.TryParse(args[3], out double lon))
-            {
-                _debugConsole.WriteLine(Loc.T("Render.Console.ArgFormatError"));
-                return;
-            }
-
-            var rp = _geoCalculator.ReferencePoints;
-            rp.Points.Add(new Core.Geo.GeoReferencePoint { Row = row, Col = col, Latitude = lat, Longitude = lon });
-
-            var ruler = _renderEngine.GeoRuler;
-            if (ruler != null)
-            {
-                ruler.AddMarker(row, col, lat, lon);
-            }
-
-            _debugConsole.WriteLine(Loc.F("Render.Console.RefAdded", row, col, lat, lon));
-            _skElement.InvalidateVisual();
-        }, "添加经纬度参考点", "<row> <col> <lat> <lon>");
-
-        cm.RegisterCommand("geo_remove_ref", args =>
-        {
-            if (args.Length < 1 || !int.TryParse(args[0], out int index) || index < 1)
-            {
-                _debugConsole.WriteLine(Loc.T("Render.Console.GeoRemoveRefUsage.Line1"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.GeoRemoveRefUsage.Line2"));
-                return;
-            }
-
-            var rp = _geoCalculator.ReferencePoints;
-            if (index > rp.Points.Count)
-            {
-                _debugConsole.WriteLine(Loc.F("Render.Console.RefIndexOutOfRange", index, rp.Points.Count));
-                return;
-            }
-
-            var removed = rp.Points[index - 1];
-            rp.Points.RemoveAt(index - 1);
-
-            var ruler = _renderEngine.GeoRuler;
-            if (ruler != null && ruler.Markers.Count >= index)
-            {
-                var marker = ruler.Markers[index - 1];
-                ruler.RemoveMarker(marker.Id);
-            }
-
-            _debugConsole.WriteLine(Loc.F("Render.Console.RefRemoved", index, removed.Row, removed.Col));
-            _skElement.InvalidateVisual();
-        }, "删除经纬度参考点", "<index>");
-
-        cm.RegisterCommand("geo_calc", args =>
-        {
-            if (_mapData == null) { _debugConsole.WriteLine(Loc.T("Render.MapNotLoaded")); return; }
-
-            var rp = _geoCalculator.ReferencePoints;
-            if (!rp.IsValid())
-            {
-                _debugConsole.WriteLine(Loc.F("Render.Console.RefIncomplete", rp.Points.Count));
-                return;
-            }
-
-            string outputPath = args.Length > 0 ? args[0] : $"geo_coords_{DateTime.Now:yyyyMMddHHmmss}.json";
-
-            try
-            {
-                _geoCalculator.CalculateAndExport(_mapData, outputPath);
-                _debugConsole.WriteLine(Loc.F("Render.Console.GeoCalcDone", outputPath));
-            }
-            catch (Exception ex)
-            {
-                _debugConsole.WriteLine(Loc.F("Render.Geo.CalcFailed", ex.Message));
-            }
-        }, "计算并导出经纬度", "[输出文件路径]");
-
-        cm.RegisterCommand("geo_show_ref", _ =>
-        {
-            var rp = _geoCalculator.ReferencePoints;
-            var ruler = _renderEngine.GeoRuler;
-            _debugConsole.WriteLine(Loc.F("Render.Console.RefCount", rp.Points.Count));
-            for (int i = 0; i < rp.Points.Count; i++)
-            {
-                var p = rp.Points[i];
-                _debugConsole.WriteLine(Loc.F("Render.Console.RefRow", i + 1, p.Row, p.Col, p.Latitude, p.Longitude));
-            }
-            _debugConsole.WriteLine(Loc.F("Render.Console.RefValid", rp.IsValid()));
-            if (ruler != null)
-            {
-                _debugConsole.WriteLine(Loc.F("Render.Console.RulerMarkerCount", ruler.Markers.Count));
-                foreach (var m in ruler.Markers)
-                {
-                    _debugConsole.WriteLine(Loc.F("Render.Console.MarkerRow", m.Id, m.Row, m.Col, m.Latitude, m.Longitude));
-                }
-            }
-        }, "显示当前经纬度参考点", "");
-
-        cm.RegisterCommand("geo_set_lat", args =>
-        {
-            if (args.Length < 1 || !double.TryParse(args[0], out double lat))
-            {
-                _debugConsole.WriteLine(Loc.T("Render.Console.GeoSetLatUsage.Line1"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.GeoSetLatUsage.Line2"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.GeoSetLatUsage.Line3"));
-                _debugConsole.WriteLine(Loc.F("Render.Console.GeoSetLatUsage.Current",
-                    _geoCalculator.CentralLatitude?.ToString("F4") ?? Loc.T("Render.Console.AutoEstimate")));
-                return;
-            }
-
-            _geoCalculator.CentralLatitude = lat;
-            _debugConsole.WriteLine(Loc.F("Render.Console.CentralLatSet", lat));
-            _debugConsole.WriteLine(Loc.T("Render.Console.SphericalNote"));
-        }, "设置地图中心纬度（用于球面修正）", "<latitude>");
-
-        cm.RegisterCommand("geo_export_ref", args =>
-        {
-            string fileName = args.Length > 0 ? args[0] : $"geo_ref_{DateTime.Now:yyyyMMddHHmmss}.json";
-            string path = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, fileName);
-            try
-            {
-                _geoCalculator.ExportReferencePointsOnly(path);
-                _debugConsole.WriteLine(Loc.F("Render.Console.RefExported", path));
-                _debugConsole.WriteLine(Loc.F("Render.Console.RefCount", _geoCalculator.ReferencePoints.Points.Count));
-            }
-            catch (Exception ex)
-            {
-                _debugConsole.WriteLine(Loc.F("Common.ExportFailed", ex.Message));
-            }
-        }, "导出参考点配置到 JSON", "[filename]");
-
-        cm.RegisterCommand("geo_import_ref", args =>
-        {
-            if (args.Length < 1)
-            {
-                _debugConsole.WriteLine(Loc.T("Render.Console.GeoImportRefUsage.Line1"));
-                _debugConsole.WriteLine(Loc.T("Render.Console.GeoImportRefUsage.Line2"));
-                return;
-            }
-
-            string path = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, args[0]);
-            if (!System.IO.File.Exists(path))
-            {
-                _debugConsole.WriteLine(Loc.F("Render.Console.FileNotExist", path));
-                return;
-            }
-
-            try
-            {
-                _geoCalculator.ImportReferencePoints(path);
-                var rp = _geoCalculator.ReferencePoints;
-                _debugConsole.WriteLine(Loc.F("Render.Console.RefImported", path));
-                _debugConsole.WriteLine(Loc.F("Render.Console.RefCount", rp.Points.Count));
-
-                // 同步到标尺
-                var ruler = _renderEngine.GeoRuler;
-                if (ruler != null)
-                {
-                    ruler.ClearMarkers();
-                    foreach (var p in rp.Points)
-                    {
-                        ruler.AddMarker(p.Row, p.Col, p.Latitude, p.Longitude);
-                    }
-                    _debugConsole.WriteLine(Loc.T("Render.Console.RulerSynced"));
-                }
-            }
-            catch (Exception ex)
-            {
-                _debugConsole.WriteLine(Loc.F("Render.ImportFailed", ex.Message));
-            }
-        }, "从 JSON 导入参考点配置", "<filename>");
-
-        cm.RegisterCommand("geo_ruler", _ =>
-        {
-            _debugConsole.WriteLine(Loc.T("Render.Console.RulerAlwaysOn"));
-        }, "经纬度标尺状态（始终显示）", "");
-    }
-
-    private async void DispatchEditModeAction(string action)
+    private void DispatchEditModeAction(string action)
     {
         Debug.WriteLine($"[EditMode] DispatchEditModeAction: action={action}, mode={_editModeManager.CurrentMode}");
 
-        if (action == "tab_action")
+        // 开关类按键长按时不重复触发（以前按住 Tab 会让格子信息窗口反复开关）；撤销 / 重做允许按住连续执行
+        if (_keyboardManager.LastKeyDownWasRepeat && action != "undo" && action != "redo") return;
+
+        switch (action)
         {
-            OnToggleHexInfo();
+            case "tab_action":
+                OnToggleHexInfo();
+                break;
+            case "cycle_mode":
+                CycleEditMode(1);
+                break;
+            case "toggle_show_layer2":
+                _renderEngine.ShowLayer2 = !_renderEngine.ShowLayer2;
+                _skElement.InvalidateVisual();
+                break;
+            case "toggle_help_text":
+                ToggleHelpOverlay();
+                break;
+            case "toggle_hex_borders":
+                _renderEngine.ShowHexBorders = !_renderEngine.ShowHexBorders;
+                _skElement.InvalidateVisual();
+                break;
+            case "toggle_labels":
+                _renderEngine.CycleLabelMode();
+                _skElement.InvalidateVisual();
+                break;
+            // 撤销 / 重做不需要目标格：以前要先解析焦点格，没选格子且鼠标不在地图上时什么也不做，否则顺手选中鼠标下的格子
+            case "undo":
+                PerformUndo();
+                break;
+            case "redo":
+                PerformRedo();
+                break;
+        }
+    }
+
+    // ==================== 通用编辑窗口（模式通过 EditorKinds 请求） ====================
+
+    private Services.AssistEditorHost? _assistEditors;
+
+    private Services.AssistEditorContext? CreateAssistEditorContext(EditorRequest request)
+    {
+        if (_mapData == null) return null;
+        return new Services.AssistEditorContext
+        {
+            MapData = _mapData,
+            Editor = _editModeManager,
+            Request = request,
+            Dialogs = new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!),
+            DataChanged = OnAssistEditorDataChanged,
+            MoveCamera = (col, row) => MoveCameraToHex(col, row),
+        };
+    }
+
+    /// <summary>编辑窗口改了数据：按范围失效缓存，然后走与模式修改相同的刷新路径。</summary>
+    private void OnAssistEditorDataChanged(Services.EditorDataScope scope)
+    {
+        if (_mapData != null) _mapData.IsModified = true;
+        QueueHexInfoRefresh();
+        if ((scope & (Services.EditorDataScope.Legions | Services.EditorDataScope.Belongs)) != 0)
+        {
+            _renderEngine.InvalidateLegionDomainCache();
+            _renderEngine.InvalidateBelongFlagCache();
+        }
+        _renderEngine.InvalidateViewLayerCache();
+        if ((scope & (Services.EditorDataScope.Terrain | Services.EditorDataScope.Provinces | Services.EditorDataScope.Legions)) != 0)
+        {
+            OnEditModeDataModified(this, EventArgs.Empty);
             return;
         }
-
-        if (action == "cycle_mode")
-        {
-            _editModeManager.CycleMode(SceneType);
-            return;
-        }
-
-        if (action == "toggle_show_layer2")
-        {
-            _renderEngine.ShowLayer2 = !_renderEngine.ShowLayer2;
-            _skElement.InvalidateVisual();
-            return;
-        }
-
-        if (action == "toggle_help_text")
-        {
-            _renderEngine.ShowHelp = !_renderEngine.ShowHelp;
-            _skElement.InvalidateVisual();
-            return;
-        }
-
-        if (action == "toggle_hex_borders")
-        {
-            _renderEngine.ShowHexBorders = !_renderEngine.ShowHexBorders;
-            _skElement.InvalidateVisual();
-            return;
-        }
-
-        if (action == "toggle_labels")
-        {
-            _renderEngine.CycleLabelMode();
-            _skElement.InvalidateVisual();
-            return;
-        }
-
-        if (action == "toggle_view_layer")
-        {
-            _renderEngine.ViewLayerVisible = !_renderEngine.ViewLayerVisible;
-            _skElement.InvalidateVisual();
-            return;
-        }
-
-        if (_mapData == null || _camera == null)
-        {
-            Debug.WriteLine($"[EditMode] Aborted: mapData={_mapData != null}, camera={_camera != null}");
-            return;
-        }
-
-        var primary = _hexSelector.PrimarySelected;
-        int col, row;
-
-        if (primary.HasValue)
-        {
-            (col, row) = (primary.Value.Col, primary.Value.Row);
-        }
-        else
-        {
-            var mousePos = Mouse.GetPosition(_skElement);
-            (col, row) = _camera.ScreenToHex(mousePos.X, mousePos.Y);
-            Debug.WriteLine($"[EditMode] No primary selected, using mouse pos=({mousePos.X:F0},{mousePos.Y:F0}) -> hex=({col},{row})");
-            if (col >= 0 && col < _mapData.MapWidth && row >= 0 && row < _mapData.MapHeight)
-                _hexSelector.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
-        }
-
-        if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight)
-        {
-            Debug.WriteLine($"[EditMode] Aborted: coord ({col},{row}) out of range ({_mapData.MapWidth}x{_mapData.MapHeight})");
-            return;
-        }
-
-        Debug.WriteLine($"[EditMode] Calling HandleKeyAction({action}, {col}, {row})");
-        bool handled = await _editModeManager.HandleKeyAction(action, col, row);
-        Debug.WriteLine($"[EditMode] HandleKeyAction result: {handled}");
         _skElement.InvalidateVisual();
     }
 
     private void OnEditModeChanged(object? sender, EditModeChangedEventArgs e)
     {
+        // 编辑窗口跟着模式走：离开请求它的模式时关闭（窗口可通过 IAssistEditor.KeepOpenOnModeChange 选择保留）
+        _assistEditors?.OnModeChanged(e.CurrentMode);
+
         if (_brushSettingsWindow != null)
         {
             _brushSettingsWindow.PlayFadeOutAndHide();
             _brushSettingsWindow = null;
         }
+        DeactivateBrushOfMode(e.PreviousMode);
 
         // 注：早先这里有一个「离开军团编辑模式时收起首都编辑模式」的分支，
         // 但首都编辑现在已经是 LegionEditMode 通过 ModifierKinds 引入的**无状态模块**
@@ -3679,6 +2566,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         UpdateOverlayFromEditMode();
         UpdateLayerInfoVisibility();
         UpdateRenderLayersByMode(e.CurrentMode);
+        CarryPrimaryAcrossModeSwitch();
+        ShowHexInfoTarget();
 
         // 切出省份模式时要撤掉红色边界层，否则会残留在其它模式上
         RefreshBoundaryOverlay();
@@ -3686,150 +2575,40 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _skElement.InvalidateVisual();
     }
 
-    // ==================== 手绘边界（省份编辑模式 U 键） ====================
-
-    /// <summary>是否正在拖拽画边界（右键按下到抬起之间）</summary>
-    private bool _isDrawingBoundary;
-
-    /// <summary>当前是否处于省份编辑模式；不在则返回 null</summary>
-    private ProvinceEditMode? ActiveProvinceMode
-        => _editModeManager.CurrentMode == EditMode.ProvinceEdit
-            ? _editModeManager.GetModeHandler(EditMode.ProvinceEdit) as ProvinceEditMode
-            : null;
-
-    private void OnBoundaryDrawToggled(object? sender, EventArgs e)
-    {
-        RefreshBoundaryOverlay();
-        _skElement.InvalidateVisual();
-    }
-
-    /// <summary>把当前模式的边界掩码同步给渲染层（无边界或不在该模式时关闭覆盖层）</summary>
-    private void RefreshBoundaryOverlay()
-    {
-        var mode = ActiveProvinceMode;
-        if (mode == null || mode.BoundaryMask == null)
-        {
-            _renderEngine.SetProvinceBoundaryOverlay(null, 0, 0);
-            return;
-        }
-
-        _renderEngine.SetProvinceBoundaryOverlay(
-            mode.BoundaryMask, mode.BoundaryPixelWidth, mode.BoundaryPixelHeight);
-    }
-
     /// <summary>
-    /// 尝试以"画边界"的方式处理这次右键按下。
-    /// <para>
-    /// 返回 true 表示这次右键已经被边界绘制消费掉，调用方不应再走原有的右键逻辑
-    /// （地理标尺标记编辑等）—— 否则画线的同时会弹出标记对话框。
-    /// </para>
+    /// 按当前模式打开 / 关闭渲染层。每个模式在 Core 里声明自己要看到的层（<see cref="IModeHandler.RenderLayers"/>），
+    /// 这里只负责把声明翻译成渲染引擎的开关，新增模式不必再改这里。
     /// </summary>
-    private bool TryBeginBoundaryDraw(MouseButtonEventArgs e)
-    {
-        if (_camera == null || _mapData == null) return false;
-
-        var mode = ActiveProvinceMode;
-        if (mode == null || !mode.IsBoundaryDrawMode) return false;
-
-        mode.EnsureBoundaryCanvas(_mapData.MapWidth, _mapData.MapHeight);
-
-        var pos = e.GetPosition(_skElement);
-        var (mapX, mapY) = _camera.ScreenToWorldScaled(pos.X, pos.Y);
-        mode.DrawBoundaryTo(mapX, mapY);
-
-        _isDrawingBoundary = true;
-        _skElement.CaptureMouse();
-
-        RefreshBoundaryOverlay();
-        _skElement.InvalidateVisual();
-        return true;
-    }
-
-    /// <summary>右键拖拽中：把上一次落点连到当前点，画成连续的线</summary>
-    private bool ContinueBoundaryDraw(MouseEventArgs e)
-    {
-        if (!_isDrawingBoundary || _camera == null) return false;
-
-        var mode = ActiveProvinceMode;
-        if (mode == null || !mode.IsBoundaryDrawMode)
-        {
-            _isDrawingBoundary = false;
-            return false;
-        }
-
-        var pos = e.GetPosition(_skElement);
-        var (mapX, mapY) = _camera.ScreenToWorldScaled(pos.X, pos.Y);
-
-        if (mode.DrawBoundaryTo(mapX, mapY) > 0)
-        {
-            RefreshBoundaryOverlay();
-            _skElement.InvalidateVisual();
-        }
-
-        return true;
-    }
-
-    /// <summary>结束这一笔</summary>
-    private void EndBoundaryDraw()
-    {
-        if (!_isDrawingBoundary) return;
-
-        _isDrawingBoundary = false;
-        ActiveProvinceMode?.EndBoundaryStroke();
-        _skElement.ReleaseMouseCapture();
-
-        var mode = ActiveProvinceMode;
-        if (mode != null)
-        {
-            _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.BoundaryDrawn", mode.DrawnBoundaryPixelCount));
-        }
-    }
-
     private void UpdateRenderLayersByMode(EditMode mode)
     {
-        _renderEngine.EnableProvinceRender = mode == EditMode.ProvinceEdit;
-        _renderEngine.EnableProvinceCapitalRender = mode == EditMode.ProvinceEdit;
+        var layers = mode == EditMode.None
+            ? ModeRenderLayers.None
+            : _editModeManager.GetModeHandler(mode)?.RenderLayers ?? ModeRenderLayers.None;
+        bool Has(ModeRenderLayers layer) => (layers & layer) != 0;
 
-        // 首都国旗层：军团编辑模式需要看到各首都的位置与归属（对齐 VB 在军团编辑模式绘制首都国旗）
-        _renderEngine.EnableCapitalFlagRender = mode == EditMode.LegionEdit;
+        _renderEngine.EnableProvinceRender = Has(ModeRenderLayers.Province);
+        _renderEngine.EnableProvinceCapitalRender = Has(ModeRenderLayers.ProvinceCapital);
+        _renderEngine.EnableCapitalFlagRender = Has(ModeRenderLayers.CapitalFlag);
+        _renderEngine.EnableBuildingRender = Has(ModeRenderLayers.Building);
+        // 名称显示 = 全局开关（建筑编辑模式 U 键，跨模式保持） 且 模式没有要求隐藏（地形绘制模式始终不显示名称）
+        _renderEngine.ShowBuildingNames = _buildingNamesVisible && !Has(ModeRenderLayers.HideBuildingNames);
+        _renderEngine.EnableArmyRender = Has(ModeRenderLayers.Army);
+        _renderEngine.EnableTrapRender = Has(ModeRenderLayers.Trap);
+        _renderEngine.EnableLegionDomainRender = Has(ModeRenderLayers.LegionDomain);
 
-        // 单位部署、建筑部署、归属编辑、地形绘制都需要看到建筑
-        _renderEngine.EnableBuildingRender = mode == EditMode.BuildingDeploy
-                                          || mode == EditMode.BelongEdit
-                                          || mode == EditMode.TerrainPaint
-                                          || mode == EditMode.ArmyDeploy;
-        // 名称显示 = 全局开关（建筑编辑模式 U 键，跨模式保持） 且 非地形绘制模式
-        // （地形绘制模式按既有设计始终不显示名称）
-        _renderEngine.ShowBuildingNames = _buildingNamesVisible && mode != EditMode.TerrainPaint;
-
-        // 单位部署模式下显示部队与陷阱（该模式的快捷键包含陷阱创建/批量生成/随机等级，
-        // 不显示陷阱就无法编辑）。
-        // 归属编辑模式同样需要看到部队与陷阱：归属值要与驻地实体互相核对，只显示建筑不够
-        // （对齐 VB 版归属模式：国家领域/建筑/单位/陷阱/归属国旗层全开）。
-        _renderEngine.EnableArmyRender = mode == EditMode.ArmyDeploy
-                                      || mode == EditMode.BelongEdit;
-        _renderEngine.EnableTrapRender = mode == EditMode.ArmyDeploy
-                                      || mode == EditMode.BelongEdit;
-
-        // 国家领域着色（按归属值给每个格子铺国家颜色）：单位部署、建筑部署、归属编辑、
-        // 军团编辑都需要 —— 军团编辑要看清每个军团的领域范围，以及与首都归属是否吻合。
-        var needsDomain = mode == EditMode.BuildingDeploy
-                       || mode == EditMode.BelongEdit
-                       || mode == EditMode.ArmyDeploy
-                       || mode == EditMode.LegionEdit;
-        _renderEngine.EnableLegionDomainRender = needsDomain;
-
-        // 归属国旗层是"每格一张小国旗"，军团编辑模式已有领域色块 + 首都国旗，
-        // 再叠一层逐格国旗会互相干扰，所以只在其余三种模式打开。
-        var needsBelongFlag = mode == EditMode.BuildingDeploy
-                           || mode == EditMode.BelongEdit
-                           || mode == EditMode.ArmyDeploy;
+        bool needsBelongFlag = Has(ModeRenderLayers.BelongFlag);
         _renderEngine.EnableBelongFlagRender = needsBelongFlag;
-
         if (needsBelongFlag && _mapData != null)
         {
             _renderEngine.PreloadBelongFlagAtlas(_mapData);
         }
+
+        _renderEngine.EnableReinforceNewRender = Has(ModeRenderLayers.Reinforcement);
+        _renderEngine.EnableStrategicConstructionRender = Has(ModeRenderLayers.StrategicConstruction);
+        _renderEngine.EnableAirForceRender = Has(ModeRenderLayers.AirForce);
+        _renderEngine.EnableWeatherRender = Has(ModeRenderLayers.Weather);
+        _renderEngine.EnableMapCaseRender = Has(ModeRenderLayers.MapCase);
+        _renderEngine.EnableClippedTileRender = Has(ModeRenderLayers.ClippedTiles);
 
         _renderEngine.EnableSelectionRender = _editModeManager.IsSelectionActive;
 
@@ -3861,6 +2640,8 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         Debug.WriteLine($"[EditMode] {message}");
 
+        PostSceneStatus(message);
+
         // 更新地形编辑层显示：不再按消息文本前缀判断（文本已本地化，且由 Core 发出），
         // 改为直接从修改器读取当前编辑层重建标签，显示结果与原来一致。
         if (_layerInfoLabel != null && _editModeManager.CurrentMode == EditMode.TerrainPaint)
@@ -3875,6 +2656,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _renderEngine.InvalidateLegionDomainCache();
         if (_mapData != null)
             _renderEngine.InvalidateCoastCacheFull(_mapData);
+        QueueHexInfoRefresh();
         _skElement.InvalidateVisual();
     }
 
@@ -3885,34 +2667,12 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
     private void UpdateOverlayFromEditMode()
     {
-        _renderEngine.HelpText = _editModeManager.GetFullHelpText();
+        // 帮助 = 模式帮助 + 模式管理器的页脚（空格 / 数字键 / Esc）+ 场景按键一览
+        _renderEngine.HelpText = _editModeManager.GetFullHelpText() + "\n" + BuildSceneKeyHelp();
         _renderEngine.ModeName = _editModeManager.GetModeStatusText();
-        _renderEngine.ShowHelp = true;
+        // 切换模式时不再强制显示帮助：用户用 Ctrl+F1 关掉了就保持关闭
+        ApplyHelpVisibility();
         _renderEngine.ShowModeName = _editModeManager.IsEditModeActive;
-    }
-
-    /// <summary>
-    /// 获取当前焦点六边形坐标（选区中心或鼠标位置）
-    /// </summary>
-    private (int col, int row) GetFocusHex()
-    {
-        if (_mapData == null || _camera == null) return (0, 0);
-
-        var primary = _hexSelector.PrimarySelected;
-        if (primary.HasValue)
-        {
-            return (primary.Value.Col, primary.Value.Row);
-        }
-
-        var mousePos = Mouse.GetPosition(_skElement);
-        var (col, row) = _camera.ScreenToHex(mousePos.X, mousePos.Y);
-        if (col >= 0 && col < _mapData.MapWidth && row >= 0 && row < _mapData.MapHeight)
-        {
-            _hexSelector.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
-            return (col, row);
-        }
-
-        return (0, 0);
     }
 
     /// <summary>
@@ -3938,27 +2698,10 @@ public abstract class RenderSceneBase : UserControl, IDisposable
     {
         // 全局开关：关闭后切换到任何模式都不再显示建筑名称
         _buildingNamesVisible = !_buildingNamesVisible;
-        _renderEngine.ShowBuildingNames = _buildingNamesVisible
-                                       && _editModeManager.CurrentMode != EditMode.TerrainPaint;
+        bool modeHidesNames = ((_editModeManager.CurrentHandler?.RenderLayers ?? ModeRenderLayers.None) & ModeRenderLayers.HideBuildingNames) != 0;
+        _renderEngine.ShowBuildingNames = _buildingNamesVisible && !modeHidesNames;
 
         _editModeManager.RaiseStatusMessage(_buildingNamesVisible ? Loc.T("Render.Status.BuildingNamesShown") : Loc.T("Render.Status.BuildingNamesHidden"));
-        _skElement.InvalidateVisual();
-    }
-
-    /// <summary>建筑移动工具开关切换（建筑编辑模式 K 键）</summary>
-    private void OnBuildingMoveToolToggled(object? sender, EventArgs e)
-    {
-        _buildingMoveToolActive = !_buildingMoveToolActive;
-
-        if (!_buildingMoveToolActive)
-        {
-            // 关闭工具时结束进行中的拖拽
-            _isDraggingBuilding = false;
-            _dragBuildingSourceCol = -1;
-            _dragBuildingSourceRow = -1;
-            _hexSelector.ClearSelection();
-        }
-
         _skElement.InvalidateVisual();
     }
 
@@ -4068,478 +2811,6 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         {
             MessageBox.Show(Loc.F("Render.Ocr.Failed", ex.Message), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
-    }
-
-    /// <summary>建筑移动工具：右键按下开始拖拽建筑</summary>
-    private bool TryStartBuildingDrag(MouseActionEventArgs e)
-    {
-        if (!_buildingMoveToolActive) return false;
-        if (_editModeManager.CurrentMode != EditMode.BuildingDeploy) return false;
-        if (_mapData == null || _camera == null) return false;
-
-        var (col, row) = _camera.ScreenToHex(e.Position.X, e.Position.Y);
-        if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight) return false;
-
-        var building = _mapData.GetBuildingAt(col, row);
-        if (building == null) return false;
-
-        _isDraggingBuilding = true;
-        _dragBuildingSourceCol = col;
-        _dragBuildingSourceRow = row;
-
-        // 用选区高亮源格，提供视觉反馈
-        _hexSelector.ClearSelection();
-        _hexSelector.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
-
-        _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.MovingBuilding", building.Value.GetBuildingTypeName()));
-        _skElement.InvalidateVisual();
-        return true;
-    }
-
-    /// <summary>建筑移动工具：拖动过程中高亮当前目标格</summary>
-    private bool TryContinueBuildingDrag(MouseActionEventArgs e)
-    {
-        if (!_isDraggingBuilding) return false;
-        if (_mapData == null || _camera == null) return true;
-
-        var (col, row) = _camera.ScreenToHex(e.Position.X, e.Position.Y);
-        if (col < 0 || col >= _mapData.MapWidth || row < 0 || row >= _mapData.MapHeight) return true;
-
-        if (col != _dragBuildingSourceCol || row != _dragBuildingSourceRow)
-        {
-            _hexSelector.ClearSelection();
-            _hexSelector.Select(col, row, _mapData.MapWidth, _mapData.MapHeight);
-            _skElement.InvalidateVisual();
-        }
-        return true;
-    }
-
-    /// <summary>建筑移动工具：松开右键完成移动</summary>
-    private bool TryEndBuildingDrag(MouseActionEventArgs e)
-    {
-        if (!_isDraggingBuilding) return false;
-
-        int fromCol = _dragBuildingSourceCol;
-        int fromRow = _dragBuildingSourceRow;
-
-        _isDraggingBuilding = false;
-        _dragBuildingSourceCol = -1;
-        _dragBuildingSourceRow = -1;
-
-        if (_mapData == null || _camera == null) return true;
-
-        var (col, row) = _camera.ScreenToHex(e.Position.X, e.Position.Y);
-        if (col >= 0 && col < _mapData.MapWidth && row >= 0 && row < _mapData.MapHeight)
-        {
-            var modifier = _editModeManager.GetModifier<BuildingModifier>();
-            if (modifier != null)
-            {
-                var result = modifier.MoveBuilding(fromCol, fromRow, col, row);
-                _editModeManager.RaiseStatusMessage(result.Message ?? Loc.T("Render.Status.BuildingMoved"));
-            }
-        }
-
-        _hexSelector.ClearSelection();
-        _skElement.InvalidateVisual();
-        return true;
-    }
-
-    // ==================== 军团编辑模式（对齐 VB LegionModifier） ====================
-
-    private Views.Assist.LegionSettingWindow? _legionSettingWindow;
-
-    /// <summary>打开军团设置窗口（军团编辑模式 Q 键）</summary>
-    private void OnOpenLegionSettingRequested(object? sender, EventArgs e)
-    {
-        if (_mapData == null) return;
-
-        var modifier = _editModeManager.GetModifier<LegionModifier>();
-        if (modifier == null) return;
-
-        if (_legionSettingWindow != null)
-        {
-            _legionSettingWindow.Activate();
-            return;
-        }
-
-        var window = new Views.Assist.LegionSettingWindow(_mapData, modifier);
-        var owner = Window;
-        if (owner != null) window.Owner = owner;
-
-        window.DataModified += OnLegionSettingDataModified;
-        window.Closed += (_, _) =>
-        {
-            if (_legionSettingWindow != null)
-                _legionSettingWindow.DataModified -= OnLegionSettingDataModified;
-            _legionSettingWindow = null;
-        };
-
-        _legionSettingWindow = window;
-        window.Show();
-        // 显式激活，确保键盘焦点落在子窗口上，避免 Esc 被主窗口的全局绑定接走
-        window.Activate();
-    }
-
-    /// <summary>军团设置窗口数据修改 - 军团颜色/归属变化会影响领域层与国旗层</summary>
-    private void OnLegionSettingDataModified(object? sender, EventArgs e)
-    {
-        _renderEngine.InvalidateViewLayerCache();
-        // 军团设置窗口里可以改单个军团的颜色，领域层的颜色缓存要一起失效
-        _renderEngine.InvalidateLegionDomainCache();
-        // 军团增删改会改变国家 ID 集合，归属国旗图集必须重建，
-        // 否则新增军团（拿到新的 CountryId）的国旗永远不在图集里。
-        _renderEngine.InvalidateBelongFlagCache();
-        _skElement.InvalidateVisual();
-    }
-
-    /// <summary>打开头部数据编辑窗口（军团编辑模式 E 键）</summary>
-    private void OnOpenHeaderSettingRequested(object? sender, EventArgs e)
-    {
-        var header = _mapData?.Header;
-        if (header == null)
-        {
-            MessageBox.Show(Loc.T("Render.Legion.HeaderUnavailable"), Loc.T("Common.Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        if (Views.Assist.HeaderSettingWindow.ShowDialog(Window, header))
-        {
-            _skElement.InvalidateVisual();
-            _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.HeaderUpdated"));
-        }
-    }
-
-    /// <summary>打开军团列表窗口（军团编辑模式 F 键）</summary>
-    private void OnOpenLegionListRequested(object? sender, EventArgs e)
-    {
-        if (_mapData == null) return;
-
-        var legions = _mapData.Legions.ToList();
-        if (legions.Count == 0)
-        {
-            _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.NoLegions"));
-            return;
-        }
-
-        var window = new Views.Assist.LegionBelongListWindow(legions);
-        var owner = Window;
-        if (owner != null) window.Owner = owner;
-
-        window.ShowDialog();
-
-        if (window.IsConfirmed && window.SelectedActionId.HasValue)
-        {
-            var modifier = _editModeManager.GetModifier<LegionModifier>();
-            if (modifier != null)
-            {
-                var legion = modifier.GetLegionByActionId(window.SelectedActionId.Value);
-                if (legion.HasValue)
-                    modifier.SelectedLegionId = legion.Value.CountryId;
-            }
-
-            _editModeManager.RaiseStatusMessage(Loc.F("Render.Status.LegionSelected", window.SelectedActionId.Value));
-        }
-
-        _skElement.InvalidateVisual();
-    }
-
-    /// <summary>更新征服国家设置（军团编辑模式 F6 键）</summary>
-    private async void OnUpdateConquerSettingsRequested(object? sender, EventArgs e)
-    {
-        if (_mapData == null) return;
-
-        var modifier = _editModeManager.GetModifier<LegionModifier>();
-        if (modifier == null) return;
-
-        var settings = WC4MapEditor.Core.Config.ConfigManager.Instance.GetConquerCountrySettingsData();
-        if (settings.Count == 0)
-        {
-            _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.NoConquerSettings"));
-            return;
-        }
-
-        var dialogService = new Services.WpfDialogService(() => System.Windows.Window.GetWindow(this)!);
-        var input = await dialogService.ShowInputDialogAsync(
-            Loc.T("Render.Legion.UpdateConquerTitle"), Loc.T("Render.Legion.ConquerIdPrompt"), "1", 1, 999);
-        if (string.IsNullOrWhiteSpace(input) || !int.TryParse(input, out int conquerId)) return;
-
-        try
-        {
-            var result = modifier.UpdateConquerCountrySettings(conquerId, settings);
-            _editModeManager.RaiseStatusMessage(result.Message ?? Loc.T("Render.Status.ConquerUpdated"));
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(Loc.F("Render.Legion.UpdateConquerFailed", ex.Message), Loc.T("Common.Error"),
-                MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    /// <summary>军团范围截图（军团编辑模式 P 键）</summary>
-    private async void OnCaptureLegionScreenshotRequested(object? sender, EventArgs e)
-    {
-        if (_mapData == null) return;
-
-        try
-        {
-            _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.CapturingLegion"));
-            string path = await Task.Run(() => CaptureLegionScreenshot(_mapData));
-            MessageBox.Show(Loc.F("Render.Legion.ScreenshotSaved", path), Loc.T("Render.Legion.ScreenshotTitle"),
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(Loc.F("Render.Legion.ScreenshotFailed", ex.Message), Loc.T("Common.Error"),
-                MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    /// <summary>
-    /// 读取 setting.txt 的 screenshot_resolution 并换算为缩放系数（对齐 VB 版）。
-    /// </summary>
-    private static double GetScreenshotScaleFactor()
-    {
-        var resolutionMap = new Dictionary<string, double>
-        {
-            ["1x"] = 1.0, ["2x"] = 0.5, ["4x"] = 0.25, ["8x"] = 0.125,
-            ["16x"] = 0.0625, ["32x"] = 0.03125, ["64x"] = 0.015625
-        };
-
-        string key = "1x";
-        try
-        {
-            // 当前目录优先（允许临时覆盖），否则按与 Resource 相同的规则向上查找
-            string path = "setting.txt";
-            if (!System.IO.File.Exists(path))
-                path = ProjectPaths.FindFile("setting.txt")
-                       ?? System.IO.Path.Combine(AppContext.BaseDirectory, "setting.txt");
-
-            if (System.IO.File.Exists(path))
-            {
-                foreach (var line in System.IO.File.ReadAllLines(path))
-                {
-                    if (!line.StartsWith("screenshot_resolution", StringComparison.Ordinal)) continue;
-
-                    var parts = line.Split('=');
-                    if (parts.Length == 2)
-                    {
-                        string value = parts[1].Trim();
-                        if (resolutionMap.ContainsKey(value)) key = value;
-                    }
-                    break;
-                }
-            }
-        }
-        catch { }
-
-        return resolutionMap.TryGetValue(key, out double factor) ? factor : 1.0;
-    }
-
-    /// <summary>
-    /// 离屏渲染军团范围图并保存为 PNG。
-    /// 对齐 VB 版 LegionModifier.CaptureLegionScreenshot：按省区着色、
-    /// 省会格绘制国旗、被裁剪格绘制红十字，输出到程序目录 screenshots 下。
-    /// </summary>
-    private static string CaptureLegionScreenshot(MapData mapData)
-    {
-        double scaleFactor = GetScreenshotScaleFactor();
-
-        int startCol = mapData.Header?.MapClipX ?? 0;
-        int startRow = mapData.Header?.MapClipY ?? 0;
-        int cols = mapData.MapWidth - startCol;
-        int rows = mapData.MapHeight - startRow;
-
-        if (cols <= 0 || rows <= 0)
-        {
-            startCol = 0;
-            startRow = 0;
-            cols = mapData.MapWidth;
-            rows = mapData.MapHeight;
-        }
-
-        int imageWidth = Math.Max(1, (int)(cols * 54 * scaleFactor));
-        int imageHeight = Math.Max(1, (int)((rows + 2) * 62 * scaleFactor));
-        double cellWidth = (double)imageWidth / cols;
-        double cellHeight = (double)imageHeight / (rows + 2);
-        float hexSize = (float)(cellHeight / Math.Sqrt(3));
-
-        var emptyColor = new SKColor(240, 240, 240);
-
-        // 省区索引 → 该省区颜色（取自省会格所属军团的颜色）
-        var provinceColors = new Dictionary<int, SKColor>();
-        var hexToProvince = new Dictionary<int, int>();
-        var capitalCells = new HashSet<int>();
-        int totalTiles = mapData.MapWidth * mapData.MapHeight;
-
-        for (int row = 0; row < mapData.MapHeight; row++)
-        {
-            for (int col = 0; col < mapData.MapWidth; col++)
-            {
-                int index = row * mapData.MapWidth + col;
-                int provinceValue = mapData.GetProvinceRef(col, row).ProvinceValue;
-                if (provinceValue == 0 || provinceValue == 0xFFFF) continue;
-                if (provinceValue < 0 || provinceValue >= totalTiles) continue;
-
-                hexToProvince[index] = provinceValue;
-                if (provinceValue == index) capitalCells.Add(index);
-
-                if (provinceColors.ContainsKey(provinceValue)) continue;
-
-                int capitalCol = provinceValue % mapData.MapWidth;
-                int capitalRow = provinceValue / mapData.MapWidth;
-                int belong = mapData.GetBelongValue(capitalCol, capitalRow);
-                if (belong == 0xFF) continue;
-
-                // 归属值解析成军团。以前这里写成 FindLegionIndex(belong) —— 那个方法是按
-                // CountryId 匹配的，拿归属索引去当 CountryId 查，多数军团查不到（返回 -1）
-                // 就被 skip，表现为"截图颜色对不上、且很多军团没颜色"。
-                var legion = mapData.ResolveLegionByBelong(belong);
-                if (legion == null) continue;
-
-                provinceColors[provinceValue] =
-                    new SKColor(legion.Value.ColorR, legion.Value.ColorG, legion.Value.ColorB);
-            }
-        }
-
-        string stageMarkPath = WC4MapEditor.Core.Config.ConfigManager.Instance.GetStageMarkPath();
-        var flagCache = new Dictionary<int, SKBitmap?>();
-
-        using var surface = SKSurface.Create(new SKImageInfo(imageWidth, imageHeight));
-        var canvas = surface.Canvas;
-        canvas.Clear(emptyColor);
-
-        for (int rowIdx = 0; rowIdx < rows; rowIdx++)
-        {
-            int actualRow = startRow + rowIdx;
-            if (actualRow >= mapData.MapHeight) break;
-
-            for (int colIdx = 0; colIdx < cols; colIdx++)
-            {
-                int actualCol = startCol + colIdx;
-                if (actualCol >= mapData.MapWidth) break;
-
-                float x = (float)(actualCol * cellWidth + cellWidth / 2);
-                float y = (float)((rowIdx + 1) * cellHeight + cellHeight / 2);
-                if (actualCol % 2 == 1) y += (float)(cellHeight / 2);
-
-                int index = actualRow * mapData.MapWidth + actualCol;
-                bool clipped = IsTileClipped(mapData, actualCol, actualRow);
-
-                SKColor color = emptyColor;
-                if (!clipped
-                    && hexToProvince.TryGetValue(index, out int provinceIdx)
-                    && provinceColors.TryGetValue(provinceIdx, out var provinceColor))
-                {
-                    color = provinceColor;
-                }
-
-                DrawFlatTopHexagon(canvas, x, y, hexSize, color);
-
-                if (clipped)
-                {
-                    DrawClippedCross(canvas, x, y, hexSize);
-                    continue;
-                }
-
-                // 省会格 → 绘制国旗
-                if (capitalCells.Contains(index))
-                {
-                    int belong = mapData.GetBelongValue(actualCol, actualRow);
-                    if (belong == 0xFF) continue;
-
-                    var legion = mapData.ResolveLegionByBelong(belong);
-                    if (legion == null) continue;
-
-                    int flagSize = Math.Max(4, (int)(hexSize * 0.8f));
-                    DrawCapitalFlag(canvas, x, y, stageMarkPath, legion.Value.CountryId, flagSize, flagCache);
-                }
-            }
-        }
-
-        foreach (var bitmap in flagCache.Values)
-            bitmap?.Dispose();
-
-        string dir = System.IO.Path.Combine(AppContext.BaseDirectory, "screenshots");
-        System.IO.Directory.CreateDirectory(dir);
-        string filePath = System.IO.Path.Combine(dir,
-            $"legion_map_screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png");
-
-        using var image = surface.Snapshot();
-        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        using var stream = System.IO.File.OpenWrite(filePath);
-        data.SaveTo(stream);
-
-        return filePath;
-    }
-
-    private static bool IsTileClipped(MapData mapData, int col, int row)
-    {
-        int clipX = mapData.Header?.MapClipX ?? 0;
-        int clipY = mapData.Header?.MapClipY ?? 0;
-        if (clipY > 0 && row < clipY) return true;
-        if (clipX > 0 && col < clipX) return true;
-        return false;
-    }
-
-    private static void DrawFlatTopHexagon(SKCanvas canvas, float x, float y, float size, SKColor color)
-    {
-        using var path = new SKPath();
-        for (int i = 0; i < 6; i++)
-        {
-            double angle = Math.PI / 3 * i;
-            float px = x + size * (float)Math.Cos(angle);
-            float py = y + size * (float)Math.Sin(angle);
-            if (i == 0) path.MoveTo(px, py);
-            else path.LineTo(px, py);
-        }
-        path.Close();
-
-        using var fill = new SKPaint { Color = color, IsAntialias = true, Style = SKPaintStyle.Fill };
-        canvas.DrawPath(path, fill);
-
-        using var stroke = new SKPaint
-        {
-            Color = new SKColor(200, 200, 200),
-            StrokeWidth = 1,
-            IsAntialias = true,
-            Style = SKPaintStyle.Stroke
-        };
-        canvas.DrawPath(path, stroke);
-    }
-
-    private static void DrawClippedCross(SKCanvas canvas, float x, float y, float hexSize)
-    {
-        float len = hexSize * 0.6f;
-        using var paint = new SKPaint { Color = SKColors.Red, StrokeWidth = 4, IsAntialias = true };
-        canvas.DrawLine(x - len / 2, y - len / 2, x + len / 2, y + len / 2, paint);
-        canvas.DrawLine(x - len / 2, y + len / 2, x + len / 2, y - len / 2, paint);
-    }
-
-    private static void DrawCapitalFlag(SKCanvas canvas, float x, float y, string stageMarkPath,
-        int countryId, int flagSize, Dictionary<int, SKBitmap?> cache)
-    {
-        if (!cache.TryGetValue(countryId, out var bitmap))
-        {
-            bitmap = null;
-            try
-            {
-                string basePath = System.IO.Path.Combine(stageMarkPath, "CountryFlag");
-                string path = System.IO.Path.Combine(basePath, $"flag_{countryId}.png");
-                if (!System.IO.File.Exists(path) && (countryId == 0 || countryId == 255))
-                    path = System.IO.Path.Combine(basePath, "flag_1.png");
-
-                if (System.IO.File.Exists(path))
-                    bitmap = SKBitmap.Decode(path);
-            }
-            catch { }
-
-            cache[countryId] = bitmap;
-        }
-
-        if (bitmap == null) return;
-
-        float half = flagSize / 2f;
-        canvas.DrawBitmap(bitmap, new SKRect(x - half, y - half, x + half, y + half));
     }
 
     private void OnBrushToggled(object? sender, EventArgs e)
@@ -4668,45 +2939,7 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             return;
         }
 
-        var terrain = _editModeManager.GetModifier<TerrainModifier>();
-        if (terrain == null) return;
-
-        terrain.BrushActive = !terrain.BrushActive;
-
-        if (terrain.BrushActive)
-        {
-            if (_brushSettingsWindow == null)
-            {
-                _brushSettingsWindow = new BrushSettingsWindow();
-                _brushSettingsWindow.BrushSettingsChanged += OnBrushSettingsChanged;
-                _brushSettingsWindow.InitializeTerrainList();
-                _brushSettingsWindow.UpdateVariantList();
-                _brushSettingsWindow.InitializeMaskTerrainList();
-                _brushSettingsWindow.BrushSize = terrain.BrushSize;
-                _brushSettingsWindow.SelectedTerrainType = terrain.BrushTerrainType;
-                _brushSettingsWindow.SelectedTerrainVariant = terrain.BrushDecoration;
-                _brushSettingsWindow.EditLayer = terrain.EditLayer;
-                _brushSettingsWindow.BrushShape = terrain.BrushShape;
-
-                var mainWindow = Window;
-                if (mainWindow != null)
-                {
-                    _brushSettingsWindow.Owner = mainWindow;
-                    double left = mainWindow.Left + mainWindow.ActualWidth - _brushSettingsWindow.Width - 20;
-                    double top = mainWindow.Top + 80;
-                    _brushSettingsWindow.Left = left;
-                    _brushSettingsWindow.Top = top;
-                }
-            }
-            _brushSettingsWindow.Show();
-            _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.BrushOnTerrain"));
-        }
-        else
-        {
-            if (_brushSettingsWindow != null)
-                _brushSettingsWindow.PlayFadeOutAndHide();
-            _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.BrushOff"));
-        }
+        ToggleTerrainBrush();
     }
 
     private void OnBrushSettingsChanged(object? sender, BrushSettingsEventArgs e)
@@ -4738,43 +2971,17 @@ public abstract class RenderSceneBase : UserControl, IDisposable
             return;
         }
 
-        var terrain = _editModeManager.GetModifier<TerrainModifier>();
-        if (terrain == null) return;
-
-        terrain.BrushSize = e.BrushSize;
-        terrain.BrushTerrainType = e.TerrainType;
-        terrain.BrushDecoration = e.TerrainVariant;
-        terrain.BrushShape = e.BrushShape;
-
-        // 刻意不回写 terrain.EditLayer：
-        // 画笔设置窗口里没有"编辑层"控件，它的 EditLayer 只是窗口创建时同步的快照，
-        // 按 Z 切换编辑层后不会跟着更新。若在此回写，窗口里任何动作
-        // （改大小 / 选地形 / 改遮罩）都会把编辑层重置回旧值，
-        // 表现就是"切到第 2 层后画笔仍然在改第一层"。
-        // 编辑层统一由 Z 键（以及 CLI 的 --layer）控制。
+        ApplyTerrainBrushSettings(e);
     }
 
     private void OnBrushSizeChanged(object? sender, EventArgs e)
     {
-        var (col, row) = GetFocusHex();
+        // 预览圈跟着鼠标走；不用 GetFocusHex —— 它在没有选区时会顺手把鼠标下的格子选中
+        var (col, row) = HoveredHex() ?? (-1, -1);
 
         if (_editModeManager.CurrentMode == EditMode.TerrainPaint)
         {
-            var terrain = _editModeManager.GetModifier<TerrainModifier>();
-            if (terrain == null) return;
-
-            if (_brushSettingsWindow != null && _brushSettingsWindow.IsVisible)
-                _brushSettingsWindow.BrushSize = terrain.BrushSize;
-
-            if (terrain.BrushActive)
-            {
-                _renderEngine.SetBrushPreview(
-                    col, row,
-                    terrain.BrushSize, terrain.BrushShape,
-                    _camera.ZoomLevel, _camera.OffsetX, _camera.OffsetY,
-                    true);
-                _skElement.InvalidateVisual();
-            }
+            RefreshTerrainBrushSize(col, row);
         }
         else if (_editModeManager.CurrentMode == EditMode.ProvinceEdit)
         {
@@ -4834,68 +3041,6 @@ public abstract class RenderSceneBase : UserControl, IDisposable
 
     #endregion
 
-    private async Task<(bool success, int modifiedCount)> RecognizeTerrainFromViewLayer()
-    {
-        var terrain = _editModeManager.GetModifier<TerrainModifier>();
-        if (terrain == null) return (false, 0);
-
-        var provider = _renderEngine.ViewLayerImageProvider;
-        if (provider == null)
-        {
-            _editModeManager.RaiseStatusMessage(Loc.T("Render.Status.NoViewLayerProvider"));
-            return (false, 0);
-        }
-
-        terrain.TerrainRecognizer.SetImageProvider(provider);
-
-        var cts = new CancellationTokenSource();
-        var progressWindow = new Views.Dialogs.ProgressWindow();
-        progressWindow.Closing += (_, _) =>
-        {
-            try
-            {
-                if (!cts.IsCancellationRequested)
-                    cts.Cancel();
-            }
-            catch (ObjectDisposedException)
-            {
-                // CTS 已被释放，忽略
-            }
-        };
-
-        var progress = new Progress<(int current, int total, int row, int col)>(p =>
-        {
-            int percent = p.total > 0 ? (int)((double)p.current / p.total * 100) : 0;
-            progressWindow.UpdateProgress(p.current, p.total, p.row, p.col, percent);
-        });
-
-        progressWindow.Show();
-
-        // 等待窗口加载完成并开始淡入动画后再执行识别
-        await Task.Delay(250);
-
-        var (success, modifiedCount) = await terrain.RecognizeTerrainAsync(progress, cts.Token);
-
-        progressWindow.PlayFadeOutAndClose();
-
-        // 延迟释放 CTS，确保窗口关闭事件处理完毕
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(1000);
-            cts.Dispose();
-        });
-
-        if (success && modifiedCount > 0)
-        {
-            _renderEngine.InvalidateTerrainCache();
-            if (_mapData != null)
-                _renderEngine.InvalidateCoastCacheFull(_mapData);
-            _skElement.InvalidateVisual();
-        }
-
-        return (success, modifiedCount);
-    }
-
     public void Dispose()
     {
         if (_disposed) return;
@@ -4908,20 +3053,32 @@ public abstract class RenderSceneBase : UserControl, IDisposable
         _keyboardManager.UnregisterBinding("EscBack");
         _keyboardManager.UnregisterBinding("Screenshot");
         UnregisterEditModeKeyBindings();
+        DetachSceneUx();
         _editModeManager.ModeChanged -= OnEditModeChanged;
         _editModeManager.StatusMessageChanged -= OnEditModeStatusMessageChanged;
         _editModeManager.DataModified -= OnEditModeDataModified;
         _editModeManager.BrushToggled -= OnBrushToggled;
+        // EditModeManager 是跨场景的单例：漏掉的订阅会让已销毁的场景继续收到事件
+        // （例如回到主界面再进入地图后，按 Q 会同时在旧场景和新场景各开一次窗口）。
+        _editModeManager.BrushSizeChanged -= OnBrushSizeChanged;
+        _editModeManager.BoundaryDrawToggled -= OnBoundaryDrawToggled;
+        _editModeManager.DomainToggled -= OnDomainToggled;
+        _editModeManager.BuildingNamesToggled -= OnBuildingNamesToggled;
+        _editModeManager.CaptureLegionScreenshotRequested -= OnCaptureLegionScreenshotRequested;
+        _editModeManager.MoveCameraToHexRequested -= OnMoveCameraToHexRequested;
+        _editModeManager.BuildingMoveToolToggled -= OnBuildingMoveToolToggled;
+        _editModeManager.RecognizeTextBuildingsRequested -= OnRecognizeTextBuildingsRequested;
+        if (_assistEditors != null && _editModeManager.EditorHost == (Func<EditorRequest, bool>)_assistEditors.Open)
+            _editModeManager.EditorHost = null;
+        _assistEditors?.CloseAll();
 
         // 场景销毁时关闭随本场景打开的子窗口，避免切换场景后残留
         try
         {
-            _legionSettingWindow?.Close();
             _hexInfoWindow?.Close();
             _brushSettingsWindow?.Hide();
         }
         catch { }
-        _legionSettingWindow = null;
         _hexInfoWindow = null;
         _brushSettingsWindow = null;
         if (_debugConsole.IsVisible) _debugConsole.HideConsole();

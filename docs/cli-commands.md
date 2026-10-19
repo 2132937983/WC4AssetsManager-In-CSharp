@@ -77,7 +77,7 @@ dotnet run --project src/WC4MapEditor.Cli -- run map.btl batch.zme -o out.btl
 | `modify` 选项 | 说明 |
 |---|---|
 | `-o`, `--output` | 输出文件（默认覆盖原文件） |
-| `--no-save` | 只执行不写回；`info` / `check` 默认就不写回 |
+| `--no-save` | 只执行不写回；`info` / `check` / `inspect` / `compare` / `convert` 默认就不写回 |
 
 > 选项要写在**命令体之前**。命令体（含它自己的选项，如 `-p 60`）按原顺序透传。
 > 命令规则只有一份（`Core/Commands/CliCommandHost.cs`），改一处 GUI 与 CLI 同时生效。
@@ -264,11 +264,11 @@ legion list --out=my-list.log          → 相对路径按程序目录展开
 
 | 子命令 | 说明 | 参数 |
 |---|---|---|
-| `list` | 列出所有部队 | |
+| `list` | 列出所有部队（"归属"列 = 单位所在格子的归属值） | |
 | `remove-all` | 删除所有部队 | |
 | `apply` / `remove` | 放置 / 删除指定坐标单位 | `<col> <row>` |
 | `copy` / `paste` | 复制 / 粘贴单位 | `<col> <row>` |
-| `set-legion` | 设置单位军团ID | `<col> <row> <legionId>` |
+| `set-legion` | 设置单位所属军团：单位的归属就是所在格子的归属，改的是该格归属值（该格无单位时失败） | `<col> <row> <belong>` |
 | `cycle-plan` | 循环切换方案(0-4) | `<col> <row>` |
 | `set-plan` | 设置单位方案(0-4) | `<col> <row> <plan>` |
 | `batch-plan-by-legion` | 按归属批量改方案 | `<belong> <plan>` |
@@ -284,14 +284,15 @@ legion list --out=my-list.log          → 相对路径按程序目录展开
 
 > `set-field` 的字段含：`UnitType` `Level` `Organization` `Direction` `Mobility` `BuiltRound` `Experience`
 > `HealthBonus` `CurrentHealth` `MaxHealth` `General` `Rank` `KeyPoint` `Policy` `Plan` `Morale`
-> `CanAttack` `LegionId`，以及 **v3 专有**的 `HpLevel` `TransportShip` `Hatred` `AttackTarget`
+> `CanAttack`，以及 **v3 专有**的 `HpLevel` `TransportShip` `Hatred` `AttackTarget`
 > `DeathDialogue` `LevelMarkDisplay` `AntiDefenseMode`（写在 v1 地图上会明确失败，不会静默忽略）。
+> 所属军团不是单位自己的数据：它就是单位所在格子的归属值，用 `army set-legion` 或 `belong set` 改。
 
 ### trap — 陷阱修改操作
 
 | 子命令 | 说明 |
 |---|---|
-| `list` | 列出所有陷阱 |
+| `list` | 列出所有陷阱（"行动ID"列 = 陷阱记录里存的军团行动序号，"归属"列 = 所在格子的归属值） |
 | `remove-all` | 删除所有陷阱 |
 
 ### info / check / fix
@@ -299,7 +300,7 @@ legion list --out=my-list.log          → 相对路径按程序目录展开
 | 命令 | 说明 | 参数 |
 |---|---|---|
 | `info` | 显示地图信息（尺寸、建筑/单位/省区/归属格数等） | |
-| `check [file]` | 检查 btl 格式与玩法规则；省略路径则检查当前地图 | `<file>` ; `-o/--out` 另存完整报告 |
+| `check [file]` | 检查 btl 格式、玩法规则与事件引用（军团 / 关联事件 / 进攻目标格 / 占领事件）；省略路径则检查当前地图 | `<file>` ; `-o/--out` 另存完整报告 |
 | `fix <file>` | 按玩法规则修复 btl（会写回文件，自动备份 `.bak`） | `<file>` |
 
 ### run — 执行脚本文件

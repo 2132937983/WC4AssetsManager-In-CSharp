@@ -102,7 +102,7 @@ public sealed class LuaScriptEngine
         // 标准库补全：os.clock / os.time、utf8、loadstring、io.write、package.path …
         LuaStandardEnvironment.Install(script, modulePaths, WriteStream);
 
-        var luaMap = new LuaMapApi(_api, Log, n => affectedTotal += n);
+        var luaMap = new LuaMapApi(_api, script, Log, n => affectedTotal += n);
         script.Globals["map"] = luaMap;
 
         if (_uiApi != null)

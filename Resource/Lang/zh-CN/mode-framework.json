@@ -1,0 +1,29 @@
+{
+  "Mode.HelpTitle": "{0}模式:",
+  "Mode.Browse": "浏览模式",
+  "Mode.SwitchTo": "切换到{0}模式",
+  "Mode.Help.NoMode": "未选择编辑模式，按 Space 切换模式",
+  "Mode.Help.Footer.Space": "Space - 切换模式",
+  "Mode.Help.Footer.Esc": "Esc - 返回主界面",
+  "Mode.Status.NotInScene": "当前场景不支持 {0} 模式",
+  "Mode.Status.ActionFailed": "{0}：动作 {1} 执行失败：{2}",
+  "Mode.Status.EditorUnavailable": "编辑窗口 {0} 不可用（尚未实现，或当前没有界面）",
+  "Mode.Status.EditorFailed": "打开编辑窗口 {0} 失败：{1}",
+
+  "Mode.Event.Name": "事件编辑",
+  "Mode.AirForce.Name": "空袭编辑",
+  "Mode.MapCase.Name": "方案编辑",
+  "Mode.Strategic.Name": "战略建设",
+  "Mode.Weather.Name": "天气编辑",
+
+  "Key.Space": "空格",
+  "Key.Left": "←",
+  "Key.Up": "↑",
+  "Key.Right": "→",
+  "Key.Down": "↓",
+  "Key.Mouse.LeftClick": "左键",
+  "Key.Mouse.RightClick": "右键",
+  "Key.Mouse.RightDrag": "右键拖动",
+  "Key.Mouse.LeftDrag": "左键拖动",
+  "Key.Mouse.Wheel": "滚轮"
+}

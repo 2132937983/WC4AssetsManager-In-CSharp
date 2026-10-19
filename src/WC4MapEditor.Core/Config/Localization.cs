@@ -192,7 +192,7 @@ public static class Loc
     private static void LoadInternal(string code)
     {
         string dir = LangDirectory;
-        _fallback = TryLoad(Path.Combine(dir, DefaultLanguage + ".json"));
+        _fallback = LoadLanguage(dir, DefaultLanguage);
 
         if (string.Equals(code, DefaultLanguage, StringComparison.OrdinalIgnoreCase))
         {
@@ -201,7 +201,7 @@ public static class Loc
         }
         else
         {
-            var table = TryLoad(Path.Combine(dir, code + ".json"));
+            var table = LoadLanguage(dir, code);
             if (table.Count == 0 && !File.Exists(Path.Combine(dir, code + ".json")))
             {
                 Debug.WriteLine($"[Loc] 语言 {code} 不存在，退回 {DefaultLanguage}");
@@ -216,6 +216,32 @@ public static class Loc
         }
 
         Debug.WriteLine($"[Loc] 语言 {CurrentLanguage}：{_current.Count} 条，默认语言 {_fallback.Count} 条");
+    }
+
+    /// <summary>
+    /// 读一门语言：主文件 <c>&lt;code&gt;.json</c>，再叠加同名子目录 <c>&lt;code&gt;/*.json</c> 里的分文件（按文件名排序）。
+    /// 分文件用于按功能拆分翻译（例如 zh-CN/mapcase.json）；同一个键以主文件为准，分文件只补充新键。
+    /// </summary>
+    private static Dictionary<string, string> LoadLanguage(string dir, string code)
+    {
+        var table = TryLoad(Path.Combine(dir, code + ".json"));
+        string subDir = Path.Combine(dir, code);
+        if (!Directory.Exists(subDir)) return table;
+
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(subDir, "*.json", SearchOption.TopDirectoryOnly)
+                         .OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+            {
+                foreach (var kv in TryLoad(file))
+                    table.TryAdd(kv.Key, kv.Value);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Loc] 读取分文件目录 {subDir} 失败: {ex.Message}");
+        }
+        return table;
     }
 
     private static Dictionary<string, string> TryLoad(string path)

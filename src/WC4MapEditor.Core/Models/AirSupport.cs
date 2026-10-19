@@ -3,7 +3,11 @@ using System.Runtime.InteropServices;
 namespace WC4MapEditor.Core.Models;
 
 /// <summary>
-/// 空中支援数据结构 (16字节) - 使用结构体减少内存开销
+/// 空中支援数据结构 (16字节) - 使用结构体减少内存开销。
+/// <para>
+/// 空中支援没有坐标；<see cref="AirForceSequence"/> 是兵种编号（与空袭的 UnitType 同一张名录），
+/// <see cref="OwnerLegion"/> 是军团 ActionId。
+/// </para>
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct AirSupport
@@ -26,37 +30,19 @@ public struct AirSupport
         MemoryMarshal.Write(data[offset..], in this);
 
     /// <summary>
-    /// 创建默认空中支援
+    /// 新建空中支援的默认值：轰炸机、默认弹药、第 1 回合（与 VB 列表窗口的"新增"一致；原先返回全 0）。
     /// </summary>
-    public static AirSupport CreateDefault() => new AirSupport();
-
-    /// <summary>
-    /// 获取空军类型名称
-    /// </summary>
-    public readonly string GetAirForceTypeName() => AirForceSequence switch
+    public static AirSupport CreateDefault(int ownerLegion = 0) => new()
     {
-        0x14 => "战斗机",
-        0x15 => "轰炸机",
-        0x16 => "空降伞兵",
-        0x17 => "战略轰炸机",
-        0x18 => "特色轰炸机",
-        0x19 => "近程导弹",
-        0x1A => "中程导弹",
-        0x1B => "远程导弹",
-        0x1E => "洲际导弹",
-        _ => $"未知({AirForceSequence})"
+        AirForceSequence = AirForceCatalog.Bomber,
+        AmmoType = AirForceCatalog.DefaultAmmo,
+        OwnerLegion = ownerLegion,
+        TriggerRound = 1
     };
 
-    /// <summary>
-    /// 获取弹药类型名称
-    /// </summary>
-    public readonly string GetAmmoTypeName() => AmmoType switch
-    {
-        0x0 => "默认弹药",
-        0x1D => "原子弹",
-        0x1E => "氢弹",
-        0x1F => "三相弹",
-        0x20 => "反物质弹",
-        _ => $"未知({AmmoType})"
-    };
+    /// <summary>兵种名称（与空袭共用名录）。</summary>
+    public readonly string GetAirForceTypeName() => AirForceCatalog.TypeName(AirForceSequence);
+
+    /// <summary>弹药名称。</summary>
+    public readonly string GetAmmoTypeName() => AirForceCatalog.AmmoName(AmmoType);
 }

@@ -105,20 +105,22 @@ public static class SettingTxtParser
                 ParseWordCloudConfig(key, value, ctx);
                 break;
 
-            case SectionType.Event:
-                // EventEditConfig 当前为空实现
+            case SectionType.Event when ctx.EventEditConfig != null:
+                if (key == "EventList") ctx.EventEditConfig.EventList = ConfigKeyValue.ParseList(value);
+                else if (key == "TriggerList") ctx.EventEditConfig.TriggerList = ConfigKeyValue.ParseList(value);
                 break;
 
-            case SectionType.AirForce:
-                // AirForceEditConfig 当前为空实现
+            case SectionType.AirForce when ctx.AirForceEditConfig != null:
+                if (key == "AirForceList") ctx.AirForceEditConfig.AirForceList = ConfigKeyValue.ParseList(value);
+                else if (key == "AirForcePowerList") ctx.AirForceEditConfig.AirForcePowerList = ConfigKeyValue.ParseList(value);
                 break;
 
-            case SectionType.Case:
-                // CaseEditConfig 当前为空实现
+            case SectionType.Case when ctx.CaseEditConfig != null:
+                if (key == "CaseList") ctx.CaseEditConfig.CaseList = ConfigKeyValue.ParseList(value);
                 break;
 
-            case SectionType.Weather:
-                // WeatherEditConfig 当前为空实现
+            case SectionType.Weather when ctx.WeatherEditConfig != null:
+                if (key == "WeatherList") ctx.WeatherEditConfig.WeatherList = ConfigKeyValue.ParseList(value);
                 break;
         }
 
@@ -516,13 +518,26 @@ public class WordCloudConfig
     public string[] Tokens { get; set; } = new string[30];
 }
 
-public class EventEditConfig { }
+/// <summary>[事件修改]：事件类型与触发方式的下拉列表</summary>
+public class EventEditConfig
+{
+    /// <summary>EventList：事件类型（值 → 名称），例如 0 = 士气上升</summary>
+    public List<ConfigKeyValue> EventList { get; set; } = [];
+
+    /// <summary>TriggerList：触发方式（值 → 名称），例如 0 = 占地触发</summary>
+    public List<ConfigKeyValue> TriggerList { get; set; } = [];
+}
 public class AirForceEditConfig
 {
     public List<ConfigKeyValue> AirForceList { get; set; } = [];
     public List<ConfigKeyValue> AirForcePowerList { get; set; } = [];
 }
-public class CaseEditConfig { }
+/// <summary>[方针修改]：方案（方针）类型列表</summary>
+public class CaseEditConfig
+{
+    /// <summary>CaseList：方针类型（值 → 名称）</summary>
+    public List<ConfigKeyValue> CaseList { get; set; } = [];
+}
 public class WeatherEditConfig
 {
     public List<ConfigKeyValue> WeatherList { get; set; } = [];
@@ -532,4 +547,46 @@ public class ConfigKeyValue
 {
     public string Name { get; set; } = "";
     public int Value { get; set; }
+
+    /// <summary>
+    /// 解析 setting.txt 里的 <c>[(值, "名称"), (值, "名称"), ...]</c> 列表；值可以写十进制或 0x 十六进制，格式不对的项跳过。
+    /// </summary>
+    public static List<ConfigKeyValue> ParseList(string value)
+    {
+        var result = new List<ConfigKeyValue>();
+        if (string.IsNullOrWhiteSpace(value)) return result;
+        foreach (System.Text.RegularExpressions.Match m in ListItem.Matches(value))
+        {
+            if (TryParseValue(m.Groups[1].Value, out int v))
+                result.Add(new ConfigKeyValue { Value = v, Name = m.Groups[2].Value });
+        }
+        return result;
+    }
+
+    /// <summary>解析带可选负号的十进制或 0x 十六进制整数（超出 int 范围时失败）。</summary>
+    private static bool TryParseValue(string text, out int value)
+    {
+        bool negative = text.StartsWith('-');
+        string digits = negative ? text[1..] : text;
+        bool hex = digits.StartsWith("0x", StringComparison.OrdinalIgnoreCase);
+
+        bool ok = hex
+            ? int.TryParse(digits.AsSpan(2), System.Globalization.NumberStyles.AllowHexSpecifier,
+                System.Globalization.CultureInfo.InvariantCulture, out value)
+            : int.TryParse(digits, System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out value);
+        if (ok && negative) value = -value;
+        return ok;
+    }
+
+    /// <summary>按值取名称；列表里没有时返回 null（界面上应退回显示原始数值）。</summary>
+    public static string? NameOf(IEnumerable<ConfigKeyValue> list, int value)
+    {
+        foreach (var kv in list)
+            if (kv.Value == value) return kv.Name;
+        return null;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex ListItem =
+        new("\\(\\s*(-?(?:0[xX][0-9A-Fa-f]+|\\d+))\\s*,\\s*\"([^\"]*)\"\\s*\\)", System.Text.RegularExpressions.RegexOptions.Compiled);
 }

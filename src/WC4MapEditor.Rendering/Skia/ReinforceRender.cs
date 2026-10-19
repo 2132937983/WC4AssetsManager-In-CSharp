@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
@@ -9,22 +10,40 @@ using WC4MapEditor.Core.Models;
 
 namespace WC4MapEditor.Rendering.Skia;
 
+/// <summary>
+/// 援军渲染层，旧样式（对齐 VB ReinforceRender）：援军竖排在格子左侧，最多 6 个，单位编辑模式使用。
+/// <para>
+/// 同时是 <see cref="ReinforceRenderNew"/>（援军模式的格子中心 2×6 网格）的基类：两种样式共用分组缓存、
+/// 叠加信息（等级、爆兵回合、将领头像）与绘制，只是图标排布不同（<see cref="MaxPerHex"/> / <see cref="IconCenter"/> /
+/// <see cref="OverflowTextPosition"/>）。
+/// </para>
+/// <para>
+/// 版本由地图决定：BtlVersion ≥ 3 读 ReinforcementsV3，否则读 Reinforcements。
+/// 兵种没有图标（ArmyMark 里没有 legion_icon_{兵种}.png）时画一个带兵种编号的圆形占位，叠加信息照常画出，援军不会"隐身"。
+/// </para>
+/// </summary>
 public class ReinforceRender : IDisposable
 {
     private const int ATLAS_TILE_SIZE = 64;
-    private const double UNIT_IMAGE_SIZE_RATIO = 0.9;
     private const float GENERAL_HEAD_SIZE_RATIO = 0.35f;
-    private const double REINFORCE_GROUP_SIZE_RATIO = 0.5;
-    private const int MAX_REINFORCE_PER_HEX = 6;
+
+    /// <summary>图标边长 = 六边形高 × 0.5（VB 两种样式相同）</summary>
+    private const double ICON_SIZE_RATIO = 0.5;
+
     private const double BASE_HEX_SIZE = 20.0;
-    private static readonly double HEX_HORIZONTAL_SPACING = BASE_HEX_SIZE * 1.5;
-    private static readonly double HEX_VERTICAL_SPACING = BASE_HEX_SIZE * Math.Sqrt(3);
+
+    /// <summary>VB MainRender.HexWidth（= BASE_HEX_SIZE × 2），旧样式按它计算左侧一列的位置</summary>
+    private const double VB_HEX_WIDTH = BASE_HEX_SIZE * 2;
+
+    private static readonly double HEX_HEIGHT = BASE_HEX_SIZE * Math.Sqrt(3);
+
+    /// <summary>一个援军在渲染层上需要的信息（v1 / v3 记录统一成它，按格子分组缓存）。</summary>
+    private readonly record struct Glyph(int UnitType, int Level, int SpawnRound, int General);
 
     private readonly Camera _camera;
     private readonly MapData _mapData;
     private readonly object _atlasLock = new();
     private bool _disposed;
-    private bool _showReinforcements = true;
     private bool _atlasInitialized;
 
     /// <summary>共享单位图集，由 <see cref="UnitAtlasCache"/> 持有所有权，本类不得 Dispose。</summary>
@@ -34,125 +53,127 @@ public class ReinforceRender : IDisposable
 
     private readonly List<SKRect> _spriteRects = new();
     private readonly List<SKRotationScaleMatrix> _transforms = new();
-    private readonly List<(SKPoint Position, string Text, float Size)> _reinforceGroupTexts = new();
+    private readonly List<(SKPoint Position, float Size, int UnitType)> _placeholders = new();
+    private readonly List<(SKPoint Position, string Text, float Size)> _groupTexts = new();
     private readonly List<(SKPoint Position, string Text, float Size)> _spawnRoundTexts = new();
-    private readonly List<(SKPoint Position, float Size, SKImage? Image)> _generalHeadPositions = new();
-    private readonly List<(SKPoint Position, float Size, int Level)> _levelIconPositions = new();
+    private readonly List<(SKPoint Position, float Size, SKImage? Image)> _generalHeads = new();
+    private readonly List<(SKPoint Position, float Size, int Level)> _levelIcons = new();
 
     /// <summary>
-    /// 按格子坐标分组的增援单位缓存。原实现每帧执行 .Where().GroupBy() 并为每个分组
-    /// ToList()，分组数与部队数成正比，会产生大量临时对象；这里改为缓存，集合内容
-    /// 变化时再重建。
+    /// 按格子坐标分组的援军缓存（内容变化时重建，避免每帧分组）。
+    /// 监听的是当前那份集合实例：撤销地图缩放等操作会整体换掉集合，渲染前发现实例变了就改订阅并丢弃缓存。
     /// </summary>
-    private Dictionary<int, List<Reinforcement>>? _groupCacheV1;
-    private Dictionary<int, List<Reinforcement_3>>? _groupCacheV3;
+    private Dictionary<int, List<Glyph>>? _groups;
+    private bool _groupsAreV3;
+    private ObservableCollection<Reinforcement>? _watchedV1;
+    private ObservableCollection<Reinforcement_3>? _watchedV3;
 
     private readonly Dictionary<int, SKImage> _levelIconCache = new();
-    private SKImage? _formationBoardCache;
-    private SKImage? _formationIconCache;
-    private readonly Dictionary<int, SKImage> _actionPlanCache = new();
 
     /// <summary>
-    /// 将领 Id → 头像（null 表示该将领没有头像）。原先每个带将领的单位每帧都要查将领表并拼接文件名。
-    /// 只在 TacticalMapImageCache 就绪时写入；图块缓存状态翻转或 <see cref="ClearGeneralHeadCache"/> 时清空。
-    /// 头像归 TacticalMapImageCache 所有，本类不得 Dispose。
+    /// 将领 Id → 头像（null 表示该将领没有头像）。只在 TacticalMapImageCache 就绪时写入；
+    /// 图块缓存状态翻转或 <see cref="ClearGeneralHeadCache"/> 时清空。头像归 TacticalMapImageCache 所有，本类不得 Dispose。
     /// </summary>
     private readonly Dictionary<int, SKImage?> _generalHeadCache = new();
 
-    private readonly SKFont _spawnRoundFont;
-    private readonly SKPaint _spawnRoundPaint;
-    private readonly SKPaint _spawnRoundShadowPaint;
-    private readonly SKPaint _groupTextPaint;
-    private readonly SKFont _groupTextFont;
+    private readonly SKPaint _spritePaint = new() { IsAntialias = true };
+    private readonly SKPaint _imagePaint = new() { IsAntialias = true };
+    private readonly SKPaint _spawnRoundPaint = new() { IsAntialias = true, Color = SKColors.LimeGreen };
+    private readonly SKPaint _shadowPaint = new() { IsAntialias = true, Color = SKColors.Black };
+    private readonly SKPaint _groupTextPaint = new() { IsAntialias = true, Color = SKColors.Yellow };
+    private readonly SKPaint _placeholderFill = new() { IsAntialias = true, Color = new SKColor(40, 48, 64, 220) };
+    private readonly SKPaint _placeholderStroke = new() { IsAntialias = true, Style = SKPaintStyle.Stroke, Color = new SKColor(230, 230, 230) };
+    private readonly SKPaint _placeholderText = new() { IsAntialias = true, Color = SKColors.White };
+    private readonly SKPaint _headFill = new() { IsAntialias = true, Color = new SKColor(255, 215, 0) };
+    private readonly SKPaint _headStroke = new() { IsAntialias = true, Style = SKPaintStyle.Stroke, Color = new SKColor(218, 165, 32) };
+    // 复用的文本字体，绘制时只改 Size
+    private readonly SKFont _font = new(SKTypeface.Default, 10);
 
-    public bool ShowReinforcements
-    {
-        get => _showReinforcements;
-        set => _showReinforcements = value;
-    }
+    public bool ShowReinforcements { get; set; } = true;
 
-    public bool IsV3 { get; set; }
+    /// <summary>当前地图是否为 v3（BtlVersion ≥ 3）：决定读哪份援军列表。</summary>
+    public bool IsV3 => _mapData.Header.UsesV3Records;
 
     public ReinforceRender(Camera camera, MapData mapData)
     {
         _camera = camera;
         _mapData = mapData;
-
-        _spawnRoundFont = new SKFont(SKTypeface.Default, 10);
-        _spawnRoundPaint = new SKPaint { IsAntialias = true, Color = SKColors.Green };
-        _spawnRoundShadowPaint = new SKPaint { IsAntialias = true, Color = SKColors.Black };
-        _groupTextFont = new SKFont(SKTypeface.Default, 10);
-        _groupTextPaint = new SKPaint { IsAntialias = true, Color = SKColors.Yellow };
-
         InitializeUnitAtlas();
-        InitializeLevelAndFormationImages();
-
-        // 增援集合内容变化时丢弃分组缓存。
-        if (_mapData.Reinforcements != null)
-            _mapData.Reinforcements.CollectionChanged += OnReinforcementCollectionChanged;
-        if (_mapData.ReinforcementsV3 != null)
-            _mapData.ReinforcementsV3.CollectionChanged += OnReinforcementCollectionChanged;
+        InitializeLevelIcons();
+        WatchCollections();
     }
 
-    private void OnReinforcementCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        _groupCacheV1 = null;
-        _groupCacheV3 = null;
-    }
+    #region 布局（子类改写）
 
-    /// <summary>按 Coordinate 分组的 v1 增援，惰性构建并缓存。</summary>
-    private Dictionary<int, List<Reinforcement>> GetGroupsV1()
-    {
-        var cached = _groupCacheV1;
-        if (cached != null) return cached;
+    /// <summary>每格最多画几个图标，超出时在下方显示 "X总数"。</summary>
+    protected virtual int MaxPerHex => 6;
 
-        var map = new Dictionary<int, List<Reinforcement>>();
-        var source = _mapData.Reinforcements;
-        if (source != null)
+    /// <summary>
+    /// 第 <paramref name="index"/> 个图标的中心。旧样式：格子中心左移 0.8 个六边形半宽（VB HexWidth = 40），
+    /// 从中心上方 0.3 个六边形高开始往下排，每个下移 0.4 个图标（相邻图标重叠 60%）。
+    /// </summary>
+    protected virtual SKPoint IconCenter(SKPoint hexCenter, int index, float iconSize, float hexHeight)
+        => new(ColumnX(hexCenter), hexCenter.Y - hexHeight * 0.3f + index * iconSize * 0.4f);
+
+    /// <summary>超出 <see cref="MaxPerHex"/> 时 "X总数" 文本的位置（旧样式：紧接在这一列下方）。</summary>
+    protected virtual SKPoint OverflowTextPosition(SKPoint hexCenter, int visibleCount, float iconSize, float hexHeight)
+        => new(ColumnX(hexCenter), hexCenter.Y - hexHeight * 0.3f + visibleCount * iconSize * 0.4f + iconSize * 0.5f);
+
+    private float ColumnX(SKPoint hexCenter) => hexCenter.X - (float)(VB_HEX_WIDTH * _camera.ZoomLevel / 2) * 0.8f;
+
+    #endregion
+
+    #region 数据
+
+    private void WatchCollections()
+    {
+        if (!ReferenceEquals(_watchedV1, _mapData.Reinforcements))
         {
-            foreach (var r in source)
-            {
-                if (r.Coordinate < 0) continue;
-                if (!map.TryGetValue(r.Coordinate, out var list))
-                {
-                    list = new List<Reinforcement>(4);
-                    map[r.Coordinate] = list;
-                }
-                list.Add(r);
-            }
+            if (_watchedV1 != null) _watchedV1.CollectionChanged -= OnReinforcementsChanged;
+            _watchedV1 = _mapData.Reinforcements;
+            _watchedV1.CollectionChanged += OnReinforcementsChanged;
+            _groups = null;
         }
+        if (!ReferenceEquals(_watchedV3, _mapData.ReinforcementsV3))
+        {
+            if (_watchedV3 != null) _watchedV3.CollectionChanged -= OnReinforcementsChanged;
+            _watchedV3 = _mapData.ReinforcementsV3;
+            _watchedV3.CollectionChanged += OnReinforcementsChanged;
+            _groups = null;
+        }
+    }
 
-        _groupCacheV1 = map;
+    private void OnReinforcementsChanged(object? sender, NotifyCollectionChangedEventArgs e) => _groups = null;
+
+    /// <summary>当前版本援军按坐标分组（组内保持列表顺序），惰性构建并缓存。</summary>
+    private Dictionary<int, List<Glyph>> GetGroups()
+    {
+        bool v3 = IsV3;
+        if (_groups != null && _groupsAreV3 == v3) return _groups;
+
+        var map = new Dictionary<int, List<Glyph>>();
+        if (v3) Collect(_mapData.ReinforcementsV3, map);
+        else Collect(_mapData.Reinforcements, map);
+
+        _groups = map;
+        _groupsAreV3 = v3;
         return map;
     }
 
-    /// <summary>按 Coordinate 分组的 v3 增援，惰性构建并缓存。</summary>
-    private Dictionary<int, List<Reinforcement_3>> GetGroupsV3()
+    private static void Collect<T>(IEnumerable<T> source, Dictionary<int, List<Glyph>> map) where T : struct, IReinforcementData
     {
-        var cached = _groupCacheV3;
-        if (cached != null) return cached;
-
-        var map = new Dictionary<int, List<Reinforcement_3>>();
-        var source = _mapData.ReinforcementsV3;
-        if (source != null)
+        foreach (var r in source)
         {
-            foreach (var r in source)
+            if (r.Coordinate < 0) continue;
+            if (!map.TryGetValue(r.Coordinate, out var list))
             {
-                if (r.Coordinate < 0) continue;
-                if (!map.TryGetValue(r.Coordinate, out var list))
-                {
-                    list = new List<Reinforcement_3>(4);
-                    map[r.Coordinate] = list;
-                }
-                list.Add(r);
+                list = new List<Glyph>(4);
+                map[r.Coordinate] = list;
             }
+            // 等级只取低字节：v3 地图里等级字段的高字节常是 0xCC 填充（0xCC000003 = 3 级）
+            list.Add(new Glyph(r.UnitType, r.Level & 0xFF, r.SpawnRound, r.General));
         }
-
-        _groupCacheV3 = map;
-        return map;
     }
-
-    #region 纹理图集管理
 
     private void InitializeUnitAtlas()
     {
@@ -162,8 +183,7 @@ public class ReinforceRender : IDisposable
         {
             if (_atlasInitialized) return;
 
-            // 与 ArmyRender / ReinforceRenderNew 共享 UnitAtlasCache 中的同一份图集，
-            // 避免各自重复扫描目录与解码 PNG。
+            // 三个单位类渲染器共享 UnitAtlasCache 中的同一份图集
             if (UnitAtlasCache.TryGet(out var atlas, out var tileMap))
             {
                 _unitAtlas = atlas;
@@ -173,254 +193,116 @@ public class ReinforceRender : IDisposable
         }
     }
 
-    private void InitializeLevelAndFormationImages()
+    private void InitializeLevelIcons()
     {
         try
         {
             string infoMarkPath = ConfigManager.Instance.GetInformationMarkPath();
-
             for (int level = 1; level <= 5; level++)
             {
                 string levelPath = Path.Combine(infoMarkPath, $"level_{level}.png");
-                if (File.Exists(levelPath))
-                {
-                    using var stream = File.OpenRead(levelPath);
-                    _levelIconCache[level] = SKImage.FromEncodedData(stream);
-                }
-            }
-
-            string boardPath = Path.Combine(infoMarkPath, "formation_board1.png");
-            if (File.Exists(boardPath))
-            {
-                using var stream = File.OpenRead(boardPath);
-                _formationBoardCache = SKImage.FromEncodedData(stream);
-            }
-
-            string formationPath = Path.Combine(infoMarkPath, "formation.png");
-            if (File.Exists(formationPath))
-            {
-                using var stream = File.OpenRead(formationPath);
-                _formationIconCache = SKImage.FromEncodedData(stream);
-            }
-
-            for (int plan = 0; plan <= 4; plan++)
-            {
-                string planPath = Path.Combine(infoMarkPath, $"act{plan}.png");
-                if (File.Exists(planPath))
-                {
-                    using var stream = File.OpenRead(planPath);
-                    _actionPlanCache[plan] = SKImage.FromEncodedData(stream);
-                }
+                if (!File.Exists(levelPath)) continue;
+                using var stream = File.OpenRead(levelPath);
+                var image = SKImage.FromEncodedData(stream);
+                if (image != null) _levelIconCache[level] = image;
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[ReinforceRender] 初始化等级/编制图片失败: {ex.Message}");
+            Debug.WriteLine($"[ReinforceRender] 初始化等级图标失败: {ex.Message}");
         }
     }
 
     #endregion
 
-    #region 主渲染方法
+    #region 渲染
 
     public void Render(SKCanvas canvas)
     {
-        if (canvas == null || _mapData == null) return;
-        if (!_showReinforcements) return;
-        if (!_atlasInitialized || _unitAtlas == null) return;
+        if (canvas == null || _disposed || !ShowReinforcements) return;
+        if (_mapData.MapWidth <= 0 || _mapData.MapHeight <= 0) return;
 
-        if (IsV3)
-        {
-            if (_mapData.ReinforcementsV3 == null || _mapData.ReinforcementsV3.Count == 0) return;
-            RenderV3(canvas);
-        }
-        else
-        {
-            if (_mapData.Reinforcements == null || _mapData.Reinforcements.Count == 0) return;
-            RenderV1(canvas);
-        }
-    }
+        WatchCollections();
+        var groups = GetGroups();
+        if (groups.Count == 0) return;
+        InitializeUnitAtlas();
 
-    private void RenderV1(SKCanvas canvas)
-    {
         try
         {
             ClearBuffers();
 
             var visibleBounds = CalculateVisibleBounds();
-            double hexHeight = BASE_HEX_SIZE * Math.Sqrt(3) * _camera.ZoomLevel;
-            float groupIconSize = (float)(hexHeight * REINFORCE_GROUP_SIZE_RATIO);
-            float halfIconSize = groupIconSize / 2;
-            double hexWidth = BASE_HEX_SIZE * 1.5 * _camera.ZoomLevel;
-            float hexHalfWidth = (float)hexWidth / 2;
+            float hexHeight = (float)(HEX_HEIGHT * _camera.ZoomLevel);
+            float iconSize = (float)(hexHeight * ICON_SIZE_RATIO);
+            int maxPerHex = MaxPerHex;
 
-            foreach (var kvp in GetGroupsV1())
+            foreach (var (coordinate, group) in groups)
             {
-                var groupList = kvp.Value;
+                var center = CalculateScreenPosition(coordinate);
+                if (center == null || !visibleBounds.Contains(center.Value)) continue;
 
-                var screenPos = CalculateScreenPosition(kvp.Key);
-                if (screenPos == null) continue;
-                if (!IsInVisibleBounds(screenPos.Value, visibleBounds)) continue;
-
-                int visibleCount = Math.Min(groupList.Count, MAX_REINFORCE_PER_HEX);
-
+                int visibleCount = Math.Min(group.Count, maxPerHex);
                 for (int i = 0; i < visibleCount; i++)
-                {
-                    var reinforce = groupList[i];
-                    int unitType = reinforce.UnitType;
+                    CollectGlyph(group[i], IconCenter(center.Value, i, iconSize, hexHeight), iconSize);
 
-                    if (!_unitAtlasMap.ContainsKey(unitType))
-                    {
-                        if (_unitAtlasMap.ContainsKey(0)) unitType = 0;
-                        else continue;
-                    }
-
-                    float iconX = screenPos.Value.X - hexHalfWidth * 0.8f;
-                    float iconY = screenPos.Value.Y - (float)hexHeight * 0.3f + i * groupIconSize * 0.4f;
-
-                    float scale = groupIconSize / ATLAS_TILE_SIZE;
-                    float tx = iconX - halfIconSize;
-                    float ty = iconY - halfIconSize;
-
-                    _spriteRects.Add(_unitAtlasMap[unitType]);
-                    _transforms.Add(new SKRotationScaleMatrix(scale, 0, tx, ty));
-
-                    CollectLevelIconIfNeeded(reinforce.Level, new SKPoint(iconX, iconY), groupIconSize);
-                    CollectSpawnRoundText(reinforce.SpawnRound, new SKPoint(iconX, iconY), groupIconSize);
-                    CollectGeneralHeadIfNeeded(reinforce.General, new SKPoint(iconX, iconY), groupIconSize);
-                }
-
-                if (groupList.Count > MAX_REINFORCE_PER_HEX)
-                {
-                    float textX = screenPos.Value.X - hexHalfWidth * 0.8f;
-                    float textY = screenPos.Value.Y - (float)hexHeight * 0.3f + visibleCount * groupIconSize * 0.4f + groupIconSize * 0.5f;
-                    _reinforceGroupTexts.Add((new SKPoint(textX, textY), $"X{groupList.Count}", groupIconSize));
-                }
+                if (group.Count > maxPerHex)
+                    _groupTexts.Add((OverflowTextPosition(center.Value, visibleCount, iconSize, hexHeight), $"X{group.Count}", iconSize));
             }
 
-            DrawAtlasBatch(canvas);
+            DrawSprites(canvas);
             DrawSpawnRoundTexts(canvas);
             DrawLevelIcons(canvas);
             DrawGeneralHeads(canvas);
-            DrawReinforceGroupTexts(canvas);
+            DrawGroupTexts(canvas);
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[ReinforceRender] 绘制v1援军失败: {ex.Message}");
+            Debug.WriteLine($"[ReinforceRender] 绘制援军失败: {ex.Message}");
         }
     }
-
-    private void RenderV3(SKCanvas canvas)
-    {
-        try
-        {
-            ClearBuffers();
-
-            var visibleBounds = CalculateVisibleBounds();
-            double hexHeight = BASE_HEX_SIZE * Math.Sqrt(3) * _camera.ZoomLevel;
-            float groupIconSize = (float)(hexHeight * REINFORCE_GROUP_SIZE_RATIO);
-            float halfIconSize = groupIconSize / 2;
-            double hexWidth = BASE_HEX_SIZE * 1.5 * _camera.ZoomLevel;
-            float hexHalfWidth = (float)hexWidth / 2;
-
-            foreach (var kvp in GetGroupsV3())
-            {
-                var groupList = kvp.Value;
-
-                var screenPos = CalculateScreenPosition(kvp.Key);
-                if (screenPos == null) continue;
-                if (!IsInVisibleBounds(screenPos.Value, visibleBounds)) continue;
-
-                int visibleCount = Math.Min(groupList.Count, MAX_REINFORCE_PER_HEX);
-
-                for (int i = 0; i < visibleCount; i++)
-                {
-                    var reinforce = groupList[i];
-                    int unitType = reinforce.UnitType;
-
-                    if (!_unitAtlasMap.ContainsKey(unitType))
-                    {
-                        if (_unitAtlasMap.ContainsKey(0)) unitType = 0;
-                        else continue;
-                    }
-
-                    float iconX = screenPos.Value.X - hexHalfWidth * 0.8f;
-                    float iconY = screenPos.Value.Y - (float)hexHeight * 0.3f + i * groupIconSize * 0.4f;
-
-                    float scale = groupIconSize / ATLAS_TILE_SIZE;
-                    float tx = iconX - halfIconSize;
-                    float ty = iconY - halfIconSize;
-
-                    _spriteRects.Add(_unitAtlasMap[unitType]);
-                    _transforms.Add(new SKRotationScaleMatrix(scale, 0, tx, ty));
-
-                    CollectLevelIconIfNeeded(reinforce.Level, new SKPoint(iconX, iconY), groupIconSize);
-                    CollectSpawnRoundText(reinforce.SpawnRound, new SKPoint(iconX, iconY), groupIconSize);
-                    CollectGeneralHeadIfNeeded(reinforce.General, new SKPoint(iconX, iconY), groupIconSize);
-                }
-
-                if (groupList.Count > MAX_REINFORCE_PER_HEX)
-                {
-                    float textX = screenPos.Value.X - hexHalfWidth * 0.8f;
-                    float textY = screenPos.Value.Y - (float)hexHeight * 0.3f + visibleCount * groupIconSize * 0.4f + groupIconSize * 0.5f;
-                    _reinforceGroupTexts.Add((new SKPoint(textX, textY), $"X{groupList.Count}", groupIconSize));
-                }
-            }
-
-            DrawAtlasBatch(canvas);
-            DrawSpawnRoundTexts(canvas);
-            DrawLevelIcons(canvas);
-            DrawGeneralHeads(canvas);
-            DrawReinforceGroupTexts(canvas);
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ReinforceRender] 绘制v3援军失败: {ex.Message}");
-        }
-    }
-
-    #endregion
-
-    #region 数据收集
 
     private void ClearBuffers()
     {
         _spriteRects.Clear();
         _transforms.Clear();
-        _reinforceGroupTexts.Clear();
+        _placeholders.Clear();
+        _groupTexts.Clear();
         _spawnRoundTexts.Clear();
-        _generalHeadPositions.Clear();
-        _levelIconPositions.Clear();
+        _generalHeads.Clear();
+        _levelIcons.Clear();
     }
 
-    private void CollectLevelIconIfNeeded(int level, SKPoint screenPos, float unitSize)
+    /// <summary>收集一个援军的图标（或占位）与叠加信息。</summary>
+    private void CollectGlyph(Glyph glyph, SKPoint icon, float iconSize)
     {
-        if (level <= 0) return;
-        int displayLevel = Math.Min(level, 5);
-        float iconSize = unitSize * 0.3f;
-        float iconX = screenPos.X + unitSize / 2 - iconSize / 2;
-        float iconY = screenPos.Y + unitSize / 2 - iconSize / 2;
-        _levelIconPositions.Add((new SKPoint(iconX, iconY), iconSize, displayLevel));
-    }
+        if (_unitAtlasMap.TryGetValue(glyph.UnitType, out var sprite))
+        {
+            float half = iconSize / 2;
+            _spriteRects.Add(sprite);
+            _transforms.Add(new SKRotationScaleMatrix(iconSize / ATLAS_TILE_SIZE, 0, icon.X - half, icon.Y - half));
+        }
+        else
+        {
+            _placeholders.Add((icon, iconSize, glyph.UnitType));
+        }
 
-    private void CollectSpawnRoundText(int spawnRound, SKPoint screenPos, float unitSize)
-    {
-        if (spawnRound <= 0) return;
-        float textX = screenPos.X - unitSize * 0.7f;
-        float textY = screenPos.Y + 4;
-        _spawnRoundTexts.Add((new SKPoint(textX, textY), spawnRound.ToString(), unitSize * 0.4f));
-    }
+        // 等级图标：右下角，边长 0.3 个图标，超过 5 级用 5 级图标
+        if (glyph.Level > 0)
+        {
+            float size = iconSize * 0.3f;
+            _levelIcons.Add((new SKPoint(icon.X + iconSize / 2 - size / 2, icon.Y + iconSize / 2 - size / 2), size, Math.Min(glyph.Level, 5)));
+        }
 
-    private void CollectGeneralHeadIfNeeded(int general, SKPoint screenPos, float unitSize)
-    {
-        if (general <= 0) return;
+        // 爆兵回合：绿色带阴影，在图标左侧（VB：字号 0.35 个图标，x − 0.55 个图标）
+        if (glyph.SpawnRound > 0)
+        {
+            float fontSize = iconSize * 0.35f;
+            _spawnRoundTexts.Add((new SKPoint(icon.X - iconSize * 0.55f, icon.Y + fontSize * 0.3f), glyph.SpawnRound.ToString(), fontSize));
+        }
 
-        float headSize = unitSize * GENERAL_HEAD_SIZE_RATIO;
-        var headPos = new SKPoint(screenPos.X, screenPos.Y - unitSize * 0.3f);
-
-        SKImage? headImage = ResolveGeneralHead(general);
-
-        _generalHeadPositions.Add((headPos, headSize, headImage));
+        // 将领头像：图标上方露出约 1/3；没有头像时画金色圆点，表示"有将领"
+        if (glyph.General > 0)
+            _generalHeads.Add((new SKPoint(icon.X, icon.Y - iconSize * 0.3f), iconSize * GENERAL_HEAD_SIZE_RATIO, ResolveGeneralHead(glyph.General)));
     }
 
     /// <summary>按将领 Id 取头像，结果（含"无头像"的 null）缓存在 <see cref="_generalHeadCache"/>。</summary>
@@ -439,14 +321,9 @@ public class ReinforceRender : IDisposable
             return cached;
 
         SKImage? headImage = null;
-        var generalSetting = GeneralSettingParser.Instance;
-        if (generalSetting != null)
-        {
-            var generalData = generalSetting.GetById(general);
-            string? ename = generalData?.EName;
-            if (!string.IsNullOrEmpty(ename))
-                headImage = tacticalCache.GetImage($"head_{ename}.png");
-        }
+        string? ename = GeneralSettingParser.Instance.GetById(general)?.EName;
+        if (!string.IsNullOrEmpty(ename))
+            headImage = tacticalCache.GetImage($"head_{ename}.png");
 
         _generalHeadCache[general] = headImage;
         return headImage;
@@ -455,128 +332,84 @@ public class ReinforceRender : IDisposable
     /// <summary>将领表（GeneralSettings）重载后调用，丢弃已缓存的 将领 Id → 头像 映射。</summary>
     public void ClearGeneralHeadCache() => _generalHeadCache.Clear();
 
-    #endregion
-
-    #region 绘制方法
-
-    private void DrawAtlasBatch(SKCanvas canvas)
+    private void DrawSprites(SKCanvas canvas)
     {
-        lock (_atlasLock)
+        if (_transforms.Count > 0)
         {
-            if (_unitAtlas == null || _transforms.Count == 0) return;
+            lock (_atlasLock)
+            {
+                if (_unitAtlas != null)
+                    canvas.DrawAtlas(_unitAtlas, _spriteRects.ToArray(), _transforms.ToArray(), _spritePaint);
+            }
+        }
 
-            using var paint = new SKPaint { IsAntialias = true };
-            canvas.DrawAtlas(_unitAtlas, _spriteRects.ToArray(), _transforms.ToArray(), paint);
+        foreach (var (position, size, unitType) in _placeholders)
+        {
+            float radius = size * 0.42f;
+            canvas.DrawCircle(position, radius, _placeholderFill);
+            _placeholderStroke.StrokeWidth = Math.Max(1f, size * 0.05f);
+            canvas.DrawCircle(position, radius, _placeholderStroke);
+            _font.Size = Math.Max(7f, size * 0.4f);
+            canvas.DrawText(unitType.ToString(), position.X, position.Y + _font.Size * 0.35f, SKTextAlign.Center, _font, _placeholderText);
         }
     }
 
     private void DrawSpawnRoundTexts(SKCanvas canvas)
     {
-        if (_spawnRoundTexts.Count == 0) return;
-
-        foreach (var textInfo in _spawnRoundTexts)
+        foreach (var (position, text, size) in _spawnRoundTexts)
         {
-            // 复用字段字体、只改字号；原先每条文本每帧 new 一个 SKFont。
-            _spawnRoundFont.Size = Math.Max(8, textInfo.Size);
-            canvas.DrawText(textInfo.Text, textInfo.Position.X + 1, textInfo.Position.Y + 1,
-                SKTextAlign.Center, _spawnRoundFont, _spawnRoundShadowPaint);
-            canvas.DrawText(textInfo.Text, textInfo.Position.X, textInfo.Position.Y,
-                SKTextAlign.Center, _spawnRoundFont, _spawnRoundPaint);
+            _font.Size = Math.Max(8, size);
+            canvas.DrawText(text, position.X + 1, position.Y + 1, SKTextAlign.Center, _font, _shadowPaint);
+            canvas.DrawText(text, position.X, position.Y, SKTextAlign.Center, _font, _spawnRoundPaint);
         }
     }
 
     private void DrawLevelIcons(SKCanvas canvas)
     {
-        if (_levelIconPositions.Count == 0) return;
-
-        using var paint = new SKPaint { IsAntialias = true };
-
-        foreach (var levelInfo in _levelIconPositions)
+        foreach (var (position, size, level) in _levelIcons)
         {
-            if (!_levelIconCache.TryGetValue(levelInfo.Level, out var levelImage)) continue;
-            if (levelImage == null) continue;
-
-            float halfSize = levelInfo.Size / 2;
-            var dstRect = new SKRect(
-                levelInfo.Position.X - halfSize,
-                levelInfo.Position.Y - halfSize,
-                levelInfo.Position.X + halfSize,
-                levelInfo.Position.Y + halfSize);
-
-            canvas.DrawImage(levelImage, dstRect, paint);
+            if (!_levelIconCache.TryGetValue(level, out var image)) continue;
+            float half = size / 2;
+            canvas.DrawImage(image, new SKRect(position.X - half, position.Y - half, position.X + half, position.Y + half), _imagePaint);
         }
     }
 
     private void DrawGeneralHeads(SKCanvas canvas)
     {
-        if (_generalHeadPositions.Count == 0) return;
-
-        using var paint = new SKPaint { IsAntialias = true };
-
-        foreach (var headInfo in _generalHeadPositions)
+        foreach (var (position, size, image) in _generalHeads)
         {
-            float halfSize = headInfo.Size / 2;
-
-            if (headInfo.Image != null)
+            float half = size / 2;
+            if (image != null)
             {
-                var dstRect = new SKRect(
-                    headInfo.Position.X - halfSize,
-                    headInfo.Position.Y - halfSize,
-                    headInfo.Position.X + halfSize,
-                    headInfo.Position.Y + halfSize);
-                canvas.DrawImage(headInfo.Image, dstRect, paint);
+                canvas.DrawImage(image, new SKRect(position.X - half, position.Y - half, position.X + half, position.Y + half), _imagePaint);
+                continue;
             }
-            else
-            {
-                paint.Style = SKPaintStyle.Fill;
-                paint.Color = new SKColor(255, 215, 0);
-                canvas.DrawCircle(headInfo.Position.X, headInfo.Position.Y, halfSize, paint);
-
-                paint.Style = SKPaintStyle.Stroke;
-                paint.Color = new SKColor(218, 165, 32);
-                paint.StrokeWidth = halfSize * 0.1f;
-                canvas.DrawCircle(headInfo.Position.X, headInfo.Position.Y, halfSize, paint);
-            }
+            canvas.DrawCircle(position, half, _headFill);
+            _headStroke.StrokeWidth = half * 0.1f;
+            canvas.DrawCircle(position, half, _headStroke);
         }
     }
 
-    private void DrawReinforceGroupTexts(SKCanvas canvas)
+    private void DrawGroupTexts(SKCanvas canvas)
     {
-        if (_reinforceGroupTexts.Count == 0) return;
-
-        foreach (var textInfo in _reinforceGroupTexts)
+        foreach (var (position, text, size) in _groupTexts)
         {
-            _groupTextFont.Size = Math.Max(8, textInfo.Size * 0.5f);
-            canvas.DrawText(textInfo.Text, textInfo.Position.X, textInfo.Position.Y,
-                SKTextAlign.Center, _groupTextFont, _groupTextPaint);
+            _font.Size = Math.Max(8, size * 0.8f);
+            canvas.DrawText(text, position.X, position.Y, SKTextAlign.Center, _font, _groupTextPaint);
         }
     }
-
-    #endregion
-
-    #region 辅助方法
 
     private SKRect CalculateVisibleBounds()
     {
-        float viewWidth = (float)_camera.ViewportWidth;
-        float viewHeight = (float)_camera.ViewportHeight;
         float margin = 200f * (float)_camera.ZoomLevel;
-        return new SKRect(-margin, -margin, viewWidth + margin, viewHeight + margin);
-    }
-
-    private static bool IsInVisibleBounds(SKPoint point, SKRect bounds)
-    {
-        return bounds.Contains(point.X, point.Y);
+        return new SKRect(-margin, -margin, (float)_camera.ViewportWidth + margin, (float)_camera.ViewportHeight + margin);
     }
 
     private SKPoint? CalculateScreenPosition(int coordinate)
     {
-        if (_mapData == null || _mapData.MapWidth <= 0 || _mapData.MapHeight <= 0) return null;
-
         int row = coordinate / _mapData.MapWidth;
         int col = coordinate % _mapData.MapWidth;
-
-        if (row < 0 || row >= _mapData.MapHeight || col < 0 || col >= _mapData.MapWidth) return null;
+        if (row < 0 || row >= _mapData.MapHeight) return null;
 
         var (screenX, screenY) = _camera.HexToScreen(col, row);
         return new SKPoint((float)screenX, (float)screenY);
@@ -589,32 +422,31 @@ public class ReinforceRender : IDisposable
         if (_disposed) return;
         _disposed = true;
 
-        // 解除对地图集合的订阅，避免渲染器释放后仍被集合事件引用。
-        if (_mapData.Reinforcements != null)
-            _mapData.Reinforcements.CollectionChanged -= OnReinforcementCollectionChanged;
-        if (_mapData.ReinforcementsV3 != null)
-            _mapData.ReinforcementsV3.CollectionChanged -= OnReinforcementCollectionChanged;
+        // 解除对地图集合的订阅，避免渲染器释放后仍被集合事件引用
+        if (_watchedV1 != null) _watchedV1.CollectionChanged -= OnReinforcementsChanged;
+        if (_watchedV3 != null) _watchedV3.CollectionChanged -= OnReinforcementsChanged;
 
         lock (_atlasLock)
         {
-            // _unitAtlas / _unitAtlasMap 归 UnitAtlasCache 持有，这里只解除引用，不能 Dispose。
+            // _unitAtlas / _unitAtlasMap 归 UnitAtlasCache 持有，这里只解除引用，不能 Dispose
             _unitAtlas = null;
         }
 
         foreach (var image in _levelIconCache.Values)
-            image?.Dispose();
+            image.Dispose();
         _levelIconCache.Clear();
-        _formationBoardCache?.Dispose();
-        _formationIconCache?.Dispose();
-        foreach (var image in _actionPlanCache.Values)
-            image?.Dispose();
-        _actionPlanCache.Clear();
         _generalHeadCache.Clear(); // 头像归 TacticalMapImageCache 所有，只清引用
 
-        _spawnRoundFont.Dispose();
+        _spritePaint.Dispose();
+        _imagePaint.Dispose();
         _spawnRoundPaint.Dispose();
-        _spawnRoundShadowPaint.Dispose();
+        _shadowPaint.Dispose();
         _groupTextPaint.Dispose();
-        _groupTextFont.Dispose();
+        _placeholderFill.Dispose();
+        _placeholderStroke.Dispose();
+        _placeholderText.Dispose();
+        _headFill.Dispose();
+        _headStroke.Dispose();
+        _font.Dispose();
     }
 }

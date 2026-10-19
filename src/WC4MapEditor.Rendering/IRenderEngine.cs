@@ -40,6 +40,15 @@ public interface IRenderEngine : IDisposable
     bool ShowHelp { get; set; }
     bool ShowModeName { get; set; }
     float HelpOpacity { get; set; }
+
+    /// <summary>
+    /// 帮助文本的淡入淡出是否尚未完成。淡入淡出每次重绘推进一步（<see cref="UpdateHelpFadeAnimation"/>），
+    /// 宿主在它为 true 时要持续请求重绘，否则画面会停在半透明状态。
+    /// </summary>
+    bool IsHelpFading { get; }
+
+    /// <summary>帮助文本底部留白（宿主盖在画面底部的工具栏高度）：帮助比剩余高度长时分栏显示，不被工具栏挡住</summary>
+    int HelpBottomMargin { get; set; }
     void UpdateHelpFadeAnimation();
     void SetBrushPreview(int centerCol, int centerRow, int brushSize, string brushShape,
         double zoomLevel, double offsetX, double offsetY, bool visible);
@@ -73,6 +82,8 @@ public interface IRenderEngine : IDisposable
     bool EnableAirForceRender { get; set; }
     bool EnableWeatherRender { get; set; }
     bool EnableMapCaseRender { get; set; }
+    /// <summary>数据范围外（MapClip 裁剪区以外）格子的红叉标记</summary>
+    bool EnableClippedTileRender { get; set; }
     bool ShowBuildingNames { get; set; }
     void PreloadBelongFlagAtlas(MapData mapData);
     void InitializeTacticalMapImageCache();

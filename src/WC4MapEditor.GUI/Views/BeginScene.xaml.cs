@@ -6,12 +6,15 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using WC4MapEditor.Core.Parsers.Stage;
 using WC4MapEditor.Core.Parsers.Conquest;
 using WC4MapEditor.Core.Parsers.World;
+using WC4MapEditor.Core.Services;
+using WC4MapEditor.GUI.Global;
+using WC4MapEditor.GUI.Services;
+using WC4MapEditor.GUI.Views.Dialogs;
 using WC4MapEditor.GUI.Views.Dialogs;
 
 namespace WC4MapEditor.GUI.Views;
@@ -64,6 +67,8 @@ public partial class BeginScene : UserControl
         InitializeBackgroundSlideshow();
         Unloaded += BeginScene_Unloaded;
         _mainGrid.MouseLeftButtonDown += Grid_MouseLeftButtonDown;
+        MusicPlayerService.Instance.StateChanged += OnMusicStateChanged;
+        DeveloperMode.Changed += OnDeveloperModeChanged;
     }
 
     private void SetupUI()
@@ -125,6 +130,7 @@ public partial class BeginScene : UserControl
             Foreground = Brushes.White,
             VerticalAlignment = VerticalAlignment.Center,
             MaxWidth = 600,
+            TextTrimming = TextTrimming.CharacterEllipsis,
             Effect = new DropShadowEffect { BlurRadius = 4, ShadowDepth = 2, Opacity = 0.8, Color = Colors.Black }
         };
         titlePanel.Children.Add(wordCloudText);
@@ -159,7 +165,9 @@ public partial class BeginScene : UserControl
         circlePanel.Children.Add(Circle("⬜", (_, _) => _window.ToggleMaximize(), "Begin.Maximize"));
         circlePanel.Children.Add(Circle("✕", (_, _) => _window.CloseApplication(), "Begin.CloseApp", true));
         circlePanel.Children.Add(new Rectangle { Height = 10, Fill = Brushes.Transparent });
-        circlePanel.Children.Add(Circle("❚❚", MusicToggleButton_Click, "Begin.Music"));
+        var musicButton = Circle(MusicGlyph, MusicToggleButton_Click, "Begin.MusicTooltip");
+        AttachMusicButton(musicButton);
+        circlePanel.Children.Add(musicButton);
 
         _mainGrid.Children.Add(circlePanel);
 
@@ -243,20 +251,22 @@ public partial class BeginScene : UserControl
         _navPanel.Children.Add(CreateNavButton(Loc.T("Begin.Building"), BuildingButton_Click));
         _navPanel.Children.Add(CreateNavButton(Loc.T("Begin.ArmyGroup"), ArmyGroupButton_Click));
         _navPanel.Children.Add(CreateNavButton(Loc.T("Begin.Layout"), LayoutButton_Click));
+        var developerButton = CreateDeveloperButtons();
 
         RegisterAiBridge();
 
         // 统一导航按钮宽度：取最长文本的期望宽度，保证全部按钮等宽且能容纳 setting 键值文本
+        // （开发者按钮暂不在导航栏里时也一起算，打开开发者模式后宽度一致）
+        var navButtons = _navPanel.Children.OfType<FrameworkElement>().ToList();
+        if (!navButtons.Contains(developerButton)) navButtons.Add(developerButton);
         double navWidth = 0;
-        foreach (UIElement child in _navPanel.Children)
-            if (child is FrameworkElement fe)
-            {
-                fe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                navWidth = Math.Max(navWidth, Math.Ceiling(fe.DesiredSize.Width));
-            }
+        foreach (var fe in navButtons)
+        {
+            fe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            navWidth = Math.Max(navWidth, Math.Ceiling(fe.DesiredSize.Width));
+        }
         _navTextWidth = navWidth;
-        foreach (UIElement child in _navPanel.Children)
-            if (child is FrameworkElement fe) fe.Width = navWidth;
+        foreach (var fe in navButtons) fe.Width = navWidth;
 
         _recommendBtn = CreateCircleButton("👍", RecommendButton_Click);
         _recommendBtn.ToolTip = Loc.T("Begin.Recommend");
@@ -419,80 +429,9 @@ public partial class BeginScene : UserControl
         popupButton.BeginAnimation(UIElement.OpacityProperty, fadeOut);
     }
 
-    private void BeginScene_Unloaded(object? sender, RoutedEventArgs e) => _bgTimer?.Stop();
-
     private void Grid_MouseLeftButtonDown(object? sender, MouseButtonEventArgs e)
     {
         if (e.LeftButton == MouseButtonState.Pressed) _window.DragMove();
-    }
-
-    private void StartWordCloudRotation(TextBlock textBlock)
-    {
-        var wcConfig = ConfigManager.Instance.GetWordCloudConfig();
-        var tokens = wcConfig.Tokens.Where(t => !string.IsNullOrWhiteSpace(t)).ToArray();
-        if (tokens.Length == 0) return;
-
-        int index = 0;
-        textBlock.Text = tokens[0];
-        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
-        timer.Tick += (s, e) =>
-        {
-            index = (index + 1) % tokens.Length;
-            var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(300));
-            fadeOut.Completed += (s2, e2) =>
-            {
-                textBlock.Text = tokens[index];
-                textBlock.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300)));
-            };
-            textBlock.BeginAnimation(UIElement.OpacityProperty, fadeOut);
-        };
-        timer.Start();
-    }
-
-    private void InitializeBackgroundSlideshow()
-    {
-        string bgPath = ConfigManager.Instance.GetBackgroundPath();
-        if (!Directory.Exists(bgPath)) return;
-
-        var images = new List<string>();
-        foreach (string ext in new[] { ".jpg", ".jpeg", ".png", ".bmp" })
-            images.AddRange(Directory.GetFiles(bgPath, "*" + ext));
-
-        if (images.Count == 0) return;
-
-        try { _bgBrush1.ImageSource = new BitmapImage(new Uri(images[0], UriKind.Absolute)); } catch { }
-        if (images.Count > 1)
-            try { _bgBrush2.ImageSource = new BitmapImage(new Uri(images[1], UriKind.Absolute)); } catch { }
-
-        _bgIndex = 0;
-        _useFirstBrush = true;
-
-        _bgTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
-        _bgTimer.Tick += (s, e) =>
-        {
-            _bgIndex = (_bgIndex + 1) % images.Count;
-            var nextUri = new Uri(images[_bgIndex], UriKind.Absolute);
-            if (_useFirstBrush)
-            {
-                try { _bgBrush2.ImageSource = new BitmapImage(nextUri); } catch { }
-                CrossfadeBackgrounds(true);
-            }
-            else
-            {
-                try { _bgBrush1.ImageSource = new BitmapImage(nextUri); } catch { }
-                CrossfadeBackgrounds(false);
-            }
-            _useFirstBrush = !_useFirstBrush;
-        };
-        _bgTimer.Start();
-    }
-
-    private void CrossfadeBackgrounds(bool toSecond)
-    {
-        var target = toSecond ? _bgBorder2 : _bgBorder1;
-        var source = toSecond ? _bgBorder1 : _bgBorder2;
-        target.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromSeconds(1.5)));
-        source.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromSeconds(1.5)));
     }
 
     private Button CreateCircleButton(string content, RoutedEventHandler handler, bool isClose = false)
@@ -585,11 +524,24 @@ public partial class BeginScene : UserControl
         return new ControlTemplate(typeof(Button)) { VisualTree = f };
     }
 
-    private void MusicToggleButton_Click(object sender, RoutedEventArgs e) { }
+    private void MusicToggleButton_Click(object sender, RoutedEventArgs e) => MusicPlayerService.Instance.Toggle();
     private void CampaignButton_Click(object sender, RoutedEventArgs e)
+        => OpenMapFileFromDialog(Loc.T("Render.File.OpenStageTitle"), Loc.T("Render.File.StageFilter"));
+
+    /// <summary>
+    /// 战役 / 征服入口：先选文件，再按文件头决定用哪种场景打开。
+    /// 选到另一种布局的 .btl（例如在"战役"里选了地图编号大于 0 的征服布局文件）时直接进对应场景，
+    /// 而不是按按钮硬套解析器把数据读乱。
+    /// </summary>
+    private void OpenMapFileFromDialog(string title, string filterName)
     {
-        var scene = new StageRenderScene(_window);
-        _window.SetCurrentScene(scene);
+        var dlg = new OpenFileDialog
+        {
+            Filter = $"{filterName} (*.btl)|*.btl|{Loc.T("Common.AllFiles")} (*.*)|*.*",
+            Title = title
+        };
+        if (dlg.ShowDialog() != true) return;
+        _window.SetCurrentScene(_window.CreateRenderSceneForFile(dlg.FileName));
     }
     private async void NewCampaignButton_Click(object sender, RoutedEventArgs e)
     {
@@ -677,10 +629,7 @@ public partial class BeginScene : UserControl
         }
     }
     private void ConquestButton_Click(object sender, RoutedEventArgs e)
-    {
-        var scene = new ConquestRenderScene(_window);
-        _window.SetCurrentScene(scene);
-    }
+        => OpenMapFileFromDialog(Loc.T("Render.File.OpenConquestTitle"), Loc.T("Render.File.ConquestFilter"));
     private async void NewConquestButton_Click(object sender, RoutedEventArgs e)
     {
         var confirmResult = MessageBox.Show(Loc.T("Begin.NewConquestConfirm"), Loc.T("Begin.NewConquestTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question);
@@ -698,18 +647,23 @@ public partial class BeginScene : UserControl
         if (mapDialog.ShowDialog() != true) return;
         var selectedMapFilePath = mapDialog.FileName;
 
-        var mapData = WorldParser.LoadFromFile(selectedMapFilePath);
-        if (mapData == null)
+        // 只读文件头取尺寸：签名不对的 .bin（动画、图集等）直接拒绝，不按垃圾尺寸加载
+        if (!WorldParser.TryReadHeader(selectedMapFilePath, out int worldWidth, out int worldHeight))
         {
             MessageBox.Show(Loc.T("Begin.MapLoadFailed"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
         int mapClipY = 2;
-        int actualMapWidth = mapData.MapWidth;
-        int actualMapHeight = mapData.MapHeight - 2 * mapClipY;
+        int actualMapWidth = worldWidth;
+        int actualMapHeight = worldHeight - 2 * mapClipY;
+        if (actualMapHeight <= 0)
+        {
+            MessageBox.Show(Loc.F("Conquest.World.TooSmall", worldWidth, worldHeight), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
 
-        int mapNumber = ExtractMapNumberFromFileName(System.IO.Path.GetFileName(selectedMapFilePath));
+        int mapNumber = WorldMapLocator.ExtractMapNumber(selectedMapFilePath);
         if (mapNumber <= 0)
         {
             using var mapNumDialog = new SingleInputDialog(_window)
@@ -766,6 +720,8 @@ public partial class BeginScene : UserControl
             {
                 if (parser.SaveData(saveDialog.FileName))
                 {
+                    // 打开新征服时直接铺这张世界地图，不再按地图编号重新查找或询问
+                    WorldMapLocator.Remember(mapNumber, selectedMapFilePath);
                     MessageBox.Show(Loc.F("Begin.ConquestSavedTo", saveDialog.FileName), Loc.T("Common.Success"), MessageBoxButton.OK, MessageBoxImage.Information);
                     var openResult = MessageBox.Show(Loc.T("Begin.OpenNowQuestion"), Loc.T("Begin.OpenNowTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                     if (openResult == MessageBoxResult.Yes)
@@ -855,17 +811,6 @@ public partial class BeginScene : UserControl
         }
     }
 
-    private static int ExtractMapNumberFromFileName(string fileName)
-    {
-        var name = System.IO.Path.GetFileNameWithoutExtension(fileName);
-        var parts = name.Split('_');
-        foreach (var part in parts)
-        {
-            if (int.TryParse(part, out int num) && num > 0 && num <= 255)
-                return num;
-        }
-        return 0;
-    }
     private void AssetButton_Click(object sender, RoutedEventArgs e)
     {
         var scene = new AssetBrowserScene(_window);
@@ -881,9 +826,9 @@ public partial class BeginScene : UserControl
         var scene = new CountryEditScene(_window);
         _window.SetCurrentScene(scene);
     }
-    private void CheckDataButton_Click(object sender, RoutedEventArgs e) { }
-    private void SettingsButton_Click(object sender, RoutedEventArgs e) { }
-    private void RecommendButton_Click(object sender, RoutedEventArgs e) { }
+    private void CheckDataButton_Click(object sender, RoutedEventArgs e) => _window.SetCurrentScene(new DataCheckScene(_window));
+    private void SettingsButton_Click(object sender, RoutedEventArgs e) => ShowSettingsWindow();
+    private void RecommendButton_Click(object sender, RoutedEventArgs e) => ShowRecommendationWindow();
 
     private void EventEditorButton_Click(object sender, RoutedEventArgs e)
     {
@@ -1155,6 +1100,7 @@ public partial class BeginScene : UserControl
                 case "building": scene = new BuildingFacilityEditScene(_window); break;
                 case "army_group": scene = new ArmyGroupEditScene(_window); break;
                 case "layout": scene = new LayoutEditScene(_window); break;
+                case DataCheckScene.SceneName: scene = new DataCheckScene(_window); break;
                 default: return false;
             }
             _window.SetCurrentScene(scene);
@@ -1165,7 +1111,7 @@ public partial class BeginScene : UserControl
         {
             "asset", "general", "country", "army_group_event", "event_buff",
             "conquer_event", "ingame_tech", "skill", "army_buff", "army",
-            "building", "army_group", "layout"
+            "building", "army_group", "layout", DataCheckScene.SceneName
         };
 
         WC4MapEditor.AI.Tools.AiBridge.MapDataProvider = () => null;
@@ -1357,16 +1303,8 @@ public partial class BeginScene : UserControl
         if (ext != ".btl" && ext != ".bin" && ext != ".dat")
             return (false, $"不支持的文件类型: {ext}");
 
-        string fileName = System.IO.Path.GetFileNameWithoutExtension(resolved).ToLowerInvariant();
-        UserControl newScene;
-        if (ext == ".bin" || ext == ".dat")
-            newScene = new MapRenderScene(_window, resolved);
-        else if (fileName.StartsWith("conquest"))
-            newScene = new ConquestRenderScene(_window, resolved);
-        else
-            newScene = new StageRenderScene(_window, resolved);
-
-        _window.SetCurrentScene(newScene);
+        // .btl 按文件头区分战役 / 征服（地图编号大于 0 即征服布局），不看文件名
+        _window.SetCurrentScene(_window.CreateRenderSceneForFile(resolved));
         return (true, $"正在加载: {resolved}");
     }
 

@@ -18,13 +18,14 @@ namespace WC4MapEditor.GUI.Views.Assist;
 /// </summary>
 public sealed class ColorPickerDialog : Window
 {
+    /// <summary>预设色板：VB 版的 20 种常用国家颜色（红绿蓝黄紫青橙、深色系、黑白灰银、棕、秘鲁色、深粉、酸橙绿）。</summary>
     private static readonly Color[] PresetColors =
     {
-        Colors.White, Color.FromRgb(230, 230, 230), Color.FromRgb(170, 170, 170), Color.FromRgb(90, 90, 90),
-        Colors.Black, Color.FromRgb(255, 0, 0), Color.FromRgb(255, 128, 0), Color.FromRgb(255, 255, 0),
-        Color.FromRgb(128, 255, 0), Color.FromRgb(0, 200, 0), Color.FromRgb(0, 200, 200), Color.FromRgb(0, 128, 255),
-        Color.FromRgb(0, 0, 255), Color.FromRgb(128, 0, 255), Color.FromRgb(255, 0, 255), Color.FromRgb(255, 0, 128),
-        Color.FromRgb(250, 220, 150), Color.FromRgb(200, 170, 120), Color.FromRgb(150, 110, 70), Color.FromRgb(90, 60, 30),
+        Color.FromRgb(0xFF, 0x00, 0x00), Color.FromRgb(0x00, 0xFF, 0x00), Color.FromRgb(0x00, 0x00, 0xFF), Color.FromRgb(0xFF, 0xFF, 0x00),
+        Color.FromRgb(0xFF, 0x00, 0xFF), Color.FromRgb(0x00, 0xFF, 0xFF), Color.FromRgb(0xFF, 0x80, 0x00), Color.FromRgb(0x80, 0x00, 0x80),
+        Color.FromRgb(0x00, 0x80, 0x00), Color.FromRgb(0x80, 0x00, 0x00), Color.FromRgb(0x00, 0x00, 0x80), Color.FromRgb(0x80, 0x80, 0x00),
+        Color.FromRgb(0x80, 0x80, 0x80), Color.FromRgb(0x00, 0x00, 0x00), Color.FromRgb(0xFF, 0xFF, 0xFF), Color.FromRgb(0xC0, 0xC0, 0xC0),
+        Color.FromRgb(0x8B, 0x45, 0x13), Color.FromRgb(0xCD, 0x85, 0x3F), Color.FromRgb(0xFF, 0x14, 0x93), Color.FromRgb(0x32, 0xCD, 0x32),
     };
 
     private readonly Grid _canvasHost = new();
@@ -34,6 +35,10 @@ public sealed class ColorPickerDialog : Window
     private readonly Grid _hueHost = new();
     private readonly Rectangle _hueBar = new();
     private readonly Rectangle _hueCursor = new();
+
+    // 光标放在 Grid 里，Canvas.SetLeft/SetTop 对 Grid 的子元素不起作用（光标会一直停在左上角），改用平移变换定位
+    private readonly TranslateTransform _canvasCursorOffset = new();
+    private readonly TranslateTransform _hueCursorOffset = new();
     private readonly Border _preview = new();
     private readonly TextBox _rBox = new();
     private readonly TextBox _gBox = new();
@@ -70,6 +75,10 @@ public sealed class ColorPickerDialog : Window
         SyncUiFromColor(initial);
 
         PreviewKeyDown += OnPreviewKeyDown;
+        // 首次布局前 ActualWidth 为 0，光标位置要等布局完成后再算一次
+        Loaded += (_, _) => PositionCursors();
+        _canvasHost.SizeChanged += (_, _) => PositionCursors();
+        _hueHost.SizeChanged += (_, _) => PositionCursors();
     }
 
     /// <summary>以模态方式选择颜色，取消返回 null</summary>
@@ -170,6 +179,7 @@ public sealed class ColorPickerDialog : Window
         _canvasCursor.HorizontalAlignment = HorizontalAlignment.Left;
         _canvasCursor.VerticalAlignment = VerticalAlignment.Top;
         _canvasCursor.IsHitTestVisible = false;
+        _canvasCursor.RenderTransform = _canvasCursorOffset;
         _canvasHost.Children.Add(_canvasCursor);
 
         _canvasHost.MouseLeftButtonDown += (_, e) =>
@@ -226,9 +236,11 @@ public sealed class ColorPickerDialog : Window
         _hueHost.Children.Add(_hueBar);
 
         _hueCursor.Width = 4;
+        _hueCursor.Height = HueBarHeight;
         _hueCursor.Fill = Brushes.White;
         _hueCursor.HorizontalAlignment = HorizontalAlignment.Left;
         _hueCursor.IsHitTestVisible = false;
+        _hueCursor.RenderTransform = _hueCursorOffset;
         _hueHost.Children.Add(_hueCursor);
 
         _hueHost.MouseLeftButtonDown += (_, e) =>
@@ -286,34 +298,28 @@ public sealed class ColorPickerDialog : Window
         AddLabeledInput(grid, 2, "B", _bBox, 56);
         AddLabeledInput(grid, 3, "Hex", _hexBox, 76);
 
-        void Commit()
-        {
-            if (_updating) return;
-
-            if (byte.TryParse(_rBox.Text.Trim(), out byte r)
-                && byte.TryParse(_gBox.Text.Trim(), out byte g)
-                && byte.TryParse(_bBox.Text.Trim(), out byte b))
-            {
-                SyncUiFromColor(Color.FromRgb(r, g, b));
-            }
-        }
-
+        // Enter 由窗口级 PreviewKeyDown 统一处理（应用输入、不关窗口），这里只管失去焦点时应用
         foreach (var box in new[] { _rBox, _gBox, _bBox })
-        {
-            box.LostFocus += (_, _) => Commit();
-            box.KeyDown += (_, e) =>
-            {
-                if (e.Key == Key.Enter) Commit();
-            };
-        }
-
+            box.LostFocus += (_, _) => CommitRgb();
         _hexBox.LostFocus += (_, _) => CommitHex();
-        _hexBox.KeyDown += (_, e) =>
-        {
-            if (e.Key == Key.Enter) CommitHex();
-        };
 
         return grid;
+    }
+
+    /// <summary>应用 R/G/B 输入：超出 0–255 的值夹到范围内（对齐 VB），无法解析的输入忽略。</summary>
+    private void CommitRgb()
+    {
+        if (_updating) return;
+
+        if (TryChannel(_rBox.Text, out byte r) && TryChannel(_gBox.Text, out byte g) && TryChannel(_bBox.Text, out byte b))
+            SyncUiFromColor(Color.FromRgb(r, g, b));
+
+        static bool TryChannel(string text, out byte value)
+        {
+            bool ok = int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int v);
+            value = (byte)Math.Clamp(v, 0, 255);
+            return ok;
+        }
     }
 
     private static void AddLabeledInput(Grid grid, int column, string label, TextBox box, double width)
@@ -410,11 +416,7 @@ public sealed class ColorPickerDialog : Window
         _canvasBase.Fill = new LinearGradientBrush(Colors.White, pure, 0);
         _preview.Background = new SolidColorBrush(color);
 
-        Canvas.SetLeft(_canvasCursor, _saturation * _canvasHost.Width - _canvasCursor.Width / 2);
-        Canvas.SetTop(_canvasCursor, (1 - _value) * _canvasHost.Height - _canvasCursor.Height / 2);
-
-        _hueCursor.Height = HueBarHeight;
-        Canvas.SetLeft(_hueCursor, _hue / 360 * _hueHost.ActualWidth - _hueCursor.Width / 2);
+        PositionCursors();
 
         if (!updateInputs) return;
 
@@ -424,6 +426,16 @@ public sealed class ColorPickerDialog : Window
         _bBox.Text = color.B.ToString(CultureInfo.InvariantCulture);
         _hexBox.Text = $"{color.R:X2}{color.G:X2}{color.B:X2}";
         _updating = false;
+    }
+
+    /// <summary>按当前 H/S/V 把取色光标与色相光标移到对应位置</summary>
+    private void PositionCursors()
+    {
+        double w = _canvasHost.ActualWidth > 0 ? _canvasHost.ActualWidth : _canvasHost.Width;
+        double h = _canvasHost.ActualHeight > 0 ? _canvasHost.ActualHeight : _canvasHost.Height;
+        _canvasCursorOffset.X = _saturation * w - _canvasCursor.Width / 2;
+        _canvasCursorOffset.Y = (1 - _value) * h - _canvasCursor.Height / 2;
+        _hueCursorOffset.X = _hue / 360 * _hueHost.ActualWidth - _hueCursor.Width / 2;
     }
 
     /// <summary>由外部颜色同步整个界面（H/S/V 与输入框）</summary>
@@ -439,11 +451,13 @@ public sealed class ColorPickerDialog : Window
         ApplyColor(color);
     }
 
+    /// <summary>应用 HEX 输入：接受 RRGGBB，可带 # 或 0x 前缀。</summary>
     private void CommitHex()
     {
         if (_updating) return;
 
         string text = _hexBox.Text.Trim().TrimStart('#');
+        if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) text = text[2..];
         if (text.Length != 6) return;
 
         if (!byte.TryParse(text.AsSpan(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte r)) return;
@@ -462,14 +476,34 @@ public sealed class ColorPickerDialog : Window
                 e.Handled = true;
                 break;
             case Key.Enter:
-                ConfirmAndClose();
+                // 在输入框里按 Enter = 应用输入的值（对齐 VB），不关窗口；否则 Enter = 确定
+                if (!CommitFocusedInput()) ConfirmAndClose();
                 e.Handled = true;
                 break;
         }
     }
 
+    /// <summary>键盘焦点在某个输入框里时应用它的值并返回 true。</summary>
+    private bool CommitFocusedInput()
+    {
+        var focused = Keyboard.FocusedElement;
+        if (ReferenceEquals(focused, _hexBox))
+        {
+            CommitHex();
+            return true;
+        }
+        if (ReferenceEquals(focused, _rBox) || ReferenceEquals(focused, _gBox) || ReferenceEquals(focused, _bBox))
+        {
+            CommitRgb();
+            return true;
+        }
+        return false;
+    }
+
     private void ConfirmAndClose()
     {
+        // 点"确定"时输入框还没失去焦点（关窗口也不会触发 LostFocus），先把正在编辑的值应用上
+        CommitFocusedInput();
         DialogResult = true;
         Close();
     }

@@ -1,20 +1,14 @@
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Unicode;
-using WC4MapEditor.Core.Assets;
-using WC4MapEditor.Core.Parsers.General;
+using WC4MapEditor.Core.Config;
+using WC4MapEditor.Core.Services;
 
 namespace WC4MapEditor.Core.Parsers.BuildingSetting;
 
 /// <summary>
 /// 建筑与设施解析器（双表合一：BuildingSettings.json + FacilitySettings.json）。
-/// 采用与 CountryTechSettingParser 相同的单例与路径解析约定。
 /// 两张表的名称都直接保存在 JSON 中，不需要 stringtable。
 /// </summary>
-public class BuildingFacilitySettingParser
+public sealed class BuildingFacilitySettingParser : IGameSettingsSource
 {
     private static readonly object _lock = new();
     private static BuildingFacilitySettingParser? _instance;
@@ -33,154 +27,72 @@ public class BuildingFacilitySettingParser
         }
     }
 
-    private readonly AssetManager _manager = AssetManager.Default;
-    private List<BuildingSettingData> _buildings = new();
-    private List<FacilitySettingData> _facilities = new();
-
-    public IReadOnlyList<BuildingSettingData> Buildings => _buildings;
-    public List<BuildingSettingData> BuildingItems => _buildings;
-    public IReadOnlyList<FacilitySettingData> Facilities => _facilities;
-    public List<FacilitySettingData> FacilityItems => _facilities;
-
-    public string BuildingConfigPath { get; private set; } = "";
-    public string FacilityConfigPath { get; private set; } = "";
-
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
-        PropertyNameCaseInsensitive = true,
-        AllowTrailingCommas = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        NumberHandling = JsonNumberHandling.AllowReadingFromString,
-        Converters = { new SafeInt32Converter(), new SafeIntListConverter() }
-    };
-
     private BuildingFacilitySettingParser()
     {
-        ResolvePaths();
+        BuildingTable = new GameJsonTable<BuildingSettingData>(GameJson.AssetPath("json", "BuildingSettings.json"));
+        FacilityTable = new GameJsonTable<FacilitySettingData>(GameJson.AssetPath("json", "FacilitySettings.json"));
         LoadAll();
     }
 
-    private void ResolvePaths()
-    {
-        if (!_manager.IsLoaded)
-        {
-            try { _manager.ScanDefault(); } catch { }
-        }
+    public GameJsonTable<BuildingSettingData> BuildingTable { get; }
+    public GameJsonTable<FacilitySettingData> FacilityTable { get; }
 
-        var root = _manager.AssetsRoot;
-        if (string.IsNullOrEmpty(root) || !Directory.Exists(root))
-        {
-            var baseDir = AppContext.BaseDirectory;
-            string? candidate = null;
-            string? current = baseDir;
-            for (int i = 0; i < 8 && !string.IsNullOrEmpty(current); i++)
-            {
-                var test = Path.Combine(current, "Resource", "WC4DATA", "assets");
-                if (Directory.Exists(test)) { candidate = test; break; }
-                current = Path.GetDirectoryName(current);
-            }
-            candidate ??= Path.GetFullPath(Path.Combine(baseDir ?? "", "..", "..", "..", "..", "Resource", "WC4DATA", "assets"));
-            root = candidate;
-        }
+    public IReadOnlyList<IEditableTable> Tables => [BuildingTable, FacilityTable];
+    StringTableParser? IGameSettingsSource.Strings => null;
 
-        BuildingConfigPath = Path.Combine(root, "json", "BuildingSettings.json");
-        FacilityConfigPath = Path.Combine(root, "json", "FacilitySettings.json");
-        Debug.WriteLine($"[BuildingFacilitySettingParser] Building={BuildingConfigPath} Facility={FacilityConfigPath}");
-    }
+    public List<BuildingSettingData> BuildingItems => BuildingTable.Items;
+    public List<FacilitySettingData> FacilityItems => FacilityTable.Items;
+
+    public string BuildingConfigPath => BuildingTable.FilePath;
+    public string FacilityConfigPath => FacilityTable.FilePath;
 
     public void LoadAll()
     {
-        LoadBuildings();
-        LoadFacilities();
+        BuildingTable.Load();
+        FacilityTable.Load();
     }
 
-    private void LoadBuildings()
+    public BuildingSettingData? GetBuildingById(int id) => BuildingItems.FirstOrDefault(b => b.Id == id);
+
+    public int GetNextBuildingId() => (BuildingItems.Count == 0 ? 0 : Math.Max(0, BuildingItems.Max(b => b.Id))) + 1;
+
+    public FacilitySettingData? GetFacilityById(int id) => FacilityItems.FirstOrDefault(f => f.Id == id);
+
+    /// <summary>设施 Type → stringtable 的设施名称键（与 FacilitySettings.json 里各 Type 的设施对应：1 城市 … 8 军港）。</summary>
+    private static readonly string[] FacilityTypeKeys =
+    [
+        "facility_city", "facility_factory", "facility_lab", "facility_depot",
+        "facility_airport", "facility_missile", "facility_nuke", "facility_port"
+    ];
+
+    /// <summary>设施 Type 的游戏内名称（stringtable 的 facility_*）；Type 不在 1~8 或没有文本时返回空串。</summary>
+    public string GetFacilityTypeName(int type)
+        => type >= 1 && type <= FacilityTypeKeys.Length ? StringTableStore.Default.GetValue(FacilityTypeKeys[type - 1]) : "";
+
+    /// <summary>所有设施 Type 的 (Type, 名称)，没有文本的 Type 不列出。</summary>
+    public IEnumerable<(int Type, string Name)> FacilityTypeNames()
+        => Enumerable.Range(1, FacilityTypeKeys.Length).Select(t => (t, GetFacilityTypeName(t))).Where(x => x.Item2.Length > 0);
+
+    public int GetNextFacilityId() => (FacilityItems.Count == 0 ? 0 : Math.Max(0, FacilityItems.Max(f => f.Id))) + 1;
+
+    /// <summary>改建筑 Id：新 Id 已被占用时返回 false。</summary>
+    public bool ChangeBuildingId(BuildingSettingData building, int newId)
     {
-        try
-        {
-            if (!File.Exists(BuildingConfigPath))
-            {
-                Debug.WriteLine($"[BuildingFacilitySettingParser] 文件不存在: {BuildingConfigPath}");
-                return;
-            }
-            var json = File.ReadAllText(BuildingConfigPath);
-            var data = JsonSerializer.Deserialize<List<BuildingSettingData>>(json, JsonOpts);
-            if (data != null) _buildings = data;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[BuildingFacilitySettingParser] 加载 BuildingSettings.json 失败: {ex.Message}");
-        }
+        if (building.Id == newId) return true;
+        if (BuildingItems.Any(b => b.Id == newId)) return false;
+        building.Id = newId;
+        return true;
     }
 
-    private void LoadFacilities()
+    /// <summary>改设施 Id：新 Id 已被占用时返回 false；引用它的建筑 FacilityId 跟着改。</summary>
+    public bool ChangeFacilityId(FacilitySettingData facility, int newId)
     {
-        try
-        {
-            if (!File.Exists(FacilityConfigPath))
-            {
-                Debug.WriteLine($"[BuildingFacilitySettingParser] 文件不存在: {FacilityConfigPath}");
-                return;
-            }
-            var json = File.ReadAllText(FacilityConfigPath);
-            var data = JsonSerializer.Deserialize<List<FacilitySettingData>>(json, JsonOpts);
-            if (data != null) _facilities = data;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[BuildingFacilitySettingParser] 加载 FacilitySettings.json 失败: {ex.Message}");
-        }
+        if (facility.Id == newId) return true;
+        if (FacilityItems.Any(f => f.Id == newId)) return false;
+        foreach (var b in BuildingItems.Where(b => b.FacilityId == facility.Id)) b.FacilityId = newId;
+        facility.Id = newId;
+        return true;
     }
-
-    // ---------- 建筑 ----------
-
-    public BuildingSettingData? GetBuildingById(int id)
-    {
-        foreach (var b in _buildings) if (b.Id == id) return b;
-        return null;
-    }
-
-    public int GetNextBuildingId()
-    {
-        int max = 0;
-        foreach (var b in _buildings) if (b.Id > max) max = b.Id;
-        return max + 1;
-    }
-
-    // ---------- 设施 ----------
-
-    public FacilitySettingData? GetFacilityById(int id)
-    {
-        foreach (var f in _facilities) if (f.Id == id) return f;
-        return null;
-    }
-
-    public int GetNextFacilityId()
-    {
-        int max = 0;
-        foreach (var f in _facilities) if (f.Id > max) max = f.Id;
-        return max + 1;
-    }
-
-    public bool SaveAll()
-    {
-        try
-        {
-            File.WriteAllText(BuildingConfigPath, JsonSerializer.Serialize(_buildings, JsonOpts));
-            File.WriteAllText(FacilityConfigPath, JsonSerializer.Serialize(_facilities, JsonOpts));
-            Debug.WriteLine($"[BuildingFacilitySettingParser] 保存成功: {BuildingConfigPath} / {FacilityConfigPath}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[BuildingFacilitySettingParser] 保存失败: {ex.Message}");
-            return false;
-        }
-    }
-
-    public void Reload() => LoadAll();
 
     public static void ClearInstance()
     {

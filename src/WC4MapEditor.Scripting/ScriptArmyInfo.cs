@@ -87,7 +87,12 @@ public sealed class ScriptArmyInfo
     /// <summary>是否可攻击（0/1）</summary>
     public int CanAttack { get; init; }
 
-    /// <summary>所属军团（归属值，即军团列表索引）</summary>
+    /// <summary>
+    /// 所属军团的归属值（军团列表索引，255 = 所在格子无归属）。单位的归属就是它所在格子的归属，不是单位自带的数据。
+    /// </summary>
+    public int Belong { get; init; }
+
+    /// <summary>同 <see cref="Belong"/>（旧脚本沿用的名字）。</summary>
     public int LegionId { get; init; }
 
     // ---------- v3 专有（v1 地图上恒为 0）----------

@@ -472,7 +472,7 @@ public static class AiToolRegistry
         sb.AppendLine($"BTL版本: v{map.Header.BtlVersion}");
         sb.AppendLine($"建筑数: {map.Buildings.Count}");
         sb.AppendLine($"军团数: {map.Legions.Count}");
-        int armyCount = map.Header.BtlVersion >= 3 ? map.ArmiesV3.Count : map.Armies.Count;
+        int armyCount = map.Header.UsesV3Records ? map.ArmiesV3.Count : map.Armies.Count;
         sb.AppendLine($"单位数: {armyCount}");
         sb.AppendLine($"陷阱数: {map.Traps.Count}");
         return sb.ToString().TrimEnd();
@@ -763,20 +763,26 @@ public static class AiToolRegistry
         if (map == null) return "失败：尚未加载地图";
         int maxCount = GetInt(args, "maxCount", 100);
 
-        int count = map.Header.BtlVersion >= 3 ? map.ArmiesV3.Count : map.Armies.Count;
+        int count = map.Header.UsesV3Records ? map.ArmiesV3.Count : map.Armies.Count;
         var sb = new System.Text.StringBuilder();
         sb.AppendLine($"共 {count} 个单位（显示前 {maxCount}）:");
         int shown = 0;
 
-        if (map.Header.BtlVersion >= 3)
+        // 单位的归属就是所在格子的归属值（单位自带的 LegionId 只是编辑器运行期字段）
+        void AppendArmy(int cell, int unitType, int level, int experience)
+        {
+            int col = cell % map.MapWidth;
+            int row = cell / map.MapWidth;
+            sb.AppendLine($"  [{shown}] 坐标({col},{row}) 类型={unitType} 等级={level} 归属={map.GetBelongValue(col, row)} 经验={experience}");
+            shown++;
+        }
+
+        if (map.Header.UsesV3Records)
         {
             foreach (var a in map.ArmiesV3)
             {
                 if (shown >= maxCount) break;
-                int col = a.Coordinate % map.MapWidth;
-                int row = a.Coordinate / map.MapWidth;
-                sb.AppendLine($"  [{shown}] 坐标({col},{row}) 类型={a.UnitType} 等级={a.Level} 军团ID={a.LegionId} 经验={a.Experience}");
-                shown++;
+                AppendArmy(a.CoordinateIndex, a.UnitType, a.Level, a.Experience);
             }
         }
         else
@@ -784,10 +790,7 @@ public static class AiToolRegistry
             foreach (var a in map.Armies)
             {
                 if (shown >= maxCount) break;
-                int col = a.Coordinate % map.MapWidth;
-                int row = a.Coordinate / map.MapWidth;
-                sb.AppendLine($"  [{shown}] 坐标({col},{row}) 类型={a.UnitType} 等级={a.Level} 军团ID={a.LegionId} 经验={a.Experience}");
-                shown++;
+                AppendArmy(a.CoordinateIndex, a.UnitType, a.Level, a.Experience);
             }
         }
         if (count > maxCount) sb.AppendLine($"  …（共 {count} 个，截断）");
@@ -1188,7 +1191,7 @@ public static class AiToolRegistry
         else if (kind == "army")
         {
             int legion = GetInt(args, "legion", -1);
-            if (legion >= 0) parts.Add($"a.LegionId == {legion}");
+            if (legion >= 0) parts.Add($"a.Belong == {legion}");
 
             if (args.ValueKind == JsonValueKind.Object && args.TryGetProperty("level_min", out var lmin) && lmin.ValueKind == JsonValueKind.Number)
                 parts.Add($"a.Level >= {GetInt(args, "level_min", 0)}");

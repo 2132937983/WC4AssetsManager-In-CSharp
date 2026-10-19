@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.IO;
+using WC4MapEditor.Core.Models;
+using WC4MapEditor.Core.Services;
 
 namespace WC4MapEditor.Core.Assets;
 
@@ -310,20 +312,23 @@ public sealed class AssetCache
             TopDirectory = top,
             Size = info.Length,
             LastModifiedUtc = info.LastWriteTimeUtc,
-            Kind = ClassifyKind(top, nameNoExt, ext),
+            Kind = ClassifyKind(top, nameNoExt, ext, fullPath),
         };
     }
 
     /// <summary>依据顶层目录、文件名前缀和扩展名推断语义类别。</summary>
-    private static AssetKind ClassifyKind(string topDir, string nameNoExt, string ext)
+    private static AssetKind ClassifyKind(string topDir, string nameNoExt, string ext, string fullPath)
     {
-        // stage 目录下的 .btl 关卡文件，按文件名前缀细分。
+        // stage 目录下的 .btl 关卡文件：征服布局按文件头判定（地图编号大于 0），
+        // 资源浏览器据此用征服场景打开 —— event501xx、frontier*、stage5xx 等征服布局文件并不以 conquest 开头。
+        // 其余战役布局文件按文件名前缀细分。
         if (string.Equals(topDir, "stage", StringComparison.OrdinalIgnoreCase) &&
             string.Equals(ext, "btl", StringComparison.OrdinalIgnoreCase))
         {
+            if (BtlTypeDetector.Detect(fullPath) == BTLFileType.Conquest) return AssetKind.Conquest;
+
             string name = nameNoExt.ToLowerInvariant();
             if (name.StartsWith("stage")) return AssetKind.Stage;
-            if (name.StartsWith("conquest")) return AssetKind.Conquest;
             if (name.StartsWith("event")) return AssetKind.Event;
             if (name.StartsWith("frontier")) return AssetKind.Frontier;
             if (name.StartsWith("generalstage")) return AssetKind.GeneralStage;

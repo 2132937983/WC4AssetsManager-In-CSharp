@@ -3,7 +3,11 @@ using System.Runtime.InteropServices;
 namespace WC4MapEditor.Core.Models;
 
 /// <summary>
-/// 空军数据结构 (20字节) - 使用结构体减少内存开销
+/// 空袭数据结构 (20字节) - 使用结构体减少内存开销。
+/// <para>
+/// 空袭挂在机场上：<see cref="Coordinate"/> 是机场所在格的索引（row * MapWidth + col）；
+/// <see cref="OwnerLegion"/> 是军团 ActionId（与内存里的归属值同一套编号）。
+/// </para>
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct AirForce
@@ -27,37 +31,21 @@ public struct AirForce
         MemoryMarshal.Write(data[offset..], in this);
 
     /// <summary>
-    /// 创建默认空军
+    /// 新建空袭的默认值：轰炸机、默认弹药、第 1 回合（与 VB 列表窗口的"新增"一致）。
+    /// 原先返回全 0：兵种 0 在游戏里不存在，地图标记也会跳过它，新增的空袭看不见。
     /// </summary>
-    public static AirForce CreateDefault() => new AirForce();
-
-    /// <summary>
-    /// 获取兵种名称
-    /// </summary>
-    public readonly string GetUnitTypeName() => UnitType switch
+    public static AirForce CreateDefault(int coordinate = 0, int ownerLegion = 0) => new()
     {
-        0x14 => "战斗机",
-        0x15 => "轰炸机",
-        0x16 => "空降伞兵",
-        0x17 => "战略轰炸机",
-        0x18 => "特色轰炸机",
-        0x19 => "近程导弹",
-        0x1A => "中程导弹",
-        0x1B => "远程导弹",
-        0x1E => "洲际导弹",
-        _ => $"未知({UnitType:X2})"
+        Coordinate = coordinate,
+        UnitType = AirForceCatalog.Bomber,
+        AmmoType = AirForceCatalog.DefaultAmmo,
+        OwnerLegion = ownerLegion,
+        TriggerRound = 1
     };
 
-    /// <summary>
-    /// 获取弹药类型名称
-    /// </summary>
-    public readonly string GetAmmoTypeName() => AmmoType switch
-    {
-        0x0 => "默认弹药",
-        0x1D => "原子弹",
-        0x1E => "氢弹",
-        0x1F => "三相弹",
-        0x20 => "反物质弹",
-        _ => $"未知({AmmoType:X2})"
-    };
+    /// <summary>兵种名称（setting.txt [空袭修改] 的 AirForceList，缺省时用内置名录）。</summary>
+    public readonly string GetUnitTypeName() => AirForceCatalog.TypeName(UnitType);
+
+    /// <summary>弹药名称（setting.txt [空袭修改] 的 AirForcePowerList，缺省时用内置名录）。</summary>
+    public readonly string GetAmmoTypeName() => AirForceCatalog.AmmoName(AmmoType);
 }

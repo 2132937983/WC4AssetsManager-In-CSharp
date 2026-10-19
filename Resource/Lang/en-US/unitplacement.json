@@ -1,0 +1,6 @@
+{
+  "Cli.UnitPlace.Total": "Unit placements: {0} (header group A: {1}, group B: {2})",
+  "Cli.UnitPlace.Row": "[{0}] group {1}  coordinate={2} {3}  direction={4} sequence={5} unknown={6} transport ship={7}",
+  "Cli.UnitPlace.Cell": "(col {0}, row {1})",
+  "Cli.UnitPlace.Empty": "empty slot"
+}

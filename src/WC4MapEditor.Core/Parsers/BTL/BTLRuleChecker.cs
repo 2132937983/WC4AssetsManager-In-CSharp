@@ -1,6 +1,6 @@
+using WC4MapEditor.Core.Analyzers;
 using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Models;
-using WC4MapEditor.Core.Parsers.Stage;
 
 namespace WC4MapEditor.Core.Parsers.BTL;
 
@@ -82,8 +82,7 @@ public static class BTLRuleChecker
         if (data == null || data.Length < BTLSize.HEADER_SIZE) return 0;
 
         var header = BTLHeader.Parse(data);
-        var off = StageOffsets.Calculate(
-            header.ArmyCount, header.SelectableTileCount, header.BuildingCount);
+        var off = BTLLayout.For(header);
 
         var buildingIds = ConfigManager.Instance.GetBuildingTypeIds();
         var armyIds = ConfigManager.Instance.GetArmyTypeIds();
@@ -93,7 +92,7 @@ public static class BTLRuleChecker
         count += FixArmies(data, header, off, log, armyIds);
         count += FixLegions(data, header, off, log);
         count += FixOwnerships(data, header, off, log);
-        count += FixTileCount(data, header, log);
+        CheckTileCount(header, log);
         count += FixDistrictsOnOcean(data, header, off, log);
 
         // 地雷只报告、不自动修：Java 是把地块上的 bmiMinesLv 置 0，
@@ -121,7 +120,7 @@ public static class BTLRuleChecker
     /// </para>
     /// </summary>
     private static int FixOwnerships(byte[] data, BTLHeader header,
-        (int terrain, int province, int belong, int building, int dataEnd) off,
+        BTLLayout off,
         List<(BTLIssueLevel Level, string Category, string Message, long Offset)>? log)
     {
         if (header.SelectableTileCount <= 0) return 0;
@@ -130,7 +129,7 @@ public static class BTLRuleChecker
 
         for (int i = 0; i < header.SelectableTileCount; i++)
         {
-            long pos = (long)off.belong + i;
+            long pos = off[BtlBlock.Belong].Start + i;
             if (pos >= data.Length) break;
 
             byte belong = data[pos];
@@ -156,11 +155,11 @@ public static class BTLRuleChecker
     /// 取不到时返回 0（默认军团）。
     /// </summary>
     private static byte ResolveBelongByProvince(byte[] data, BTLHeader header,
-        (int terrain, int province, int belong, int building, int dataEnd) off, int coord)
+        BTLLayout off, int coord)
     {
         if (header.SelectableTileCount <= 0) return 0;
 
-        long provPos = (long)off.province + (long)coord * BTLSize.PROVINCE_SIZE;
+        long provPos = off[BtlBlock.Province].Start + (long)coord * BTLSize.PROVINCE_SIZE;
         if (provPos + BTLSize.PROVINCE_SIZE > data.Length) return 0;
 
         int provinceId = data[provPos] | (data[provPos + 1] << 8);
@@ -168,7 +167,7 @@ public static class BTLRuleChecker
             return 0;
 
         // 省会的归属：省区 ID 即省会坐标
-        long belongPos = (long)off.belong + provinceId;
+        long belongPos = off[BtlBlock.Belong].Start + provinceId;
         if (belongPos >= data.Length) return 0;
 
         byte capital = data[belongPos];
@@ -183,14 +182,14 @@ public static class BTLRuleChecker
     /// 该类地块应当有建筑；无建筑时报告（随机分配建筑类型涉及随机性，故不自动修）。
     /// </summary>
     private static void CheckCoreProvinces(byte[] data, BTLHeader header,
-        (int terrain, int province, int belong, int building, int dataEnd) off,
+        BTLLayout off,
         List<(BTLIssueLevel Level, string Category, string Message, long Offset)>? log)
     {
         if (header.SelectableTileCount <= 0) return;
 
         for (int i = 0; i < header.SelectableTileCount; i++)
         {
-            long provPos = (long)off.province + (long)i * BTLSize.PROVINCE_SIZE;
+            long provPos = off[BtlBlock.Province].Start + (long)i * BTLSize.PROVINCE_SIZE;
             if (provPos + BTLSize.PROVINCE_SIZE > data.Length) break;
 
             int provinceId = data[provPos] | (data[provPos + 1] << 8);
@@ -205,7 +204,7 @@ public static class BTLRuleChecker
                 $"核心省区地块 {i} 上没有建筑（省会应有建筑）", provPos);
 
             // 位于水中则另外提示（Java: 核心省区位于水中）
-            if (IsOceanAt(data, header, off, i))
+            if (IsOceanAt(data, off, i) == true)
                 Report(log, BTLIssueLevel.Warning, "省区",
                     $"核心省区地块 {i} 位于水中，请检查", provPos);
         }
@@ -216,14 +215,14 @@ public static class BTLRuleChecker
     /// 只报告，不做修复（见上方说明）。
     /// </summary>
     private static void CheckTraps(byte[] data, BTLHeader header,
-        (int terrain, int province, int belong, int building, int dataEnd) off,
+        BTLLayout off,
         List<(BTLIssueLevel Level, string Category, string Message, long Offset)>? log)
     {
         if (header.TrapCount <= 0) return;
 
         // 陷阱区紧随单位区之后
         int unitSize = BTLArmyModule.GetArmySize(header.BtlVersion);
-        long trapStart = (long)off.dataEnd + (long)header.TroopCount * unitSize;
+        long trapStart = off[BtlBlock.Army].Start + (long)header.TroopCount * unitSize;
 
         for (int i = 0; i < header.TrapCount; i++)
         {
@@ -247,7 +246,7 @@ public static class BTLRuleChecker
     // ---------- 建筑 ----------
 
     private static int FixBuildings(byte[] data, BTLHeader header,
-        (int terrain, int province, int belong, int building, int dataEnd) off,
+        BTLLayout off,
         List<(BTLIssueLevel Level, string Category, string Message, long Offset)>? log,
         HashSet<int> buildingIds)
     {
@@ -257,7 +256,7 @@ public static class BTLRuleChecker
 
         for (int i = 0; i < header.BuildingCount; i++)
         {
-            long pos = (long)off.building + i * BTLSize.BUILDING_SIZE;
+            long pos = off[BtlBlock.Building].Start + i * BTLSize.BUILDING_SIZE;
             if (pos + BTLSize.BUILDING_SIZE > data.Length) break;
 
             var b = Building.FromBytes(data, (int)pos);
@@ -276,7 +275,7 @@ public static class BTLRuleChecker
             }
             else
             {
-                bool isOcean = IsOceanAt(data, header, off, b.Coordinate);
+                bool? isOcean = IsOceanAt(data, off, b.Coordinate);
 
                 if (hasCfg && !buildingIds.Contains(b.BuildingType))
                 {
@@ -286,14 +285,14 @@ public static class BTLRuleChecker
                     changed = true;
                 }
 
-                if (isOcean && b.BuildingType < 30)
+                if (isOcean == true && b.BuildingType < 30)
                 {
                     Report(log, BTLIssueLevel.Error, "建筑",
                         $"建筑 #{i}（坐标 {b.Coordinate}）在海洋上却是陆上类型 {b.BuildingType}", pos);
                     b.BuildingType = SeaBuildingType;
                     changed = true;
                 }
-                else if (!isOcean && b.BuildingType > 30)
+                else if (isOcean == false && b.BuildingType > 30)
                 {
                     Report(log, BTLIssueLevel.Error, "建筑",
                         $"建筑 #{i}（坐标 {b.Coordinate}）在陆地上却是海上类型 {b.BuildingType}", pos);
@@ -348,7 +347,7 @@ public static class BTLRuleChecker
     // ---------- 单位 ----------
 
     private static int FixArmies(byte[] data, BTLHeader header,
-        (int terrain, int province, int belong, int building, int dataEnd) off,
+        BTLLayout off,
         List<(BTLIssueLevel Level, string Category, string Message, long Offset)>? log,
         HashSet<int> armyIds)
     {
@@ -360,7 +359,7 @@ public static class BTLRuleChecker
 
         for (int i = 0; i < header.TroopCount; i++)
         {
-            long pos = (long)off.dataEnd + i * unitSize;
+            long pos = off[BtlBlock.Army].Start + i * unitSize;
             if (pos + unitSize > data.Length) break;
 
             var a = Army.FromBytes(data, (int)pos);
@@ -458,7 +457,7 @@ public static class BTLRuleChecker
     // ---------- 军团 ----------
 
     private static int FixLegions(byte[] data, BTLHeader header,
-        (int terrain, int province, int belong, int building, int dataEnd) off,
+        BTLLayout off,
         List<(BTLIssueLevel Level, string Category, string Message, long Offset)>? log)
     {
         if (header.ArmyCount <= 0) return 0;
@@ -514,32 +513,29 @@ public static class BTLRuleChecker
     }
 
     /// <summary>
-    /// 地块总数一致性：头部声明的格数应为 地图长 × 地图宽。
-    /// 不一致时修正头部字段（各区块长度本就按声明值解析，改头部即对齐）。
+    /// 地块总数一致性：省份 / 归属块的格数（头部 SelectableTileCount）必须覆盖整张地图（地图长 × 地图宽）。
+    /// 比地图面积多（官方文件补齐到 8 的倍数）是正常的；少了说明末尾的格子没有省份和归属。
+    /// 只报告、不修：各区块的位置都由这个数决定，只改头部会让后面所有数据整体错位。
     /// </summary>
-    private static int FixTileCount(byte[] data, BTLHeader header,
+    private static void CheckTileCount(BTLHeader header,
         List<(BTLIssueLevel Level, string Category, string Message, long Offset)>? log)
     {
         long real = (long)header.MapLength * header.MapWidth;
-        if (real <= 0 || real == header.SelectableTileCount) return 0;
+        if (real <= 0 || real <= header.SelectableTileCount) return;
 
         Report(log, BTLIssueLevel.Error, "头部",
-            $"地块总数不一致：头部声明 {header.SelectableTileCount}，实际地图 {header.MapLength}×{header.MapWidth} = {real}",
+            $"地块总数不足：头部声明 {header.SelectableTileCount}，实际地图 {header.MapLength}×{header.MapWidth} = {real}",
             TileCountHeaderOffset);
-
-        // 头部里地块总数的偏移与 StageOffsets 一致（0x58）
-        WriteInt32(data, TileCountHeaderOffset, (int)real);
-        return 1;
     }
 
-    /// <summary>头部中「地块总数」字段的字节偏移（与 StageOffsets/解析器一致）</summary>
+    /// <summary>头部中「地块总数」字段的字节偏移</summary>
     private const int TileCountHeaderOffset = 0x58;
 
     /// <summary>
     /// 海洋行政区划：海洋地块的区划值必须为 65535（FF FF）。
     /// </summary>
     private static int FixDistrictsOnOcean(byte[] data, BTLHeader header,
-        (int terrain, int province, int belong, int building, int dataEnd) off,
+        BTLLayout off,
         List<(BTLIssueLevel Level, string Category, string Message, long Offset)>? log)
     {
         if (header.SelectableTileCount <= 0) return 0;
@@ -547,9 +543,9 @@ public static class BTLRuleChecker
 
         for (int i = 0; i < header.SelectableTileCount; i++)
         {
-            if (!IsOceanAt(data, header, off, i)) continue;
+            if (IsOceanAt(data, off, i) != true) continue;
 
-            long pos = (long)off.province + (long)i * BTLSize.PROVINCE_SIZE;
+            long pos = off[BtlBlock.Province].Start + (long)i * BTLSize.PROVINCE_SIZE;
             if (pos + BTLSize.PROVINCE_SIZE > data.Length) break;
 
             int value = data[pos] | (data[pos + 1] << 8);
@@ -564,15 +560,6 @@ public static class BTLRuleChecker
         }
 
         return fixedCount;
-    }
-
-    private static void WriteInt32(byte[] data, int offset, int value)
-    {
-        if (offset + 4 > data.Length) return;
-        data[offset] = (byte)(value & 0xFF);
-        data[offset + 1] = (byte)((value >> 8) & 0xFF);
-        data[offset + 2] = (byte)((value >> 16) & 0xFF);
-        data[offset + 3] = (byte)((value >> 24) & 0xFF);
     }
 
     // ---------- 首都（MapData 层）----------
@@ -706,28 +693,32 @@ public static class BTLRuleChecker
         b.NuclearLevel = 0;
     }
 
-    /// <summary>该地块是否为海洋（地形第一层组 ID 为 1）</summary>
-    private static bool IsOceanAt(byte[] data, BTLHeader header,
-        (int terrain, int province, int belong, int building, int dataEnd) off, int coord)
+    /// <summary>
+    /// 该地块是否为海洋（地形第一层组 ID 为 1）；无从判断时返回 null：
+    /// 征服布局没有地形块，坐标也可能落在地形块以外。
+    /// </summary>
+    private static bool? IsOceanAt(byte[] data, BTLLayout off, int coord)
     {
-        if (header.SelectableTileCount <= 0 || coord < 0 || coord >= header.SelectableTileCount)
-            return false;
+        if (!off.HasTerrain) return null;
 
-        long pos = (long)off.terrain + coord * BTLSize.TERRAIN_SIZE;
-        if (pos + BTLSize.TERRAIN_SIZE > data.Length) return false;
+        var terrain = off[BtlBlock.Terrain];
+        if (coord < 0 || coord >= terrain.Count) return null;
+
+        long pos = terrain.Start + (long)coord * BTLSize.TERRAIN_SIZE;
+        if (pos + BTLSize.TERRAIN_SIZE > data.Length) return null;
 
         return data[pos] == OceanTerrainGroup;
     }
 
     /// <summary>该地块上是否有建筑（用于「要塞不能放在建筑上」的判断）</summary>
     private static bool HasBuildingAt(byte[] data, BTLHeader header,
-        (int terrain, int province, int belong, int building, int dataEnd) off, int coord)
+        BTLLayout off, int coord)
     {
         if (header.BuildingCount <= 0) return false;
 
         for (int i = 0; i < header.BuildingCount; i++)
         {
-            long pos = (long)off.building + i * BTLSize.BUILDING_SIZE;
+            long pos = off[BtlBlock.Building].Start + i * BTLSize.BUILDING_SIZE;
             if (pos + BTLSize.BUILDING_SIZE > data.Length) break;
 
             var b = Building.FromBytes(data, (int)pos);

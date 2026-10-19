@@ -3,11 +3,12 @@ using WC4MapEditor.Core.Services;
 namespace WC4MapEditor.GUI.Views.Assist;
 
 /// <summary>
-/// 格子信息浮窗：置顶、不抢焦点，跟着鼠标下的格子刷新内容；标题栏可拖动。
+/// 格子信息浮窗：置顶、不抢焦点；显示场景指定的格子（选中格 / 查看的格子），内容视图随编辑模式切换；标题栏可拖动。
 /// 外观走 <see cref="EditorTheme"/>，分区标题 / 字段名 / 等宽 hex 都用主题里的样式。
 /// </summary>
 public sealed class HexInfoWindow : Window
 {
+    private readonly IHexInfoProvider _provider;
     private Border _mainBorder = null!;
     private StackPanel _contentStack = null!;
     private ScrollViewer _scrollViewer = null!;
@@ -19,8 +20,10 @@ public sealed class HexInfoWindow : Window
 
     private const int WindowWidth = 320;
 
-    public HexInfoWindow()
+    /// <param name="provider">格子信息来源（渲染场景传入绑定到其当前地图的服务）</param>
+    public HexInfoWindow(IHexInfoProvider provider)
     {
+        _provider = provider;
         EditorTheme.Apply(this);
         InitializeWindow();
     }
@@ -148,22 +151,22 @@ public sealed class HexInfoWindow : Window
         return _mainBorder;
     }
 
-    public void SetDisplayMode(HexInfoDisplayMode mode)
+    /// <summary>显示指定格子；<paramref name="mode"/> 为 null 时沿用当前视图。即使是同一格也会重新查询（数据可能刚改过）。</summary>
+    public void UpdateHexInfo(int col, int row, HexInfoDisplayMode? mode = null)
     {
-        if (_currentMode != mode)
-            _currentMode = mode;
-    }
-
-    public void UpdateHexInfo(int col, int row, HexInfoDisplayMode mode = HexInfoDisplayMode.Default)
-    {
-        if (col == _currentCol && row == _currentRow && mode == _currentMode) return;
-
         _currentCol = col;
         _currentRow = row;
-        _currentMode = mode;
-        Title = Loc.F("Assist.HexInfo.TitleWithCoord", col, row);
+        if (mode.HasValue) _currentMode = mode.Value;
+        Refresh();
+    }
 
-        var info = HexInfoService.Instance.GetHexCellInfo(col, row, mode);
+    /// <summary>重新查询正在显示的格子（数据修改、撤销 / 重做之后调用）。</summary>
+    public void Refresh()
+    {
+        if (_currentCol < 0 || _currentRow < 0) return;
+
+        Title = Loc.F("Assist.HexInfo.TitleWithCoord", _currentCol, _currentRow);
+        var info = _provider.GetHexCellInfo(_currentCol, _currentRow, _currentMode);
         if (info == null)
         {
             ClearHexInfo();

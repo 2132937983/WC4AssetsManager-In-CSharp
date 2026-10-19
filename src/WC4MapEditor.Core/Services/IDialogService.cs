@@ -5,7 +5,7 @@ namespace WC4MapEditor.Core.Services;
 /// <summary>
 /// 对话框服务接口 - 由 GUI 层实现，通过依赖注入提供给 Core 层
 /// </summary>
-public interface IDialogService
+public partial interface IDialogService
 {
     /// <summary>
     /// 显示输入对话框

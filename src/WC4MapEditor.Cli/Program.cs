@@ -385,7 +385,7 @@ public class Program
             Console.WriteLine($"  军团:    {legions.Count} 个");
             if (legions.Count > 0)
             {
-                var playerLegions = legions.Count(l => l.IsPlayerControlled == 1);
+                var playerLegions = legions.Count(l => l.IsPlayer);
                 var aiLegions = legions.Count - playerLegions;
                 Console.WriteLine($"    - 玩家控制: {playerLegions} 个");
                 Console.WriteLine($"    - AI控制:   {aiLegions} 个");
@@ -419,11 +419,15 @@ public class Program
                     Console.WriteLine($"      ... 及其他 {unitGroups.Count() - 5} 种类型");
             }
 
-            if (parser.BtlVersion >= 3 && parser.ArmiesV3.Count > 0)
+            if (parser.Header.UsesV3Records && parser.ArmiesV3.Count > 0)
             {
                 Console.WriteLine($"  部队V3:  {parser.ArmiesV3.Count} 个");
             }
             Console.WriteLine("================================\n");
+
+            // 单位的归属按所在格子的归属值算，需要完整的 MapData（裁剪过的征服地图归属序号 ≠ 格子序号）
+            var mapData = new MapData();
+            StageParser.PopulateMapData(parser, mapData);
 
             var result = new StageExportData
             {
@@ -431,7 +435,7 @@ public class Program
                 Header = ExportHeader(header),
                 Legions = legions.Select(ExportLegionSummary).ToList(),
                 Buildings = buildings.Select(ExportBuildingSummary).ToList(),
-                Armies = armies.Select(ExportArmySummary).ToList()
+                Armies = armies.Select(a => ExportArmySummary(a, mapData)).ToList()
             };
 
             if (detailed)
@@ -451,9 +455,9 @@ public class Program
                 result.StrategyConstructions = parser.GetStrategyConstructionData().Select(ExportStrategicConstruction).ToList();
                 result.AirSupports = parser.GetAirSupportData().Select(ExportAirSupport).ToList();
 
-                if (parser.BtlVersion >= 3)
+                if (parser.Header.UsesV3Records)
                 {
-                    result.ArmiesV3 = parser.ArmiesV3.Select(ExportArmyV3).ToList();
+                    result.ArmiesV3 = parser.ArmiesV3.Select(a => ExportArmyV3(a, mapData)).ToList();
                     result.ReinforcementsV3 = parser.ReinforcementsV3.Select(ExportReinforcementV3).ToList();
                 }
             }
@@ -542,7 +546,7 @@ public class Program
             Console.WriteLine($"  军团:    {legions.Count} 个");
             if (legions.Count > 0)
             {
-                var playerLegions = legions.Count(l => l.IsPlayerControlled == 1);
+                var playerLegions = legions.Count(l => l.IsPlayer);
                 var aiLegions = legions.Count - playerLegions;
                 Console.WriteLine($"    - 玩家控制: {playerLegions} 个");
                 Console.WriteLine($"    - AI控制:   {aiLegions} 个");
@@ -576,11 +580,15 @@ public class Program
                     Console.WriteLine($"      ... 及其他 {unitGroups.Count() - 5} 种类型");
             }
 
-            if (parser.BtlVersion >= 3 && parser.ArmiesV3.Count > 0)
+            if (parser.Header.UsesV3Records && parser.ArmiesV3.Count > 0)
             {
                 Console.WriteLine($"  部队V3:  {parser.ArmiesV3.Count} 个");
             }
             Console.WriteLine("================================\n");
+
+            // 单位的归属按所在格子的归属值算，需要完整的 MapData（裁剪过的征服地图归属序号 ≠ 格子序号）
+            var mapData = new MapData();
+            ConquestParser.PopulateMapData(parser, mapData);
 
             var result = new ConquestExportData
             {
@@ -588,7 +596,7 @@ public class Program
                 Header = ExportHeader(header),
                 Legions = legions.Select(ExportLegionSummary).ToList(),
                 Buildings = buildings.Select(ExportBuildingSummary).ToList(),
-                Armies = armies.Select(ExportArmySummary).ToList()
+                Armies = armies.Select(a => ExportArmySummary(a, mapData)).ToList()
             };
 
             if (detailed)
@@ -607,9 +615,9 @@ public class Program
                 result.StrategyConstructions = parser.GetStrategyConstructionData().Select(ExportStrategicConstruction).ToList();
                 result.AirSupports = parser.GetAirSupportData().Select(ExportAirSupport).ToList();
 
-                if (parser.BtlVersion >= 3)
+                if (parser.Header.UsesV3Records)
                 {
-                    result.ArmiesV3 = parser.ArmiesV3.Select(ExportArmyV3).ToList();
+                    result.ArmiesV3 = parser.ArmiesV3.Select(a => ExportArmyV3(a, mapData)).ToList();
                     result.ReinforcementsV3 = parser.ReinforcementsV3.Select(ExportReinforcementV3).ToList();
                 }
             }
@@ -700,7 +708,7 @@ public class Program
             Console.WriteLine($"  军团:    {legions.Count} 个");
             if (legions.Count > 0)
             {
-                var playerLegions = legions.Count(l => l.IsPlayerControlled == 1);
+                var playerLegions = legions.Count(l => l.IsPlayer);
                 var aiLegions = legions.Count - playerLegions;
                 Console.WriteLine($"    - 玩家控制: {playerLegions} 个");
                 Console.WriteLine($"    - AI控制:   {aiLegions} 个");
@@ -745,7 +753,7 @@ public class Program
                 MapHeight = mapData.MapHeight,
                 Header = ExportHeader(header),
                 Buildings = buildings.Select(ExportBuildingSummary).ToList(),
-                Armies = armies.Select(ExportArmySummary).ToList(),
+                Armies = armies.Select(a => ExportArmySummary(a, mapData)).ToList(),
                 Legions = legions.Select(ExportLegionSummary).ToList()
             };
 
@@ -780,7 +788,7 @@ public class Program
                         TextureOffsetX3 = terrainData.TextureOffsetX3,
                         TextureOffsetY3 = terrainData.TextureOffsetY3,
                         RiverValue = terrainData.RiverValue,
-                        CountryId = province.CountryId
+                        ProvinceValue = province.ProvinceValue
                     });
                 }
 
@@ -873,32 +881,39 @@ public class Program
         };
     }
 
-    private static ArmySummaryExport ExportArmySummary(Army army)
+    /// <summary>格子上的归属值：单位的归属一律按所在格子的归属算（单位自带的 LegionId 只是编辑器运行期字段）。</summary>
+    private static int BelongAtCell(MapData map, int cellIndex)
+    {
+        if (map.MapWidth <= 0 || cellIndex < 0 || cellIndex >= map.MapWidth * map.MapHeight) return 0xFF;
+        return map.GetBelongValue(cellIndex % map.MapWidth, cellIndex / map.MapWidth);
+    }
+
+    private static ArmySummaryExport ExportArmySummary(Army army, MapData map)
     {
         return new ArmySummaryExport
         {
-            Coordinate = army.Coordinate,
+            Coordinate = army.CoordinateIndex,
             UnitType = army.UnitType,
             UnitTypeName = army.GetUnitTypeName(),
             Level = army.Level,
             CurrentHealth = army.CurrentHealth,
             MaxHealth = army.MaxHealth,
             General = army.General,
-            LegionId = army.LegionId
+            Belong = BelongAtCell(map, army.CoordinateIndex)
         };
     }
 
-    private static ArmyV3Export ExportArmyV3(Army_3 army)
+    private static ArmyV3Export ExportArmyV3(Army_3 army, MapData map)
     {
         return new ArmyV3Export
         {
-            Coordinate = army.Coordinate,
+            Coordinate = army.CoordinateIndex,
             UnitType = army.UnitType,
             Level = army.Level,
             CurrentHealth = army.CurrentHealth,
             MaxHealth = army.MaxHealth,
             General = army.General,
-            LegionId = army.LegionId
+            Belong = BelongAtCell(map, army.CoordinateIndex)
         };
     }
 
@@ -924,16 +939,19 @@ public class Program
 
     private static ProvinceExport ExportProvince(Province province)
     {
-        return new ProvinceExport { CountryId = province.CountryId };
+        return new ProvinceExport { ProvinceValue = province.ProvinceValue };
     }
 
     private static TrapExport ExportTrap(Trap trap)
     {
         return new TrapExport
         {
-            Coordinate = trap.Coordinate,
-            TrapType = (byte)trap.LegionId,
-            Round = (byte)trap.Organization
+            Coordinate = trap.CellIndex,
+            LegionId = trap.LegionId,
+            Organization = trap.Organization,
+            Health = trap.Health,
+            Extra1 = trap.Extra1,
+            Extra2 = trap.Extra2
         };
     }
 
@@ -941,9 +959,10 @@ public class Program
     {
         return new MapCaseExport
         {
-            Coordinate = (short)mapCase.TargetTile,
-            CaseType = (byte)mapCase.PolicyNumber,
-            TriggerRound = (byte)mapCase.TriggerRound
+            PolicyNumber = mapCase.PolicyNumber,
+            CaseType = mapCase.CaseType,
+            TriggerRound = mapCase.TriggerRound,
+            TargetValue = mapCase.TargetTile
         };
     }
 
@@ -952,18 +971,27 @@ public class Program
         return new WeatherExport
         {
             WeatherType = weather.WeatherType,
-            StartRound = weather.TriggerRound,
-            EndRound = weather.Duration
+            Reserved1 = weather.Reserved1,
+            TriggerRound = weather.TriggerRound,
+            Duration = weather.Duration
         };
     }
 
-    private static MapEventExport ExportMapEvent(MapEvent mapEvent)
+    private static MapEventExport ExportMapEvent(MapEvent e)
     {
         return new MapEventExport
         {
-            EventId = mapEvent.Sequence,
-            TriggerType = mapEvent.TriggerCondition,
-            TriggerValue = mapEvent.TriggerRound
+            Sequence = e.Sequence,
+            RelatedEvent = e.RelatedEvent,
+            TriggerCondition = e.TriggerCondition,
+            TriggerEvent = e.TriggerEvent,
+            TriggerLegion = e.TriggerLegion,
+            AffectedLegion = e.AffectedLegion,
+            CampChange = e.CampChange,
+            Reserved = e.Reserved,
+            TriggerRound = e.TriggerRound,
+            DialogueCode = e.DialogueCode,
+            EndSegment = e.EndSegment
         };
     }
 
@@ -971,9 +999,26 @@ public class Program
     {
         return new ReinforcementExport
         {
-            TriggerRound = r.SpawnRound,
-            LegionId = r.OwnerCountry,
-            Coordinate = (short)r.Coordinate
+            Coordinate = r.Coordinate,
+            UnitType = r.UnitType,
+            Level = r.Level,
+            Organization = r.Organization,
+            Direction = r.Direction,
+            Reserved14 = r.Reserved14,
+            Reserved18 = r.Reserved18,
+            General = r.General,
+            Rank = r.Rank,
+            Quality = r.Quality,
+            Skill1Level = r.Skill1Level,
+            Skill2Level = r.Skill2Level,
+            Skill3Level = r.Skill3Level,
+            Skill4Level = r.Skill4Level,
+            Skill5Level = r.Skill5Level,
+            Badge1 = r.Badge1,
+            Badge2 = r.Badge2,
+            Badge3 = r.Badge3,
+            OwnerCountry = r.OwnerCountry,
+            SpawnRound = r.SpawnRound
         };
     }
 
@@ -981,9 +1026,32 @@ public class Program
     {
         return new ReinforcementV3Export
         {
-            TriggerRound = r.SpawnRound,
-            LegionId = r.OwnerLegion,
-            Coordinate = (short)r.Coordinate
+            Coordinate = r.Coordinate,
+            UnitType = r.UnitType,
+            Level = r.Level,
+            Organization = r.Organization,
+            BehaviorMode = r.BehaviorMode,
+            Direction = r.Direction,
+            Unknown = r.Unknown,
+            General = r.General,
+            Rank = r.Rank,
+            HpLevel = r.HpLevel,
+            Skill1Level = r.Skill1Level,
+            Skill2Level = r.Skill2Level,
+            Skill3Level = r.Skill3Level,
+            Skill4Level = r.Skill4Level,
+            Skill5Level = r.Skill5Level,
+            Waste1 = r.Waste1,
+            Waste2 = r.Waste2,
+            Waste3 = r.Waste3,
+            OwnerLegion = r.OwnerLegion,
+            SpawnRound = r.SpawnRound,
+            Medal1 = r.Medal1,
+            Medal2 = r.Medal2,
+            Medal3 = r.Medal3,
+            Ribbon1 = r.Ribbon1,
+            Ribbon2 = r.Ribbon2,
+            Ribbon3 = r.Ribbon3
         };
     }
 
@@ -991,8 +1059,11 @@ public class Program
     {
         return new AirForceExport
         {
-            Coordinate = (short)af.Coordinate,
-            AirForceType = af.UnitType
+            Coordinate = af.Coordinate,
+            UnitType = af.UnitType,
+            AmmoType = af.AmmoType,
+            OwnerLegion = af.OwnerLegion,
+            TriggerRound = af.TriggerRound
         };
     }
 
@@ -1000,31 +1071,38 @@ public class Program
     {
         return new UnitPlacementExport
         {
-            Coordinate = (short)up.Coordinate,
-            UnitType = up.Direction
+            Coordinate = up.Coordinate,
+            Direction = up.Direction,
+            Sequence = up.Sequence,
+            Unknown = up.Unknown,
+            TransportShip = up.TransportShip
         };
     }
 
     private static CapitalExport ExportCapital(Capital c)
     {
-        return new CapitalExport { Coordinate = (short)c.Coordinate };
+        return new CapitalExport { Coordinate = c.Coordinate };
     }
 
     private static StrategicConstructionExport ExportStrategicConstruction(StrategicConstruction sc)
     {
         return new StrategicConstructionExport
         {
-            Coordinate = (short)sc.LegionId,
-            ConstructionType = (byte)sc.ConstructionCode
+            LegionId = sc.LegionId,
+            Reserved1 = sc.Reserved1,
+            ExecuteRound = sc.ExecuteRound,
+            ConstructionCode = sc.ConstructionCode
         };
     }
 
-    private static AirSupportExport ExportAirSupport(AirSupport as_)
+    private static AirSupportExport ExportAirSupport(AirSupport support)
     {
         return new AirSupportExport
         {
-            Coordinate = (short)as_.AirForceSequence,
-            SupportType = (byte)as_.TriggerRound
+            AirForceSequence = support.AirForceSequence,
+            AmmoType = support.AmmoType,
+            OwnerLegion = support.OwnerLegion,
+            TriggerRound = support.TriggerRound
         };
     }
 
@@ -1311,7 +1389,7 @@ public class Program
     private class ArmySummaryExport
     {
         [JsonPropertyName("coordinate")]
-        public short Coordinate { get; set; }
+        public int Coordinate { get; set; }
 
         [JsonPropertyName("unit_type")]
         public byte UnitType { get; set; }
@@ -1331,14 +1409,15 @@ public class Program
         [JsonPropertyName("general")]
         public short General { get; set; }
 
-        [JsonPropertyName("legion_id")]
-        public int LegionId { get; set; }
+        /// <summary>所在格子的归属值（军团列表下标，0xFF = 无归属）。</summary>
+        [JsonPropertyName("belong")]
+        public int Belong { get; set; }
     }
 
     private class ArmyV3Export
     {
         [JsonPropertyName("coordinate")]
-        public short Coordinate { get; set; }
+        public int Coordinate { get; set; }
 
         [JsonPropertyName("unit_type")]
         public byte UnitType { get; set; }
@@ -1355,8 +1434,9 @@ public class Program
         [JsonPropertyName("general")]
         public short General { get; set; }
 
-        [JsonPropertyName("legion_id")]
-        public int LegionId { get; set; }
+        /// <summary>所在格子的归属值（军团列表下标，0xFF = 无归属）。</summary>
+        [JsonPropertyName("belong")]
+        public int Belong { get; set; }
     }
 
     private class TerrainExport
@@ -1409,128 +1489,328 @@ public class Program
         [JsonPropertyName("river_value")]
         public byte RiverValue { get; set; }
 
-        [JsonPropertyName("country_id")]
-        public byte? CountryId { get; set; }
+        [JsonPropertyName("province_value")]
+        public int? ProvinceValue { get; set; }
     }
 
+    /// <summary>省区值（16 位，= 省会格子的索引，0xFFFF = 无省区）。</summary>
     private class ProvinceExport
     {
-        [JsonPropertyName("country_id")]
-        public byte CountryId { get; set; }
+        [JsonPropertyName("province_value")]
+        public int ProvinceValue { get; set; }
     }
 
+    /// <summary>陷阱：LegionId 存的是军团的 ActionId（不是归属值），Organization = 陷阱等级。</summary>
     private class TrapExport
     {
         [JsonPropertyName("coordinate")]
-        public short Coordinate { get; set; }
+        public int Coordinate { get; set; }
 
-        [JsonPropertyName("trap_type")]
-        public byte TrapType { get; set; }
+        [JsonPropertyName("legion_id")]
+        public int LegionId { get; set; }
 
-        [JsonPropertyName("round")]
-        public byte Round { get; set; }
+        [JsonPropertyName("organization")]
+        public int Organization { get; set; }
+
+        [JsonPropertyName("health")]
+        public int Health { get; set; }
+
+        [JsonPropertyName("extra1")]
+        public int Extra1 { get; set; }
+
+        [JsonPropertyName("extra2")]
+        public int Extra2 { get; set; }
     }
 
+    /// <summary>方案（16 字节，四个 int32 原样导出）：方针编号 / 方针类型 / 触发回合 / 目标值（类型 2 时为地块序号）。</summary>
     private class MapCaseExport
     {
-        [JsonPropertyName("coordinate")]
-        public short Coordinate { get; set; }
+        [JsonPropertyName("policy_number")]
+        public int PolicyNumber { get; set; }
 
         [JsonPropertyName("case_type")]
-        public byte CaseType { get; set; }
+        public int CaseType { get; set; }
 
         [JsonPropertyName("trigger_round")]
-        public byte TriggerRound { get; set; }
+        public int TriggerRound { get; set; }
+
+        [JsonPropertyName("target_value")]
+        public int TargetValue { get; set; }
     }
 
+    /// <summary>天气：从触发回合起持续 Duration 回合。</summary>
     private class WeatherExport
     {
         [JsonPropertyName("weather_type")]
         public int WeatherType { get; set; }
 
-        [JsonPropertyName("start_round")]
-        public int StartRound { get; set; }
+        [JsonPropertyName("reserved1")]
+        public int Reserved1 { get; set; }
 
-        [JsonPropertyName("end_round")]
-        public int EndRound { get; set; }
+        [JsonPropertyName("trigger_round")]
+        public int TriggerRound { get; set; }
+
+        [JsonPropertyName("duration")]
+        public int Duration { get; set; }
     }
 
+    /// <summary>事件（44 字节）：字段名与 MapEvent 一致，触发 / 受影响军团是军团 ActionId。</summary>
     private class MapEventExport
     {
-        [JsonPropertyName("event_id")]
-        public int EventId { get; set; }
+        [JsonPropertyName("sequence")]
+        public int Sequence { get; set; }
 
-        [JsonPropertyName("trigger_type")]
-        public int TriggerType { get; set; }
+        [JsonPropertyName("related_event")]
+        public int RelatedEvent { get; set; }
 
-        [JsonPropertyName("trigger_value")]
-        public int TriggerValue { get; set; }
+        [JsonPropertyName("trigger_condition")]
+        public int TriggerCondition { get; set; }
+
+        [JsonPropertyName("trigger_event")]
+        public int TriggerEvent { get; set; }
+
+        [JsonPropertyName("trigger_legion")]
+        public int TriggerLegion { get; set; }
+
+        [JsonPropertyName("affected_legion")]
+        public int AffectedLegion { get; set; }
+
+        [JsonPropertyName("camp_change")]
+        public int CampChange { get; set; }
+
+        [JsonPropertyName("reserved")]
+        public int Reserved { get; set; }
+
+        [JsonPropertyName("trigger_round")]
+        public int TriggerRound { get; set; }
+
+        [JsonPropertyName("dialogue_code")]
+        public int DialogueCode { get; set; }
+
+        [JsonPropertyName("end_segment")]
+        public int EndSegment { get; set; }
     }
 
+    /// <summary>援军 v1/v2（80 字节）：OwnerCountry 存的是军团 ActionId。</summary>
     private class ReinforcementExport
     {
-        [JsonPropertyName("trigger_round")]
-        public int TriggerRound { get; set; }
-
-        [JsonPropertyName("legion_id")]
-        public int LegionId { get; set; }
-
         [JsonPropertyName("coordinate")]
-        public short Coordinate { get; set; }
+        public int Coordinate { get; set; }
+
+        [JsonPropertyName("unit_type")]
+        public int UnitType { get; set; }
+
+        [JsonPropertyName("level")]
+        public int Level { get; set; }
+
+        [JsonPropertyName("organization")]
+        public int Organization { get; set; }
+
+        [JsonPropertyName("direction")]
+        public int Direction { get; set; }
+
+        [JsonPropertyName("reserved14")]
+        public int Reserved14 { get; set; }
+
+        [JsonPropertyName("reserved18")]
+        public int Reserved18 { get; set; }
+
+        [JsonPropertyName("general")]
+        public int General { get; set; }
+
+        [JsonPropertyName("rank")]
+        public int Rank { get; set; }
+
+        [JsonPropertyName("quality")]
+        public int Quality { get; set; }
+
+        [JsonPropertyName("skill1_level")]
+        public int Skill1Level { get; set; }
+
+        [JsonPropertyName("skill2_level")]
+        public int Skill2Level { get; set; }
+
+        [JsonPropertyName("skill3_level")]
+        public int Skill3Level { get; set; }
+
+        [JsonPropertyName("skill4_level")]
+        public int Skill4Level { get; set; }
+
+        [JsonPropertyName("skill5_level")]
+        public int Skill5Level { get; set; }
+
+        [JsonPropertyName("badge1")]
+        public int Badge1 { get; set; }
+
+        [JsonPropertyName("badge2")]
+        public int Badge2 { get; set; }
+
+        [JsonPropertyName("badge3")]
+        public int Badge3 { get; set; }
+
+        [JsonPropertyName("owner_country")]
+        public int OwnerCountry { get; set; }
+
+        [JsonPropertyName("spawn_round")]
+        public int SpawnRound { get; set; }
     }
 
+    /// <summary>援军 v3（104 字节）：OwnerLegion 存的是军团 ActionId。</summary>
     private class ReinforcementV3Export
     {
-        [JsonPropertyName("trigger_round")]
-        public int TriggerRound { get; set; }
-
-        [JsonPropertyName("legion_id")]
-        public int LegionId { get; set; }
-
         [JsonPropertyName("coordinate")]
-        public short Coordinate { get; set; }
+        public int Coordinate { get; set; }
+
+        [JsonPropertyName("unit_type")]
+        public int UnitType { get; set; }
+
+        [JsonPropertyName("level")]
+        public int Level { get; set; }
+
+        [JsonPropertyName("organization")]
+        public int Organization { get; set; }
+
+        [JsonPropertyName("behavior_mode")]
+        public int BehaviorMode { get; set; }
+
+        [JsonPropertyName("direction")]
+        public int Direction { get; set; }
+
+        [JsonPropertyName("unknown")]
+        public int Unknown { get; set; }
+
+        [JsonPropertyName("general")]
+        public int General { get; set; }
+
+        [JsonPropertyName("rank")]
+        public int Rank { get; set; }
+
+        [JsonPropertyName("hp_level")]
+        public int HpLevel { get; set; }
+
+        [JsonPropertyName("skill1_level")]
+        public int Skill1Level { get; set; }
+
+        [JsonPropertyName("skill2_level")]
+        public int Skill2Level { get; set; }
+
+        [JsonPropertyName("skill3_level")]
+        public int Skill3Level { get; set; }
+
+        [JsonPropertyName("skill4_level")]
+        public int Skill4Level { get; set; }
+
+        [JsonPropertyName("skill5_level")]
+        public int Skill5Level { get; set; }
+
+        [JsonPropertyName("waste1")]
+        public int Waste1 { get; set; }
+
+        [JsonPropertyName("waste2")]
+        public int Waste2 { get; set; }
+
+        [JsonPropertyName("waste3")]
+        public int Waste3 { get; set; }
+
+        [JsonPropertyName("owner_legion")]
+        public int OwnerLegion { get; set; }
+
+        [JsonPropertyName("spawn_round")]
+        public int SpawnRound { get; set; }
+
+        [JsonPropertyName("medal1")]
+        public int Medal1 { get; set; }
+
+        [JsonPropertyName("medal2")]
+        public int Medal2 { get; set; }
+
+        [JsonPropertyName("medal3")]
+        public int Medal3 { get; set; }
+
+        [JsonPropertyName("ribbon1")]
+        public int Ribbon1 { get; set; }
+
+        [JsonPropertyName("ribbon2")]
+        public int Ribbon2 { get; set; }
+
+        [JsonPropertyName("ribbon3")]
+        public int Ribbon3 { get; set; }
     }
 
+    /// <summary>空袭：Coordinate 是机场格索引，OwnerLegion 是军团 ActionId。</summary>
     private class AirForceExport
     {
         [JsonPropertyName("coordinate")]
-        public short Coordinate { get; set; }
+        public int Coordinate { get; set; }
 
-        [JsonPropertyName("air_force_type")]
-        public int AirForceType { get; set; }
+        [JsonPropertyName("unit_type")]
+        public int UnitType { get; set; }
+
+        [JsonPropertyName("ammo_type")]
+        public int AmmoType { get; set; }
+
+        [JsonPropertyName("owner_legion")]
+        public int OwnerLegion { get; set; }
+
+        [JsonPropertyName("trigger_round")]
+        public int TriggerRound { get; set; }
     }
 
+    /// <summary>单位部署（8 字节）。</summary>
     private class UnitPlacementExport
     {
         [JsonPropertyName("coordinate")]
-        public short Coordinate { get; set; }
+        public int Coordinate { get; set; }
 
-        [JsonPropertyName("unit_type")]
-        public byte UnitType { get; set; }
+        [JsonPropertyName("direction")]
+        public byte Direction { get; set; }
+
+        [JsonPropertyName("sequence")]
+        public byte Sequence { get; set; }
+
+        [JsonPropertyName("unknown")]
+        public byte Unknown { get; set; }
+
+        [JsonPropertyName("transport_ship")]
+        public byte TransportShip { get; set; }
     }
 
     private class CapitalExport
     {
         [JsonPropertyName("coordinate")]
-        public short Coordinate { get; set; }
+        public int Coordinate { get; set; }
     }
 
+    /// <summary>战略建设（16 字节）：LegionId 是军团 ActionId，记录里没有坐标。</summary>
     private class StrategicConstructionExport
     {
-        [JsonPropertyName("coordinate")]
-        public short Coordinate { get; set; }
+        [JsonPropertyName("legion_id")]
+        public int LegionId { get; set; }
 
-        [JsonPropertyName("construction_type")]
-        public byte ConstructionType { get; set; }
+        [JsonPropertyName("reserved1")]
+        public int Reserved1 { get; set; }
+
+        [JsonPropertyName("execute_round")]
+        public int ExecuteRound { get; set; }
+
+        [JsonPropertyName("construction_code")]
+        public int ConstructionCode { get; set; }
     }
 
+    /// <summary>空中支援：AirForceSequence 是兵种编号，OwnerLegion 是军团 ActionId，记录里没有坐标。</summary>
     private class AirSupportExport
     {
-        [JsonPropertyName("coordinate")]
-        public short Coordinate { get; set; }
+        [JsonPropertyName("air_force_sequence")]
+        public int AirForceSequence { get; set; }
 
-        [JsonPropertyName("support_type")]
-        public byte SupportType { get; set; }
+        [JsonPropertyName("ammo_type")]
+        public int AmmoType { get; set; }
+
+        [JsonPropertyName("owner_legion")]
+        public int OwnerLegion { get; set; }
+
+        [JsonPropertyName("trigger_round")]
+        public int TriggerRound { get; set; }
     }
 
     #endregion
@@ -1926,7 +2206,7 @@ public class Program
 
             选项:
               -o, --output <路径>  输出文件（默认覆盖原文件）
-              --no-save            只执行不写回（info / check 默认就不写回）
+              --no-save            只执行不写回（info / check / inspect / compare / convert 默认就不写回）
               -h, --help           显示本帮助
 
             说明:
@@ -1962,11 +2242,11 @@ public class Program
             ? StageParser.SaveFromMapData(mapData, targetPath)
             : ConquestParser.SaveFromMapData(mapData, targetPath);
 
-    /// <summary>只读命令：执行完不需要写回文件</summary>
+    /// <summary>只读命令：执行完不需要写回文件（inspect / compare / convert 只读文件，convert 只写 -o 指定的新文件）</summary>
     private static bool IsReadOnlyCommand(string commandLine)
     {
         string first = commandLine.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
-        return first is "info" or "check" or "help";
+        return first is "info" or "check" or "help" or "inspect" or "compare" or "convert";
     }
 
     /// <summary>加载 → 执行一条控制台命令 → 按需写回</summary>
@@ -2005,7 +2285,7 @@ public class Program
 
             if (exitCode != 0) Environment.ExitCode = 1;
 
-            // info / check 这类只读命令不写回，避免无意义的往返覆盖
+            // info / check / inspect 这类只读命令不写回，避免无意义的往返覆盖
             if (noSave || IsReadOnlyCommand(commandLine)) return;
 
             string targetPath = string.IsNullOrWhiteSpace(outputPath) ? filePath : outputPath;

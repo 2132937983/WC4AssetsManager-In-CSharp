@@ -29,9 +29,9 @@ public class MapData : INotifyPropertyChanged
     private ObservableCollection<UnitPlacement> _unitPlaces;
     private ObservableCollection<StrategicConstruction> _strategyConstructions;
     private ObservableCollection<AirSupport> _airSupports;
-    private bool _belongOffset;
     private int _mapWidth;
     private int _mapHeight;
+    private byte[] _extensionData = Array.Empty<byte>();
     private string _filePath;
     private bool _isModified;
 
@@ -183,10 +183,14 @@ public class MapData : INotifyPropertyChanged
         set { _airSupports = value; OnPropertyChanged(); }
     }
 
-    public bool BelongOffset
+    /// <summary>
+    /// 文件末尾的扩展数据块（头部 0x54 给出长度，v3 文件里是 protobuf 编码的数据）。
+    /// 编辑器不解读它，加载时原样取出、保存时原样写回。
+    /// </summary>
+    public byte[] ExtensionData
     {
-        get => _belongOffset;
-        set { _belongOffset = value; OnPropertyChanged(); }
+        get => _extensionData;
+        set { _extensionData = value; OnPropertyChanged(); }
     }
 
     public int MapWidth
@@ -210,39 +214,25 @@ public class MapData : INotifyPropertyChanged
     /// <summary>
     /// 地图坐标 → 归属数组索引，返回 -1 表示该格不在归属数据范围内。
     /// <para>
-    /// 归属数组不是简单的 row * MapWidth + col：征服地图的归属数据只覆盖 MapClip
-    /// 裁剪区，存的是"裁剪区内的相对索引"。渲染层（BelongFlagRender.GetHexIndex 等）
-    /// 一直按这个规则换算，归属读写也必须一致，否则有裁剪偏移的地图上会整体错位、
-    /// 甚至因为越界而读成"无归属"（表现为归属不全）。
+    /// 普通地图的归属数组与网格一一对应（row * MapWidth + col）。归属数组只覆盖一块数据窗口的地图
+    /// （征服布局画在世界地图上，见 <c>ConquestWorldMapData</c>）会重写本方法，按窗口规则换算。
+    /// 归属 / 军团 / 渲染一律经本方法取归属，不要自己用 MapClip 推算。
     /// </para>
-    /// <para>无裁剪偏移的地图上，结果与 row * MapWidth + col 完全相同。</para>
     /// </summary>
-    public int GetBelongIndex(int col, int row)
+    public virtual int GetBelongIndex(int col, int row)
     {
-        int mapWidth = _mapWidth;
-        if (mapWidth <= 0) return -1;
-        if (col < 0 || row < 0 || col >= mapWidth || row >= _mapHeight) return -1;
+        if (col < 0 || row < 0 || col >= _mapWidth || row >= _mapHeight) return -1;
+        return row * _mapWidth + col;
+    }
 
-        int mapClipX = _header?.MapClipX ?? 0;
-        int mapClipY = _header?.MapClipY ?? 0;
-
-        if (mapClipY > 0 && row < mapClipY) return -1;
-        if (mapClipX > 0 && col < mapClipX) return -1;
-
-        int conquestWidth = _header?.MapLength ?? 0;
-        if (conquestWidth <= 0) conquestWidth = mapWidth - mapClipX;
-        if (conquestWidth <= 0) conquestWidth = mapWidth;
-
-        int actualCol = col - mapClipX;
-        int actualRow = row - mapClipY;
-
-        if (actualCol >= conquestWidth)
-        {
-            actualCol -= conquestWidth;
-            actualRow++;
-        }
-
-        return actualRow * conquestWidth + actualCol;
+    /// <summary>
+    /// 该格是否在归属数据范围内（征服地图 MapClip 裁剪区以外、或超出归属数组的格子返回 false）。
+    /// 编辑器用它给"数据范围外"的格子画红叉，提示这些格子的归属 / 实体不会被游戏读取。
+    /// </summary>
+    public bool IsInBelongRange(int col, int row)
+    {
+        int index = GetBelongIndex(col, row);
+        return index >= 0 && _belongs != null && index < _belongs.Count;
     }
 
     public int GetBelongValue(int col, int row)
@@ -309,7 +299,6 @@ public class MapData : INotifyPropertyChanged
         _unitPlaces = new ObservableCollection<UnitPlacement>();
         _strategyConstructions = new ObservableCollection<StrategicConstruction>();
         _airSupports = new ObservableCollection<AirSupport>();
-        _belongOffset = false;
         _mapWidth = 0;
         _mapHeight = 0;
         _filePath = string.Empty;
@@ -327,7 +316,7 @@ public class MapData : INotifyPropertyChanged
         _terrains = new TerrainData[width * height];
         _provinces = new Province[width * height];
         for (int i = 0; i < _provinces.Length; i++)
-            _provinces[i] = new Province();
+            _provinces[i] = Province.CreateDefault();
         _buildings = new ObservableCollection<Building>();
         _armies = new ObservableCollection<Army>();
         _armiesV3 = new ObservableCollection<Army_3>();
@@ -344,7 +333,6 @@ public class MapData : INotifyPropertyChanged
         _unitPlaces = new ObservableCollection<UnitPlacement>();
         _strategyConstructions = new ObservableCollection<StrategicConstruction>();
         _airSupports = new ObservableCollection<AirSupport>();
-        _belongOffset = false;
         _filePath = string.Empty;
         _isModified = false;
 
@@ -510,11 +498,25 @@ public class MapData : INotifyPropertyChanged
         return Terrain.FromTerrainData(terrainData);
     }
 
+    public void SetTerrainAt(int col, int row, Terrain terrain)
+    {
+        if (col < 0 || row < 0 || col >= MapWidth || row >= MapHeight) return;
+        SetTerrain(col, row, terrain.ToTerrainData());
+        IsModified = true;
+    }
+
     public Province GetProvinceAt(int col, int row)
     {
         if (col < 0 || row < 0 || col >= MapWidth || row >= MapHeight)
             return Province.CreateDefault();
         return GetProvince(col, row);
+    }
+
+    public void SetProvinceAt(int col, int row, Province province)
+    {
+        if (col < 0 || row < 0 || col >= MapWidth || row >= MapHeight) return;
+        SetProvince(col, row, province);
+        IsModified = true;
     }
 
     public Building? GetBuildingAt(int col, int row)
@@ -531,7 +533,7 @@ public class MapData : INotifyPropertyChanged
     {
         foreach (Army army in Armies)
         {
-            HexCoord coord = HexCoord.FromIndex(army.Coordinate, MapWidth);
+            HexCoord coord = HexCoord.FromIndex(army.CoordinateIndex, MapWidth);
             if (coord.Col == col && coord.Row == row) return army;
         }
         return null;
@@ -541,7 +543,7 @@ public class MapData : INotifyPropertyChanged
     {
         foreach (Army_3 army in ArmiesV3)
         {
-            HexCoord coord = HexCoord.FromIndex(army.Coordinate, MapWidth);
+            HexCoord coord = HexCoord.FromIndex(army.CoordinateIndex, MapWidth);
             if (coord.Col == col && coord.Row == row) return army;
         }
         return null;
@@ -564,6 +566,56 @@ public class MapData : INotifyPropertyChanged
 
         var capitalCoord = HexCoord.FromIndex(capitalIndex, MapWidth);
         return GetBelongValue(capitalCoord.Col, capitalCoord.Row);
+    }
+
+    /// <summary>在建筑所在格放置建筑：该格已有建筑则替换，否则追加（坐标索引同步维护）。</summary>
+    public void AddBuilding(Building building)
+    {
+        HexCoord coord = HexCoord.FromIndex(building.Coordinate, MapWidth);
+        int idx = FindBuildingIndex(coord.Col, coord.Row);
+        if (idx >= 0)
+        {
+            ReplaceBuilding(idx, building);
+        }
+        else
+        {
+            _buildings.Add(building);
+            if (_buildingCoordIndex.Count > 0) _buildingCoordIndex[building.Coordinate] = _buildings.Count - 1;
+        }
+        IsModified = true;
+    }
+
+    public void AddArmy(Army army)
+    {
+        HexCoord coord = HexCoord.FromIndex(army.CoordinateIndex, MapWidth);
+        int idx = FindArmyIndex(coord.Col, coord.Row);
+        if (idx >= 0)
+            _armies[idx] = army;
+        else
+            _armies.Add(army);
+        IsModified = true;
+    }
+
+    public void AddArmyV3(Army_3 army)
+    {
+        HexCoord coord = HexCoord.FromIndex(army.CoordinateIndex, MapWidth);
+        int idx = FindArmyV3Index(coord.Col, coord.Row);
+        if (idx >= 0)
+            _armiesV3[idx] = army;
+        else
+            _armiesV3.Add(army);
+        IsModified = true;
+    }
+
+    /// <summary>删除指定格上的建筑（走按下标删除，坐标索引同步失效）。</summary>
+    public void RemoveBuildingAt(int col, int row)
+    {
+        int idx = FindBuildingIndex(col, row);
+        if (idx >= 0)
+        {
+            RemoveBuildingAt(idx);
+            IsModified = true;
+        }
     }
 
     public void RemoveArmyAt(int col, int row)
@@ -621,6 +673,46 @@ public class MapData : INotifyPropertyChanged
         IsModified = true;
     }
 
+    public void ClearSelection()
+    {
+        // 结构体不可变，清除选择状态由渲染层处理（保留接口与 VB MapData 对齐）
+    }
+
+    /// <summary>
+    /// 指定军团的所有 v1/v2 单位：单位所在格的归属值 = 军团下标。
+    /// （单位的 <c>LegionId</c> 只是编辑器内部字段，不存进文件，读档后是 -1，不能用来判断归属。）
+    /// </summary>
+    public List<Army> GetArmiesByLegion(int legionId)
+    {
+        var result = new List<Army>();
+        if (_mapWidth <= 0) return result;
+        foreach (var a in Armies)
+        {
+            int c = a.CoordinateIndex;
+            if (GetBelongValue(c % _mapWidth, c / _mapWidth) == legionId) result.Add(a);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// 指定军团的所有建筑。
+    /// <para>
+    /// VB 版这里是个 TODO 空实现（省区不再存军团 ID）。现在的归属关系是"格子归属值 = 军团下标"，
+    /// 所以建筑所在格的归属值等于 <paramref name="legionId"/> 即视为该军团的建筑。
+    /// </para>
+    /// </summary>
+    public List<Building> GetBuildingsByLegion(int legionId)
+    {
+        var result = new List<Building>();
+        if (_mapWidth <= 0) return result;
+        foreach (var b in _buildings)
+        {
+            if (GetBelongValue(b.Coordinate % _mapWidth, b.Coordinate / _mapWidth) == legionId)
+                result.Add(b);
+        }
+        return result;
+    }
+
     public double GetMemoryUsageMB()
     {
         long bytes = 0;
@@ -649,7 +741,7 @@ public class MapData : INotifyPropertyChanged
         _traps?.Clear();
         _reinforcements?.Clear();
         _reinforcementsV3?.Clear();
-        _belongOffset = false;
+        _extensionData = Array.Empty<byte>();
         _mapWidth = 0;
         _mapHeight = 0;
 
@@ -724,7 +816,7 @@ public class MapData : INotifyPropertyChanged
         int coordIndex = row * _mapWidth + col;
         for (int i = 0; i < _armies.Count; i++)
         {
-            if (_armies[i].Coordinate == coordIndex) return i;
+            if (_armies[i].CoordinateIndex == coordIndex) return i;
         }
         return -1;
     }
@@ -734,7 +826,7 @@ public class MapData : INotifyPropertyChanged
         int coordIndex = row * _mapWidth + col;
         for (int i = 0; i < _armiesV3.Count; i++)
         {
-            if (_armiesV3[i].Coordinate == coordIndex) return i;
+            if (_armiesV3[i].CoordinateIndex == coordIndex) return i;
         }
         return -1;
     }
@@ -744,7 +836,7 @@ public class MapData : INotifyPropertyChanged
         int coordIndex = row * _mapWidth + col;
         for (int i = 0; i < _traps.Count; i++)
         {
-            if (_traps[i].Coordinate == coordIndex) return i;
+            if (_traps[i].CellIndex == coordIndex) return i;
         }
         return -1;
     }
@@ -862,6 +954,11 @@ public class MapData : INotifyPropertyChanged
     public void RemoveReinforcementAt(int index)
     {
         if ((uint)index < (uint)_reinforcements.Count) _reinforcements.RemoveAt(index);
+    }
+
+    public void RemoveReinforcementV3At(int index)
+    {
+        if ((uint)index < (uint)_reinforcementsV3.Count) _reinforcementsV3.RemoveAt(index);
     }
 
     #endregion

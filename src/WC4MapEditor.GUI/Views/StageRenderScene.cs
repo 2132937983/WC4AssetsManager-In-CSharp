@@ -35,7 +35,7 @@ public class StageRenderScene : RenderSceneBase
             path = dlg.FileName;
         }
 
-        return StageParser.LoadToMapData(path);
+        return ParseMapFileOrReport(path, StageParser.LoadToMapData);
     }
 
     protected override bool SaveMapData(MapData mapData, string outputPath)
@@ -46,14 +46,10 @@ public class StageRenderScene : RenderSceneBase
 
     protected override void InitializeRenderers()
     {
-        // 基础渲染层始终启用
+        // 基础渲染层始终启用。其他渲染层由编辑模式控制（UpdateRenderLayersByMode），这里不去动它们：
+        // 打开 / 新建 / 切换场景时也会调用本方法，而模式并没有变，以前在这里把它们统统关掉，
+        // 换图后省份、建筑、单位层和选区高亮就一直消失，直到用户再切一次模式。
         RenderEngine.EnableBackgroundRender = true;
         RenderEngine.EnableTerrainsRender = true;
-        // 其他渲染层由编辑模式控制，不在此处默认启用
-        RenderEngine.EnableProvinceRender = false;
-        RenderEngine.EnableBuildingRender = false;
-        RenderEngine.EnableArmyRender = false;
-        RenderEngine.EnableTrapRender = false;
-        RenderEngine.EnableSelectionRender = false;
     }
 }

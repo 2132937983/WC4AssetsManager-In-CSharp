@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using WC4MapEditor.Core.Services;
 
@@ -6,6 +7,10 @@ namespace WC4MapEditor.GUI.Views.Assist;
 /// <summary>
 /// 建筑编辑窗口：按分组排列的字段表单，外观走 <see cref="EditorTheme"/>。
 /// 名称框获得焦点时切到中文输入法、失焦切回英文，其它字段都是数字。
+/// <para>
+/// 确定时逐项校验（字段范围对齐 VB BuildingSetting.InitializeFields）：输入无效时在底部提示原因、
+/// 选中出错的输入框并保持窗口打开，不再把非法输入悄悄变成 0。名称最后解析，前面的字段都有效才可能新建城市名。
+/// </para>
 /// </summary>
 public sealed class BuildingSettingWindow : Window
 {
@@ -20,13 +25,64 @@ public sealed class BuildingSettingWindow : Window
     private const int LANG_CHINESE_SIMPLIFIED = 0x0804;
     private const int LANG_ENGLISH_US = 0x0409;
 
+    /// <summary>修改建筑某个字节字段（Building 是结构体，按引用传入）。</summary>
+    private delegate void ByteSetter(ref Building building, byte value);
+
+    /// <summary>一个数字字段：显示名的翻译键、上限（下限都是 0）、读写方法与可选的说明翻译键。</summary>
+    private sealed record ByteField(string LabelKey, int Max, Func<Building, byte> Get, ByteSetter Set, string? HintKey = null);
+
+    private static readonly ByteField[] BasicFields =
+    {
+        new("Assist.Building.Field.BuildingType", 255, b => b.BuildingType, (ref Building b, byte v) => b.BuildingType = v),
+        new("Assist.Building.Field.Appearance", 255, b => b.Appearance, (ref Building b, byte v) => b.Appearance = v),
+    };
+
+    private static readonly ByteField[] PropertyFields =
+    {
+        new("Assist.Building.Field.Landmark", 255, b => b.LandmarkBuilding, (ref Building b, byte v) => b.LandmarkBuilding = v),
+        new("Assist.Building.Field.Decorative", 255, b => b.DecorativeBuilding, (ref Building b, byte v) => b.DecorativeBuilding = v),
+        new("Assist.Building.Field.SkillUnlock", 255, b => b.SkillUnlock, (ref Building b, byte v) => b.SkillUnlock = v),
+        new("Assist.Building.Field.RewardCount", 255, b => b.RewardCount, (ref Building b, byte v) => b.RewardCount = v),
+        new("Assist.Building.Field.Hatred", 255, b => b.HatredValue, (ref Building b, byte v) => b.HatredValue = v, "Assist.Building.Hint.Hatred"),
+        new("Assist.Building.Field.KeyPoint", 2, b => b.KeyPoint, (ref Building b, byte v) => b.KeyPoint = v, "Assist.Building.Hint.KeyPoint"),
+        new("Assist.Building.Field.OccupationEvent", 255, b => b.OccupationEvent, (ref Building b, byte v) => b.OccupationEvent = v),
+    };
+
+    private static readonly ByteField[] FireAndAirDefenseFields =
+    {
+        new("Assist.Building.Field.FireIgnition", 255, b => b.FireIgnition, (ref Building b, byte v) => b.FireIgnition = v),
+        new("Assist.Building.Field.FireDuration", 255, b => b.FireDuration, (ref Building b, byte v) => b.FireDuration = v),
+        new("Assist.Building.Field.AirDefenseWeapon", 255, b => b.AirDefenseWeapon, (ref Building b, byte v) => b.AirDefenseWeapon = v),
+        new("Assist.Building.Field.AirDefenseRadar", 2, b => b.AirDefenseRadar, (ref Building b, byte v) => b.AirDefenseRadar = v, "Assist.Building.Hint.AirDefenseRadar"),
+    };
+
+    private static readonly ByteField[] LevelFields =
+    {
+        new("Assist.Building.Field.FactoryLevel", 255, b => b.FactoryLevel, (ref Building b, byte v) => b.FactoryLevel = v),
+        new("Assist.Building.Field.ResearchLevel", 255, b => b.ResearchLevel, (ref Building b, byte v) => b.ResearchLevel = v),
+        new("Assist.Building.Field.MedicalLevel", 255, b => b.MedicalLevel, (ref Building b, byte v) => b.MedicalLevel = v),
+        new("Assist.Building.Field.AviationLevel", 255, b => b.AviationLevel, (ref Building b, byte v) => b.AviationLevel = v),
+        new("Assist.Building.Field.MissileLevel", 255, b => b.MissileLevel, (ref Building b, byte v) => b.MissileLevel = v),
+        new("Assist.Building.Field.NuclearLevel", 255, b => b.NuclearLevel, (ref Building b, byte v) => b.NuclearLevel = v),
+    };
+
     private bool _isClosing;
     private bool _confirmed;
     private Building _building;
-    private bool _isNewBuilding;
 
-    // UI elements
-    private readonly Dictionary<string, TextBox> _textBoxes = new();
+    private readonly TextBox _coordinateBox = new() { IsReadOnly = true, Focusable = false };
+    private readonly TextBox _nameBox = new();
+    private readonly List<(ByteField Field, TextBox Box)> _byteBoxes = new();
+
+    /// <summary>Tab 键在这些可编辑的输入框之间循环（坐标只读，不参与）。</summary>
+    private readonly List<TextBox> _tabOrder = new();
+
+    private readonly TextBlock _statusText = new()
+    {
+        VerticalAlignment = VerticalAlignment.Center,
+        TextWrapping = TextWrapping.Wrap,
+        Margin = new Thickness(0, 0, 12, 0)
+    };
 
     public Building ResultBuilding => _building;
     public bool Confirmed => _confirmed;
@@ -36,11 +92,10 @@ public sealed class BuildingSettingWindow : Window
         EditorTheme.Apply(this);
 
         _building = building;
-        _isNewBuilding = isNew;
 
-        Title = _isNewBuilding ? Loc.T("Assist.Building.CreateTitle") : Loc.T("Assist.Building.EditTitle");
+        Title = isNew ? Loc.T("Assist.Building.CreateTitle") : Loc.T("Assist.Building.EditTitle");
         Width = 620;
-        Height = 560;
+        Height = 580;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         WindowStyle = WindowStyle.None;
         // 淡入淡出靠 Opacity 动画，无边框窗口只有开了 AllowsTransparency 时 Opacity 才生效
@@ -50,8 +105,21 @@ public sealed class BuildingSettingWindow : Window
         Opacity = 0;
 
         Content = CreateWindowContent();
-        Loaded += (_, _) => PlayFadeInAnimation();
+        Loaded += (_, _) => OnLoaded();
         PreviewKeyDown += Window_PreviewKeyDown;
+    }
+
+    private void OnLoaded()
+    {
+        LoadBuildingData();
+        PlayFadeInAnimation();
+
+        // 对齐 VB：打开时焦点在名称框并全选，直接输入即可替换名称
+        Dispatcher.BeginInvoke(() =>
+        {
+            _nameBox.Focus();
+            _nameBox.SelectAll();
+        }, DispatcherPriority.Input);
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -71,72 +139,20 @@ public sealed class BuildingSettingWindow : Window
         else if (e.Key == Key.Tab)
         {
             e.Handled = true;
-            MoveFocusToNextField();
-        }
-        else if (e.Key == Key.Space)
-        {
-            e.Handled = true;
-            if (_textBoxes.TryGetValue("name", out var nameTextBox))
-            {
-                nameTextBox.Clear();
-                nameTextBox.Focus();
-            }
+            MoveFocus(backward: (Keyboard.Modifiers & ModifierKeys.Shift) != 0);
         }
     }
 
-    private static readonly string[] _fieldOrder =
-    [
-        "coordinate", "name", "building_type", "appearance",
-        "landmark", "decorative", "skill_unlock", "reward_count",
-        "hatred", "key_point", "occupation_event",
-        "fire_ignition", "fire_duration", "air_defense_weapon", "air_defense_radar",
-        "factory_level", "research_level", "medical_level", "aviation_level",
-        "missile_level", "nuclear_level"
-    ];
-
-    private void MoveFocusToNextField()
+    private void MoveFocus(bool backward)
     {
-        var focusedElement = Keyboard.FocusedElement as TextBox;
+        int count = _tabOrder.Count;
+        int current = Keyboard.FocusedElement is TextBox box ? _tabOrder.IndexOf(box) : -1;
+        int next = current < 0
+            ? (backward ? count - 1 : 0)
+            : (current + (backward ? count - 1 : 1)) % count;
 
-        if (focusedElement == null)
-        {
-            if (_textBoxes.TryGetValue(_fieldOrder[0], out var firstTextBox))
-            {
-                firstTextBox.Focus();
-                firstTextBox.SelectAll();
-            }
-            return;
-        }
-
-        string? currentKey = null;
-        foreach (var kvp in _textBoxes)
-        {
-            if (kvp.Value == focusedElement)
-            {
-                currentKey = kvp.Key;
-                break;
-            }
-        }
-
-        if (currentKey == null)
-        {
-            if (_textBoxes.TryGetValue(_fieldOrder[0], out var firstTextBox))
-            {
-                firstTextBox.Focus();
-                firstTextBox.SelectAll();
-            }
-            return;
-        }
-
-        int currentIndex = Array.IndexOf(_fieldOrder, currentKey);
-        int nextIndex = (currentIndex + 1) % _fieldOrder.Length;
-        string nextKey = _fieldOrder[nextIndex];
-
-        if (_textBoxes.TryGetValue(nextKey, out var nextTextBox))
-        {
-            nextTextBox.Focus();
-            nextTextBox.SelectAll();
-        }
+        _tabOrder[next].Focus();
+        _tabOrder[next].SelectAll();
     }
 
     private void PlayFadeInAnimation()
@@ -148,11 +164,9 @@ public sealed class BuildingSettingWindow : Window
         Storyboard.SetTargetProperty(fadeIn, new PropertyPath(OpacityProperty));
         sb.Children.Add(fadeIn);
         sb.Begin();
-
-        LoadBuildingData();
     }
 
-    public void PlayFadeOutAndClose()
+    private void PlayFadeOutAndClose()
     {
         if (_isClosing) return;
         _isClosing = true;
@@ -235,61 +249,42 @@ public sealed class BuildingSettingWindow : Window
 
     private ScrollViewer CreateEditPanel()
     {
-        var scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
-        };
-
         var contentPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
 
-        // Basic info group
-        contentPanel.Children.Add(CreateAttributeGroup(Loc.T("Common.BasicInfo"), new[]
+        // 名称只有中文文本，其它都是数字：进出名称框时顺手切换输入法
+        _nameBox.GotFocus += (_, _) =>
         {
-            (Loc.T("Assist.Building.Field.Coordinate"), "coordinate"),
-            (Loc.T("Common.Name"), "name"),
-            (Loc.T("Assist.Building.Field.BuildingType"), "building_type"),
-            (Loc.T("Assist.Building.Field.Appearance"), "appearance"),
-        }));
+            SwitchToChineseIME();
+            ShowHint("Assist.Building.Hint.Name");
+        };
+        _nameBox.LostFocus += (_, _) => SwitchToEnglishIME();
+        _tabOrder.Add(_nameBox);
 
-        // Properties group
-        contentPanel.Children.Add(CreateAttributeGroup(Loc.T("Assist.Building.Section.Properties"), new[]
+        var basicRows = new List<Border>
         {
-            (Loc.T("Assist.Building.Field.Landmark"), "landmark"),
-            (Loc.T("Assist.Building.Field.Decorative"), "decorative"),
-            (Loc.T("Assist.Building.Field.SkillUnlock"), "skill_unlock"),
-            (Loc.T("Assist.Building.Field.RewardCount"), "reward_count"),
-            (Loc.T("Assist.Building.Field.Hatred"), "hatred"),
-            (Loc.T("Assist.Building.Field.KeyPoint"), "key_point"),
-            (Loc.T("Assist.Building.Field.OccupationEvent"), "occupation_event"),
-        }));
+            CreateFieldRow(Loc.T("Assist.Building.Field.Coordinate"), _coordinateBox, "Assist.Building.Hint.Coordinate"),
+            CreateFieldRow(Loc.T("Common.Name"), _nameBox, "Assist.Building.Hint.Name"),
+        };
+        basicRows.AddRange(BasicFields.Select(CreateByteFieldRow));
 
-        // Fire and defense group
-        contentPanel.Children.Add(CreateAttributeGroup(Loc.T("Assist.Building.Section.FireAndAirDefense"), new[]
+        contentPanel.Children.Add(CreateAttributeGroup(Loc.T("Common.BasicInfo"), basicRows));
+        contentPanel.Children.Add(CreateAttributeGroup(Loc.T("Assist.Building.Section.Properties"),
+            PropertyFields.Select(CreateByteFieldRow).ToList()));
+        contentPanel.Children.Add(CreateAttributeGroup(Loc.T("Assist.Building.Section.FireAndAirDefense"),
+            FireAndAirDefenseFields.Select(CreateByteFieldRow).ToList()));
+        contentPanel.Children.Add(CreateAttributeGroup(Loc.T("Assist.Building.Section.FacilityLevels"),
+            LevelFields.Select(CreateByteFieldRow).ToList()));
+
+        return new ScrollViewer
         {
-            (Loc.T("Assist.Building.Field.FireIgnition"), "fire_ignition"),
-            (Loc.T("Assist.Building.Field.FireDuration"), "fire_duration"),
-            (Loc.T("Assist.Building.Field.AirDefenseWeapon"), "air_defense_weapon"),
-            (Loc.T("Assist.Building.Field.AirDefenseRadar"), "air_defense_radar"),
-        }));
-
-        // Facility levels group
-        contentPanel.Children.Add(CreateAttributeGroup(Loc.T("Assist.Building.Section.FacilityLevels"), new[]
-        {
-            (Loc.T("Assist.Building.Field.FactoryLevel"), "factory_level"),
-            (Loc.T("Assist.Building.Field.ResearchLevel"), "research_level"),
-            (Loc.T("Assist.Building.Field.MedicalLevel"), "medical_level"),
-            (Loc.T("Assist.Building.Field.AviationLevel"), "aviation_level"),
-            (Loc.T("Assist.Building.Field.MissileLevel"), "missile_level"),
-            (Loc.T("Assist.Building.Field.NuclearLevel"), "nuclear_level"),
-        }));
-
-        scrollViewer.Content = contentPanel;
-        return scrollViewer;
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = contentPanel
+        };
     }
 
     /// <summary>一个分组：主题分组标题 + 两列表单行（字段多，单列会拉得太长）。</summary>
-    private StackPanel CreateAttributeGroup(string title, (string label, string key)[] fields)
+    private static StackPanel CreateAttributeGroup(string title, IReadOnlyList<Border> rows)
     {
         var groupPanel = new StackPanel();
         groupPanel.Children.Add(EditorTheme.SectionHeader(title));
@@ -298,48 +293,44 @@ public sealed class BuildingSettingWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        int rowIndex = 0;
-        for (int i = 0; i < fields.Length; i += 2)
+        for (int i = 0; i < rows.Count; i++)
         {
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-            var row1 = CreateFieldRow(fields[i].label, fields[i].key);
-            Grid.SetRow(row1, rowIndex);
-            Grid.SetColumn(row1, 0);
-            grid.Children.Add(row1);
-
-            if (i + 1 < fields.Length)
-            {
-                var row2 = CreateFieldRow(fields[i + 1].label, fields[i + 1].key);
-                Grid.SetRow(row2, rowIndex);
-                Grid.SetColumn(row2, 1);
-                grid.Children.Add(row2);
-            }
-
-            rowIndex++;
+            if (i % 2 == 0)
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            Grid.SetRow(rows[i], i / 2);
+            Grid.SetColumn(rows[i], i % 2);
+            grid.Children.Add(rows[i]);
         }
 
         groupPanel.Children.Add(grid);
         return groupPanel;
     }
 
-    private Border CreateFieldRow(string label, string key)
+    private Border CreateByteFieldRow(ByteField field)
     {
         var textBox = new TextBox();
+        textBox.GotFocus += (_, _) => ShowHint(field.HintKey);
+        _byteBoxes.Add((field, textBox));
+        _tabOrder.Add(textBox);
+        return CreateFieldRow(Loc.T(field.LabelKey), textBox, field.HintKey);
+    }
 
-        // 只有名称是中文文本，其它都是数字：进出名称框时顺手切换输入法
-        if (key == "name")
-        {
-            textBox.GotFocus += (_, _) => SwitchToChineseIME();
-            textBox.LostFocus += (_, _) => SwitchToEnglishIME();
-        }
-
-        _textBoxes[key] = textBox;
-        return EditorTheme.FormRow(label, textBox, 96);
+    private static Border CreateFieldRow(string label, TextBox textBox, string? hintKey)
+    {
+        string? tooltip = hintKey == null ? null : Loc.T(hintKey);
+        textBox.ToolTip = tooltip;
+        return EditorTheme.FormRow(label, textBox, 96, tooltip);
     }
 
     private Border CreateButtonPanel()
     {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        Grid.SetColumn(_statusText, 0);
+        grid.Children.Add(_statusText);
+
         var buttonStack = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -356,87 +347,61 @@ public sealed class BuildingSettingWindow : Window
         cancelButton.Margin = new Thickness(8, 0, 0, 0);
         buttonStack.Children.Add(cancelButton);
 
+        Grid.SetColumn(buttonStack, 1);
+        grid.Children.Add(buttonStack);
+
         return new Border
         {
             Background = EditorTheme.Bg2,
             BorderBrush = EditorTheme.Border,
             BorderThickness = new Thickness(0, 1, 0, 0),
             Padding = new Thickness(12, 10, 12, 10),
-            Child = buttonStack
+            Child = grid
         };
     }
 
     private void LoadBuildingData()
     {
-        SetTextBoxValue("coordinate", _building.Coordinate);
-        SetTextBoxValue("name", _building.Name);
-        SetTextBoxValue("building_type", _building.BuildingType);
-        SetTextBoxValue("appearance", _building.Appearance);
-        SetTextBoxValue("landmark", _building.LandmarkBuilding);
-        SetTextBoxValue("decorative", _building.DecorativeBuilding);
-        SetTextBoxValue("skill_unlock", _building.SkillUnlock);
-        SetTextBoxValue("reward_count", _building.RewardCount);
-        SetTextBoxValue("hatred", _building.HatredValue);
-        SetTextBoxValue("key_point", _building.KeyPoint);
-        SetTextBoxValue("occupation_event", _building.OccupationEvent);
-        SetTextBoxValue("fire_ignition", _building.FireIgnition);
-        SetTextBoxValue("fire_duration", _building.FireDuration);
-        SetTextBoxValue("air_defense_weapon", _building.AirDefenseWeapon);
-        SetTextBoxValue("air_defense_radar", _building.AirDefenseRadar);
-        SetTextBoxValue("factory_level", _building.FactoryLevel);
-        SetTextBoxValue("research_level", _building.ResearchLevel);
-        SetTextBoxValue("medical_level", _building.MedicalLevel);
-        SetTextBoxValue("aviation_level", _building.AviationLevel);
-        SetTextBoxValue("missile_level", _building.MissileLevel);
-        SetTextBoxValue("nuclear_level", _building.NuclearLevel);
+        _coordinateBox.Text = _building.Coordinate.ToString(CultureInfo.InvariantCulture);
+        _nameBox.Text = _building.Name.ToString(CultureInfo.InvariantCulture);
+        foreach (var (field, box) in _byteBoxes)
+            box.Text = field.Get(_building).ToString(CultureInfo.InvariantCulture);
     }
 
-    private void SetTextBoxValue(string key, object value)
+    /// <summary>底部提示栏显示字段说明（没有说明时清空）。</summary>
+    private void ShowHint(string? hintKey)
     {
-        if (_textBoxes.TryGetValue(key, out var textBox))
+        _statusText.Text = hintKey == null ? "" : Loc.T(hintKey);
+        _statusText.Foreground = EditorTheme.TextMuted;
+    }
+
+    /// <summary>校验失败：选中出错的输入框，并在底部提示原因（先移焦点，免得焦点事件把提示换成字段说明）。</summary>
+    private void ShowFieldError(string message, TextBox box)
+    {
+        box.Focus();
+        box.SelectAll();
+        _statusText.Text = message;
+        _statusText.Foreground = EditorTheme.Danger;
+    }
+
+    private bool TryReadByte(ByteField field, TextBox box, out byte value)
+    {
+        value = 0;
+        string label = Loc.T(field.LabelKey);
+        string text = box.Text.Trim();
+        if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number))
         {
-            textBox.Text = value?.ToString() ?? "0";
+            ShowFieldError(Loc.F("Assist.Building.Error.NotInteger", label, text), box);
+            return false;
         }
-    }
+        if (number < 0 || number > field.Max)
+        {
+            ShowFieldError(Loc.F("Assist.Building.Error.OutOfRange", label, number, 0, field.Max), box);
+            return false;
+        }
 
-    private void SaveBuildingData()
-    {
-        _building.Coordinate = ParseInt(_textBoxes.GetValueOrDefault("coordinate")?.Text);
-        _building.Name = BuildingNameResolver.Resolve(_textBoxes.GetValueOrDefault("name")?.Text);
-        _building.BuildingType = ParseByte(_textBoxes.GetValueOrDefault("building_type")?.Text);
-        _building.Appearance = ParseByte(_textBoxes.GetValueOrDefault("appearance")?.Text);
-        _building.LandmarkBuilding = ParseByte(_textBoxes.GetValueOrDefault("landmark")?.Text);
-        _building.DecorativeBuilding = ParseByte(_textBoxes.GetValueOrDefault("decorative")?.Text);
-        _building.SkillUnlock = ParseByte(_textBoxes.GetValueOrDefault("skill_unlock")?.Text);
-        _building.RewardCount = ParseByte(_textBoxes.GetValueOrDefault("reward_count")?.Text);
-        _building.HatredValue = ParseByte(_textBoxes.GetValueOrDefault("hatred")?.Text);
-        _building.KeyPoint = ParseByte(_textBoxes.GetValueOrDefault("key_point")?.Text);
-        _building.OccupationEvent = ParseByte(_textBoxes.GetValueOrDefault("occupation_event")?.Text);
-        _building.FireIgnition = ParseByte(_textBoxes.GetValueOrDefault("fire_ignition")?.Text);
-        _building.FireDuration = ParseByte(_textBoxes.GetValueOrDefault("fire_duration")?.Text);
-        _building.AirDefenseWeapon = ParseByte(_textBoxes.GetValueOrDefault("air_defense_weapon")?.Text);
-        _building.AirDefenseRadar = ParseByte(_textBoxes.GetValueOrDefault("air_defense_radar")?.Text);
-        _building.FactoryLevel = ParseByte(_textBoxes.GetValueOrDefault("factory_level")?.Text);
-        _building.ResearchLevel = ParseByte(_textBoxes.GetValueOrDefault("research_level")?.Text);
-        _building.MedicalLevel = ParseByte(_textBoxes.GetValueOrDefault("medical_level")?.Text);
-        _building.AviationLevel = ParseByte(_textBoxes.GetValueOrDefault("aviation_level")?.Text);
-        _building.MissileLevel = ParseByte(_textBoxes.GetValueOrDefault("missile_level")?.Text);
-        _building.NuclearLevel = ParseByte(_textBoxes.GetValueOrDefault("nuclear_level")?.Text);
-    }
-
-    private static short ParseShort(string? text)
-    {
-        return short.TryParse(text, out var value) ? value : (short)0;
-    }
-
-    private static int ParseInt(string? text)
-    {
-        return int.TryParse(text, out var value) ? value : 0;
-    }
-
-    private static byte ParseByte(string? text)
-    {
-        return byte.TryParse(text, out var value) ? value : (byte)0;
+        value = (byte)number;
+        return true;
     }
 
     /// <summary>
@@ -503,9 +468,27 @@ public sealed class BuildingSettingWindow : Window
         catch { }
     }
 
+    /// <summary>
+    /// 确定：先校验全部数字字段，最后解析名称（可能新建城市名条目），任何一项无效都保持窗口打开。
+    /// 坐标不在这里改，由选中的格子决定。
+    /// </summary>
     private void ConfirmAndClose()
     {
-        SaveBuildingData();
+        var result = _building;
+        foreach (var (field, box) in _byteBoxes)
+        {
+            if (!TryReadByte(field, box, out byte value)) return;
+            field.Set(ref result, value);
+        }
+
+        if (!BuildingNameResolver.TryResolve(_nameBox.Text, out ushort nameId, out string? nameError))
+        {
+            ShowFieldError(nameError ?? Loc.T("Common.InvalidInput"), _nameBox);
+            return;
+        }
+        result.Name = nameId;
+
+        _building = result;
         _confirmed = true;
         PlayFadeOutAndClose();
     }

@@ -201,7 +201,7 @@ internal static class BuildingAtlasCache
             try
             {
                 using var stream = File.OpenRead(imagePath);
-                var bitmap = SKBitmap.Decode(stream);
+                using var bitmap = SKBitmap.Decode(stream);
                 if (bitmap == null) continue;
 
                 originalSizes[cacheKey] = new SKSize(bitmap.Width, bitmap.Height);

@@ -1,25 +1,17 @@
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
-using System.Linq;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Unicode;
-using System.Xml;
 using System.Xml.Linq;
-using WC4MapEditor.Core.Assets;
 using WC4MapEditor.Core.Config;
-using WC4MapEditor.Core.Parsers.General;
+using WC4MapEditor.Core.Services;
 
 namespace WC4MapEditor.Core.Parsers.ArmySetting;
 
 /// <summary>
 /// 兵种解析器（三文件联动：ArmySettings.json + config/def_armypos.xml +
 /// stringtable_tw.ini 的 unit_name_{Id}）。
-/// 采用与 GeneralSettingParser 相同的单例、路径解析与 XML 读写约定。
+/// def_armypos.xml 只记录少数兵种的立绘偏移：只有用户真正改了某个兵种的偏移才会新增一行。
 /// </summary>
-public class ArmySettingParser
+public sealed class ArmySettingParser : IGameSettingsSource
 {
     private static readonly object _lock = new();
     private static ArmySettingParser? _instance;
@@ -38,228 +30,128 @@ public class ArmySettingParser
         }
     }
 
-    private readonly AssetManager _manager = AssetManager.Default;
-    private List<ArmySettingData> _units = new();
-    private StringTableParser? _stringTable;
-    private readonly Dictionary<int, ArmyPosEntry> _pos = new();
-
-    public IReadOnlyList<ArmySettingData> All => _units;
-    public List<ArmySettingData> Items => _units;
-    public IReadOnlyDictionary<int, ArmyPosEntry> Positions => _pos;
-
-    public string ConfigPath { get; private set; } = "";
-    public string XmlPosPath { get; private set; } = "";
-    public string StringTablePath { get; private set; } = "";
-
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
-        PropertyNameCaseInsensitive = true,
-        AllowTrailingCommas = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        NumberHandling = JsonNumberHandling.AllowReadingFromString,
-        Converters = { new SafeInt32Converter(), new SafeIntListConverter() }
-    };
-
     private ArmySettingParser()
     {
-        ResolvePaths();
+        Table = new GameJsonTable<ArmySettingData>(GameJson.AssetPath("json", "ArmySettings.json"));
+        PosTable = new XmlRowTable<ArmyPosEntry>(GameJson.AssetPath("config", "def_armypos.xml"), "units", "unit", ReadPos, WritePos);
+        Strings = StringTableStore.Default;
+        Texts = new RecordTextKeys(Strings, this, "unit_name_{0}");
         LoadAll();
     }
 
-    private void ResolvePaths()
-    {
-        if (!_manager.IsLoaded)
-        {
-            try { _manager.ScanDefault(); } catch { }
-        }
+    public GameJsonTable<ArmySettingData> Table { get; }
+    public XmlRowTable<ArmyPosEntry> PosTable { get; }
+    public StringTableParser Strings { get; }
 
-        var root = _manager.AssetsRoot;
-        if (!string.IsNullOrEmpty(root) && Directory.Exists(root))
-        {
-            ConfigPath = Path.Combine(root, "json", "ArmySettings.json");
-            XmlPosPath = Path.Combine(root, "config", "def_armypos.xml");
-            StringTablePath = Path.Combine(root, "stringtable_tw.ini");
-        }
-        else
-        {
-            var baseDir = AppContext.BaseDirectory;
-            string? candidate = null;
-            string? current = baseDir;
-            for (int i = 0; i < 8 && !string.IsNullOrEmpty(current); i++)
-            {
-                var test = Path.Combine(current, "Resource", "WC4DATA", "assets");
-                if (Directory.Exists(test)) { candidate = test; break; }
-                current = Path.GetDirectoryName(current);
-            }
-            candidate ??= Path.GetFullPath(Path.Combine(baseDir ?? "", "..", "..", "..", "..", "Resource", "WC4DATA", "assets"));
+    /// <summary>每个兵种的文本键：0 = 名称。</summary>
+    public RecordTextKeys Texts { get; }
 
-            ConfigPath = Path.Combine(candidate, "json", "ArmySettings.json");
-            XmlPosPath = Path.Combine(candidate, "config", "def_armypos.xml");
-            StringTablePath = Path.Combine(candidate, "stringtable_tw.ini");
-        }
+    public IReadOnlyList<IEditableTable> Tables => [Table, PosTable];
+    StringTableParser? IGameSettingsSource.Strings => Strings;
 
-        Debug.WriteLine($"[ArmySettingParser] ConfigPath={ConfigPath} XmlPosPath={XmlPosPath} StringTablePath={StringTablePath}");
-    }
+    public List<ArmySettingData> Items => Table.Items;
+    public string ConfigPath => Table.FilePath;
+    public string XmlPosPath => PosTable.FilePath;
+    public string StringTablePath => Strings.FilePath;
 
     public void LoadAll()
     {
-        LoadUnits();
-        LoadXmlPos();
-        _stringTable = new StringTableParser(StringTablePath);
+        Table.Load();
+        PosTable.Load();
     }
 
-    private void LoadUnits()
-    {
-        try
-        {
-            if (!File.Exists(ConfigPath))
-            {
-                Debug.WriteLine($"[ArmySettingParser] 文件不存在: {ConfigPath}");
-                return;
-            }
-            var json = File.ReadAllText(ConfigPath);
-            var data = JsonSerializer.Deserialize<List<ArmySettingData>>(json, JsonOpts);
-            if (data != null) _units = data;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ArmySettingParser] 加载失败: {ex.Message}");
-        }
-    }
+    public ArmySettingData? GetById(int id) => Items.FirstOrDefault(u => u.Id == id);
 
-    public ArmySettingData? GetById(int id)
-    {
-        foreach (var u in _units) if (u.Id == id) return u;
-        return null;
-    }
-
-    public int GetNextId()
-    {
-        int max = 1000;
-        foreach (var u in _units) if (u.Id > max) max = u.Id;
-        return max + 1;
-    }
-
-    public bool RemoveUnit(int id)
-    {
-        var u = GetById(id);
-        if (u == null) return false;
-        _units.Remove(u);
-        _pos.Remove(id);
-        _stringTable?.Remove($"unit_name_{id}");
-        return true;
-    }
+    public int GetNextId() => Math.Max(1000, Items.Count == 0 ? 0 : Items.Max(u => u.Id)) + 1;
 
     /// <summary>获取兵种名称（stringtable 的 unit_name_{Id}）。</summary>
-    public string GetUnitName(int id) => _stringTable?.GetValue($"unit_name_{id}", "") ?? "";
+    public string GetUnitName(int id) => Texts.Get(0, id);
 
     /// <summary>设置兵种名称（写入 stringtable 的 unit_name_{Id}）。</summary>
-    public void SetUnitName(int id, string name) => _stringTable?.SetValue($"unit_name_{id}", name);
+    public void SetUnitName(int id, string name) => Texts.Set(0, id, name);
 
     // ============================== def_armypos.xml ==============================
 
-    public void LoadXmlPos()
+    public ArmyPosEntry? GetPos(int id) => PosTable.Entries.FirstOrDefault(p => p.Id == id);
+
+    /// <summary>取兵种偏移，没有时新增一行默认值（只在用户修改偏移时调用）。</summary>
+    public ArmyPosEntry EnsurePos(int id)
     {
-        _pos.Clear();
-        try
-        {
-            if (!File.Exists(XmlPosPath))
-            {
-                Debug.WriteLine($"[ArmySettingParser] def_armypos.xml 不存在: {XmlPosPath}");
-                return;
-            }
-            var doc = XDocument.Load(XmlPosPath);
-            var root = doc.Element("units");
-            if (root == null) return;
-            foreach (var el in root.Elements("unit"))
-            {
-                var id = (int?)el.Attribute("id");
-                if (id == null) continue;
-                _pos[id.Value] = new ArmyPosEntry
-                {
-                    Id = id.Value,
-                    PosX = (int?)el.Attribute("x") ?? 0,
-                    PosY = (int?)el.Attribute("y") ?? 0,
-                    Scale = (double?)el.Attribute("scale") ?? 1.0
-                };
-            }
-            Debug.WriteLine($"[ArmySettingParser] 已加载 {_pos.Count} 个兵种坐标");
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ArmySettingParser] 加载 def_armypos.xml 失败: {ex.Message}");
-        }
+        var pos = GetPos(id);
+        if (pos != null) return pos;
+        pos = new ArmyPosEntry { Id = id };
+        PosTable.Entries.Add(pos);
+        return pos;
     }
 
-    public ArmyPosEntry? GetPos(int id) => _pos.GetValueOrDefault(id);
+    public void RemovePos(int id) => PosTable.Entries.RemoveAll(p => p.Id == id);
 
-    public ArmyPosEntry EnsurePosDefault(int id)
+    /// <summary>兵种 Id 改变时偏移行跟着改 Id。</summary>
+    public void MovePos(int oldId, int newId)
     {
-        if (!_pos.TryGetValue(id, out var p))
-        {
-            p = new ArmyPosEntry { Id = id, PosX = 0, PosY = 0, Scale = 1.0 };
-            _pos[id] = p;
-        }
-        return p;
+        var pos = GetPos(oldId);
+        if (pos != null && oldId != newId) pos.Id = newId;
     }
 
-    public bool RemovePos(int id) => _pos.Remove(id);
-
-    public bool SaveXmlPos()
+    /// <summary>复制兵种时复制偏移行（原兵种有偏移才复制）。</summary>
+    public void CopyPos(int fromId, int toId)
     {
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(XmlPosPath)!);
-            var settings = new XmlWriterSettings
-            {
-                Indent = true,
-                IndentChars = "\t",
-                OmitXmlDeclaration = false,
-                Encoding = System.Text.Encoding.UTF8
-            };
-            using var writer = XmlWriter.Create(XmlPosPath, settings);
-            writer.WriteStartElement("units");
-            foreach (var kv in _pos.Values.OrderBy(p => p.Id))
-            {
-                writer.WriteStartElement("unit");
-                writer.WriteAttributeString("id", kv.Id.ToString(CultureInfo.InvariantCulture));
-                writer.WriteAttributeString("x", kv.PosX.ToString(CultureInfo.InvariantCulture));
-                writer.WriteAttributeString("y", kv.PosY.ToString(CultureInfo.InvariantCulture));
-                writer.WriteAttributeString("scale", kv.Scale.ToString("0.0######", CultureInfo.InvariantCulture));
-                writer.WriteEndElement();
-            }
-            writer.WriteEndElement();
-            Debug.WriteLine($"[ArmySettingParser] 已保存 def_armypos.xml {_pos.Count} 项 -> {XmlPosPath}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ArmySettingParser] 保存 def_armypos.xml 失败: {ex.Message}");
-            return false;
-        }
+        var source = GetPos(fromId);
+        if (source == null) return;
+        var target = EnsurePos(toId);
+        target.PosX = source.PosX;
+        target.PosY = source.PosY;
+        target.Scale = source.Scale;
     }
 
-    public bool SaveAll()
+    private static ArmyPosEntry? ReadPos(XElement el)
     {
-        try
+        var id = (int?)el.Attribute("id");
+        if (id == null) return null;
+        return new ArmyPosEntry
         {
-            var json = JsonSerializer.Serialize(_units, JsonOpts);
-            File.WriteAllText(ConfigPath, json);
-            _stringTable?.Save();
-            SaveXmlPos();
-            Debug.WriteLine($"[ArmySettingParser] 保存成功: {ConfigPath}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ArmySettingParser] 保存失败: {ex.Message}");
-            return false;
-        }
+            Id = id.Value,
+            PosX = (int?)el.Attribute("x") ?? 0,
+            PosY = (int?)el.Attribute("y") ?? 0,
+            Scale = (double?)el.Attribute("scale") ?? 1.0
+        };
     }
 
-    public void Reload() => LoadAll();
+    private static IReadOnlyList<KeyValuePair<string, string>> WritePos(ArmyPosEntry p) =>
+    [
+        new("id", p.Id.ToString(CultureInfo.InvariantCulture)),
+        new("x", p.PosX.ToString(CultureInfo.InvariantCulture)),
+        new("y", p.PosY.ToString(CultureInfo.InvariantCulture)),
+        new("scale", p.Scale.ToString("0.0######", CultureInfo.InvariantCulture))
+    ];
+
+    // ============================== 记录操作 ==============================
+
+    /// <summary>删除兵种：同时删除名称与 def_armypos.xml 里的偏移行。</summary>
+    public void Remove(ArmySettingData unit)
+    {
+        Items.Remove(unit);
+        RemovePos(unit.Id);
+        Texts.Remove(unit.Id);
+    }
+
+    /// <summary>改 Id：新 Id 已被占用时返回 false；名称与偏移行跟着改到新 Id。</summary>
+    public bool ChangeId(ArmySettingData unit, int newId)
+    {
+        if (unit.Id == newId) return true;
+        if (Items.Any(u => u.Id == newId)) return false;
+        Texts.Move(unit.Id, newId);
+        MovePos(unit.Id, newId);
+        unit.Id = newId;
+        return true;
+    }
+
+    /// <summary>复制兵种时复制名称与偏移行。</summary>
+    public void CopyExtras(int fromId, int toId)
+    {
+        Texts.Copy(fromId, toId);
+        CopyPos(fromId, toId);
+    }
 
     public static void ClearInstance()
     {

@@ -33,10 +33,17 @@ public struct TerrainData
 
 /// <summary>
 /// 省份数据结构 (2字节) - 使用小端序存储省份值，表示该省份的省会序号
+/// <para>
+/// 省区值 = 该省省会格子的地图索引（row * MapWidth + col）；省会格子的省区值等于它自己的索引。
+/// <see cref="EmptyValue"/>（0xFFFF）表示不属于任何省区。
+/// </para>
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct Province
 {
+    /// <summary>"不属于任何省区"的省区值</summary>
+    public const ushort EmptyValue = 0xFFFF;
+
     private byte _lowByte;     // 低字节 (1字节)
     private byte _highByte;    // 高字节 (1字节)
 
@@ -54,7 +61,11 @@ public struct Province
     }
 
     /// <summary>
-    /// 获取或设置国家ID（低字节，兼容旧代码）
+    /// 省区值的低字节（原始字节访问）。
+    /// <para>
+    /// 名字是历史遗留：省区值是省会格子的索引，不是"国家 ID"，拆成高低字节没有含义。
+    /// 读写省区一律用 <see cref="ProvinceValue"/>；这里只给按字节导出的旧代码用。
+    /// </para>
     /// </summary>
     public byte CountryId
     {
@@ -63,7 +74,7 @@ public struct Province
     }
 
     /// <summary>
-    /// 获取或设置保留字节（高字节，兼容旧代码）
+    /// 省区值的高字节（原始字节访问，名字同样是历史遗留，见 <see cref="CountryId"/>）。
     /// </summary>
     public byte Reserved
     {
@@ -72,9 +83,21 @@ public struct Province
     }
 
     /// <summary>
-    /// 是否有效省份（值大于0且不等于0xFFFF）
+    /// 是否有效省份（值大于0且不等于0xFFFF）。
+    /// <para>
+    /// 0 也按"无省区"处理，这是有意的选择：扫描游戏自带的 1358 张关卡 / 征服地图，没有裁剪偏移（MapClip）的地图里
+    /// 没有一张以格子 0 为省会，省区值 0 只是数组末尾附近零星几格的填充值；<c>new MapData(w, h)</c> 建的新地图也全是 0。
+    /// 若把 0 当成"省会在格子 0 的省区"，新地图会整片被画成一个省，孤立 / 空白处理也会把 0 扩散出去。
+    /// 渲染层、首都国旗层与 <see cref="MapData.GetProvinceCapitalBelong"/> 用的都是同一规则。
+    /// </para>
     /// </summary>
-    public bool IsValid => ProvinceValue > 0 && ProvinceValue != 0xFFFF;
+    public bool IsValid => ProvinceValue > 0 && ProvinceValue != EmptyValue;
+
+    /// <summary>
+    /// 格子索引能否当省会（省会的省区值 = 自身索引）：省区值只有 16 位，0 与 0xFFFF 又都表示无省区，
+    /// 所以只有 1–65534 的索引能写成一个有效的、指向自己的省区值。
+    /// </summary>
+    public static bool CanBeCapitalIndex(int index) => index > 0 && index < EmptyValue;
 
     public static Province FromBytes(ReadOnlySpan<byte> data, int offset) =>
         new Province { _lowByte = data[offset], _highByte = data[offset + 1] };
@@ -93,7 +116,7 @@ public struct Province
     /// 渲染层等）都以 0xFFFF 作为“空白省区”的标志。若返回 0，新格子会被误判为已分配省区。
     /// </para>
     /// </summary>
-    public static Province CreateDefault() => Create(0xFFFF);
+    public static Province CreateDefault() => Create(EmptyValue);
 
     /// <summary>
     /// 创建指定省份值的省份

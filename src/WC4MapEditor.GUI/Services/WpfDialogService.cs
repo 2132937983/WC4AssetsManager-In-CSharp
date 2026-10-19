@@ -12,7 +12,7 @@ namespace WC4MapEditor.GUI.Services;
 /// <summary>
 /// WPF 对话框服务实现 - 将 Core 层的 IDialogService 接口映射到 WPF 对话框控件
 /// </summary>
-public sealed class WpfDialogService : IDialogService
+public sealed partial class WpfDialogService : IDialogService
 {
     private readonly Func<Window> _getOwnerWindow;
 

@@ -31,6 +31,32 @@ public static class WorldParser
         return LoadFromFileStream(filePath, fileSize);
     }
 
+    /// <summary>
+    /// 只读 16 字节文件头，判断是否为世界地图（签名 "YSAE" + 版本 4）并取出尺寸。
+    /// 用于在真正加载之前过滤掉同为 .bin 的动画/图集等文件（它们的"尺寸"是垃圾值，按它分配网格会耗尽内存）。
+    /// </summary>
+    public static bool TryReadHeader(string filePath, out int width, out int height)
+    {
+        width = height = 0;
+        try
+        {
+            if (!File.Exists(filePath)) return false;
+
+            Span<byte> header = stackalloc byte[WorldOffsets.HeaderSize];
+            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            if (fs.ReadAtLeast(header, header.Length, throwOnEndOfStream: false) != header.Length) return false;
+            if (!header[..ExpectedHeader.Length].SequenceEqual(ExpectedHeader)) return false;
+
+            width = BitConverter.ToUInt16(header[8..]);
+            height = BitConverter.ToUInt16(header[12..]);
+            return width > 0 && height > 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     private static MapData LoadFromFileStream(string filePath, long fileSize)
     {
         double memoryStart = GetProcessMemoryMB();
@@ -176,6 +202,7 @@ public static class WorldParser
         mapData.Header.MapLength = mapData.MapHeight;
 
         ParseTerrainDataOptimized(data, mapData, terrainCount);
+        ParseProvinceData(data, mapData, terrainCount);
 
         return mapData;
     }
@@ -191,6 +218,21 @@ public static class WorldParser
         mapData.LoadTerrainsFromBytes(data, WorldOffsets.HeaderSize, actualTerrainCount);
 
         Debug.WriteLine($"[WorldParser] 成功解析 {actualTerrainCount} 个地形到优化存储");
+    }
+
+    /// <summary>
+    /// 地形之后的剩余数据是省份块（每格 2 字节，对齐 VB WorldParser.ParseProvinceData）。
+    /// 官方 world.bin 带有完整的省份数据；以前只有超大文件的流式路径会读，普通文件读进来就丢了，
+    /// 再保存时整块省份数据随之消失。没有省份块的文件保持"无省份"。
+    /// </summary>
+    private static void ParseProvinceData(byte[] data, MapData mapData, int terrainCount)
+    {
+        long terrainEnd = WorldOffsets.GetTerrainEndOffset(terrainCount);
+        if (terrainEnd >= data.Length) return;
+
+        int provinceCount = (int)Math.Min((data.Length - terrainEnd) / WorldOffsets.ProvinceSize, terrainCount);
+        mapData.LoadProvincesFromBytes(data, terrainEnd, provinceCount);
+        Debug.WriteLine($"[WorldParser] 成功读取 {provinceCount} 个省份");
     }
 
     public static MapData CreateNew(int width, int height)
@@ -247,6 +289,10 @@ public static class WorldParser
 
             byte[] terrainBytes = mapData.TerrainsToBytes();
             fs.Write(terrainBytes, 0, terrainBytes.Length);
+
+            // 省份块紧跟地形（对齐 VB WorldParser.SaveToFile；官方 world.bin 即为此格式）
+            byte[] provinceBytes = mapData.ProvincesToBytes();
+            fs.Write(provinceBytes, 0, provinceBytes.Length);
         }
 
         Debug.WriteLine($"[WorldParser] 地图已保存到: {filePath}");

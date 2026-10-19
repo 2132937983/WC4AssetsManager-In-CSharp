@@ -1,8 +1,7 @@
 using System.Text;
+using WC4MapEditor.Core.Analyzers;
 using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Models;
-using WC4MapEditor.Core.Parsers.Conquest;
-using WC4MapEditor.Core.Parsers.Stage;
 
 namespace WC4MapEditor.Core.Parsers.BTL;
 
@@ -217,7 +216,7 @@ public static class BTLFormatChecker
     /// <returns>修复的层数；合法表不可用时返回 -1（未做任何修改）</returns>
     public static int FixTerrainGroups(byte[] data, IReadOnlyCollection<int>? validTerrainIds = null)
     {
-        if (data == null || data.Length < StageOffsets.Calculate(0, 0, 0).terrain) return 0;
+        if (data == null || data.Length < BTLSize.HEADER_SIZE) return 0;
 
         if (validTerrainIds == null)
             validTerrainIds = GetValidTerrainIds();
@@ -226,22 +225,19 @@ public static class BTLFormatChecker
         if (validTerrainIds.Count == 0) return -1;
 
         var header = BTLHeader.Parse(data);
-        int tileCount = header.SelectableTileCount;
+        var layout = BTLLayout.For(header);
 
-        // 无地形数据的文件（如部分征服图）自然跳过
+        // 征服布局没有地形块
+        if (!layout.HasTerrain) return 0;
+
+        var terrain = layout[BtlBlock.Terrain];
+        int tileCount = terrain.Count;
         if (tileCount <= 0) return 0;
 
-        // 地形区起点必须用 StageOffsets 算：文件头 0x80，之后先是军团区（每个 300 字节），
-        // 地形区排在军团区之后。绝不是「文件头紧接着地形」。
-        int terrainStart = StageOffsets
-            .Calculate(header.ArmyCount, tileCount, header.BuildingCount).terrain;
-
-        // 地形区必须完整落在文件内，否则这个文件不含（完整的）地形数据。
-        // 征服地图 conquest*.btl 就是这种情况：头部里的 SelectableTileCount 是另一套
-        // 结构的遗留数字，按它去读会把军团/建筑数据当成地形乱改。
+        // 地形块必须完整落在文件内，否则不动：头部数量被改坏时，按它去读会把别的数据当成地形乱改。
         // 宁可什么都不做，也不能改坏无关数据。
-        long terrainEnd = (long)terrainStart + (long)tileCount * BTLSize.TERRAIN_SIZE;
-        if (terrainEnd > data.Length) return 0;
+        if (terrain.End > data.Length) return 0;
+        int terrainStart = terrain.StartInt;
 
         int fixedLayers = 0;
 
@@ -297,14 +293,10 @@ public static class BTLFormatChecker
         // ---------- 2. 头部字段 ----------
         var header = BTLHeader.Parse(data);
 
-        // 地形 / 省区数据的格数是 SelectableTileCount（可编辑格数），
-        // 不是 MapLength * MapWidth（地图标称面积）—— 两者不相等。
-        // 关键：征服地图（conquest*.btl）没有地形数据，SelectableTileCount 为 0，
-        // 若按标称面积去读，会一路读进军团/建筑区，把正常数据误判成损坏。
-        // 解析器的区域起点也是用 SelectableTileCount 算的，这里必须与它一致。
+        // 地形块的格数是 MapLength * MapWidth（地图面积），省区 / 归属块的格数是 SelectableTileCount
+        // （官方文件常把它向上补齐到 8 的倍数）；征服布局（MapNumber > 0）没有地形块。具体排布见 BTLLayout。
         long totalTilesLong = header.SelectableTileCount;
 
-        // 标称面积只用于头部自洽性校验
         long mapTilesLong = (long)header.MapLength * header.MapWidth;
 
         if (header.BtlVersion <= 0 || header.BtlVersion > 99)
@@ -327,8 +319,9 @@ public static class BTLFormatChecker
                     $"地图总格数 {mapTilesLong:N0} 超出 32 位整数范围，偏移计算会溢出"));
         }
 
+        // 征服布局的裁剪偏移是数据窗口在世界地图上的位置（世界坐标），不受窗口大小 MapLength x MapWidth 约束
         if (header.MapClipX < 0 || header.MapClipY < 0 ||
-            header.MapClipX > header.MapLength || header.MapClipY > header.MapWidth)
+            (header.MapNumber <= 0 && (header.MapClipX > header.MapLength || header.MapClipY > header.MapWidth)))
         {
             issues.Add(new BTLIssue(BTLIssueLevel.Warning, "头部",
                 $"裁剪偏移 ({header.MapClipX},{header.MapClipY}) 超出地图范围 {header.MapLength}x{header.MapWidth}"));
@@ -360,27 +353,15 @@ public static class BTLFormatChecker
 
         // ---------- 2.5 判定文件布局 ----------
         // 两种文件的唯一结构差别是「有无地形区」：
-        //   关卡 .btl ：文件头(0x80) → 军团(300/个) → 地形(16/格) → 省区(2/格)
-        //               → 归属(1/格) → 建筑(32/个) → 单位/陷阱/事件/天气…
-        //   征服 .bin ：文件头(0x80) → 军团(300/个) → 省区(2/格) → 归属(1/格)
-        //               → 建筑(32/个) → 单位/陷阱/事件/天气…        ← 没有地形区
-        // 注意军团排在【最前】，紧跟在 0x80 的文件头之后，不是排在最后。
-        var stageOffsets = StageOffsets.Calculate(
-            header.ArmyCount, header.SelectableTileCount, header.BuildingCount);
-        var conquestOffsets = ConquestOffsets.Calculate(
-            header.ArmyCount, header.SelectableTileCount, header.BuildingCount);
+        //   战役布局（MapNumber = 0）：文件头(0x80) → 军团(300/个) → 地形(16/格) → 省区(2/格) → 归属(1/格) → 建筑(32/个) → 单位/陷阱/事件/天气…
+        //   征服布局（MapNumber > 0）：没有地形区，其余相同；以 world{MapNumber}.bin 为底图
+        // 军团排在【最前】，紧跟在 0x80 的文件头之后，不是排在最后。
+        var layout = BTLLayout.For(header);
+        bool hasTerrain = layout.HasTerrain;
+        long buildingStart = layout[BtlBlock.Building].Start;
+        long armyStart = layout[BtlBlock.Army].Start;
 
-        // 按关卡布局算出的地形区若装不进文件，就说明这是征服文件
-        long stageTerrainEnd = (long)stageOffsets.terrain
-                             + (long)header.SelectableTileCount * BTLSize.TERRAIN_SIZE;
-        bool hasTerrain = !(header.SelectableTileCount > 0 && stageTerrainEnd > fileSize);
-
-        // 后续所有区块起点都从这里取，不再各自硬算
-        int provinceStart = hasTerrain ? stageOffsets.province : conquestOffsets.province;
-        int buildingStart = hasTerrain ? stageOffsets.building : conquestOffsets.building;
-        int dataEnd       = hasTerrain ? stageOffsets.dataEnd  : conquestOffsets.dataEnd;
-
-        if (!hasTerrain && header.SelectableTileCount > 0)
+        if (!hasTerrain)
         {
             issues.Add(new BTLIssue(BTLIssueLevel.Info, "文件结构",
                 "按征服布局解析（该文件不含地形区）"));
@@ -389,19 +370,34 @@ public static class BTLFormatChecker
         // ---------- 3. 按头部推算文件应有大小 ----------
         long expectedSize = -1;
 
-        if (totalTilesLong > 0 && totalTilesLong <= int.MaxValue &&
-            header.BuildingCount >= 0 && header.TroopCount >= 0 && header.ArmyCount >= 0)
+        bool headerSane = header.MapLength > 0 && header.MapWidth > 0 && mapTilesLong <= int.MaxValue &&
+                          totalTilesLong >= 0 && header.BuildingCount >= 0 && header.TroopCount >= 0 && header.ArmyCount >= 0;
+        if (headerSane)
         {
-            // dataEnd 是建筑区结束的位置，即本节能推算出的最小应有大小；
-            // 其后的单位/陷阱/事件等未计入，所以只判「截断」不判「多出」。
-            expectedSize = dataEnd;
+            expectedSize = layout.End;
 
             if (fileSize < expectedSize)
             {
                 issues.Add(new BTLIssue(BTLIssueLevel.Error, "文件结构",
-                    $"文件被截断：实际 {fileSize:N0} 字节，按头部推算至少应有 {expectedSize:N0} 字节，" +
+                    $"文件被截断：实际 {fileSize:N0} 字节，按头部推算应有 {expectedSize:N0} 字节，" +
                     $"缺少 {expectedSize - fileSize:N0} 字节。" +
                     "解析器会静默跳过读不到的部分，表现为「打开正常但数据缺一截」"));
+            }
+            else if (fileSize > expectedSize)
+            {
+                // v3 文件末尾带扩展数据块，长度记在头部 0x54
+                long extra = fileSize - expectedSize;
+                if (header.BtlVersion >= 3 && extra == header.Unknown4)
+                {
+                    expectedSize = fileSize;
+                    issues.Add(new BTLIssue(BTLIssueLevel.Info, "文件结构",
+                        $"文件末尾有 {extra:N0} 字节的扩展数据块（头部 0x54 记录的长度）", layout.End));
+                }
+                else
+                {
+                    issues.Add(new BTLIssue(BTLIssueLevel.Warning, "文件结构",
+                        $"文件比头部推算的大小多出 {extra:N0} 字节，这部分数据不属于任何已知区块", layout.End));
+                }
             }
         }
         else
@@ -411,21 +407,29 @@ public static class BTLFormatChecker
         }
 
         // ---------- 4. 地形 / 省区数据是否完整 ----------
-        if (totalTilesLong > 0 && totalTilesLong <= int.MaxValue)
+        if (headerSane)
         {
-            // 地形区只有关卡文件才有，征服文件直接跳过
-            if (hasTerrain && stageTerrainEnd > fileSize)
+            if (hasTerrain)
             {
-                long readable = Math.Max(0, fileSize - stageOffsets.terrain) / BTLSize.TERRAIN_SIZE;
-                issues.Add(new BTLIssue(BTLIssueLevel.Error, "地形",
-                    $"地形区不完整：应有 {totalTilesLong:N0} 格，实际只能读到 {readable:N0} 格"));
+                var terrainSpan = layout[BtlBlock.Terrain];
+                if (terrainSpan.End > fileSize)
+                {
+                    long readable = Math.Max(0, fileSize - terrainSpan.Start) / BTLSize.TERRAIN_SIZE;
+                    issues.Add(new BTLIssue(BTLIssueLevel.Error, "地形",
+                        $"地形区不完整：应有 {terrainSpan.Count:N0} 格，实际只能读到 {readable:N0} 格"));
+                }
             }
 
-            long provinceEnd = (long)provinceStart + totalTilesLong * BTLSize.PROVINCE_SIZE;
-            if (provinceEnd > fileSize)
+            if (layout[BtlBlock.Province].End > fileSize)
             {
                 issues.Add(new BTLIssue(BTLIssueLevel.Error, "省区",
                     "省区数据不完整，读不到全部格子的省区值"));
+            }
+
+            if (totalTilesLong < mapTilesLong)
+            {
+                issues.Add(new BTLIssue(BTLIssueLevel.Warning, "头部",
+                    $"省区 / 归属格数 {totalTilesLong:N0} 少于地图面积 {mapTilesLong:N0}，末尾的格子没有省区和归属数据"));
             }
         }
 
@@ -446,7 +450,7 @@ public static class BTLFormatChecker
             issues.Add(new BTLIssue(BTLIssueLevel.Info, "地形",
                 "取不到合法地形 ID 表（配置未加载？），已跳过地形组 ID 检查"));
         }
-        else if (totalTilesLong > 0 && totalTilesLong <= int.MaxValue)
+        else if (headerSane)
         {
             bool IsValidGroup(int group)
                 => group == 0 || group == 63 || validTerrainIds.Contains(group);
@@ -457,17 +461,17 @@ public static class BTLFormatChecker
                 issues.Add(new BTLIssue(BTLIssueLevel.Info, "地形",
                     "该文件不含地形数据，已跳过地形组 ID 检查"));
             }
-            else
+            else if (layout[BtlBlock.Terrain].End <= fileSize)
             {
-                long terrainStart = stageOffsets.terrain;
+                var terrainSpan = layout[BtlBlock.Terrain];
                 int badLayer1 = 0, badLayer2 = 0, badLayer3 = 0;
                 long firstBadOffset = -1;
                 var samples = new List<string>(8);
                 int mapWidth = header.MapLength > 0 ? header.MapLength : 1;
 
-                for (long i = 0; i < totalTilesLong; i++)
+                for (int i = 0; i < terrainSpan.Count; i++)
                 {
-                    long offset = terrainStart + i * BTLSize.TERRAIN_SIZE;
+                    long offset = terrainSpan.Start + (long)i * BTLSize.TERRAIN_SIZE;
                     var terrain = Terrain.FromBytes(data, (int)offset);
 
                     bool bad1 = !IsValidGroup(terrain.TileType1);
@@ -485,8 +489,8 @@ public static class BTLFormatChecker
                     // 只留少量样例：坏格子可能有几万个，全列出来会把报告淹掉
                     if (samples.Count < 8)
                     {
-                        int col = (int)(i % mapWidth);
-                        int row = (int)(i / mapWidth);
+                        int col = i % mapWidth;
+                        int row = i / mapWidth;
                         samples.Add($"({col},{row}) 第1层={terrain.TileType1} 第2层={terrain.TileType2} 第3层={terrain.TileType3}");
                     }
                 }
@@ -548,14 +552,14 @@ public static class BTLFormatChecker
         }
 
         // ---------- 6. 建筑坐标越界 ----------
-        // 坐标基准是「完整地图」，不是可编辑格数：
-        // MapData 里按 MapWidth 取模换算行列，所以合法范围是 MapLength × MapWidth。
-        // 征服地图这两者不等（可编辑格数只是其中一部分），用错基准会误报。
-        if (header.BuildingCount > 0 && header.BuildingCount <= MaxCountField &&
+        // 坐标基准是「完整地图」：MapData 里按 MapWidth 取模换算行列，所以合法范围是 MapLength × MapWidth。
+        // 征服布局的实体坐标是世界地图上的格子序号（世界宽度记在 world{MapNumber}.bin 里），
+        // 远大于数据窗口的面积是正常的，这里不检查。
+        if (hasTerrain && header.BuildingCount > 0 && header.BuildingCount <= MaxCountField &&
             mapTilesLong > 0 && mapTilesLong <= int.MaxValue)
         {
             int totalTiles = (int)mapTilesLong;
-            // buildingStart 已按实际布局（关卡 / 征服）算好，见上方 2.5 节
+            // buildingStart 已按实际布局（战役 / 征服）算好，见上方 2.5 节
 
             int outOfRange = 0;
             long firstBadOffset = -1;
@@ -582,19 +586,13 @@ public static class BTLFormatChecker
         }
 
         // ---------- 7. 单位坐标越界 ----------
-        // 同建筑：坐标基准是完整地图。
-        // 但征服文件跳过：它的单位区布局与关卡不同 ——
-        // 编辑器同款的 ConquestParser 对 conquest*.btl 解析出 0 个单位，
-        // 而头部声称有数百个，说明那些计数是沿用关卡结构留下的遗留值。
-        // 布局未确认前不报，避免假错。
+        // 同建筑：坐标基准是完整地图，征服布局不检查。单位区紧跟在建筑区之后（armyStart）。
         if (hasTerrain && header.TroopCount > 0 && header.TroopCount <= MaxCountField &&
             mapTilesLong > 0 && mapTilesLong <= int.MaxValue)
         {
             int totalTiles = (int)mapTilesLong;
-            // 单位区紧跟在建筑区之后，起点就是 dataEnd
-            long armyStart = dataEnd;
 
-            // 单位条目大小随版本变化（v1 / v3 不同），不能固定用 BTLSize.ARMY_SIZE
+            // 单位条目大小随版本族变化（v1 族 48 / v3 族 64 字节），不能固定用 BTLSize.ARMY_SIZE
             int armySize = BTLArmyModule.GetArmySize(header.BtlVersion);
 
             int outOfRange = 0;
@@ -605,8 +603,11 @@ public static class BTLFormatChecker
                 long offset = armyStart + (long)i * armySize;
                 if (offset + armySize > fileSize) break;
 
-                var army = Army.FromBytes(data, (int)offset);
-                if (army.Coordinate < 0 || army.Coordinate >= totalTiles)
+                // 单位坐标是 16 位无符号数（大地图超过 32767 格时按 short 读会变成负数）
+                int coordinate = header.UsesV3Records
+                    ? Army_3.FromBytes(data, (int)offset).CoordinateIndex
+                    : Army.FromBytes(data, (int)offset).CoordinateIndex;
+                if (coordinate >= totalTiles)
                 {
                     outOfRange++;
                     if (firstBadOffset < 0) firstBadOffset = offset;

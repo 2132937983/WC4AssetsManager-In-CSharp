@@ -35,6 +35,48 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); dat
 - `CapitalFlagRender.InvalidateProvinceLegionCache()`; `ClearGeneralHeadCache()` on `ArmyRender`, `ReinforceRender`, `ReinforceRenderNew` (wired into `SkiaRenderEngine`).
 - Core parsers `FontResourceParser` and `LayoutColor` (`r,g,b,a` 0–255, `#RRGGBB[AA]`).
 
+**Mode framework (Core)**
+- A Mode is now a collection of Modules plus a key map. `ModeBase` + `ModeActionTable` declare, in one place, which key / mouse gesture / Esc runs which Module function; key bindings, dispatch and the localized help overlay are generated from that table, so help text can no longer drift from the real keys. Duplicate keys, and keys reserved by the scene (Space, Tab, Esc, F1-F3, B, N, Ctrl+Z/Y/S, digits), are rejected at start-up.
+- Modes declare their render layers (`ModeRenderLayers`) and selection filter; `RenderSceneBase` no longer hard-codes either. New `ClippedTiles` layer draws red crosses outside a conquest map's data window.
+- `EditorKinds` / `AssistEditorHost`: modes ask for a window by name (`context.OpenEditor(EditorKinds.X)`); window classes carry `[AssistEditor(kind)]`. `ListEditorWindow` is the shared base for list + detail editors (validation, undo, duplicate, delete confirm, Esc/Enter).
+- Undo: `RecordCollectionChange` (any entity list) and `RecordEntitiesSnapshot` (all entity lists + provinces + belongs); army eraser strokes and CLI/Lua entity edits are now undoable.
+- Localization: per-feature translation files in `Resource/Lang/<code>/*.json` are loaded on top of the main files.
+
+**New edit modes** (the five pre-written Modules are now reachable in the stage and conquest scenes; digit keys 7, 9, 0 and Space cycle; weather and strategic construction via Space)
+- Event editing (7): event window with trigger/effect pickers from `setting.txt`, legion pickers, sort, copy/paste, `[` `]` cycling, reference check.
+- Air raids / air support (9): raid and support list windows, random support, generate raids at airports.
+- AI plans / map cases (0): unit selection, Ctrl+Q sets the unit's *policy* (the pre-written module wrote the wrong field), case list window with the type list from `setting.txt`.
+- Weather and strategic construction: list windows, random weather sequence, named construction codes.
+- The `setting.txt` lists `[事件修改]`, `[空袭修改]`, `[方针修改]`, `[天气修改]` are now parsed (they were discarded).
+
+**Existing modes, brought up to the VB feature set**
+- Terrain: selection-aware batch tools with undo, cancellable recognition, MST road connection, safe resize/scale (refused on conquest layouts), brush window fixes.
+- Province: rectangle / polygon selection, flood fill with a value, create province from selection; hex 0 cannot be a capital (value 0 means "no province").
+- Building: left-click info and capital-province highlight, Ctrl+Q occupation-event link, move tool with undo and ghost preview, owner taken from the province capital, validated create/edit dialog.
+- Units and traps: Q edits an existing unit (it used to overwrite it), v1 and v3 copy/paste/delete, plan/event, general auto-assign with options, trap level cycling / find / randomize / generate by province, v3 units are drawn.
+- Unit dialogs: v3 extension fields, general info panel, inline validation, dialog keys; reserved bytes are preserved.
+- Legion / belong: legion list window with drag/arrow reorder, capital toggle, set player legion, F6 conquer settings, multi-selection for belong keys, undo for legion/header edits.
+- Reinforcements: Q editor window (v1 and v3), copy/delete/sync owner, layers per VB; the help text now matches the real keys.
+
+**Scene UX**
+- Status bar with mode messages, cell position and zoom (status messages never reached the user before). Ctrl+Z / Ctrl+Y always work with feedback; arrow-key pan and +/- zoom; Shift+O view layer; the help fade completes; toolbar buttons no longer steal Space/Enter; Back asks before leaving with unsaved edits; the hex-info window is mode-aware and reads v3 data; renderers rebind when a map is replaced.
+- Esc goes to the mode first (cancel region move / clear selection) and only then asks to return to the main screen.
+
+**Conquest maps**
+- Maps are routed by header (conquest layout) instead of file name, saved in their own format, and drawn on their world map (`world{N}.bin`); scene tabs keep unsaved edits.
+
+**Data check scene** (start screen "检查数据")
+- BTL/BIN inspector: header, per-block record lists with decoded fields and file offsets, virtualized hex viewer with jump/search, segment address map, A/B binary compare, v1 <-> v3 conversion. CLI: `inspect`, `compare`, `convert`.
+
+**JSON table editors**
+- All 11 editors share one infrastructure: load-error reporting, unsaved-changes guard (also on scene switch and window close), undo/redo + history (Ctrl+H), copy/paste, multi-select delete, reorder, batch edit, search, F1 help; one shared string table; unknown JSON fields and file layout are preserved on save.
+
+**Start screen**
+- Settings window (live `setting.txt` editor with hot reload; comments and unknown lines are preserved; the API key is never displayed), music player, recommendation window, developer mode, opening animation and loading progress.
+
+**CLI / Lua / AI**
+- JSON exports now carry every field with its real name; Lua gained event, case, weather, strategic construction, air raid/support and reinforcement functions, move-faction and set-player-at; `check` validates event references; `--screenshot` also writes the open windows; `--mode` / `--editor` startup switches open a mode or window for screenshots.
+
 ### Changed
 - Every user-visible string in `src/WC4MapEditor.GUI` (scenes, dialogs, assist windows, rendering-scene toolbars and console output, main window) now comes from translation keys.
 - Start-screen navigation labels are taken from the translation files, not from `setting.txt` `[主场景编辑]`. `TitleBarText`, `WindowTitleText` and `VersionText` in `setting.txt` are still honoured.
@@ -55,9 +97,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); dat
 - `ProvinceRender` leaked a native `SKPath` every frame.
 - Coast decoration lookup was allocation-heavy and ran for the whole map on the UI thread after every edit (see Performance).
 
+- **Map file layout**: the stage parser sized the terrain block by `SelectableTileCount` while real files use `MapLength x MapWidth` (491 of 1,350 stock maps), so buildings, units, traps, events, cases, weather and air raids were read at the wrong offset on those maps. One block-address table (`BTLLayout`, checked against all 1,358 stock files) now drives load, save and the inspector. v2 maps use 64/104-byte unit and reinforcement records, the trailing extension block is kept, and **every stock map now round-trips byte-identically** (it was none).
+- **Conquest ownership**: the loader added 1 to every belong value (London showed as the next faction); belongs are 0-based legion indices. The belong lookup honours the conquest data window (wraps across the east-west seam). 188 padded conquest files used to be saved with a wrong tile count.
+- **Key codes**: digit and `,` `.` key codes were off by one WPF `Key` value (pressing 1 selected mode 2; the terrain type keys never fired).
+- Edits that bypassed undo, stuck selections and the (0,0) focus fallback, Esc firing both the mode action and the exit dialog, stale event subscriptions after leaving a scene, and `ConfigManager` getters that returned empty settings in the CLI until `GetText` had run.
+- Unit records: reserved bytes are preserved and the editor-only `LegionId` is no longer written into the file (units take their owner from the hex belong value). v1 reinforcement records are 80 bytes again (owner and spawn turn were lost). Building reserved bytes and legion byte 0x2B are kept.
+
 ### Removed
-- About 2,200 lines of dead code: `AirForceModifier`, `EventModifier`, `WeatherModifier`, `MapCaseModifier`, `StrategicConstructionModifier` (never referenced), `BTLParser` (encoded an outdated file layout), `Models/Modules/*`, nine unused `BTL*` enums (only `BTLDirection` remains), unused `MapData` members (`AddBuilding`, `AddArmy`, `AddArmyV3`, `ClearSelection`, `GetArmiesByLegion`, `GetBuildingsByLegion`, `RemoveReinforcementV3At`, `SetProvinceAt`, `SetTerrainAt`, `RemoveBuildingAt(col,row)`), and `MapDataRecoveryStrategy`.
 - The private `NumericUpDown` copy in `GeneralEditScene.cs` (replaced by the shared control).
+- `StageOffsets` / `ConquestOffsets` (replaced by one block-address table, see Fixed), the per-mode copies of global keys (B, N, F1, Ctrl+F1, Ctrl+Z, Ctrl+Y) in the terrain mode, and the dead legion/header/conquer callbacks on `EditModeManager` / `ModeContext`.
+- Note: the pre-written VB-port classes (`AirForceModifier`, `EventModifier`, `WeatherModifier`, `MapCaseModifier`, `StrategicConstructionModifier`, `Models/Modules/*`, `BTLParser`, the BTL enums) were briefly deleted as "dead code" earlier in this release and have been restored; they are now wired into the new modes below.
 
 ### Performance
 - Coastlines: the baked "final atlas" is now loaded from the disk cache (or baked once in the background) during normal editing. Previously it was only used by the screenshot path, so every coast cell went through three offscreen surfaces on each background rebuild and pan strip.
@@ -67,7 +116,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); dat
 - Per-frame churn removed across renderers: `SKFont`/`SKPaint` objects are fields instead of per-draw allocations (Reinforce, ReinforceNew, Strategic, AirForce, MapCase, BelongFlag, Overlay, GeoRuler); `MapCaseRender` no longer matches the "Microsoft YaHei" typeface every frame; hex paths are cached per size (Province); general lookups use a dictionary index (`GeneralSettingParser.GetById`) with a per-renderer head-image cache; legion → country maps are built once and invalidated on `Legions.CollectionChanged`; flag caches are keyed by country instead of pixel size (bounded memory across zoom levels); trap positions use `stackalloc`; building atlas keys are cached and the three per-frame `GroupBy` calls use pooled grouping; belong labels use a 256-entry string table; selection hexes reuse the cached path; overlay help text is split and measured only when it changes.
 
 ### Known issues / notes
-- Real game `.btl` files do not round-trip byte-identically through `SaveData` (header counts are normalised on save). This predates these changes; the editor's own test map round-trips identically.
+- The stage-parser layout fix changes what the editor reads from 491 stock maps; data that was mis-parsed before (and any edits saved from it) was never valid. The standalone CLI `stage` command still parses conquest-layout files as campaigns.
 - Strings intentionally left in Chinese: debug/trace logs, console command descriptions and usage text (they double as the CLI documentation), default texts written into game data (e.g. new buff/skill descriptions), brush shape constants compared in Core, and AI tool result strings. The AI chat window (`WC4MapEditor.AI`) is not localized.
 - Layout engine rules were inferred from the shipped `layout_x.xml`, `font_resource.xml` and `image_resource.xml`, not from the game binary. Compare a familiar form in-game if something looks off.
 - GPU rendering (`SKGLElement`) is not available while the main window uses `AllowsTransparency=true`. `SkiaSharp.Views.WPF` (3.116.1) and `SkiaSharp` (3.119.2) versions should be aligned before experimenting.

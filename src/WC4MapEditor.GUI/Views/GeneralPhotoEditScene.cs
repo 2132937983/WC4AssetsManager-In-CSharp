@@ -24,6 +24,7 @@ public class GeneralPhotoEditScene : UserControl
 
     private string? _sourceImagePath;
     private string _baseName = "";
+    private readonly bool _openedFromGeneralEditor;
     private SKBitmap? _sourceImage;
     private SKBitmap? _canvasImage;
     private SKBitmap? _displayImage;
@@ -65,6 +66,7 @@ public class GeneralPhotoEditScene : UserControl
         EditorTheme.Apply(this);
         _window = window;
         _baseName = initialEName ?? "";
+        _openedFromGeneralEditor = !string.IsNullOrEmpty(initialEName);
         BuildUI();
         if (!string.IsNullOrEmpty(initialEName))
             TryLoadGeneralPhoto(initialEName);
@@ -614,9 +616,11 @@ public class GeneralPhotoEditScene : UserControl
         }
     }
 
+    /// <summary>从将领编辑器点半身像进来时回到将领编辑器（那里未保存的修改仍在，离开时会询问保存）。</summary>
     private void OnBack(object sender, RoutedEventArgs e)
     {
-        _window.ReturnToMainScene();
+        if (_openedFromGeneralEditor) _window.SetCurrentScene(new GeneralEditScene(_window));
+        else _window.ReturnToMainScene();
     }
 
     private void OnOpen(object sender, RoutedEventArgs e)

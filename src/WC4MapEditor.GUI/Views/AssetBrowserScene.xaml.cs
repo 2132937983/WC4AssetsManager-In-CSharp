@@ -26,6 +26,7 @@ public partial class AssetBrowserScene : UserControl
     private AssetKind? _selectedKind;
     private bool _showAllFiles;
     private Button? _allFilesButton;
+    private MenuItem _dataCheckItem = null!;
     private readonly ObservableCollection<AssetEntry> _entries = new();
 
     public AssetBrowserScene(MainWindow window)
@@ -109,6 +110,8 @@ public partial class AssetBrowserScene : UserControl
         _fileList.View = gv;
         _fileList.MouseDoubleClick += FileList_MouseDoubleClick;
         _fileList.KeyDown += FileList_KeyDown;
+        _fileList.ContextMenu = BuildFileMenu();
+        _fileList.ContextMenuOpening += FileList_ContextMenuOpening;
         _fileList.ItemsSource = _entries;
         Grid.SetColumn(_fileList, 2);
         body.Children.Add(_fileList);
@@ -121,6 +124,35 @@ public partial class AssetBrowserScene : UserControl
         _mainGrid.Children.Add(statusBar);
 
         Content = _mainGrid;
+    }
+
+    /// <summary>右键菜单：用数据检查场景只读打开 .btl / .bin 文件。</summary>
+    private ContextMenu BuildFileMenu()
+    {
+        var menu = new ContextMenu();
+        // 菜单是独立弹层，拿不到场景树上的隐式样式，需把主题字典合并进来
+        menu.Resources.MergedDictionaries.Add(EditorTheme.Dictionary);
+        _dataCheckItem = new MenuItem { Header = Loc.T("Asset.OpenInDataCheck") };
+        _dataCheckItem.Click += (_, _) =>
+        {
+            if (_dataCheckItem.Tag is AssetEntry entry) _window.SetCurrentScene(new DataCheckScene(_window, entry.FullPath));
+        };
+        menu.Items.Add(_dataCheckItem);
+        return menu;
+    }
+
+    /// <summary>右键点到 .btl / .bin 文件才弹出菜单，并选中被点的那一行；其它位置不弹。</summary>
+    private void FileList_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        var item = e.OriginalSource is DependencyObject source ? ItemsControl.ContainerFromElement(_fileList, source) as ListViewItem : null;
+        if (item?.Content is not AssetEntry entry
+            || !(entry.Extension.Equals("btl", StringComparison.OrdinalIgnoreCase) || entry.Extension.Equals("bin", StringComparison.OrdinalIgnoreCase)))
+        {
+            e.Handled = true;
+            return;
+        }
+        _fileList.SelectedItem = entry;
+        _dataCheckItem.Tag = entry;
     }
 
     private static GridViewColumn CreateColumn(string header, double width, string binding)

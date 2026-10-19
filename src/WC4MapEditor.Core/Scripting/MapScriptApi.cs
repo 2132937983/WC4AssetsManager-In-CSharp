@@ -1,4 +1,5 @@
 using System.Reflection;
+using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Models;
 using WC4MapEditor.Core.Modifiers;
 using WC4MapEditor.Core.Services;
@@ -13,7 +14,7 @@ namespace WC4MapEditor.Core.Scripting;
 /// <c>MarkModified()</c> 通知逻辑，避免脚本绕过常规编辑路径。
 /// </para>
 /// </summary>
-public sealed class MapScriptApi : IMapScriptApi
+public sealed partial class MapScriptApi : IMapScriptApi
 {
     private readonly MapData _mapData;
     private readonly EditModeManager _modeManager;
@@ -258,24 +259,23 @@ public sealed class MapScriptApi : IMapScriptApi
     public ScriptOperationResult SetArmyLegion(int col, int row, int legionId)
     {
         if (!IsValidCoord(col, row)) return ScriptOperationResult.Fail($"坐标 ({col},{row}) 超出地图范围");
-        var result = RunArmyOp(col, row, a => a.SetLegionId(col, row, legionId), v3 => v3.SetLegionId(col, row, legionId));
-        return ToScriptResult(result, $"已设置军团ID={legionId}");
+        // 单位的归属就是所在格子的归属（单位自带的 LegionId 只是编辑器运行期字段，不写进文件），所以改的是格子归属
+        if (FindUnitIndex(col, row) < 0) return ScriptOperationResult.Fail(Loc.F("Script.NoUnitAt", col, row));
+        return SetBelong(col, row, legionId);
     }
 
     public ScriptOperationResult SetArmyPlan(int col, int row, int plan)
     {
         if (!IsValidCoord(col, row)) return ScriptOperationResult.Fail($"坐标 ({col},{row}) 超出地图范围");
         plan = Math.Clamp(plan, 0, 4);
-        if (_mapData.Header.BtlVersion >= 3)
+        int idx = FindUnitIndex(col, row);
+        if (idx < 0) return ScriptOperationResult.Fail(Loc.F("Script.NoUnitAt", col, row));
+        if (_mapData.Header.UsesV3Records)
         {
-            int idx = _mapData.FindArmyV3Index(col, row);
-            if (idx < 0) return ScriptOperationResult.Fail($"({col},{row}) 无v3单位");
             var a = _mapData.ArmiesV3[idx]; a.Plan = (short)plan; _mapData.ArmiesV3[idx] = a;
         }
         else
         {
-            int idx = _mapData.FindArmyIndex(col, row);
-            if (idx < 0) return ScriptOperationResult.Fail($"({col},{row}) 无单位");
             var a = _mapData.Armies[idx]; a.Plan = (short)plan; _mapData.Armies[idx] = a;
         }
         return ScriptOperationResult.Ok($"已设置方案={plan}", 1);
@@ -398,6 +398,22 @@ public sealed class MapScriptApi : IMapScriptApi
         if (legion == null) return ScriptOperationResult.Fail("军团修改器不可用");
         var result = legion.SetPlayerControlledLegion(actionId);
         return ToScriptResult(result, "已设置玩家控制军团");
+    }
+
+    public ScriptOperationResult SetPlayerLegionAt(int index)
+    {
+        var legion = _modeManager.GetModifier<LegionModifier>();
+        if (legion == null) return ScriptOperationResult.Fail("军团修改器不可用");
+        var result = legion.SetPlayerControlledLegionAt(index);
+        return ToScriptResult(result, "已设置玩家控制军团");
+    }
+
+    public ScriptOperationResult MoveLegion(int from, int to, bool renumberActionIds)
+    {
+        var legion = _modeManager.GetModifier<LegionModifier>();
+        if (legion == null) return ScriptOperationResult.Fail("军团修改器不可用");
+        var result = legion.MoveLegion(from, to, renumberActionIds);
+        return ToScriptResult(result, $"已把军团 {from} 移到 {to}");
     }
 
     public ScriptOperationResult ApplyDefaultLegionColors()
@@ -662,7 +678,7 @@ public sealed class MapScriptApi : IMapScriptApi
     {
         "UnitType", "Level", "Organization", "Direction", "Mobility", "BuiltRound",
         "Experience", "HealthBonus", "CurrentHealth", "MaxHealth", "General", "Rank",
-        "KeyPoint", "Policy", "Plan", "Morale", "CanAttack", "LegionId",
+        "KeyPoint", "Policy", "Plan", "Morale", "CanAttack",
         "HpLevel", "TransportShip", "Hatred", "AttackTarget", "DeathDialogue",
         "LevelMarkDisplay", "AntiDefenseMode",
     };
@@ -674,7 +690,7 @@ public sealed class MapScriptApi : IMapScriptApi
         if (visitor == null) return;
 
         // 遍历副本：回调里可能增删单位
-        if (_mapData.Header.BtlVersion >= 3)
+        if (_mapData.Header.UsesV3Records)
         {
             foreach (var army in _mapData.ArmiesV3.ToList())
                 if (!visitor(ToInfo(army))) return;
@@ -690,18 +706,29 @@ public sealed class MapScriptApi : IMapScriptApi
     {
         if (!IsValidCoord(col, row)) return null;
 
-        if (_mapData.Header.BtlVersion >= 3)
+        int idx = FindUnitIndex(col, row);
+        if (idx < 0) return null;
+        return _mapData.Header.UsesV3Records ? ToInfo(_mapData.ArmiesV3[idx]) : ToInfo(_mapData.Armies[idx]);
+    }
+
+    /// <summary>格子上的单位在本版本单位表里的下标（格子序号按无符号比较，大地图上超过 32767 的格子也正确），没有返回 -1。</summary>
+    private int FindUnitIndex(int col, int row)
+    {
+        int target = row * _mapData.MapWidth + col;
+        if (_mapData.Header.UsesV3Records)
         {
-            int idx = _mapData.FindArmyV3Index(col, row);
-            return idx >= 0 && idx < _mapData.ArmiesV3.Count ? ToInfo(_mapData.ArmiesV3[idx]) : null;
+            for (int i = 0; i < _mapData.ArmiesV3.Count; i++)
+            {
+                if (_mapData.ArmiesV3[i].CoordinateIndex == target) return i;
+            }
+            return -1;
         }
 
-        int target = row * _mapData.MapWidth + col;
         for (int i = 0; i < _mapData.Armies.Count; i++)
         {
-            if (_mapData.Armies[i].Coordinate == target) return ToInfo(_mapData.Armies[i]);
+            if (_mapData.Armies[i].CoordinateIndex == target) return i;
         }
-        return null;
+        return -1;
     }
 
     public ScriptOperationResult SetArmyField(int col, int row, string field, double value)
@@ -715,13 +742,13 @@ public sealed class MapScriptApi : IMapScriptApi
                 $"未知单位字段 '{field}'；可用字段：" + string.Join(", ", ArmyWritableFields));
 
         // v3 与 v1 的表不同（ArmiesV3 / Armies），写回各自的 UpdateArmy
-        if (_mapData.Header.BtlVersion >= 3)
+        if (_mapData.Header.UsesV3Records)
         {
             var modifier = _modeManager.GetModifier<ArmyV3Modifier>();
             if (modifier == null) return ScriptOperationResult.Fail("v3单位修改器不可用");
 
-            int idx = _mapData.FindArmyV3Index(col, row);
-            if (idx < 0) return ScriptOperationResult.Fail($"({col},{row}) 没有单位");
+            int idx = FindUnitIndex(col, row);
+            if (idx < 0) return ScriptOperationResult.Fail(Loc.F("Script.NoUnitAt", col, row));
 
             if (!TryWriteField(_mapData.ArmiesV3[idx], matched, value, out Army_3 updated, out string err))
                 return ScriptOperationResult.Fail(err);
@@ -735,13 +762,8 @@ public sealed class MapScriptApi : IMapScriptApi
         var v1Modifier = _modeManager.GetModifier<ArmyModifier>();
         if (v1Modifier == null) return ScriptOperationResult.Fail("单位修改器不可用");
 
-        int v1Idx = -1;
-        int target = row * _mapData.MapWidth + col;
-        for (int i = 0; i < _mapData.Armies.Count; i++)
-        {
-            if (_mapData.Armies[i].Coordinate == target) { v1Idx = i; break; }
-        }
-        if (v1Idx < 0) return ScriptOperationResult.Fail($"({col},{row}) 没有单位");
+        int v1Idx = FindUnitIndex(col, row);
+        if (v1Idx < 0) return ScriptOperationResult.Fail(Loc.F("Script.NoUnitAt", col, row));
 
         if (!TryWriteField(_mapData.Armies[v1Idx], matched, value, out Army v1Updated, out string err1))
             return ScriptOperationResult.Fail(err1);
@@ -755,19 +777,10 @@ public sealed class MapScriptApi : IMapScriptApi
     private static string ArmyFieldMessage(int col, int row, string field, double value)
         => $"已设置单位 ({col},{row}) 的 {field} = {(int)Math.Round(value)}";
 
-    /// <summary>
-    /// 兵种中文名。v1 的 <see cref="Army"/> 自带 <c>GetUnitTypeName()</c>，
-    /// v3 的 <see cref="Army_3"/> 没有，所以抽成共用函数（枚举语义两版一致）。
-    /// </summary>
-    private static string GetUnitTypeName(int unitType) => unitType switch
-    {
-        0 => "步兵",
-        1 => "骑兵",
-        2 => "弓箭手",
-        4 => "海军",
-        5 => "空军",
-        _ => $"未知({unitType})"
-    };
+    /// <summary>兵种名：按 ArmySettings.json / 字符串表解析（<see cref="Army.ResolveUnitTypeName"/>，v1 / v3 通用）。</summary>
+    private static string GetUnitTypeName(int unitType)
+        => Army.ResolveUnitTypeName(unitType)
+           ?? (unitType == 0 ? Loc.T("Script.NoUnitType", "无兵种") : Loc.F("Script.UnknownUnitType", unitType));
 
     // ---------- 军团（对象读写） ----------
 
@@ -841,7 +854,7 @@ public sealed class MapScriptApi : IMapScriptApi
     // ---------- 内部辅助 ----------
 
     /// <summary>在白名单里按名匹配字段（大小写不敏感），找不到返回 null。</summary>
-    private static string? MatchField(IReadOnlyList<string> whitelist, string? field)
+    internal static string? MatchField(IReadOnlyList<string> whitelist, string? field)
     {
         string key = (field ?? "").Trim();
         foreach (var f in whitelist)
@@ -858,7 +871,7 @@ public sealed class MapScriptApi : IMapScriptApi
     /// 以后结构里加字段，只需在白名单补个名字，脚本层立刻可用。
     /// </para>
     /// </summary>
-    private static bool TryWriteField<T>(T src, string field, double value, out T updated, out string error)
+    internal static bool TryWriteField<T>(T src, string field, double value, out T updated, out string error)
         where T : struct
     {
         updated = src;
@@ -894,17 +907,18 @@ public sealed class MapScriptApi : IMapScriptApi
 
     private ScriptArmyInfo ToInfo(Army army)
     {
-        int col = _mapData.MapWidth > 0 ? army.Coordinate % _mapData.MapWidth : 0;
-        int row = _mapData.MapWidth > 0 ? army.Coordinate / _mapData.MapWidth : 0;
+        int col = _mapData.MapWidth > 0 ? army.CoordinateIndex % _mapData.MapWidth : 0;
+        int row = _mapData.MapWidth > 0 ? army.CoordinateIndex / _mapData.MapWidth : 0;
+        int belong = _mapData.GetBelongValue(col, row);
 
         return new ScriptArmyInfo
         {
             Col = col,
             Row = row,
-            Index = army.Coordinate,
+            Index = army.CoordinateIndex,
             Version = 1,
             UnitType = army.UnitType,
-            UnitTypeName = army.GetUnitTypeName(),
+            UnitTypeName = GetUnitTypeName(army.UnitType),
             Level = army.Level,
             Organization = army.Organization,
             Direction = army.Direction,
@@ -925,23 +939,25 @@ public sealed class MapScriptApi : IMapScriptApi
             Morale = army.Morale,
             MoraleName = army.GetMoraleName(),
             CanAttack = army.CanAttack,
-            LegionId = army.LegionId
+            Belong = belong,
+            LegionId = belong
         };
     }
 
     private ScriptArmyInfo ToInfo(Army_3 army)
     {
-        int col = _mapData.MapWidth > 0 ? army.Coordinate % _mapData.MapWidth : 0;
-        int row = _mapData.MapWidth > 0 ? army.Coordinate / _mapData.MapWidth : 0;
+        int col = _mapData.MapWidth > 0 ? army.CoordinateIndex % _mapData.MapWidth : 0;
+        int row = _mapData.MapWidth > 0 ? army.CoordinateIndex / _mapData.MapWidth : 0;
+        int belong = _mapData.GetBelongValue(col, row);
 
         return new ScriptArmyInfo
         {
             Col = col,
             Row = row,
-            Index = army.Coordinate,
+            Index = army.CoordinateIndex,
             Version = 3,
             UnitType = army.UnitType,
-            UnitTypeName = GetUnitTypeName(army.UnitType),   // Army_3 没有 GetUnitTypeName()
+            UnitTypeName = GetUnitTypeName(army.UnitType),
             Level = army.Level,
             Organization = army.Organization,
             Direction = army.Direction,
@@ -962,7 +978,8 @@ public sealed class MapScriptApi : IMapScriptApi
             Morale = army.Morale,
             MoraleName = army.GetMoraleName(),
             CanAttack = 0,
-            LegionId = army.LegionId,
+            Belong = belong,
+            LegionId = belong,
             HpLevel = army.HpLevel,
             TransportShip = army.TransportShip,
             Hatred = army.Hatred,
@@ -1061,7 +1078,7 @@ public sealed class MapScriptApi : IMapScriptApi
         Func<ArmyModifier, ModifierResult> v1Op,
         Func<ArmyV3Modifier, ModifierResult> v3Op)
     {
-        if (_mapData.Header.BtlVersion >= 3)
+        if (_mapData.Header.UsesV3Records)
         {
             // 复用管理器里注册的 v3 实例；未对本地图初始化时才临时建一个
             var v3 = _modeManager.GetModifier<ArmyV3Modifier>();

@@ -264,29 +264,6 @@ public class BelongFlagRender : IDisposable
         }
     }
 
-    private static int GetHexIndex(int col, int row, MapData mapData)
-    {
-        int mapClipX = mapData.Header?.MapClipX ?? 0;
-        int mapClipY = mapData.Header?.MapClipY ?? 0;
-
-        if (mapClipY > 0 && row < mapClipY) return -1;
-        if (mapClipX > 0 && col < mapClipX) return -1;
-
-        int conquestWidth = mapData.Header?.MapLength ?? 0;
-        if (conquestWidth <= 0) conquestWidth = mapData.MapWidth - mapClipX;
-
-        int actualCol = col - mapClipX;
-        int actualRow = row - mapClipY;
-
-        if (actualCol >= conquestWidth)
-        {
-            actualCol -= conquestWidth;
-            actualRow++;
-        }
-
-        return actualRow * conquestWidth + actualCol;
-    }
-
     private static int GetCountryId(int hexIndex, MapData mapData)
     {
         try
@@ -424,9 +401,6 @@ public class BelongFlagRender : IDisposable
         int startRow = Math.Max(0, (int)((-_offsetY) / hexSpacingY) - 2);
         int endRow = Math.Min(mapData.MapHeight - 1, (int)((_viewportHeight - _offsetY) / hexSpacingY) + 2);
 
-        int mapClipX = mapData.Header?.MapClipX ?? 0;
-        int mapClipY = mapData.Header?.MapClipY ?? 0;
-
         float halfSize = flagSize / 2;
         float hexHeight = (float)(BASE_HEX_SIZE * Math.Sqrt(3) * _zoomLevel);
         float scale = flagSize / ATLAS_TILE_SIZE;
@@ -434,13 +408,9 @@ public class BelongFlagRender : IDisposable
 
         for (int col = startCol; col <= endCol; col++)
         {
-            if (mapClipX > 0 && col < mapClipX) continue;
-
             for (int row = startRow; row <= endRow; row++)
             {
-                if (mapClipY > 0 && row < mapClipY) continue;
-
-                int hexIndex = GetHexIndex(col, row, mapData);
+                int hexIndex = mapData.GetBelongIndex(col, row);
                 if (hexIndex < 0 || hexIndex >= mapData.Belongs.Count) continue;
 
                 int countryId = GetCountryId(hexIndex, mapData);

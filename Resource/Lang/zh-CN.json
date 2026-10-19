@@ -1,9 +1,6 @@
 {
-  // 中文（简体）界面文本。键名形如 "区域.条目"；{0} {1} 是运行时填入的参数，翻译时请保留。按区域分组，可自由增删。
-  // ===== Language =====
   "Language.Name": "简体中文",
 
-  // ===== Common =====
   "Common.Back": "返回",
   "Common.Ok": "确定",
   "Common.Cancel": "取消",
@@ -94,7 +91,6 @@
   "Common.ExportFailed": "导出失败：{0}",
   "Common.Exported": "已导出 {0}",
 
-  // ===== Main =====
   "Main.Title": "WC4 资源编辑器",
   "Main.Version": "v5.0 开发版",
   "Main.FatalError": "致命错误",
@@ -109,7 +105,6 @@
   "Main.ScreenshotLog": "[截图] {0} → {1}",
   "Main.ReadyStatus": "准备就绪",
 
-  // ===== Begin =====
   "Begin.Campaign": "战役",
   "Begin.NewCampaign": "新战役",
   "Begin.Conquest": "征服",
@@ -173,7 +168,6 @@
   "Begin.SelectMapForSizeTitle": "选择地图文件（获取尺寸）",
   "Begin.WorldMapFileFilter": "世界地图文件",
 
-  // ===== Dialog =====
   "Dialog.ConfirmTitle": "确认",
   "Dialog.NotifyTitle": "通知",
   "Dialog.InputTitle": "输入",
@@ -205,7 +199,6 @@
   "Dialog.Sim.SelectLevel": "选择等级",
   "Dialog.Sim.Title": "编队/等级数值模拟",
 
-  // ===== Layout =====
   "Layout.Title": "WC4 布局编辑器",
   "Layout.ImportResources": "资源文件夹",
   "Layout.ImportFiles": "＋ 文件",
@@ -414,7 +407,6 @@
   "Layout.Attr.RowBlank": "行间距",
   "Layout.Attr.dir": "方向",
 
-  // ===== ArmyBuff =====
   "ArmyBuff.Title": "军队 Buff 编辑",
   "ArmyBuff.SearchPlaceholder": "搜索 (Id / 名称 / Type)…",
   "ArmyBuff.Section.Text": "文本 (stringtable)",
@@ -439,7 +431,6 @@
   "ArmyBuff.SaveSuccessDetail": "保存成功：\nArmyBuffSettings.json: {0}\nstringtable: {1}",
   "ArmyBuff.ListEntry": "[{0}] {1}  (Type:{2} Lv:{3})",
 
-  // ===== EventBuff =====
   "EventBuff.Title": "事件 Buff 编辑",
   "EventBuff.SearchPlaceholder": "搜索 (Id / Type / Value)…",
   "EventBuff.Section.Links": "关联",
@@ -457,7 +448,6 @@
   "EventBuff.Validate.RoundTooSmall": "Round={0} 不应小于 -1",
   "EventBuff.ListEntry": "[{0}] {1}  (Type:{2})",
 
-  // ===== Skill =====
   "Skill.Title": "技能编辑",
   "Skill.SearchPlaceholder": "搜索 (Id / 名称 / Type)…",
   "Skill.Section.Text": "文本 (stringtable)",
@@ -495,7 +485,6 @@
   "Skill.Validate.NameMissing": "Type={0} 缺少技能名 (skill_name_{0})",
   "Skill.ListEntry": "[{0}] {1}  (Type:{2} Lv:{3})",
 
-  // ===== Army =====
   "Army.Title": "兵种编辑",
   "Army.Simulate": "编队/等级数值模拟",
   "Army.SearchPlaceholder": "搜索 (Id / 名称)…",
@@ -557,7 +546,6 @@
   "Army.Validate.NameMissing": "缺少兵种名 (unit_name_{0})",
   "Army.ListEntry": "[{0}] {1}  (Army:{2} Type:{3})",
 
-  // ===== ArmyGroup =====
   "ArmyGroup.ActivityMissing": "⚠ 活动 {0} 缺少：{1}，可用「一键生成集团军模板」补建。",
   "ArmyGroup.AddReinforcement": "增加一队援军",
   "ArmyGroup.CreateTemplate": "一键生成集团军模板",
@@ -628,7 +616,6 @@
   "ArmyGroup.Validate.MissingTable": "[集团军 Id={0}] 活动 {1} 在 {2} 中缺失",
   "ArmyGroup.Validate.NoReinforcement": "[集团军 Id={0}] 没有援军配置（会闪退）",
 
-  // ===== ArmyGroupEvent =====
   "ArmyGroupEvent.Added": "新增事件 ID={0}（未保存）",
   "ArmyGroupEvent.AllGroups": "全部事件组",
   "ArmyGroupEvent.DeleteConfirm": "确定删除事件 [{0}] {1}？",
@@ -661,7 +648,6 @@
   "ArmyGroupEvent.Validate.DuplicateId": "[Id={0}] ID 重复",
   "ArmyGroupEvent.Validate.NegativeBuff": "[Id={0}] Buff ID 为负",
 
-  // ===== ConquerEvent =====
   "ConquerEvent.Added": "新增征服事件 ID={0}（未保存）",
   "ConquerEvent.AllConquests": "全部征服",
   "ConquerEvent.ConquestItem": "征服 {0}",
@@ -692,7 +678,6 @@
   "ConquerEvent.Validate.DuplicateId": "[Id={0}] ID 重复",
   "ConquerEvent.Validate.NegativeBuff": "[Id={0}] Buff ID 为负",
 
-  // ===== Building =====
   "Building.BuildingAdded": "新增建筑 ID={0}（未保存）",
   "Building.BuildingDeleted": "已删除建筑 ID={0}（未保存）",
   "Building.BuildingUpdated": "已更新建筑 {0}（未保存）",
@@ -753,7 +738,6 @@
   "Building.Validate.FacilityNameEmpty": "[设施 Id={0}] 名称为空",
   "Building.ValidationPassed": "校验通过：建筑 {0} 条，设施 {1} 条。",
 
-  // ===== Country =====
   "Country.AddCountry": "新增国家",
   "Country.AddFailed": "新增国家失败，可能ID已存在",
   "Country.AddPrompt": "将要新增一个国家，建议ID为 {0}。\n请输入国家名称：",
@@ -815,7 +799,6 @@
   "Country.Updated": "已更新: [{0}] {1}",
   "Country.UseExistingFlag": "使用现有国旗",
 
-  // ===== CountryTech =====
   "CountryTech.Added": "新增科技 ID={0}（未保存）",
   "CountryTech.AllCategories": "全部分类",
   "CountryTech.AutoLines": "自动连线",
@@ -877,7 +860,6 @@
   "CountryTech.Validate.OddCoords": "{0} 数量 {1} 不是偶数",
   "CountryTech.Validate.TooManyNeedId": "NeedId 数量 {0} > 2，连线仅支持 2 条",
 
-  // ===== Flag =====
   "Flag.BigFlag": "征服大国旗",
   "Flag.Brush": "笔刷:",
   "Flag.ExistingPreview": "现有国旗预览",
@@ -934,7 +916,6 @@
   "Flag.TiledOn": "平铺模式已开启 (R)",
   "Flag.Title": "国旗编辑 - {0} (ID:{1})",
 
-  // ===== General =====
   "General.Add": "新增将领",
   "General.AddEnamePrompt": "请输入将领英文名 EName（将作为 general_{EName}.webp / portraitpos 主键）：",
   "General.AddNamePrompt": "请输入将领中文名（EName={0}）：",
@@ -999,7 +980,6 @@
   "General.StatusUpdated": "已更新将领 {0}（未保存）",
   "General.Title": "将领数据编辑",
 
-  // ===== GeneralPhoto =====
   "GeneralPhoto.BgColor": "背景颜色",
   "GeneralPhoto.CanvasH": "画布高:",
   "GeneralPhoto.CanvasW": "画布宽:",
@@ -1029,7 +1009,6 @@
   "GeneralPhoto.Title": "将领图片编辑",
   "GeneralPhoto.TransparentBg": "透明背景",
 
-  // ===== Asset =====
   "Asset.AllFiles": "全部文件 ({0})",
   "Asset.Categories": "资源类别",
   "Asset.Column.FileName": "文件名",
@@ -1061,7 +1040,6 @@
   "Asset.Showing": "显示 {0} / {1} 个文件",
   "Asset.Title": "资源管理器",
 
-  // ===== TacticalMap =====
   "TacticalMap.ArrangeObjects": "整理对象",
   "TacticalMap.ArrangeUnplaced": "  ⚠ {0} 个对象仍放不下：{1}",
   "TacticalMap.Arranged": "已整理 {0}/{1} 对象，画布 {2}×{3} → {4}×{5}",
@@ -1150,7 +1128,6 @@
   "TacticalMap.WebpFilter": "WebP图片",
   "TacticalMap.XmlFilter": "XML文件",
 
-  // ===== Assist =====
   "Assist.BelongList.InputTip": "输入归属值 (0-255) 或直接选择军团",
   "Assist.BelongList.Title": "归属列表",
   "Assist.BelongList.ValueLabel": "归属值:",
@@ -1352,7 +1329,6 @@
   "Assist.Legion.UnifyIndustry": "统一工业",
   "Assist.Legion.UnifyTech": "统一科技",
 
-  // ===== Render =====
   "Render.Console.ArgFormatError": "参数格式错误",
   "Render.Console.AutoEstimate": "自动估算",
   "Render.Console.BgProvinceUsage.Line1": "用法: bg_province [灰度阈值] [梯度阈值] [最小区域像素数] [最小界线像素数]",
@@ -1619,7 +1595,6 @@
   "Render.ViewLayer.Show": "显示视图层",
   "Render.Visible": "显示",
 
-  // ===== Scene =====
   "Scene.DefaultName": "场景 {0}",
   "Scene.TypeCampaign": "[战役]",
   "Scene.TypeConquest": "[征服]",

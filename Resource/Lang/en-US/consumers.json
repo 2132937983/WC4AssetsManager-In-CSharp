@@ -1,0 +1,30 @@
+{
+  // Data consumers: command line (check / army / trap), Lua script API, mode-switch status message, hex info.
+
+  // ---------------- Command line ----------------
+  "Cli.Check.EventPassed": "[Events] Reference check passed",
+  "Cli.Check.EventIssues": "[Events] Found {0} issue(s):",
+  "Cli.Check.EventFailed": "[Events] Reference check failed: {0}",
+  "Cli.Army.ColBelong": "Owner",
+  "Cli.Army.SetLegionDesc": "Set the faction of a unit: a unit belongs to the faction that owns its hex, so this changes that hex's ownership value",
+  "Cli.Army.NoUnitAt": "No unit at ({0},{1})",
+  "Cli.Trap.ColActionId": "Action ID",
+
+  // ---------------- Lua script API ----------------
+  "Script.NoUnitAt": "No unit at ({0},{1})",
+  "Script.OutOfMap": "Cell ({0},{1}) is outside the map",
+  "Script.OperationFailed": "Operation failed",
+  "Script.NoUnitType": "No unit type",
+  "Script.UnknownUnitType": "Unknown ({0})",
+  "Script.UndoRun": "Lua script ({0})",
+  "Script.Record.UnknownKind": "Unknown record kind '{0}'",
+  "Script.Record.IndexOutOfRange": "Record index {0} is out of range ({1} record(s))",
+  "Script.Record.UnknownField": "Unknown field '{0}'; available fields: {1}",
+  "Script.Record.FieldSet": "Set record[{0}] {1} = {2}",
+
+  // ---------------- Mode switching ----------------
+  "Mode.Status.SwitchedTo": "Switched to: {0}",
+
+  // ---------------- Hex info ----------------
+  "Assist.HexInfo.Value.ActionRef": "{0} (ownership {1} / country ID {2})"
+}

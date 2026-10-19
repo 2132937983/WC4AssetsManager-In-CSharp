@@ -87,7 +87,11 @@ public struct Legion
     public int Unknown4;
     public int InitialLaserGunLevel;
 
-    public readonly bool IsPlayer => IsPlayerControlled != 0;
+    /// <summary>
+    /// 是否玩家控制。文件里的"控制"字段 0 = 玩家、1 = AI（BTL 规格"00是01否"；
+    /// 官方战役地图第 1 个军团为 0、其余为 1，征服地图全部为 1、由开局选择决定玩家）。
+    /// </summary>
+    public readonly bool IsPlayer => IsPlayerControlled == 0;
     public readonly string DisplayName => $"军团 {CountryId}";
 
     /// <summary>
@@ -112,6 +116,7 @@ public struct Legion
             ColorR = data[offset + 0x28],
             ColorG = data[offset + 0x29],
             ColorB = data[offset + 0x2A],
+            ReservedColor = data[offset + 0x2B],
             AtomicBombCount = BitConverter.ToInt32(data[(offset + 0x2C)..]),
             HydrogenBombCount = BitConverter.ToInt32(data[(offset + 0x30)..]),
             NeutronBombCount = BitConverter.ToInt32(data[(offset + 0x34)..]),
@@ -197,6 +202,7 @@ public struct Legion
         data[offset + 0x28] = ColorR;
         data[offset + 0x29] = ColorG;
         data[offset + 0x2A] = ColorB;
+        data[offset + 0x2B] = ReservedColor;
         BitConverter.TryWriteBytes(data[(offset + 0x2C)..], AtomicBombCount);
         BitConverter.TryWriteBytes(data[(offset + 0x30)..], HydrogenBombCount);
         BitConverter.TryWriteBytes(data[(offset + 0x34)..], NeutronBombCount);
@@ -269,6 +275,10 @@ public struct Legion
     /// 只设置经济/工业/科技/玩家控制/阵营/血率/税率/颜色，<b>不含</b> InitialTechLevel
     /// （VB 原版未设置该字段，保持 0）。
     /// </para>
+    /// <para>
+    /// 玩家控制按文件约定写：第 1 个军团（id = 1）为玩家（0），其余为 AI（1）。
+    /// VB 原版把这两个值写反了，新建地图时除第 1 个军团外全部成了玩家军团。
+    /// </para>
     /// </summary>
     public static Legion CreateDefault(int id) => new Legion
     {
@@ -277,14 +287,15 @@ public struct Legion
         InitialEconomy = 1000,
         InitialIndustry = 100,
         InitialTech = 50,
-        IsPlayerControlled = id == 1 ? 1 : 0,
+        IsPlayerControlled = id == 1 ? 0 : 1,
         Camp = id,
         DefeatCondition = 0,
         CountryHpRate = 1.0f,
         CountryTaxRate = 0.1f,
         ColorR = 0xFF,
         ColorG = 0xFF,
-        ColorB = 0xFF
+        ColorB = 0xFF,
+        ReservedColor = 0xFF
     };
 
     /// <summary>

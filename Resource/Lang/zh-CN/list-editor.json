@@ -1,0 +1,18 @@
+{
+  "Assist.ListEditor.Empty": "列表为空，点击 + 新增",
+  "Assist.ListEditor.Add": "新增",
+  "Assist.ListEditor.Duplicate": "复制选中项",
+  "Assist.ListEditor.Delete": "删除选中项",
+  "Assist.ListEditor.Apply": "应用",
+  "Assist.ListEditor.ApplyTooltip": "提交当前项的修改（Enter）",
+  "Assist.ListEditor.Applied": "已应用",
+  "Assist.ListEditor.Invalid": "输入无效",
+  "Assist.ListEditor.Reverted": "已撤回未提交的修改",
+  "Assist.ListEditor.ConfirmDelete": "确定删除 {0} 吗？（可用 Ctrl+Z 撤销）",
+  "Assist.ListEditor.NotInteger": "{0}：请输入整数",
+  "Assist.ListEditor.OutOfRange": "{0}：应在 {1} 到 {2} 之间",
+  "Assist.ListEditor.UndoEdit": "{0}：修改第 {1} 项",
+  "Assist.ListEditor.UndoAdd": "{0}：新增",
+  "Assist.ListEditor.UndoDuplicate": "{0}：复制第 {1} 项",
+  "Assist.ListEditor.UndoDelete": "{0}：删除第 {1} 项"
+}

@@ -1,9 +1,6 @@
 {
-  // English UI text. Keys look like "Area.Item"; {0} {1} are runtime parameters, keep them when translating. Grouped by area.
-  // ===== Language =====
   "Language.Name": "English",
 
-  // ===== Common =====
   "Common.Back": "Back",
   "Common.Ok": "OK",
   "Common.Cancel": "Cancel",
@@ -94,7 +91,6 @@
   "Common.ExportFailed": "Export failed: {0}",
   "Common.Exported": "Exported {0}",
 
-  // ===== Main =====
   "Main.Title": "WC4 Assets Editor",
   "Main.Version": "v5.0 dev",
   "Main.FatalError": "Fatal Error",
@@ -109,7 +105,6 @@
   "Main.ScreenshotLog": "[Screenshot] {0} → {1}",
   "Main.ReadyStatus": "Ready",
 
-  // ===== Begin =====
   "Begin.Campaign": "Campaign",
   "Begin.NewCampaign": "New Campaign",
   "Begin.Conquest": "Conquest",
@@ -173,7 +168,6 @@
   "Begin.SelectMapForSizeTitle": "Select Map File (for its size)",
   "Begin.WorldMapFileFilter": "World map files",
 
-  // ===== Dialog =====
   "Dialog.ConfirmTitle": "Confirm",
   "Dialog.NotifyTitle": "Notice",
   "Dialog.InputTitle": "Input",
@@ -205,7 +199,6 @@
   "Dialog.Sim.SelectLevel": "Level",
   "Dialog.Sim.Title": "Formation/Level Stats Simulator",
 
-  // ===== Layout =====
   "Layout.Title": "WC4 Layout Editor",
   "Layout.ImportResources": "Asset Folder",
   "Layout.ImportFiles": "+ Files",
@@ -414,7 +407,6 @@
   "Layout.Attr.RowBlank": "Row spacing",
   "Layout.Attr.dir": "Direction",
 
-  // ===== ArmyBuff =====
   "ArmyBuff.Title": "Army Buff Editor",
   "ArmyBuff.SearchPlaceholder": "Search (Id / Name / Type)…",
   "ArmyBuff.Section.Text": "Text (stringtable)",
@@ -439,7 +431,6 @@
   "ArmyBuff.SaveSuccessDetail": "Saved successfully:\nArmyBuffSettings.json: {0}\nstringtable: {1}",
   "ArmyBuff.ListEntry": "[{0}] {1}  (Type:{2} Lv:{3})",
 
-  // ===== EventBuff =====
   "EventBuff.Title": "Event Buff Editor",
   "EventBuff.SearchPlaceholder": "Search (Id / Type / Value)…",
   "EventBuff.Section.Links": "Links",
@@ -457,7 +448,6 @@
   "EventBuff.Validate.RoundTooSmall": "Round={0} must not be less than -1",
   "EventBuff.ListEntry": "[{0}] {1}  (Type:{2})",
 
-  // ===== Skill =====
   "Skill.Title": "Skill Editor",
   "Skill.SearchPlaceholder": "Search (Id / Name / Type)…",
   "Skill.Section.Text": "Text (stringtable)",
@@ -495,7 +485,6 @@
   "Skill.Validate.NameMissing": "Type={0} is missing a skill name (skill_name_{0})",
   "Skill.ListEntry": "[{0}] {1}  (Type:{2} Lv:{3})",
 
-  // ===== Army =====
   "Army.Title": "Unit Editor",
   "Army.Simulate": "Formation / Level Simulator",
   "Army.SearchPlaceholder": "Search (Id / Name)…",
@@ -557,7 +546,6 @@
   "Army.Validate.NameMissing": "Missing unit name (unit_name_{0})",
   "Army.ListEntry": "[{0}] {1}  (Army:{2} Type:{3})",
 
-  // ===== ArmyGroup =====
   "ArmyGroup.ActivityMissing": "⚠ Event {0} is missing: {1}. Use \"Generate Army Group Template\" to create them.",
   "ArmyGroup.AddReinforcement": "Add Reinforcement Squad",
   "ArmyGroup.CreateTemplate": "Generate Army Group Template",
@@ -628,7 +616,6 @@
   "ArmyGroup.Validate.MissingTable": "[Army group Id={0}] Event {1} is missing from {2}",
   "ArmyGroup.Validate.NoReinforcement": "[Army group Id={0}] No reinforcements (would crash)",
 
-  // ===== ArmyGroupEvent =====
   "ArmyGroupEvent.Added": "Added event ID={0} (unsaved)",
   "ArmyGroupEvent.AllGroups": "All event groups",
   "ArmyGroupEvent.DeleteConfirm": "Delete event [{0}] {1}?",
@@ -661,7 +648,6 @@
   "ArmyGroupEvent.Validate.DuplicateId": "[Id={0}] Duplicate ID",
   "ArmyGroupEvent.Validate.NegativeBuff": "[Id={0}] Negative buff ID",
 
-  // ===== ConquerEvent =====
   "ConquerEvent.Added": "Added conquest event ID={0} (unsaved)",
   "ConquerEvent.AllConquests": "All conquests",
   "ConquerEvent.ConquestItem": "Conquest {0}",
@@ -692,7 +678,6 @@
   "ConquerEvent.Validate.DuplicateId": "[Id={0}] Duplicate ID",
   "ConquerEvent.Validate.NegativeBuff": "[Id={0}] Negative buff ID",
 
-  // ===== Building =====
   "Building.BuildingAdded": "Added building ID={0} (unsaved)",
   "Building.BuildingDeleted": "Deleted building ID={0} (unsaved)",
   "Building.BuildingUpdated": "Updated building {0} (unsaved)",
@@ -753,7 +738,6 @@
   "Building.Validate.FacilityNameEmpty": "[Facility Id={0}] Name is empty",
   "Building.ValidationPassed": "Validation passed: {0} buildings, {1} facilities.",
 
-  // ===== Country =====
   "Country.AddCountry": "Add Country",
   "Country.AddFailed": "Failed to add the country; the ID may already exist",
   "Country.AddPrompt": "A new country will be added with the suggested ID {0}.\nEnter the country name:",
@@ -815,7 +799,6 @@
   "Country.Updated": "Updated: [{0}] {1}",
   "Country.UseExistingFlag": "Use Existing Flag",
 
-  // ===== CountryTech =====
   "CountryTech.Added": "Added tech ID={0} (unsaved)",
   "CountryTech.AllCategories": "All Categories",
   "CountryTech.AutoLines": "Auto Lines",
@@ -877,7 +860,6 @@
   "CountryTech.Validate.OddCoords": "{0} has {1} values, which is not an even count",
   "CountryTech.Validate.TooManyNeedId": "{0} NeedId entries (> 2); only 2 lines are supported",
 
-  // ===== Flag =====
   "Flag.BigFlag": "Conquest Flag (large)",
   "Flag.Brush": "Brush:",
   "Flag.ExistingPreview": "Existing Flags",
@@ -934,7 +916,6 @@
   "Flag.TiledOn": "Tiling on (R)",
   "Flag.Title": "Flag Editor - {0} (ID:{1})",
 
-  // ===== General =====
   "General.Add": "Add General",
   "General.AddEnamePrompt": "Enter the general's English name (EName). It is used as the key for general_{EName}.webp / portraitpos:",
   "General.AddNamePrompt": "Enter the general's display name (EName={0}):",
@@ -999,7 +980,6 @@
   "General.StatusUpdated": "Updated general {0} (unsaved)",
   "General.Title": "General Editor",
 
-  // ===== GeneralPhoto =====
   "GeneralPhoto.BgColor": "Background Color",
   "GeneralPhoto.CanvasH": "Canvas H:",
   "GeneralPhoto.CanvasW": "Canvas W:",
@@ -1029,7 +1009,6 @@
   "GeneralPhoto.Title": "General Image Editor",
   "GeneralPhoto.TransparentBg": "Transparent Background",
 
-  // ===== Asset =====
   "Asset.AllFiles": "All Files ({0})",
   "Asset.Categories": "Categories",
   "Asset.Column.FileName": "File Name",
@@ -1061,7 +1040,6 @@
   "Asset.Showing": "Showing {0} of {1} files",
   "Asset.Title": "Asset Browser",
 
-  // ===== TacticalMap =====
   "TacticalMap.ArrangeObjects": "Arrange Objects",
   "TacticalMap.ArrangeUnplaced": "  ⚠ {0} objects still do not fit: {1}",
   "TacticalMap.Arranged": "Arranged {0}/{1} objects, canvas {2}×{3} → {4}×{5}",
@@ -1150,7 +1128,6 @@
   "TacticalMap.WebpFilter": "WebP image",
   "TacticalMap.XmlFilter": "XML file",
 
-  // ===== Assist =====
   "Assist.BelongList.InputTip": "Enter an ownership value (0-255) or pick a legion",
   "Assist.BelongList.Title": "Ownership List",
   "Assist.BelongList.ValueLabel": "Value:",
@@ -1352,7 +1329,6 @@
   "Assist.Legion.UnifyIndustry": "Unify Industry",
   "Assist.Legion.UnifyTech": "Unify Tech",
 
-  // ===== Render =====
   "Render.Console.ArgFormatError": "Invalid argument format",
   "Render.Console.AutoEstimate": "auto-estimated",
   "Render.Console.BgProvinceUsage.Line1": "Usage: bg_province [gray threshold] [gradient threshold] [min region pixels] [min boundary pixels]",
@@ -1619,7 +1595,6 @@
   "Render.ViewLayer.Show": "Show view layer",
   "Render.Visible": "shown",
 
-  // ===== Scene =====
   "Scene.DefaultName": "Scene {0}",
   "Scene.TypeCampaign": "[Campaign]",
   "Scene.TypeConquest": "[Conquest]",

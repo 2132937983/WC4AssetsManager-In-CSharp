@@ -42,6 +42,8 @@ public partial class App : Application
             if (string.Equals(e.Args[i], "--scene", StringComparison.OrdinalIgnoreCase)) WC4MapEditor.GUI.Views.MainWindow.StartupScene = e.Args[i + 1];
             else if (string.Equals(e.Args[i], "--screenshot", StringComparison.OrdinalIgnoreCase)) WC4MapEditor.GUI.Views.MainWindow.StartupScreenshot = e.Args[i + 1];
             else if (string.Equals(e.Args[i], "--open", StringComparison.OrdinalIgnoreCase)) WC4MapEditor.GUI.Views.MainWindow.StartupOpenFile = e.Args[i + 1];
+            else if (string.Equals(e.Args[i], "--mode", StringComparison.OrdinalIgnoreCase)) WC4MapEditor.GUI.Views.MainWindow.StartupMode = e.Args[i + 1];
+            else if (string.Equals(e.Args[i], "--editor", StringComparison.OrdinalIgnoreCase)) WC4MapEditor.GUI.Views.MainWindow.StartupEditor = e.Args[i + 1];
         }
         Console.WriteLine("=== WC4MapEditor GUI 启动 ===");
 

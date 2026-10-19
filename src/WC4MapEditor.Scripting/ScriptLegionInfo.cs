@@ -28,7 +28,7 @@ public sealed class ScriptLegionInfo
     /// <summary>初始科技</summary>
     public int InitialTech { get; init; }
 
-    /// <summary>是否玩家控制（0/1）</summary>
+    /// <summary>控制值：0 = 玩家控制，1 = AI（征服地图全部为 1）</summary>
     public int IsPlayerControlled { get; init; }
 
     /// <summary>是否玩家控制（布尔便捷值）</summary>

@@ -3,7 +3,11 @@ using System.Runtime.InteropServices;
 namespace WC4MapEditor.Core.Models;
 
 /// <summary>
-/// 建筑数据结构 (32字节) - 使用结构体减少内存开销
+/// 建筑数据结构（文件里每条 32 字节）- 使用结构体减少内存开销。
+/// <para>
+/// 保留字段（0x0A-0x0B、0x0F、0x10-0x13、0x1E-0x1F）含义未知，但读入后原样写回：
+/// 以前读写都跳过它们，保存时一律写 0，文件里这些字节的内容会丢失。
+/// </para>
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct Building
@@ -41,7 +45,7 @@ public struct Building
     public byte AviationLevel;
     public byte MissileLevel;
     public byte NuclearLevel;
-    public int Reserved4;
+    public short Reserved4;
 
     /// <summary>
     /// 从字节数组解析建筑数据
@@ -60,9 +64,12 @@ public struct Building
             DecorativeBuilding = data[offset + 7],
             SkillUnlock = data[offset + 8],
             RewardCount = data[offset + 9],
+            Reserved1 = BitConverter.ToInt16(data[(offset + 10)..]),
             HatredValue = data[offset + 12],
             KeyPoint = data[offset + 13],
             OccupationEvent = data[offset + 14],
+            Reserved2 = data[offset + 15],
+            Reserved3 = BitConverter.ToInt32(data[(offset + 16)..]),
             FireIgnition = data[offset + 20],
             FireDuration = data[offset + 21],
             AirDefenseWeapon = data[offset + 22],
@@ -72,7 +79,8 @@ public struct Building
             MedicalLevel = data[offset + 26],
             AviationLevel = data[offset + 27],
             MissileLevel = data[offset + 28],
-            NuclearLevel = data[offset + 29]
+            NuclearLevel = data[offset + 29],
+            Reserved4 = BitConverter.ToInt16(data[(offset + 30)..])
         };
     }
 
@@ -89,9 +97,12 @@ public struct Building
         data[offset + 7] = DecorativeBuilding;
         data[offset + 8] = SkillUnlock;
         data[offset + 9] = RewardCount;
+        BitConverter.TryWriteBytes(data[(offset + 10)..], Reserved1);
         data[offset + 12] = HatredValue;
         data[offset + 13] = KeyPoint;
         data[offset + 14] = OccupationEvent;
+        data[offset + 15] = Reserved2;
+        BitConverter.TryWriteBytes(data[(offset + 16)..], Reserved3);
         data[offset + 20] = FireIgnition;
         data[offset + 21] = FireDuration;
         data[offset + 22] = AirDefenseWeapon;
@@ -102,6 +113,7 @@ public struct Building
         data[offset + 27] = AviationLevel;
         data[offset + 28] = MissileLevel;
         data[offset + 29] = NuclearLevel;
+        BitConverter.TryWriteBytes(data[(offset + 30)..], Reserved4);
     }
 
     /// <summary>

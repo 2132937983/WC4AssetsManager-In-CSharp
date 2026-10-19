@@ -1,0 +1,6 @@
+{
+  "Cli.UnitPlace.Total": "单位位置总数: {0}（文件头 A 组 {1} 条，B 组 {2} 条）",
+  "Cli.UnitPlace.Row": "[{0}] {1} 组  坐标={2} {3}  方向={4} 序号={5} 未知={6} 运输船={7}",
+  "Cli.UnitPlace.Cell": "（列 {0}，行 {1}）",
+  "Cli.UnitPlace.Empty": "空位"
+}

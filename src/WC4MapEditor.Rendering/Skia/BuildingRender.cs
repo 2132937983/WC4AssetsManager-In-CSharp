@@ -4,6 +4,7 @@ using SkiaSharp;
 using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Helpers;
 using WC4MapEditor.Core.Models;
+using WC4MapEditor.Core.Modifiers;
 
 namespace WC4MapEditor.Rendering.Skia;
 
@@ -13,6 +14,13 @@ public class BuildingRender : IDisposable
     private const double FACILITY_IMAGE_SCALE = 0.45;
     private const double KEY_POINT_ELLIPSE_SCALE = 1.8;
     private const byte KEY_POINT_ALPHA = 128;
+
+    /// <summary>省会同省格子高亮：青色、半透明、六边形缩到 0.8（对齐 VB DrawSameProvinceHexes）。</summary>
+    private const float PROVINCE_HIGHLIGHT_SCALE = 0.8f;
+    private const byte PROVINCE_HIGHLIGHT_ALPHA = 80;
+
+    /// <summary>移动工具拖拽虚影的不透明度（对齐 VB DrawDragBuilding 的 alpha 128）。</summary>
+    private const byte DRAG_GHOST_ALPHA = 128;
 
     private readonly Camera _camera;
     private readonly MapData _mapData;
@@ -67,6 +75,9 @@ public class BuildingRender : IDisposable
     private readonly SKPaint _buildingNamePaint;
     private readonly SKPaint _buildingNameShadowPaint;
     private readonly SKPaint _fallbackTrianglePaint;
+    private readonly SKPaint _provinceHighlightPaint;
+    private readonly SKPaint _dragGhostPaint;
+    private readonly SKPaint _dragGhostTrianglePaint;
 
     public bool ShowBuildingNames
     {
@@ -88,6 +99,9 @@ public class BuildingRender : IDisposable
         _buildingNamePaint = new SKPaint { Color = SKColors.White, IsAntialias = true };
         _buildingNameShadowPaint = new SKPaint { Color = SKColors.Black, IsAntialias = true };
         _fallbackTrianglePaint = new SKPaint { Color = SKColors.Black, IsAntialias = true, Style = SKPaintStyle.Fill };
+        _provinceHighlightPaint = new SKPaint { Color = SKColors.Cyan.WithAlpha(PROVINCE_HIGHLIGHT_ALPHA), IsAntialias = true, Style = SKPaintStyle.Fill };
+        _dragGhostPaint = new SKPaint { Color = SKColors.White.WithAlpha(DRAG_GHOST_ALPHA), IsAntialias = true };
+        _dragGhostTrianglePaint = new SKPaint { Color = SKColors.Black.WithAlpha(DRAG_GHOST_ALPHA), IsAntialias = true, Style = SKPaintStyle.Fill };
 
         LoadCityNames();
         InitializeTextureAtlases();
@@ -193,7 +207,7 @@ public class BuildingRender : IDisposable
         if (_cityNameCache.TryGetValue(nameId, out string? cached))
             return cached;
 
-        string cityName = _cityNames.TryGetValue(nameId, out string? name) ? name : $"城市{nameId}";
+        string cityName = _cityNames.TryGetValue(nameId, out string? name) ? name : Loc.F("Render.Building.CityFallback", nameId);
         _cityNameCache[nameId] = cityName;
         return cityName;
     }
@@ -242,9 +256,26 @@ public class BuildingRender : IDisposable
 
     public void Render(SKCanvas canvas, bool showFacilities = true)
     {
-        if (canvas == null || _mapData?.Buildings == null || _mapData.Buildings.Count == 0)
+        if (canvas == null || _mapData?.Buildings == null)
             return;
 
+        // 建筑编辑模式的叠加内容：同省高亮压在建筑下面，拖拽虚影画在本层最上面
+        var overlay = BuildingEditOverlay.Find(_mapData);
+        var (startCol, endCol, startRow, endRow) = GetVisibleRange();
+
+        if (overlay is { HighlightProvince: >= 0 })
+            DrawProvinceHighlight(canvas, overlay.HighlightProvince, startCol, endCol, startRow, endRow);
+
+        if (_mapData.Buildings.Count > 0)
+            RenderBuildings(canvas, showFacilities, startCol, endCol, startRow, endRow);
+
+        if (overlay?.DragBuilding is { } dragged)
+            DrawDragGhost(canvas, dragged, (float)overlay.DragScreenX, (float)overlay.DragScreenY);
+    }
+
+    /// <summary>当前视口里可见的列 / 行范围（左闭右开，带少量外扩，保证边缘的大图标不被裁掉）。</summary>
+    private (int StartCol, int EndCol, int StartRow, int EndRow) GetVisibleRange()
+    {
         var visibleBounds = _camera.GetVisibleWorldBounds();
         double zoomLevel = _camera.ZoomLevel;
         double hexWidth = Camera.BaseHexSize * 2 * zoomLevel;
@@ -255,7 +286,11 @@ public class BuildingRender : IDisposable
         int endCol = Math.Min(_mapData.MapWidth, (int)((visibleBounds.MaxX + 50 * zoomLevel) / (hexWidth * 0.75)) + margin + 1);
         int startRow = Math.Max(0, (int)((visibleBounds.MinY - 50 * zoomLevel) / hexHeight) - margin);
         int endRow = Math.Min(_mapData.MapHeight, (int)((visibleBounds.MaxY + 50 * zoomLevel) / hexHeight) + margin + 2);
+        return (startCol, endCol, startRow, endRow);
+    }
 
+    private void RenderBuildings(SKCanvas canvas, bool showFacilities, int startCol, int endCol, int startRow, int endRow)
+    {
         float scaledHexSize = (float)(Camera.BaseHexSize * _camera.ZoomLevel);
         int buildingImageSize = (int)(scaledHexSize * BUILDING_IMAGE_SCALE);
         int facilityImageSize = (int)(scaledHexSize * FACILITY_IMAGE_SCALE);
@@ -509,13 +544,75 @@ public class BuildingRender : IDisposable
     }
 
     private void RenderFallbackTriangle(SKCanvas canvas, float screenX, float screenY, float size)
+        => RenderFallbackTriangle(canvas, screenX, screenY, size, _fallbackTrianglePaint);
+
+    private static void RenderFallbackTriangle(SKCanvas canvas, float screenX, float screenY, float size, SKPaint paint)
     {
         using var path = new SKPath();
         path.MoveTo(screenX, screenY - size);
         path.LineTo(screenX - size * 0.866f, screenY + size * 0.5f);
         path.LineTo(screenX + size * 0.866f, screenY + size * 0.5f);
         path.Close();
-        canvas.DrawPath(path, _fallbackTrianglePaint);
+        canvas.DrawPath(path, paint);
+    }
+
+    /// <summary>
+    /// 用青色半透明六边形铺满省份值等于 <paramref name="provinceValue"/> 的可见格子（左键点中省会时的同省高亮）。
+    /// 每帧按当前省份数据现算，省份被编辑后高亮自动跟着变。
+    /// </summary>
+    private void DrawProvinceHighlight(SKCanvas canvas, int provinceValue, int startCol, int endCol, int startRow, int endRow)
+    {
+        float hexSize = (float)(Camera.BaseHexSize * _camera.ZoomLevel) * PROVINCE_HIGHLIGHT_SCALE;
+        float halfSize = hexSize / 2;
+        float halfHeight = hexSize * (float)Math.Sqrt(3) / 2;
+
+        using var hexPath = new SKPath();
+        hexPath.MoveTo(-halfSize, -halfHeight);
+        hexPath.LineTo(halfSize, -halfHeight);
+        hexPath.LineTo(hexSize, 0);
+        hexPath.LineTo(halfSize, halfHeight);
+        hexPath.LineTo(-halfSize, halfHeight);
+        hexPath.LineTo(-hexSize, 0);
+        hexPath.Close();
+
+        for (int row = startRow; row < endRow; row++)
+        {
+            for (int col = startCol; col < endCol; col++)
+            {
+                if (_mapData.GetProvince(col, row).ProvinceValue != provinceValue) continue;
+
+                var (screenX, screenY) = _camera.HexToScreen(col, row);
+                canvas.Save();
+                canvas.Translate((float)screenX, (float)screenY);
+                canvas.DrawPath(hexPath, _provinceHighlightPaint);
+                canvas.Restore();
+            }
+        }
+    }
+
+    /// <summary>移动工具拖拽中的半透明建筑，跟随鼠标（对齐 VB DrawDragBuilding，尺寸与地图上的建筑一致）。</summary>
+    private void DrawDragGhost(SKCanvas canvas, Building building, float screenX, float screenY)
+    {
+        float scaledHexSize = (float)(Camera.BaseHexSize * _camera.ZoomLevel);
+        int imageSize = (int)(scaledHexSize * BUILDING_IMAGE_SCALE);
+        string cacheKey = GetBuildingCacheKey(building);
+
+        lock (_atlasLock)
+        {
+            if (_buildingAtlas == null
+                || !_buildingAtlasMap.TryGetValue(cacheKey, out var srcRect)
+                || !_buildingOriginalSize.TryGetValue(cacheKey, out var originalSize))
+            {
+                RenderFallbackTriangle(canvas, screenX, screenY, imageSize * 0.5f, _dragGhostTrianglePaint);
+                return;
+            }
+
+            float scale = Math.Min(imageSize / originalSize.Width, imageSize / originalSize.Height);
+            float drawWidth = originalSize.Width * scale;
+            float drawHeight = originalSize.Height * scale;
+            var dstRect = new SKRect(screenX - drawWidth / 2, screenY - drawHeight / 2, screenX + drawWidth / 2, screenY + drawHeight / 2);
+            canvas.DrawImage(_buildingAtlas, srcRect, dstRect, _dragGhostPaint);
+        }
     }
 
     #endregion
@@ -620,6 +717,9 @@ public class BuildingRender : IDisposable
         _buildingNamePaint?.Dispose();
         _buildingNameShadowPaint?.Dispose();
         _fallbackTrianglePaint?.Dispose();
+        _provinceHighlightPaint?.Dispose();
+        _dragGhostPaint?.Dispose();
+        _dragGhostTrianglePaint?.Dispose();
         _buildingNameFont?.Dispose();
         _facilityLevelFont?.Dispose();
 

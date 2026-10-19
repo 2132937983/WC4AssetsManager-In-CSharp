@@ -9,7 +9,7 @@ namespace WC4MapEditor.Core.Services;
 /// 流程：背景图整幅转灰度 → 求界线掩码（深色线 + 灰度梯度，再膨胀补断口）→
 /// 在<b>像素级</b>把非界线像素分成一个个连通区域（即"像素省区"）→
 /// 把像素区域按六边形几何映射回地图格子 → 每片格子区域内以省会格为源做多源扩展 →
-/// 界线格就近吸收 → 写回省区值（跳过省会格与海洋）。
+/// 界线格就近吸收 → 写回省区值（跳过海洋；省会格写成自身索引）。
 /// </para>
 /// <para>
 /// 两个关键点决定了效果：
@@ -105,26 +105,7 @@ public static class BackgroundProvinceGenerator
 
         int total = mapWidth * mapHeight;
 
-        // 省会（省区中心点）所在格子：既是"区域是否可填充"的判据，也是扩展源。
-        // 两种来源都算：
-        //   1) 军团编辑模式 F 键设置的 Capital 列表；
-        //   2) "省区值 == 自身索引"的格子 —— 省份编辑模式 X 键写入的约定，
-        //      渲染层画省会标记用的也正是它。
-        var capitalIndices = new HashSet<int>();
-        foreach (var capital in mapData.Capitals)
-        {
-            int idx = capital.Coordinate;
-            if (idx >= 0 && idx < total)
-                capitalIndices.Add(idx);
-        }
-
-        for (int i = 0; i < total; i++)
-        {
-            ref var provinceRef = ref mapData.GetProvinceRef(i);
-            if (provinceRef.IsValid && provinceRef.ProvinceValue == i)
-                capitalIndices.Add(i);
-        }
-
+        var capitalIndices = CollectCapitalIndices(mapData);
         if (capitalIndices.Count == 0) return null;
 
         // ---------- 1. 背景图 → 灰度图 ----------
@@ -381,7 +362,6 @@ public static class BackgroundProvinceGenerator
 
         int regionCount = 0;
         int filledRegions = 0;
-        int filledCells = 0;
         int skippedRegions = 0;
 
         for (int start = 0; start < total; start++)
@@ -491,24 +471,7 @@ public static class BackgroundProvinceGenerator
         }
 
         // ---------- 8. 按归属写回省区值 ----------
-        for (int index = 0; index < total; index++)
-        {
-            int sourceIndex = owner[index];
-            if (sourceIndex < 0) continue;
-
-            // 省会格一律保留原值：既避免把用户设好的省会冲掉，
-            // 也保证"省区值 == 省会索引"的约定不被破坏。
-            if (capitalIndices.Contains(index)) continue;
-
-            // 海洋不属于任何省区
-            if (IsSeaTerrain(mapData, index)) continue;
-
-            int col = index % mapWidth;
-            int row = index / mapWidth;
-            ushort provinceValue = (ushort)(sourceIndex <= 0xFFFF ? sourceIndex : sourceIndex % 0x10000);
-            mapData.GetProvinceRef(col, row).ProvinceValue = provinceValue;
-            filledCells++;
-        }
+        int filledCells = WriteOwners(mapData, owner, capitalIndices);
 
         return new Result(
             regionCount, filledRegions, filledCells, skippedRegions,
@@ -636,12 +599,70 @@ public static class BackgroundProvinceGenerator
     }
 
     /// <summary>
-    /// 是否为海洋格（TileType1 == 1），判据与 <c>ProvinceModifier.IsSeaTerrain</c> 一致。
-    /// 海洋不参与省区填充。
+    /// 省会（省区中心点）所在格子：既是"区域是否可填充"的判据，也是扩展源。两种来源都算：
+    /// 1) 军团编辑模式 F 键设置的 Capital 列表；
+    /// 2) "省区值 == 自身索引"的格子 —— 省份编辑模式 X 键写入的约定，渲染层画省会标记用的也正是它。
+    /// 省区值表示不了的索引（<see cref="Province.CanBeCapitalIndex"/>：格子 0 与超过 65534 的格子）不能当省会
+    /// （以前对 65536 取模，结果指向一个毫不相干的格子）。
+    /// 手绘边界生成器（<see cref="DrawnBoundaryProvinceGenerator"/>）用同一套规则。
     /// </summary>
-    private static bool IsSeaTerrain(MapData mapData, int index)
+    internal static HashSet<int> CollectCapitalIndices(MapData mapData)
     {
-        return mapData.GetTerrainRef(index).TileType1 == 1;
+        int total = mapData.MapWidth * mapData.MapHeight;
+        int limit = Math.Min(total, Province.EmptyValue);
+        var capitalIndices = new HashSet<int>();
+
+        foreach (var capital in mapData.Capitals)
+        {
+            int idx = capital.Coordinate;
+            if (idx < total && Province.CanBeCapitalIndex(idx))
+                capitalIndices.Add(idx);
+        }
+
+        for (int i = 1; i < limit; i++)
+        {
+            ref var provinceRef = ref mapData.GetProvinceRef(i);
+            if (provinceRef.IsValid && provinceRef.ProvinceValue == i)
+                capitalIndices.Add(i);
+        }
+
+        return capitalIndices;
+    }
+
+    /// <summary>
+    /// 按归属写回省区值（<paramref name="owner"/>[格] = 归属的省会索引，-1 = 无归属），返回写入的格子数。
+    /// <para>
+    /// 省会格写成它自己的索引：Capitals 列表里的首都格原值未必等于自身索引（例如新地图上先在军团模式设了首都），
+    /// 不写的话整片省区指向一个"不是省会"的格子 —— 没有省会标记，G / E / I / T 也不认它。
+    /// 被别的省会吸收的省会格（落在界线上）保留原值，不把用户设好的省会冲掉。
+    /// 海洋不属于任何省区（省会格除外）。手绘边界生成器共用这一步。
+    /// </para>
+    /// </summary>
+    internal static int WriteOwners(MapData mapData, int[] owner, HashSet<int> capitalIndices)
+    {
+        int written = 0;
+        for (int index = 0; index < owner.Length; index++)
+        {
+            int sourceIndex = owner[index];
+            if (sourceIndex < 0) continue;
+
+            ref var province = ref mapData.GetProvinceRef(index);
+            if (capitalIndices.Contains(index))
+            {
+                if (sourceIndex == index && province.ProvinceValue != index)
+                {
+                    province.ProvinceValue = (ushort)index;
+                    written++;
+                }
+                continue;
+            }
+
+            if (mapData.GetTerrainRef(index).TileType1 == 1) continue;
+
+            province.ProvinceValue = (ushort)sourceIndex;
+            written++;
+        }
+        return written;
     }
 
     /// <summary>

@@ -1,0 +1,29 @@
+{
+  "Mode.HelpTitle": "{0} mode:",
+  "Mode.Browse": "Browse",
+  "Mode.SwitchTo": "Switch to {0} mode",
+  "Mode.Help.NoMode": "No edit mode selected. Press Space to switch modes.",
+  "Mode.Help.Footer.Space": "Space - switch mode",
+  "Mode.Help.Footer.Esc": "Esc - back to the main screen",
+  "Mode.Status.NotInScene": "{0} mode is not available in this scene",
+  "Mode.Status.ActionFailed": "{0}: action {1} failed: {2}",
+  "Mode.Status.EditorUnavailable": "Editor window {0} is not available (not implemented yet, or no GUI)",
+  "Mode.Status.EditorFailed": "Could not open editor window {0}: {1}",
+
+  "Mode.Event.Name": "Events",
+  "Mode.AirForce.Name": "Air raids",
+  "Mode.MapCase.Name": "AI plans",
+  "Mode.Strategic.Name": "Strategic construction",
+  "Mode.Weather.Name": "Weather",
+
+  "Key.Space": "Space",
+  "Key.Left": "←",
+  "Key.Up": "↑",
+  "Key.Right": "→",
+  "Key.Down": "↓",
+  "Key.Mouse.LeftClick": "Left click",
+  "Key.Mouse.RightClick": "Right click",
+  "Key.Mouse.RightDrag": "Right drag",
+  "Key.Mouse.LeftDrag": "Left drag",
+  "Key.Mouse.Wheel": "Wheel"
+}

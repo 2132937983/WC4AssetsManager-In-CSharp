@@ -28,6 +28,7 @@ public class SkiaRenderEngine : IRenderEngine
     private AirForceRender? _airForceRender;
     private WeatherRender? _weatherRender;
     private MapCaseRender? _mapCaseRender;
+    private ClippedTileRender? _clippedTileRender;
     private SelectionRender? _selectionRender;
     private OverlayRender? _overlayRender;
     private GeoRulerRender? _geoRulerRender;
@@ -54,16 +55,24 @@ public class SkiaRenderEngine : IRenderEngine
     public bool EnableAirForceRender { get; set; }
     public bool EnableWeatherRender { get; set; }
     public bool EnableMapCaseRender { get; set; }
+    public bool EnableClippedTileRender { get; set; }
 
+    /// <summary>
+    /// 建筑名称开关。值由引擎保存：建筑渲染器是按需创建的（首次打开建筑层的那一帧），
+    /// 换图后也会重建，新建的渲染器要沿用这里的值，否则地形模式"不显示名称"之类的设置会丢。
+    /// </summary>
     public bool ShowBuildingNames
     {
-        get => _buildingRender?.ShowBuildingNames ?? true;
+        get => _showBuildingNames;
         set
         {
+            _showBuildingNames = value;
             if (_buildingRender != null)
                 _buildingRender.ShowBuildingNames = value;
         }
     }
+
+    private bool _showBuildingNames = true;
 
     public GeoRulerRender? GeoRuler
     {
@@ -156,6 +165,20 @@ public class SkiaRenderEngine : IRenderEngine
         get => _overlayRender?.HelpOpacity ?? 1.0f;
         set { if (_overlayRender != null) _overlayRender.HelpOpacity = value; }
     }
+
+    public bool IsHelpFading => _overlayRender?.IsFading ?? false;
+
+    public int HelpBottomMargin
+    {
+        get => _helpBottomMargin;
+        set
+        {
+            _helpBottomMargin = Math.Max(0, value);
+            if (_overlayRender != null) _overlayRender.HelpBottomMargin = _helpBottomMargin;
+        }
+    }
+
+    private int _helpBottomMargin;
 
     public void UpdateHelpFadeAnimation()
     {
@@ -250,7 +273,8 @@ public class SkiaRenderEngine : IRenderEngine
             HelpText = _helpText,
             ModeName = _modeName,
             ShowHelp = _showHelp,
-            ShowModeName = _showModeName
+            ShowModeName = _showModeName,
+            HelpBottomMargin = _helpBottomMargin
         });
         _geoRulerRender = Timed("GeoRulerRender", () => new GeoRulerRender());
         _legionDomainRender = Timed("LegionDomainRender", () => new LegionDomainRender());
@@ -270,7 +294,7 @@ public class SkiaRenderEngine : IRenderEngine
         if (_buildingRender == null && EnableBuildingRender)
         {
             anyCreated = true;
-            _buildingRender = Timed("BuildingRender", () => new BuildingRender(camera, mapData));
+            _buildingRender = Timed("BuildingRender", () => new BuildingRender(camera, mapData) { ShowBuildingNames = _showBuildingNames });
         }
         if (_armyRender == null && EnableArmyRender)
         {
@@ -318,6 +342,52 @@ public class SkiaRenderEngine : IRenderEngine
             Debug.WriteLine($"[Timing] InitializeEntityRenderers 总计: {total.ElapsedMilliseconds}ms");
     }
 
+    // 实体渲染器构造时就绑定了 Camera 与 MapData（存在只读字段里）。打开 / 新建 / 切换场景会换掉这两样，
+    // 引擎却还是同一个：不重建的话，这些层会一直画上一张地图，而且不再跟随平移缩放。
+    private MapData? _entityMapData;
+    private Camera? _entityCamera;
+
+    /// <summary>
+    /// 本帧的地图或相机与实体渲染器绑定的不是同一个对象时，释放实体渲染器（下面按需重建）；
+    /// 换了地图时还要让按地图缓存的数据（地形 / 海岸、省份、领域配色、国旗图集）失效。
+    /// </summary>
+    private void RebindEntityRenderersIfNeeded(Camera camera, MapData mapData)
+    {
+        if (ReferenceEquals(_entityMapData, mapData) && ReferenceEquals(_entityCamera, camera)) return;
+
+        bool mapReplaced = _entityMapData != null && !ReferenceEquals(_entityMapData, mapData);
+        _entityMapData = mapData;
+        _entityCamera = camera;
+
+        DisposeEntityRenderers();
+        if (mapReplaced) InvalidateMapCaches(mapData);
+    }
+
+    private void DisposeEntityRenderers()
+    {
+        _buildingRender?.Dispose(); _buildingRender = null;
+        _armyRender?.Dispose(); _armyRender = null;
+        _trapRender?.Dispose(); _trapRender = null;
+        _reinforceRender?.Dispose(); _reinforceRender = null;
+        _reinforceRenderNew?.Dispose(); _reinforceRenderNew = null;
+        _strategicConstructionRender?.Dispose(); _strategicConstructionRender = null;
+        _airForceRender?.Dispose(); _airForceRender = null;
+        _weatherRender?.Dispose(); _weatherRender = null;
+        _mapCaseRender?.Dispose(); _mapCaseRender = null;
+    }
+
+    private void InvalidateMapCaches(MapData mapData)
+    {
+        _backgroundRender?.InvalidateCache();
+        // 海岸装饰数组按地图尺寸分配：尺寸不同的新地图必须整张重算，否则海岸线错位
+        _backgroundRender?.InvalidateCoastCacheFull(mapData);
+        _provinceRender?.InvalidateCache();
+        _legionDomainRender?.InvalidateCache();
+        _belongFlagRender?.InvalidateCache();
+        _capitalFlagRender?.InvalidateProvinceLegionCache();
+        _viewLayerCacheValid = false;
+    }
+
     public void Resize(int width, int height)
     {
         if (_backgroundRender != null)
@@ -361,6 +431,7 @@ public class SkiaRenderEngine : IRenderEngine
         canvas.Clear(SKColors.Black);
 
         InitializeTerrainRenderers();
+        RebindEntityRenderersIfNeeded(camera, mapData);
         InitializeEntityRenderers(camera, mapData);
 
         if (EnableBackgroundRender && _backgroundRender != null)
@@ -370,8 +441,6 @@ public class SkiaRenderEngine : IRenderEngine
                 EnableBackgroundRender, EnableTerrainsRender);
             _backgroundRender.Render(canvas, mapData);
         }
-
-        RenderViewLayer(canvas, camera);
 
         if (_provinceRender != null)
         {
@@ -447,6 +516,13 @@ public class SkiaRenderEngine : IRenderEngine
             _belongFlagRender.Render(canvas, mapData);
         }
 
+        // 将领头像压在归属国旗之上（对齐 VB MainRender：国旗之后再画头像，免得被国旗挡住）。
+        // 头像位置由本帧前面的 _armyRender.Render 收集。
+        if (EnableArmyRender && _armyRender != null)
+        {
+            _armyRender.RenderGeneralHeadsOnly(canvas);
+        }
+
         if (EnableWeatherRender && _weatherRender != null)
         {
             _weatherRender.Render(canvas);
@@ -456,6 +532,18 @@ public class SkiaRenderEngine : IRenderEngine
         {
             _mapCaseRender.Render(canvas);
         }
+
+        // 数据范围外的格子：红叉画在实体层之上、选区之下（对齐 VB 版各模式 DrawSkia 里的裁剪区标记）
+        if (EnableClippedTileRender)
+        {
+            _clippedTileRender ??= new ClippedTileRender();
+            _clippedTileRender.Render(canvas, mapData, camera.OffsetX, camera.OffsetY, camera.ZoomLevel,
+                (int)camera.ViewportWidth, (int)camera.ViewportHeight);
+        }
+
+        // 参考底图（视图层）叠在全部地图层之上、选区之下（对齐 VB MainRender 的绘制顺序）：
+        // 半透明底图要能盖在省份配色与实体上，描图时才看得清两者是否对齐。
+        RenderViewLayer(canvas, camera);
 
         if (EnableSelectionRender && _selectionRender != null)
         {
@@ -754,8 +842,6 @@ public class SkiaRenderEngine : IRenderEngine
         using var cacheCanvas = new SKCanvas(_viewLayerCache);
         cacheCanvas.Clear(SKColors.Transparent);
 
-        const double baseHexSize = 20.0;
-
         double mapPixelWidth = _backgroundRender.MapPixelWidth * currentZoom;
         double mapPixelHeight = _backgroundRender.MapPixelHeight * currentZoom;
 
@@ -887,6 +973,7 @@ public class SkiaRenderEngine : IRenderEngine
         _airForceRender?.Dispose();
         _weatherRender?.Dispose();
         _mapCaseRender?.Dispose();
+        _clippedTileRender?.Dispose();
         _selectionRender?.Dispose();
         _overlayRender?.Dispose();
         _geoRulerRender?.Dispose();

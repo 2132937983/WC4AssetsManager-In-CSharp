@@ -1,22 +1,20 @@
 using System.Globalization;
 using System.Reflection;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Effects;
-using WC4MapEditor.Core.Models;
+using WC4MapEditor.Core.Mode;
+using WC4MapEditor.GUI.Services;
 
 namespace WC4MapEditor.GUI.Views.Assist;
 
 /// <summary>
-/// 头部数据编辑窗口 - 对齐 VB 版 Assist/HeaderSetting。
+/// 头部数据编辑窗口 - 对齐 VB 版 Assist/HeaderSetting（军团编辑模式 E 键，<see cref="EditorKinds.HeaderSetting"/>）。
 /// <para>
 /// 编辑 BTL 文件头的 27 个整型字段（版本/地图尺寸/各类数量/回合数/累积资源等）。
-/// 窗口内编辑的是副本，点击"保存并关闭"才写回原对象，因此"取消"不会产生任何改动。
+/// "保存并关闭"只写回改过的字段（窗口打开期间别处改动的计数不会被旧值覆盖），整次保存记一条撤销；
+/// "取消" / Esc / ✕ 不产生任何改动。
 /// </para>
 /// </summary>
-public sealed class HeaderSettingWindow : Window
+[AssistEditor(EditorKinds.HeaderSetting)]
+public sealed class HeaderSettingWindow : Window, IAssistEditor
 {
     /// <summary>字段定义：显示名 / BTLHeader 属性名 / 鼠标提示。按实例构建，文字随当前语言而不是缓存在类型里。</summary>
     private readonly (string Label, string Prop, string Tip)[] _fieldDefs = BuildFieldDefs();
@@ -65,16 +63,15 @@ public sealed class HeaderSettingWindow : Window
             .Where(p => p.PropertyType == typeof(int) && p.CanWrite)
             .ToDictionary(p => p.Name);
 
-    private readonly BTLHeader _target;
-    private readonly BTLHeader _working;
     private readonly Dictionary<string, TextBox> _boxes = new();
+    private AssistEditorContext _context = null!;
 
-    public HeaderSettingWindow(BTLHeader header)
+    /// <summary>打开（或重置）时的头部数据副本：保存时只写回与它不同的字段</summary>
+    private BTLHeader _loaded = new();
+
+    public HeaderSettingWindow()
     {
         EditorTheme.Apply(this);
-        _target = header ?? throw new ArgumentNullException(nameof(header));
-        // 通过序列化往返得到独立副本，保证取消不产生副作用
-        _working = BTLHeader.Parse(_target.ToBytes());
 
         Title = Loc.T("Assist.Header.Title");
         Width = 620;
@@ -85,28 +82,22 @@ public sealed class HeaderSettingWindow : Window
         AllowsTransparency = true;
         // 无边框圆角卡片 + 投影需要窗口本身透明；主题底色放在内部卡片 Border 上
         Background = Brushes.Transparent;
-
-        Content = CreateUI();
-        LoadValues();
+        ShowInTaskbar = false;
 
         PreviewKeyDown += OnPreviewKeyDown;
 
         Opacity = 0;
-        Loaded += (_, _) =>
-        {
-            var fadeIn = new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150));
-            BeginAnimation(OpacityProperty, fadeIn);
-        };
+        Loaded += (_, _) => BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150)));
     }
 
-    /// <summary>以模态方式显示头部数据编辑窗口，返回是否保存了修改</summary>
-    public static bool ShowDialog(Window? owner, BTLHeader header)
+    void IAssistEditor.Attach(AssistEditorContext context)
     {
-        var window = new HeaderSettingWindow(header);
-        if (owner != null && !ReferenceEquals(owner, window))
-            window.Owner = owner;
-        return window.ShowDialog() == true;
+        _context = context;
+        Content = CreateUI();
+        LoadValues();
     }
+
+    private BTLHeader Target => _context.MapData.Header;
 
     // ------------------------------------------------------------------ UI
 
@@ -160,7 +151,7 @@ public sealed class HeaderSettingWindow : Window
         Grid.SetColumn(label, 0);
         panel.Children.Add(label);
 
-        var close = EditorTheme.GhostButton("✕", (_, _) => CancelAndClose());
+        var close = EditorTheme.GhostButton("✕", (_, _) => Close());
         close.Width = 28;
         close.Height = 28;
         close.Padding = new Thickness(0);
@@ -168,6 +159,10 @@ public sealed class HeaderSettingWindow : Window
         Grid.SetColumn(close, 1);
         panel.Children.Add(close);
 
+        panel.MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.ButtonState == MouseButtonState.Pressed) DragMove();
+        };
         return panel;
     }
 
@@ -210,7 +205,8 @@ public sealed class HeaderSettingWindow : Window
 
             Grid.SetColumn(row, rightColumn ? 2 : 0);
             Grid.SetRow(row, rowIndex);
-            panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            if (panel.RowDefinitions.Count <= rowIndex)
+                panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             panel.Children.Add(row);
         }
 
@@ -242,7 +238,7 @@ public sealed class HeaderSettingWindow : Window
         save.Margin = new Thickness(8, 0, 0, 0);
         panel.Children.Add(save);
 
-        var cancel = EditorTheme.Button(Loc.T("Common.Cancel"), (_, _) => CancelAndClose());
+        var cancel = EditorTheme.Button(Loc.T("Common.Cancel"), (_, _) => Close());
         cancel.MinWidth = 96;
         cancel.Margin = new Thickness(8, 0, 0, 0);
         panel.Children.Add(cancel);
@@ -252,56 +248,83 @@ public sealed class HeaderSettingWindow : Window
 
     // -------------------------------------------------------------- 数据
 
+    /// <summary>从地图的当前头部数据重新载入（打开时与"重置"）。</summary>
     private void LoadValues()
     {
+        _loaded = Copy(Target);
         foreach (var def in _fieldDefs)
         {
             if (!_boxes.TryGetValue(def.Prop, out var box)) continue;
             if (!HeaderProps.TryGetValue(def.Prop, out var prop)) continue;
 
-            object? value = prop.GetValue(_working);
+            object? value = prop.GetValue(_loaded);
             box.Text = Convert.ToString(value, CultureInfo.InvariantCulture) ?? "0";
         }
     }
 
+    /// <summary>
+    /// 校验全部输入，把改过的字段写回地图头部数据并记录撤销（撤销时整体还原保存前的头部数据），然后关闭。
+    /// 头部里的裁剪区与尺寸会影响归属换算和红叉显示，所以按"全部数据"通知场景刷新。
+    /// </summary>
     private void SaveAndClose()
     {
         var errors = new List<string>();
+        var changes = new List<(PropertyInfo Prop, int Value)>();
 
         foreach (var def in _fieldDefs)
         {
             if (!_boxes.TryGetValue(def.Prop, out var box)) continue;
             if (!HeaderProps.TryGetValue(def.Prop, out var prop)) continue;
 
-            string text = box.Text.Trim();
-            if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+            if (!int.TryParse(box.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
             {
                 errors.Add(Loc.F("Assist.Header.IntegerRequired", def.Label));
                 continue;
             }
 
-            prop.SetValue(_working, value);
+            if (value != (int)prop.GetValue(_loaded)!) changes.Add((prop, value));
         }
 
         if (errors.Count > 0)
         {
-            MessageBox.Show(string.Join("\n", errors), Loc.T("Common.InputError"),
+            MessageBox.Show(this, string.Join("\n", errors), Loc.T("Common.InputError"),
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
-        // 写回原对象
-        foreach (var prop in HeaderProps.Values)
-            prop.SetValue(_target, prop.GetValue(_working));
+        if (changes.Count > 0)
+        {
+            var before = Copy(Target);
+            var after = Copy(Target);
+            foreach (var (prop, value) in changes) prop.SetValue(after, value);
 
-        DialogResult = true;
+            var map = _context.MapData;
+            _context.Editor.RecordEntityChange(Loc.T("Assist.Header.UndoEdit", "修改头部数据"),
+                () => Restore(map, after), () => Restore(map, before));
+            _context.NotifyChanged(EditorDataScope.All);
+            _context.Status(Loc.F("Assist.Header.Updated", changes.Count));
+        }
+
         Close();
     }
 
-    private void CancelAndClose()
+    private static void Restore(MapData map, BTLHeader snapshot)
     {
-        DialogResult = false;
-        Close();
+        CopyInto(snapshot, map.Header);
+        map.IsModified = true;
+    }
+
+    private static BTLHeader Copy(BTLHeader source)
+    {
+        var copy = new BTLHeader();
+        CopyInto(source, copy);
+        return copy;
+    }
+
+    private static void CopyInto(BTLHeader source, BTLHeader target)
+    {
+        foreach (var prop in HeaderProps.Values)
+            prop.SetValue(target, prop.GetValue(source));
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -309,7 +332,7 @@ public sealed class HeaderSettingWindow : Window
         switch (e.Key)
         {
             case Key.Escape:
-                CancelAndClose();
+                Close();
                 e.Handled = true;
                 break;
             case Key.Enter:

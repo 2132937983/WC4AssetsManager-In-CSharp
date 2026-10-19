@@ -6,237 +6,166 @@ using WC4MapEditor.Core.Models;
 
 namespace WC4MapEditor.Core.Modifiers;
 
+/// <summary>
+/// 地形识别的结果：是否成功 / 是否被取消、给用户看的原因（失败或取消时），
+/// 以及每格识别出的第一层地形（格子序号 → 地形类型）。
+/// </summary>
+public sealed record TerrainRecognitionResult(bool Success, bool Cancelled, string Message, IReadOnlyList<(int Index, byte TileType)> TileTypes)
+{
+    public static TerrainRecognitionResult Fail(string message) => new(false, false, message, Array.Empty<(int, byte)>());
+}
+
+/// <summary>
+/// 按背景图（视图层图片）的颜色识别每格的第一层地形（颜色 → 地形的对应关系来自 setting.txt 的 ColorToTerrain）。
+/// <para>
+/// 只计算、不写地图：识别在后台线程进行，写入由调用方在 UI 线程里放进撤销记录
+/// （<see cref="TerrainModifier.ApplyRecognition"/>）。这样中途取消时地图保持原样，识别期间也不会有后台线程改地图。
+/// </para>
+/// </summary>
 public sealed class TerrainRecognizer
 {
     private MapData? _mapData;
     private IViewLayerImageProvider? _imageProvider;
 
-    public event Action<string>? StatusMessageChanged;
-    public event Action? RecognitionCompleted;
-
     public void UpdateMapData(MapData mapData) => _mapData = mapData;
 
     public void SetImageProvider(IViewLayerImageProvider provider) => _imageProvider = provider;
 
-    public async Task<(bool success, int modifiedCount)> RecognizeTerrainAsync(
+    /// <param name="progress">进度（已处理格数、总格数、当前行列），每前进 1% 报告一次。</param>
+    public async Task<TerrainRecognitionResult> RecognizeTerrainAsync(
         IProgress<(int current, int total, int row, int col)>? progress = null,
         CancellationToken cancellationToken = default)
     {
         if (_mapData == null)
-            return (false, 0);
+            return TerrainRecognitionResult.Fail(Loc.T("Module.Terrain.NoMap"));
 
         if (_imageProvider == null)
-        {
-            StatusMessageChanged?.Invoke("未找到视图层图片提供器");
-            Debug.WriteLine("[TerrainRecognizer] 失败: _imageProvider 为 null");
-            return (false, 0);
-        }
+            return TerrainRecognitionResult.Fail(Loc.T("Module.Terrain.Recognize.NoProvider"));
 
         if (!_imageProvider.HasImage)
-        {
-            StatusMessageChanged?.Invoke("未找到视图层图片，请先按O键加载图片");
-            Debug.WriteLine("[TerrainRecognizer] 失败: _imageProvider.HasImage 为 false");
-            return (false, 0);
-        }
+            return TerrainRecognitionResult.Fail(Loc.T("Module.Terrain.Recognize.NoImage"));
 
         var config = ConfigManager.Instance.GetColorToTerrainConfig();
         if (config.ColorMappings.Count == 0)
-        {
-            StatusMessageChanged?.Invoke("未找到ColorToTerrain配置，请检查setting.txt文件");
-            Debug.WriteLine("[TerrainRecognizer] 失败: ColorMappings 为空");
-            return (false, 0);
-        }
+            return TerrainRecognitionResult.Fail(Loc.T("Module.Terrain.Recognize.NoConfig"));
 
-        int bgWidth = _imageProvider.Width;
-        int bgHeight = _imageProvider.Height;
+        var imageProvider = _imageProvider;
+        int bgWidth = imageProvider.Width;
+        int bgHeight = imageProvider.Height;
         int mapWidth = _mapData.MapWidth;
         int mapHeight = _mapData.MapHeight;
 
         double hexWidth = Camera.HexHorizontalSpacing;
         double hexHeight = Camera.HexVerticalSpacing;
-
         double mapPixelWidth = mapWidth * hexWidth * 0.75 + hexWidth * 0.25;
         double mapPixelHeight = mapHeight * hexHeight + hexHeight * 0.5;
-
         double scaleX = mapPixelWidth / bgWidth;
         double scaleY = mapPixelHeight / bgHeight;
 
-        Debug.WriteLine($"[TerrainRecognizer] 原始图片尺寸: {bgWidth} x {bgHeight}");
-        Debug.WriteLine($"[TerrainRecognizer] 地图尺寸: {mapWidth} x {mapHeight}");
-        Debug.WriteLine($"[TerrainRecognizer] 六边形尺寸: {hexWidth} x {hexHeight}");
-        Debug.WriteLine($"[TerrainRecognizer] 地图世界尺寸: {mapPixelWidth:F1} x {mapPixelHeight:F1}");
-        Debug.WriteLine($"[TerrainRecognizer] 缩放比例: X={scaleX:F3}, Y={scaleY:F3}");
-        Debug.WriteLine($"[TerrainRecognizer] 颜色映射数量: {config.ColorMappings.Count}");
+        Debug.WriteLine($"[TerrainRecognizer] 图片 {bgWidth}x{bgHeight}，地图 {mapWidth}x{mapHeight}，缩放 X={scaleX:F3} Y={scaleY:F3}，颜色映射 {config.ColorMappings.Count} 条");
 
         int totalHexes = mapWidth * mapHeight;
-        int modifiedCount = 0;
-        int processedCount = 0;
-
         var stopwatch = Stopwatch.StartNew();
 
-        await Task.Run(() =>
+        var tileTypes = await Task.Run(() =>
         {
-            var localRandom = new Random();
+            var result = new List<(int Index, byte TileType)>(totalHexes);
+            var random = new Random();
+            int processed = 0;
+            int lastPercent = -1;
 
-            for (int row = 0; row < mapHeight; row++)
+            for (int row = 0; row < mapHeight && !cancellationToken.IsCancellationRequested; row++)
             {
-                if (cancellationToken.IsCancellationRequested)
-                    break;
-
-                for (int col = 0; col < mapWidth; col++)
+                for (int col = 0; col < mapWidth && !cancellationToken.IsCancellationRequested; col++)
                 {
-                    if (cancellationToken.IsCancellationRequested)
-                        break;
-                    var regionCoords = GetHexRegionOnOriginalImage(
-                        col, row, bgWidth, bgHeight,
-                        hexWidth, hexHeight, mapWidth, mapHeight,
-                        scaleX, scaleY);
+                    var region = GetHexRegionOnOriginalImage(col, row, bgWidth, bgHeight, hexWidth, hexHeight, mapWidth, mapHeight, scaleX, scaleY);
+                    byte[]? regionData = region == null ? null : imageProvider.ExtractRegionData(region.Value.X, region.Value.Y, region.Value.Width, region.Value.Height);
 
-                    if (regionCoords == null)
-                        continue;
-
-                    int x = regionCoords.Value.X;
-                    int y = regionCoords.Value.Y;
-                    int w = regionCoords.Value.Width;
-                    int h = regionCoords.Value.Height;
-
-                    byte[]? regionData = _imageProvider.ExtractRegionData(x, y, w, h);
-                    if (regionData == null || regionData.Length == 0)
-                        continue;
-
-                    int? bestTerrainType = null;
-                    double bestRatio = 0;
-
-                    foreach (var mapping in config.ColorMappings)
+                    if (regionData is { Length: > 0 } && PickTerrainType(regionData, config, random) is int terrainType)
                     {
-                        double ratio = CalculateColorRatio(regionData, mapping.ColorValue);
-                        if (ratio >= config.MinRatio && ratio > bestRatio)
-                        {
-                            if (mapping.TerrainTypes.Count > 0)
-                            {
-                                bestTerrainType = mapping.TerrainTypes[localRandom.Next(mapping.TerrainTypes.Count)];
-                                bestRatio = ratio;
-                            }
-                        }
+                        // 陆地噪点：按概率把识别出的陆地地形换回平地（海洋与平地不受影响）
+                        if (terrainType != 0 && terrainType != 1 && config.LandNoiseProbability > 0
+                            && random.Next(100) < config.LandNoiseProbability)
+                            terrainType = 0;
+                        result.Add((row * mapWidth + col, (byte)terrainType));
                     }
 
-                    bool wasModified = false;
-
-                    if (bestTerrainType.HasValue)
+                    processed++;
+                    int percent = (int)(processed * 100L / totalHexes);
+                    if (percent != lastPercent)
                     {
-                        SetTerrainType(col, row, bestTerrainType.Value);
-                        modifiedCount++;
-                        wasModified = true;
+                        lastPercent = percent;
+                        progress?.Report((processed, totalHexes, row, col));
                     }
-                    else
-                    {
-                        var validMappings = new List<(ColorTerrainMapping Mapping, double Ratio)>();
-                        foreach (var mapping in config.ColorMappings)
-                        {
-                            double ratio = CalculateColorRatio(regionData, mapping.ColorValue);
-                            if (ratio > 0)
-                                validMappings.Add((mapping, ratio));
-                        }
-
-                        if (validMappings.Count > 0)
-                        {
-                            var selectedMapping = SelectMappingByWeight(validMappings, localRandom);
-                            if (selectedMapping != null && selectedMapping.TerrainTypes.Count > 0)
-                            {
-                                int randomTerrainType = selectedMapping.TerrainTypes[localRandom.Next(selectedMapping.TerrainTypes.Count)];
-                                SetTerrainType(col, row, randomTerrainType);
-                                modifiedCount++;
-                                wasModified = true;
-                            }
-                        }
-                        else if (config.ColorMappings.Count > 0)
-                        {
-                            var randomMapping = config.ColorMappings[localRandom.Next(config.ColorMappings.Count)];
-                            if (randomMapping.TerrainTypes.Count > 0)
-                            {
-                                int randomTerrainType = randomMapping.TerrainTypes[localRandom.Next(randomMapping.TerrainTypes.Count)];
-                                SetTerrainType(col, row, randomTerrainType);
-                                modifiedCount++;
-                                wasModified = true;
-                            }
-                        }
-                    }
-
-                    if (wasModified && config.LandNoiseProbability > 0)
-                    {
-                        ref TerrainData terrain = ref _mapData.GetTerrainRef(col, row);
-                        int currentType = terrain.TileType1;
-                        if (currentType != 1 && currentType != 0)
-                        {
-                            if (localRandom.Next(100) < config.LandNoiseProbability)
-                            {
-                                terrain.TileType1 = 0;
-                                terrain.DecorationType1 = 0;
-                            }
-                        }
-                    }
-
-                    processedCount++;
-                    progress?.Report((processedCount, totalHexes, row, col));
                 }
             }
-        });
+            return result;
+        }, CancellationToken.None);
 
         stopwatch.Stop();
-        Debug.WriteLine($"[TerrainRecognizer] 处理完成，耗时：{stopwatch.Elapsed.TotalSeconds:F2} 秒，修改了 {modifiedCount} 个格子");
+        Debug.WriteLine($"[TerrainRecognizer] 耗时 {stopwatch.Elapsed.TotalSeconds:F2} 秒，识别 {tileTypes.Count} 格，取消={cancellationToken.IsCancellationRequested}");
 
-        string message = $"地形识别完成，共修改 {modifiedCount} 个格子";
-        StatusMessageChanged?.Invoke(message);
-        RecognitionCompleted?.Invoke();
+        if (cancellationToken.IsCancellationRequested)
+            return new TerrainRecognitionResult(false, true, Loc.T("Module.Terrain.Recognize.Cancelled"), Array.Empty<(int, byte)>());
 
-        return (true, modifiedCount);
+        return new TerrainRecognitionResult(true, false, string.Empty, tileTypes);
     }
 
-    private (int X, int Y, int Width, int Height)? GetHexRegionOnOriginalImage(
+    /// <summary>
+    /// 取一格采样区域对应的地形：颜色占比达到阈值的映射里取占比最高的；都没达到时按占比加权随机；
+    /// 区域里完全没有映射颜色时随机取一条映射（与原实现一致）。
+    /// </summary>
+    private static int? PickTerrainType(byte[] regionData, ColorToTerrainConfig config, Random random)
+    {
+        ColorTerrainMapping? best = null;
+        double bestRatio = 0;
+        var weighted = new List<(ColorTerrainMapping Mapping, double Ratio)>();
+
+        foreach (var mapping in config.ColorMappings)
+        {
+            double ratio = CalculateColorRatio(regionData, mapping.ColorValue);
+            if (ratio > 0) weighted.Add((mapping, ratio));
+            if (ratio >= config.MinRatio && ratio > bestRatio && mapping.TerrainTypes.Count > 0)
+            {
+                best = mapping;
+                bestRatio = ratio;
+            }
+        }
+
+        var chosen = best
+            ?? (weighted.Count > 0 ? SelectMappingByWeight(weighted, random) : config.ColorMappings[random.Next(config.ColorMappings.Count)]);
+        if (chosen == null || chosen.TerrainTypes.Count == 0) return null;
+        return chosen.TerrainTypes[random.Next(chosen.TerrainTypes.Count)];
+    }
+
+    private static (int X, int Y, int Width, int Height)? GetHexRegionOnOriginalImage(
         int col, int row, int bgWidth, int bgHeight,
         double hexWidth, double hexHeight,
         int mapWidth, int mapHeight,
         double scaleX, double scaleY)
     {
-        try
-        {
-            double hexSize = hexWidth / 2;
+        double hexSize = hexWidth / 2;
 
-            double mapPixelWidth = mapWidth * hexWidth * 0.75 + hexWidth * 0.25;
-            double mapPixelHeight = mapHeight * hexHeight + hexHeight * 0.5;
+        double mapPixelWidth = mapWidth * hexWidth * 0.75 + hexWidth * 0.25;
+        double mapPixelHeight = mapHeight * hexHeight + hexHeight * 0.5;
 
-            double relX = (col * hexWidth * 0.75 + hexSize) / mapPixelWidth;
-            double relY = (row * hexHeight + hexHeight / 2 + (col % 2) * hexHeight * 0.5) / mapPixelHeight;
+        double relX = (col * hexWidth * 0.75 + hexSize) / mapPixelWidth;
+        double relY = (row * hexHeight + hexHeight / 2 + (col % 2) * hexHeight * 0.5) / mapPixelHeight;
 
-            int bgCenterX = (int)(relX * bgWidth);
-            int bgCenterY = (int)(relY * bgHeight);
+        int bgCenterX = (int)(relX * bgWidth);
+        int bgCenterY = (int)(relY * bgHeight);
 
-            int sampleWidth = Math.Max(5, (int)(hexSize * 2 / scaleX));
-            int sampleHeight = Math.Max(5, (int)(hexHeight / scaleY));
+        int sampleWidth = Math.Max(5, (int)(hexSize * 2 / scaleX));
+        int sampleHeight = Math.Max(5, (int)(hexHeight / scaleY));
 
-            int bgX = bgCenterX - sampleWidth / 2;
-            int bgY = bgCenterY - sampleHeight / 2;
+        int bgX = Math.Max(0, Math.Min(bgCenterX - sampleWidth / 2, bgWidth - sampleWidth));
+        int bgY = Math.Max(0, Math.Min(bgCenterY - sampleHeight / 2, bgHeight - sampleHeight));
 
-            bgX = Math.Max(0, Math.Min(bgX, bgWidth - sampleWidth));
-            bgY = Math.Max(0, Math.Min(bgY, bgHeight - sampleHeight));
-
-            if (sampleWidth > 0 && sampleHeight > 0)
-                return (bgX, bgY, sampleWidth, sampleHeight);
-
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[TerrainRecognizer] 计算六边形区域时出错: {ex.Message}");
-            return null;
-        }
+        return sampleWidth > 0 && sampleHeight > 0 ? (bgX, bgY, sampleWidth, sampleHeight) : null;
     }
 
     private static double CalculateColorRatio(byte[] regionData, int targetColorValue, int tolerance = 30)
     {
-        if (regionData == null || regionData.Length == 0)
-            return 0;
-
         byte targetR = (byte)((targetColorValue >> 16) & 0xFF);
         byte targetG = (byte)((targetColorValue >> 8) & 0xFF);
         byte targetB = (byte)(targetColorValue & 0xFF);
@@ -254,28 +183,21 @@ public sealed class TerrainRecognizer
             int dr = regionData[i] - targetR;
             int dg = regionData[i + 1] - targetG;
             int db = regionData[i + 2] - targetB;
-            double distance = Math.Sqrt(dr * dr + dg * dg + db * db);
-
-            if (distance <= tolerance)
+            if (Math.Sqrt(dr * dr + dg * dg + db * db) <= tolerance)
                 matchingPixels++;
         }
 
         return totalPixels == 0 ? 0 : (double)matchingPixels / totalPixels;
     }
 
-    private static ColorTerrainMapping? SelectMappingByWeight(
-        List<(ColorTerrainMapping Mapping, double Ratio)> mappings, Random random)
+    private static ColorTerrainMapping? SelectMappingByWeight(List<(ColorTerrainMapping Mapping, double Ratio)> mappings, Random random)
     {
-        if (mappings.Count == 0)
-            return null;
-
         double totalRatio = 0;
         foreach (var item in mappings)
             totalRatio += item.Ratio;
 
         double randomValue = random.NextDouble() * totalRatio;
         double currentRatio = 0;
-
         foreach (var item in mappings)
         {
             currentRatio += item.Ratio;
@@ -283,14 +205,6 @@ public sealed class TerrainRecognizer
                 return item.Mapping;
         }
 
-        return mappings[mappings.Count - 1].Mapping;
-    }
-
-    private void SetTerrainType(int col, int row, int terrainType)
-    {
-        if (_mapData == null) return;
-        ref TerrainData terrain = ref _mapData.GetTerrainRef(col, row);
-        terrain.TileType1 = (byte)terrainType;
-        terrain.DecorationType1 = 0;
+        return mappings[^1].Mapping;
     }
 }

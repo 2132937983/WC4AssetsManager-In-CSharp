@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using System.IO;
 using SkiaSharp;
 using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Helpers;
@@ -7,210 +5,156 @@ using WC4MapEditor.Core.Models;
 
 namespace WC4MapEditor.Rendering.Skia;
 
+/// <summary>
+/// 天气面板（天气编辑模式）：屏幕右上角按触发回合列出全部天气 —— 类型色块、类型名（setting.txt 的类型表）、生效回合。
+/// 生效回合与其它天气重叠的条目标红；放不下时最后一行显示"还有 N 条"。
+/// <para>
+/// 天气与格子无关，所以画成屏幕空间的面板（VB 版天气模式只显示国家领域，面板是 C# 新增的）。
+/// 早先的版本条目字体用 SKTypeface.Default（中文类型名画成方框）、名称写死、面板高度随条目数无限增长。
+/// </para>
+/// </summary>
 public class WeatherRender : IDisposable
 {
-    private const double BASE_HEX_SIZE = 20.0;
-    private const double PANEL_WIDTH_RATIO = 0.28;
-    private const double PANEL_HEIGHT_RATIO = 0.06;
-    private const float PANEL_MARGIN = 10f;
-    private const float PANEL_PADDING = 8f;
-    private const float ITEM_SPACING = 4f;
+    private const float PanelMargin = 10f;
+    /// <summary>面板顶边：右上角模式名（基线 y≈30）的下方。</summary>
+    private const float PanelTop = 50f;
+    /// <summary>面板底边留白：场景底部的工具栏（高 40）压在画布上，最后一行不能画到它下面。</summary>
+    private const float BottomReserve = 50f;
+    private const float Padding = 8f;
+    private const float TitleHeight = 22f;
+    private const float RowHeight = 18f;
+    private const float SwatchSize = 9f;
+    private const float SwatchGap = 6f;
+    private const float ColumnGap = 16f;
+    private const float MinPanelWidth = 150f;
 
-    private static readonly Dictionary<int, string> WeatherTypeNames = new()
-    {
-        { 1, "下雨" }, { 2, "暴雨" }, { 3, "下雪" }
-    };
+    private static readonly SKTypeface UiTypeface = SKTypeface.FromFamilyName("Microsoft YaHei") ?? SKTypeface.Default;
+    private static readonly SKColor OverlapColor = new(255, 110, 110);
+    private static readonly SKColor UnknownTypeColor = new(255, 170, 60);
+    private static readonly SKColor RangeColor = new(190, 215, 255);
+    private static readonly SKColor MutedColor = new(170, 170, 170);
 
-    private static readonly Dictionary<int, SKColor> WeatherTypeColors = new()
+    /// <summary>
+    /// 类型色块：0 无（灰）/ 1 下雨（天蓝）/ 2 暴雨（紫，与下雨在小色块上也要分得开）/ 3 下雪（白）；
+    /// 不在这里的类型用橙色（游戏未必认识）。
+    /// </summary>
+    private static readonly Dictionary<int, SKColor> TypeColors = new()
     {
-        { 1, new SKColor(100, 149, 237) }, { 2, new SKColor(65, 105, 225) }, { 3, new SKColor(176, 224, 230) }
-    };
-
-    private static readonly Dictionary<int, string> WeatherTypeIcons = new()
-    {
-        { 1, "weather_rain" }, { 2, "weather_storm" }, { 3, "weather_snow" }
+        { 0, new SKColor(150, 150, 150) },
+        { 1, new SKColor(100, 170, 245) },
+        { 2, new SKColor(160, 110, 245) },
+        { 3, new SKColor(225, 240, 250) },
     };
 
     private readonly Camera _camera;
     private readonly MapData _mapData;
-    private readonly object _lock = new();
     private bool _disposed;
-    private bool _showWeather = true;
-    private bool _initialized;
 
-    private readonly Dictionary<int, SKImage> _weatherIconCache = new();
+    private readonly SKPaint _panelBgPaint = new() { IsAntialias = true, Color = new SKColor(0, 0, 0, 170) };
+    private readonly SKPaint _panelBorderPaint = new() { IsAntialias = true, Color = new SKColor(100, 149, 237, 180), Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
+    private readonly SKPaint _textPaint = new() { IsAntialias = true, Color = SKColors.White };
+    private readonly SKPaint _swatchPaint = new() { IsAntialias = true };
+    private readonly SKFont _titleFont = new(UiTypeface, 14);
+    private readonly SKFont _itemFont = new(UiTypeface, 12);
 
-    private readonly SKPaint _panelBgPaint;
-    private readonly SKPaint _panelBorderPaint;
-    private readonly SKFont _titleFont;
-    private readonly SKPaint _titlePaint;
-    private readonly SKFont _itemFont;
-    private readonly SKPaint _itemPaint;
-    private readonly SKPaint _itemShadowPaint;
-    private readonly SKPaint _roundPaint;
-    private readonly SKPaint _durationPaint;
+    /// <summary>一行：类型名、生效回合、色块、是否与其它天气重叠。</summary>
+    private readonly record struct Row(string Name, string Range, SKColor Swatch, bool Known, bool Overlap);
 
-    public bool ShowWeather
-    {
-        get => _showWeather;
-        set => _showWeather = value;
-    }
+    public bool ShowWeather { get; set; } = true;
 
     public WeatherRender(Camera camera, MapData mapData)
     {
         _camera = camera;
         _mapData = mapData;
-
-        _panelBgPaint = new SKPaint { IsAntialias = true, Color = new SKColor(0, 0, 0, 160) };
-        _panelBorderPaint = new SKPaint { IsAntialias = true, Color = new SKColor(100, 149, 237, 180), Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
-        _titleFont = new SKFont(SKTypeface.FromFamilyName("Microsoft YaHei"), 14);
-        _titlePaint = new SKPaint { IsAntialias = true, Color = SKColors.White };
-        _itemFont = new SKFont(SKTypeface.Default, 11);
-        _itemPaint = new SKPaint { IsAntialias = true, Color = SKColors.White };
-        _itemShadowPaint = new SKPaint { IsAntialias = true, Color = SKColors.Black };
-        _roundPaint = new SKPaint { IsAntialias = true, Color = SKColors.Orange };
-        _durationPaint = new SKPaint { IsAntialias = true, Color = SKColors.LightGreen };
-
-        InitializeImages();
-    }
-
-    private void InitializeImages()
-    {
-        if (_initialized) return;
-
-        lock (_lock)
-        {
-            try
-            {
-                string infoMarkPath = ConfigManager.Instance.GetInformationMarkPath();
-
-                foreach (var kvp in WeatherTypeIcons)
-                {
-                    string iconPath = Path.Combine(infoMarkPath, $"{kvp.Value}.png");
-                    if (File.Exists(iconPath))
-                    {
-                        using var stream = File.OpenRead(iconPath);
-                        _weatherIconCache[kvp.Key] = SKImage.FromEncodedData(stream);
-                    }
-                }
-
-                _initialized = true;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[WeatherRender] 初始化纹理失败: {ex.Message}");
-            }
-        }
     }
 
     public void Render(SKCanvas canvas)
     {
-        if (canvas == null || _mapData == null) return;
-        if (!_showWeather) return;
-        if (_mapData.Weathers == null || _mapData.Weathers.Count == 0) return;
-        if (!_initialized) return;
+        if (_disposed || !ShowWeather || canvas == null) return;
 
-        try
-        {
-            var validWeathers = _mapData.Weathers
-                .Where(w => w.WeatherType > 0)
-                .OrderBy(w => w.TriggerRound)
-                .ToList();
-
-            if (validWeathers.Count == 0) return;
-
-            DrawWeatherPanel(canvas, validWeathers);
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[WeatherRender] 绘制天气失败: {ex.Message}");
-        }
-    }
-
-    private void DrawWeatherPanel(SKCanvas canvas, List<Weather> weathers)
-    {
         float viewportWidth = (float)_camera.ViewportWidth;
         float viewportHeight = (float)_camera.ViewportHeight;
+        if (viewportWidth < MinPanelWidth + PanelMargin * 2 || viewportHeight < PanelTop + BottomReserve + 60f) return;
 
-        float panelWidth = (float)(viewportWidth * PANEL_WIDTH_RATIO);
-        float lineHeight = 20f;
-        float panelHeight = PANEL_PADDING * 2 + lineHeight + weathers.Count * (lineHeight + ITEM_SPACING);
+        var rows = BuildRows();
+        int capacity = Math.Max(1, (int)((viewportHeight - PanelTop - BottomReserve - Padding * 2 - TitleHeight) / RowHeight));
+        int shown = rows.Count <= capacity ? rows.Count : capacity - 1;
+        string? footer = rows.Count == 0 ? Loc.T("Render.Weather.Empty", "无天气数据")
+                       : shown < rows.Count ? Loc.F("Render.Weather.More", rows.Count - shown)
+                       : null;
 
-        float panelX = viewportWidth - panelWidth - PANEL_MARGIN;
-        float panelY = PANEL_MARGIN + 40f;
+        string title = Loc.T("Render.Weather.Title", "天气预报");
+        float nameWidth = 0, rangeWidth = 0;
+        for (int i = 0; i < shown; i++)
+        {
+            nameWidth = Math.Max(nameWidth, _itemFont.MeasureText(rows[i].Name));
+            rangeWidth = Math.Max(rangeWidth, _itemFont.MeasureText(rows[i].Range));
+        }
+        float contentWidth = Math.Max(_titleFont.MeasureText(title), SwatchSize + SwatchGap + nameWidth + ColumnGap + rangeWidth);
+        if (footer != null) contentWidth = Math.Max(contentWidth, _itemFont.MeasureText(footer));
 
-        var panelRect = new SKRect(panelX, panelY, panelX + panelWidth, panelY + panelHeight);
+        float panelWidth = Math.Clamp(contentWidth + Padding * 2, MinPanelWidth, Math.Max(MinPanelWidth, viewportWidth * 0.45f));
+        int lines = shown + (footer != null ? 1 : 0);
+        float panelHeight = Padding * 2 + TitleHeight + lines * RowHeight;
+        float x = viewportWidth - panelWidth - PanelMargin;
+        float y = PanelTop;
+
+        var panelRect = new SKRect(x, y, x + panelWidth, y + panelHeight);
         canvas.DrawRoundRect(panelRect, 6, 6, _panelBgPaint);
         canvas.DrawRoundRect(panelRect, 6, 6, _panelBorderPaint);
 
-        float titleY = panelY + PANEL_PADDING + lineHeight * 0.8f;
-        canvas.DrawText("天气预报", panelX + PANEL_PADDING, titleY, SKTextAlign.Left, _titleFont, _titlePaint);
+        _textPaint.Color = SKColors.White;
+        canvas.DrawText(title, x + Padding, y + Padding + 15f, SKTextAlign.Left, _titleFont, _textPaint);
 
-        float itemY = titleY + lineHeight * 0.4f;
-
-        foreach (var weather in weathers)
+        float left = x + Padding;
+        float right = x + panelWidth - Padding;
+        float baseline = y + Padding + TitleHeight + RowHeight - 5f;
+        for (int i = 0; i < shown; i++, baseline += RowHeight)
         {
-            itemY += lineHeight + ITEM_SPACING;
+            var row = rows[i];
+            _swatchPaint.Color = row.Swatch;
+            canvas.DrawRoundRect(new SKRect(left, baseline - SwatchSize, left + SwatchSize, baseline), 2, 2, _swatchPaint);
 
-            string weatherName = GetWeatherTypeName(weather.WeatherType);
-            var weatherColor = WeatherTypeColors.TryGetValue(weather.WeatherType, out var c) ? c : SKColors.White;
+            _textPaint.Color = row.Overlap ? OverlapColor : row.Known ? SKColors.White : UnknownTypeColor;
+            canvas.DrawText(row.Name, left + SwatchSize + SwatchGap, baseline, SKTextAlign.Left, _itemFont, _textPaint);
 
-            if (_weatherIconCache.TryGetValue(weather.WeatherType, out var icon))
-            {
-                float iconSize = lineHeight * 0.8f;
-                var iconRect = new SKRect(panelX + PANEL_PADDING, itemY - iconSize * 0.7f,
-                                          panelX + PANEL_PADDING + iconSize, itemY + iconSize * 0.3f);
-                using var paint = new SKPaint { IsAntialias = true };
-                canvas.DrawImage(icon, iconRect, paint);
-            }
+            _textPaint.Color = row.Overlap ? OverlapColor : RangeColor;
+            canvas.DrawText(row.Range, right, baseline, SKTextAlign.Right, _itemFont, _textPaint);
+        }
 
-            float textX = panelX + PANEL_PADDING + lineHeight + 4f;
-
-            _itemPaint.Color = weatherColor;
-            canvas.DrawText(weatherName, textX + 1, itemY + 1, SKTextAlign.Left, _itemFont, _itemShadowPaint);
-            canvas.DrawText(weatherName, textX, itemY, SKTextAlign.Left, _itemFont, _itemPaint);
-
-            if (weather.TriggerRound > 0)
-            {
-                string roundText = $"R{weather.TriggerRound}";
-                float roundX = textX + 60f;
-                canvas.DrawText(roundText, roundX + 1, itemY + 1, SKTextAlign.Left, _itemFont, _itemShadowPaint);
-                canvas.DrawText(roundText, roundX, itemY, SKTextAlign.Left, _itemFont, _roundPaint);
-            }
-
-            if (weather.Duration > 0)
-            {
-                string durationText = $"D{weather.Duration}";
-                float durationX = textX + 110f;
-                canvas.DrawText(durationText, durationX + 1, itemY + 1, SKTextAlign.Left, _itemFont, _itemShadowPaint);
-                canvas.DrawText(durationText, durationX, itemY, SKTextAlign.Left, _itemFont, _durationPaint);
-            }
+        if (footer != null)
+        {
+            _textPaint.Color = MutedColor;
+            canvas.DrawText(footer, left, baseline, SKTextAlign.Left, _itemFont, _textPaint);
         }
     }
 
-    private static string GetWeatherTypeName(int weatherType) =>
-        WeatherTypeNames.TryGetValue(weatherType, out var name) ? name : $"未知({weatherType})";
+    /// <summary>按触发回合排序（同回合保持列表顺序）的面板行。</summary>
+    private List<Row> BuildRows()
+    {
+        var weathers = _mapData.Weathers;
+        bool[] overlaps = Weather.FindOverlaps(weathers);
+        var rows = new List<Row>(weathers.Count);
+        foreach (int i in Enumerable.Range(0, weathers.Count).OrderBy(i => weathers[i].TriggerRound).ThenBy(i => i))
+        {
+            var w = weathers[i];
+            bool known = Weather.IsKnownType(w.WeatherType);
+            var swatch = TypeColors.TryGetValue(w.WeatherType, out var c) ? c : UnknownTypeColor;
+            rows.Add(new Row(Weather.GetTypeName(w.WeatherType), w.FormatRounds(), swatch, known, overlaps[i]));
+        }
+        return rows;
+    }
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
 
-        lock (_lock)
-        {
-            foreach (var image in _weatherIconCache.Values)
-                image?.Dispose();
-            _weatherIconCache.Clear();
-        }
-
         _panelBgPaint.Dispose();
         _panelBorderPaint.Dispose();
+        _textPaint.Dispose();
+        _swatchPaint.Dispose();
         _titleFont.Dispose();
-        _titlePaint.Dispose();
         _itemFont.Dispose();
-        _itemPaint.Dispose();
-        _itemShadowPaint.Dispose();
-        _roundPaint.Dispose();
-        _durationPaint.Dispose();
     }
 }

@@ -1,670 +1,549 @@
-﻿using System.Collections.Generic;
-using System.Diagnostics;
-using System.Globalization;
 using System.IO;
-using System.Linq;
-using System.Text.Json;
-using System.Windows;
-using System.Windows.Controls;
+using System.Diagnostics;
 using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 using WC4MapEditor.Core.Assets;
 using WC4MapEditor.Core.Parsers.Country;
+using WC4MapEditor.GUI.Views.Dialogs;
+using WC4MapEditor.GUI.Views.EditScenes;
 using WC4MapEditor.Rendering.Imaging;
 
 namespace WC4MapEditor.GUI.Views;
 
 /// <summary>
-/// 国家科技树编辑场景（对应 Python 工具的 CountryTech 编辑器）。
-/// 列表 + 属性面板完整 CRUD；名称写入 stringtable 的 skill_name_{Id}。
+/// 国家科技树编辑场景（对应 Python 工具的 CountryTech 编辑器，CountryTechSettings.json）。
+/// 左：按分类筛选的列表；中：科技树画布（拖动节点、右键连接 / 解绑 / 新增）；右：属性与 INI 文本。
+/// 名称 / 介绍按 Type 写入 stringtable 的 countrytech_{Type} / countrytech_desc_{Type}。
 /// </summary>
-public class CountryTechEditScene : UserControl
+public class CountryTechEditScene : JsonEditorScene
 {
-    private readonly MainWindow _window;
+    private const double MinScale = 0.35, MaxScale = 2.5, NodeRadius = 35;
+
     private readonly CountryTechSettingParser _parser = CountryTechSettingParser.Instance;
-
-    private Grid _root = null!;
-    private ListBox _listBox = null!;
-    private TextBox _searchBox = null!;
-    private ComboBox _categoryCombo = null!;
-    private TextBlock _statusText = null!;
-
-    private CountryTechData? _current;
-    private bool _loadingUi;
-
-    private ScrollViewer _propScroll = null!;
-    private StackPanel _propPanel = null!;
-    private Dictionary<string, TextBox> _textBoxes = new(StringComparer.Ordinal);
-    private Dictionary<string, NumericUpDown> _numBoxes = new(StringComparer.Ordinal);
-    private TextBox _jsonPreview = null!;
-
-    // ---- 右侧面板：基本属性 / INI 文本 页签 ----
+    private readonly GroupFilter _categories;
+    private readonly TableEditor<CountryTechData> _editor;
+    private readonly RecordForm<CountryTechData> _iniForm = new(120);
+    private readonly Canvas _canvas = new() { Background = Brushes.Transparent, ClipToBounds = true };
     private Button _propTabBtn = null!, _iniTabBtn = null!;
     private bool _showIniPanel;
-    private ScrollViewer _iniScroll = null!;
-    private TextBox _iniNameBox = null!, _iniDescBox = null!;
-    private TextBlock _iniTypeText = null!;
-
-    // ---- 科技树画布 ----
-    private Canvas _canvas = null!;
-    private double _scale = 1, _offsetX = 720, _offsetY = 90;
-    private const double MinScale = 0.35, MaxScale = 2.5, NodeRadius = 35;
 
     // ---- 科技图标图集（image_countrytech_hd，按 Type 索引）----
     private readonly Dictionary<int, ImageSource> _techIcons = new();
-    private bool _iconsLoaded;
+
     private bool _showNeedGuides = true;
     private bool _autoUpdateLines = true;
+    private double _scale = 1, _offsetX = 720, _offsetY = 90;
     private bool _panning, _draggingNode;
     private Point _panStart;
     private double _panStartOffX, _panStartOffY;
     private Point _dragStart;
     private CountryTechData? _dragNode;
     private int _ghostLevel, _ghostPosition;
-    private readonly HashSet<int> _selectedIds = new();
+    private int _saveWarnings;
 
-    // 连线生成常量（与 Python 工具一致）
-    private const double NodeStepX = 110, NodeStepY = 92, LineScaleX = 1.1, LineScaleY = 0.92;
-
-    public CountryTechEditScene(MainWindow window)
+    public CountryTechEditScene(MainWindow window) : base(window, "CountryTech", CountryTechSettingParser.Instance)
     {
-        EditorTheme.Apply(this);
-        _window = window;
-        BuildUI();
-        LoadTechIcons();
-        RefreshCategories();
-        RefreshList();
-        Loaded += (_, _) => Dispatcher.BeginInvoke(() =>
+        _categories = new GroupFilter(Loc.T("CountryTech.AllCategories"), c => Loc.F("CountryTech.CategoryN", c));
+        _editor = Register(new TableEditor<CountryTechData>(this, _parser.Table, new TableEditorOptions<CountryTechData>
         {
-            if (_parser.Items.Count > 0 && _listBox.Items.Count > 0)
-                _listBox.SelectedIndex = 0;
+            Describe = t => Loc.F("CountryTech.ListItem", t.Id, ListName(t), t.CategoryId, t.ResearchLv),
+            Matches = (t, q) => t.Id.ToString().Contains(q)
+                                || _parser.GetTechNameByType(t.Type).Contains(q, StringComparison.OrdinalIgnoreCase)
+                                || t.Type.ToString().Contains(q)
+                                || t.CategoryId.ToString().Contains(q),
+            Filter = t => _categories.Matches(t.CategoryId),
+            GetId = t => t.Id,
+            SetId = (t, id) => t.Id = id,
+            NextId = copy => _parser.GetNextIdInCategory(copy.CategoryId),
+            Remove = _parser.Remove,
+            DeleteNote = Loc.T("JsonEditor.CountryTech.DeleteNote"),
+            SearchPlaceholder = Loc.T("CountryTech.SearchPlaceholder"),
+            Header = CategoryHeader()
+        }, 160));
+        BuildForm(_editor.Form);
+        BuildIniForm();
+        LoadTechIcons();
+
+        _categories.Changed += () =>
+        {
+            _editor.RefreshList();
             FitView();
-        }, DispatcherPriority.Loaded);
+        };
+        _editor.CurrentChanged += current =>
+        {
+            if (_showIniPanel) _iniForm.Load(current);
+        };
+        _editor.List.SelectionChanged += (_, _) => RenderCanvas();
+        _editor.FieldEdited += OnFieldEdited;
+        _editor.RecordsChanged += () =>
+        {
+            RefreshCategories();
+            RenderCanvas();
+        };
+
+        Content = BuildLayout();
+        var firstCategory = _parser.Items.Select(t => t.CategoryId).DefaultIfEmpty(-1).Min();
+        _categories.Refresh(_parser.Items.Select(t => t.CategoryId), firstCategory);
+        _editor.SelectFirst();
+        Loaded += (_, _) => Dispatcher.BeginInvoke(FitView, DispatcherPriority.Loaded);
+    }
+
+    private string TypeName(CountryTechData t) => _parser.GetTechNameByType(t.Type);
+
+    private string ListName(CountryTechData t)
+    {
+        var name = TypeName(t);
+        return string.IsNullOrEmpty(name) ? Loc.F("CountryTech.UnnamedTech", t.Id) : name;
+    }
+
+    private void RefreshCategories() => _categories.Refresh(_parser.Items.Select(t => t.CategoryId));
+
+    /// <summary>列表上方：分类下拉框 + 新建 / 删除分类（科技组）按钮，下面一行是按 NeedId 重写本组连线。</summary>
+    private StackPanel CategoryHeader()
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.Children.Add(_categories.Combo);
+        var add = CategoryButton("＋", "CountryTech.Group.AddTip", OnAddCategory);
+        Grid.SetColumn(add, 1);
+        row.Children.Add(add);
+        var remove = CategoryButton("－", "CountryTech.Group.DeleteTip", OnDeleteCategory);
+        Grid.SetColumn(remove, 2);
+        row.Children.Add(remove);
+
+        var rewrite = EditorTheme.ToolButton(Loc.T("CountryTech.RewriteLines"), (_, _) => OnRewriteCategoryLines());
+        rewrite.ToolTip = Loc.T("CountryTech.RewriteLines.Tip");
+        rewrite.Focusable = false;
+        rewrite.HorizontalAlignment = HorizontalAlignment.Left;
+        rewrite.Margin = new Thickness(8, 6, 0, 0);
+
+        var header = new StackPanel();
+        header.Children.Add(row);
+        header.Children.Add(rewrite);
+        return header;
+    }
+
+    private static Button CategoryButton(string text, string tipKey, Action action)
+    {
+        var button = EditorTheme.ToolButton(text, (_, _) => action());
+        button.ToolTip = Loc.T(tipKey);
+        button.Focusable = false;
+        button.Margin = new Thickness(0, 8, 8, 0);
+        return button;
     }
 
     // ============================================================= 布局 =============================================================
-    private void BuildUI()
+
+    private Grid BuildLayout()
     {
-        _root = new Grid();
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
-        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) });
-        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
-        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
-        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(360) });
+        var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(360) });
 
-        // 顶栏：返回 + 标题 | 操作按钮。两个勾选项直接改字段再重绘（旧实现只重绘、没写回字段）。
-        var topBar = EditorTheme.TopBar(
-            Loc.T("CountryTech.Title"),
-            (_, _) => _window.ReturnToMainScene(),
-            EditorTheme.Button(Loc.T("Common.Add"), OnAdd),
-            EditorTheme.DangerButton(Loc.T("Common.Delete"), OnDelete),
-            EditorTheme.PrimaryButton(Loc.T("Common.Save"), OnSave),
-            EditorTheme.Button(Loc.T("Common.Reload"), OnReload),
-            EditorTheme.VSeparator(),
-            EditorTheme.Button(Loc.T("CountryTech.GenerateLines"), OnGenerateLines),
-            EditorTheme.Button(Loc.T("CountryTech.FitView"), OnFit),
+        // 顶栏：两个勾选项直接改字段再重绘
+        var top = CreateTopBar(Loc.T("CountryTech.Title"),
+            SceneButton(Loc.T("CountryTech.GenerateLines"), OnGenerateLines),
+            SceneButton(Loc.T("CountryTech.FitView"), FitView),
             EditorTheme.CheckBox(Loc.T("CountryTech.ShowNeedGuides"), _showNeedGuides, v => { _showNeedGuides = v; RenderCanvas(); }),
-            EditorTheme.CheckBox(Loc.T("CountryTech.AutoLines"), _autoUpdateLines, v => _autoUpdateLines = v),
-            EditorTheme.VSeparator(),
-            EditorTheme.Button(Loc.T("Common.Validate"), OnValidate));
-        Grid.SetRow(topBar, 0); Grid.SetColumnSpan(topBar, 5);
-        _root.Children.Add(topBar);
+            EditorTheme.CheckBox(Loc.T("CountryTech.AutoLines"), _autoUpdateLines, v => _autoUpdateLines = v));
+        Grid.SetColumnSpan(top, 5);
+        root.Children.Add(top);
 
-        // 左栏：分类筛选 + 搜索 + 列表
-        var leftGrid = new Grid();
-        leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-
-        _categoryCombo = EditorTheme.ComboBox();
-        _categoryCombo.Margin = new Thickness(8, 8, 8, 0);
-        _categoryCombo.SelectionChanged += (_, _) => { RefreshList(); FitView(); };
-        Grid.SetRow(_categoryCombo, 0);
-        leftGrid.Children.Add(_categoryCombo);
-
-        var search = EditorTheme.SearchBox(Loc.T("CountryTech.SearchPlaceholder"), out _searchBox);
-        search.Margin = new Thickness(8);
-        _searchBox.TextChanged += (_, _) => RefreshList();
-        Grid.SetRow(search, 1);
-        leftGrid.Children.Add(search);
-
-        _listBox = new ListBox();
-        _listBox.SelectionChanged += ListBox_SelectionChanged;
-        Grid.SetRow(_listBox, 2);
-        leftGrid.Children.Add(_listBox);
-
-        var left = EditorTheme.Panel(new Thickness(0, 0, 1, 0));
-        left.Child = leftGrid;
-        Grid.SetRow(left, 1); Grid.SetColumn(left, 0);
-        _root.Children.Add(left);
-
+        Grid.SetRow(_editor.ListPanel, 1);
+        root.Children.Add(_editor.ListPanel);
         var leftSplitter = EditorTheme.VSplitter();
-        Grid.SetRow(leftSplitter, 1); Grid.SetColumn(leftSplitter, 1);
-        _root.Children.Add(leftSplitter);
+        Grid.SetRow(leftSplitter, 1);
+        Grid.SetColumn(leftSplitter, 1);
+        root.Children.Add(leftSplitter);
 
         // 中间：科技树画布
+        _canvas.MouseLeftButtonDown += Canvas_MouseDown;
+        _canvas.MouseMove += Canvas_MouseMove;
+        _canvas.MouseLeftButtonUp += Canvas_MouseUp;
+        _canvas.MouseRightButtonDown += Canvas_MouseRightButtonDown;
+        _canvas.MouseDown += Canvas_MiddleDown;
+        _canvas.MouseUp += Canvas_MiddleUp;
+        _canvas.MouseWheel += Canvas_MouseWheel;
+        _canvas.SizeChanged += (_, _) => RenderCanvas();
         var canvasBorder = new Border
         {
             Background = EditorTheme.Bg0,
             BorderBrush = EditorTheme.Border,
             BorderThickness = new Thickness(0, 0, 1, 0),
-            ClipToBounds = true
+            ClipToBounds = true,
+            Child = _canvas
         };
-        Grid.SetRow(canvasBorder, 1); Grid.SetColumn(canvasBorder, 2);
-        _canvas = new Canvas { Background = Brushes.Transparent, ClipToBounds = true };
-        _canvas.MouseLeftButtonDown += Canvas_MouseDown;
-        _canvas.MouseMove += Canvas_MouseMove;
-        _canvas.MouseLeftButtonUp += Canvas_MouseUp;
-        _canvas.MouseRightButtonDown += Canvas_MouseRightButtonDown;
-        _canvas.MouseWheel += Canvas_MouseWheel;
-        _canvas.SizeChanged += (_, _) => RenderCanvas();
-        canvasBorder.Child = _canvas;
-        _root.Children.Add(canvasBorder);
-
+        Grid.SetRow(canvasBorder, 1);
+        Grid.SetColumn(canvasBorder, 2);
+        root.Children.Add(canvasBorder);
         var canvasSplitter = EditorTheme.VSplitter();
-        Grid.SetRow(canvasSplitter, 1); Grid.SetColumn(canvasSplitter, 3);
-        _root.Children.Add(canvasSplitter);
+        Grid.SetRow(canvasSplitter, 1);
+        Grid.SetColumn(canvasSplitter, 3);
+        root.Children.Add(canvasSplitter);
 
-        // 右栏：页签条（基本属性 / INI 文本）+ 两个可切换的滚动面板
-        BuildRightPanel();
+        // 右栏：页签条（基本属性 / INI 文本）+ 两个可切换的表单
         var rightGrid = new Grid();
         rightGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         rightGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-
         var tabs = new StackPanel { Orientation = Orientation.Horizontal };
         _propTabBtn = EditorTheme.TabButton(Loc.T("CountryTech.Tab.Props"), true, (_, _) => ShowIniPanel(false));
         _iniTabBtn = EditorTheme.TabButton(Loc.T("CountryTech.Tab.Ini"), false, (_, _) => ShowIniPanel(true));
         tabs.Children.Add(_propTabBtn);
         tabs.Children.Add(_iniTabBtn);
-        var tabBar = new Border
+        rightGrid.Children.Add(new Border
         {
             Background = EditorTheme.Bg2,
             BorderBrush = EditorTheme.Border,
             BorderThickness = new Thickness(0, 0, 0, 1),
             Padding = new Thickness(6, 4, 6, 4),
             Child = tabs
-        };
-        Grid.SetRow(tabBar, 0);
-        rightGrid.Children.Add(tabBar);
-
-        Grid.SetRow(_propScroll, 1);
-        Grid.SetRow(_iniScroll, 1);
-        rightGrid.Children.Add(_propScroll);
-        rightGrid.Children.Add(_iniScroll);
-
+        });
+        Grid.SetRow(_editor.Form.View, 1);
+        Grid.SetRow(_iniForm.View, 1);
+        _iniForm.View.Visibility = Visibility.Collapsed;
+        rightGrid.Children.Add(_editor.Form.View);
+        rightGrid.Children.Add(_iniForm.View);
         var right = EditorTheme.Panel();
         right.Child = rightGrid;
-        Grid.SetRow(right, 1); Grid.SetColumn(right, 4);
-        _root.Children.Add(right);
+        Grid.SetRow(right, 1);
+        Grid.SetColumn(right, 4);
+        root.Children.Add(right);
 
-        var status = EditorTheme.StatusBar(out _statusText, Loc.F("Common.ItemsLoaded", _parser.Items.Count));
-        Grid.SetRow(status, 2); Grid.SetColumnSpan(status, 5);
-        _root.Children.Add(status);
-
-        Content = _root;
+        var status = CreateStatusBar();
+        Grid.SetRow(status, 2);
+        Grid.SetColumnSpan(status, 5);
+        root.Children.Add(status);
+        return root;
     }
 
-    private void BuildRightPanel()
+    private static Button SceneButton(string text, Action action)
     {
-        _propPanel = new StackPanel();
-        _propScroll = new ScrollViewer
-        {
-            Content = _propPanel,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-        };
-
-        AddSection(Loc.T("Common.BasicInfo"));
-        AddNum("Id", Loc.T("CountryTech.Field.Id"), 0, int.MaxValue);
-        AddText("NameIni", Loc.T("CountryTech.Field.NameIni"));
-        AddNum("CategoryId", Loc.T("CountryTech.Field.CategoryId"), 0, int.MaxValue);
-        AddNum("Categorys", Loc.T("CountryTech.Field.Categorys"), 0, 4);
-        AddNum("Type", Loc.T("CountryTech.Field.Type"), 0, int.MaxValue);
-        AddNum("ResearchLv", Loc.T("CountryTech.Field.ResearchLv"), 0, int.MaxValue);
-        AddNum("Position", Loc.T("CountryTech.Field.Position"), 0, int.MaxValue);
-
-        AddSection(Loc.T("CountryTech.Section.Cost"));
-        AddNum("CostMoney", Loc.T("CountryTech.Field.CostMoney"), 0, int.MaxValue);
-        AddNum("CostGear", Loc.T("CountryTech.Field.CostGear"), 0, int.MaxValue);
-        AddNum("CostAtomic", Loc.T("CountryTech.Field.CostAtomic"), 0, int.MaxValue);
-        AddNum("CostMerit", Loc.T("CountryTech.Field.CostMerit"), 0, int.MaxValue);
-
-        AddSection(Loc.T("CountryTech.Section.Other"));
-        AddNum("Chance", Loc.T("CountryTech.Field.Chance"), 0, 100);
-        AddNum("Value", Loc.T("CountryTech.Field.Value"), int.MinValue, int.MaxValue);
-
-        AddSection(Loc.T("CountryTech.Section.Links"));
-        AddText("NeedId", Loc.T("CountryTech.Field.NeedId"));
-        AddText("Lines", Loc.T("CountryTech.Field.Lines"));
-        AddText("Lines2", Loc.T("CountryTech.Field.Lines2"));
-
-        AddSection(Loc.T("Common.JsonPreview"));
-        _jsonPreview = EditorTheme.MonoTextBox(220);
-        _jsonPreview.Margin = new Thickness(10, 8, 10, 12);
-        _propPanel.Children.Add(_jsonPreview);
-
-        // INI 文本编辑面板（按 Type 显示/修改 countrytech_{type} / countrytech_desc_{type}）
-        var iniPanel = new StackPanel();
-        iniPanel.Children.Add(EditorTheme.SectionHeader(Loc.T("CountryTech.IniSection")));
-        _iniTypeText = EditorTheme.Muted("");
-        _iniTypeText.Margin = new Thickness(10, 8, 10, 4);
-        iniPanel.Children.Add(_iniTypeText);
-
-        _iniNameBox = MakeIniTextBox(false);
-        _iniNameBox.LostFocus += (_, _) => { if (_current != null) _parser.SetTechNameByType(_current.Type, _iniNameBox.Text); };
-        iniPanel.Children.Add(EditorTheme.FormRow(Loc.T("CountryTech.IniName"), _iniNameBox, 120));
-
-        _iniDescBox = MakeIniTextBox(true);
-        _iniDescBox.LostFocus += (_, _) => { if (_current != null) _parser.SetTechDescByType(_current.Type, _iniDescBox.Text); };
-        iniPanel.Children.Add(EditorTheme.FormRow(Loc.T("CountryTech.IniDesc"), _iniDescBox, 120));
-
-        _iniScroll = new ScrollViewer
-        {
-            Content = iniPanel,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Visibility = Visibility.Collapsed
-        };
+        var b = EditorTheme.Button(text, (_, _) => action());
+        b.Focusable = false;
+        return b;
     }
 
-    private static TextBox MakeIniTextBox(bool multiline)
+    private void BuildForm(RecordForm<CountryTechData> f)
     {
-        var tb = new TextBox { TextWrapping = TextWrapping.Wrap, AcceptsReturn = multiline };
-        if (multiline)
+        f.Section(Loc.T("Common.BasicInfo"));
+        f.KeyInt(Loc.T("CountryTech.Field.Id"), t => t.Id, (t, id) => _parser.ChangeId(t, id) ? null : Loc.F("JsonEditor.Error.IdTaken", id));
+        f.StringText(Loc.T("JsonEditor.CountryTech.NameIni"), TypeName, (t, v) => _parser.SetTechNameByType(t.Type, v));
+        f.Int(Loc.T("CountryTech.Field.CategoryId"), t => t.CategoryId, (t, v) => t.CategoryId = v);
+        f.Int(Loc.T("CountryTech.Field.Categorys"), t => t.Categorys, (t, v) => t.Categorys = v);
+        f.Int(Loc.T("CountryTech.Field.Type"), t => t.Type, (t, v) => t.Type = v);
+        f.Int(Loc.T("CountryTech.Field.ResearchLv"), t => t.ResearchLv, (t, v) => t.ResearchLv = v);
+        f.Int(Loc.T("CountryTech.Field.Position"), t => t.Position, (t, v) => t.Position = v);
+
+        f.Section(Loc.T("CountryTech.Section.Cost"));
+        f.Int(Loc.T("CountryTech.Field.CostMoney"), t => t.CostMoney, (t, v) => t.CostMoney = v);
+        f.Int(Loc.T("CountryTech.Field.CostGear"), t => t.CostGear, (t, v) => t.CostGear = v);
+        f.Int(Loc.T("CountryTech.Field.CostAtomic"), t => t.CostAtomic, (t, v) => t.CostAtomic = v);
+        f.Int(Loc.T("CountryTech.Field.CostMerit"), t => t.CostMerit, (t, v) => t.CostMerit = v);
+
+        f.Section(Loc.T("CountryTech.Section.Other"));
+        f.Int(Loc.T("CountryTech.Field.Chance"), t => t.Chance, (t, v) => t.Chance = v);
+        f.Int(Loc.T("CountryTech.Field.Value"), t => t.Value, (t, v) => t.Value = v);
+
+        f.Section(Loc.T("CountryTech.Section.Links"));
+        f.IntList(Loc.T("CountryTech.Field.NeedId"), t => t.NeedId, (t, v) => t.NeedId = v);
+        f.DoubleList(Loc.T("CountryTech.Field.Lines"), t => t.Lines, (t, v) => t.Lines = v);
+        f.DoubleList(Loc.T("CountryTech.Field.Lines2"), t => t.Lines2, (t, v) => t.Lines2 = v);
+
+        f.JsonPreview(height: 220);
+    }
+
+    /// <summary>INI 文本页签：按 Type 显示 / 修改 countrytech_{Type} 与 countrytech_desc_{Type}。</summary>
+    private void BuildIniForm()
+    {
+        var f = _iniForm;
+        f.Section(Loc.T("CountryTech.IniSection"));
+        var typeText = EditorTheme.Muted("");
+        typeText.Margin = new Thickness(10, 8, 10, 4);
+        f.Add(typeText);
+        f.OnLoad(t => typeText.Text = t == null ? "" : Loc.F("CountryTech.IniTypeLabel", t.Type));
+        f.StringText(Loc.T("CountryTech.IniName"), TypeName, (t, v) => _parser.SetTechNameByType(t.Type, v));
+        f.StringText(Loc.T("CountryTech.IniDesc"), t => _parser.GetTechDescByType(t.Type), (t, v) => _parser.SetTechDescByType(t.Type, v), multiline: true);
+        f.FieldChanged += (t, label, _) =>
         {
-            tb.Height = 90;
-            tb.VerticalContentAlignment = VerticalAlignment.Top;
-            tb.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
-        }
-        return tb;
+            Session.CommitLater(Loc.F("JsonEditor.History.Edit", _editor.Tag(t), label));
+            SetStatus(Loc.F("JsonEditor.Status.Edited", _editor.Tag(t), label));
+            _editor.RefreshRows();
+            RenderCanvas();
+        };
     }
 
     private void ShowIniPanel(bool ini)
     {
         _showIniPanel = ini;
-        _propScroll.Visibility = ini ? Visibility.Collapsed : Visibility.Visible;
-        _iniScroll.Visibility = ini ? Visibility.Visible : Visibility.Collapsed;
+        _editor.Form.View.Visibility = ini ? Visibility.Collapsed : Visibility.Visible;
+        _iniForm.View.Visibility = ini ? Visibility.Visible : Visibility.Collapsed;
         EditorTheme.SetTabActive(_propTabBtn, !ini);
         EditorTheme.SetTabActive(_iniTabBtn, ini);
-        if (ini) LoadIniPanel();
+        // 两个页签都能改名称：切换时按记录当前的值重新显示
+        if (ini) _iniForm.Load(_editor.Current);
+        else _editor.Form.Reload();
     }
 
-    private void LoadIniPanel()
+    private void OnFieldEdited(CountryTechData tech, string label)
     {
-        if (_current == null) { _iniTypeText.Text = ""; _iniNameBox.Text = ""; _iniDescBox.Text = ""; return; }
-        _iniTypeText.Text = Loc.F("CountryTech.IniTypeLabel", _current.Type);
-        _iniNameBox.Text = _parser.GetTechNameByType(_current.Type);
-        _iniDescBox.Text = _parser.GetTechDescByType(_current.Type);
-    }
-
-    // ============================================================= 控件辅助 =============================================================
-    private void OnFit(object sender, RoutedEventArgs e) => FitView();
-
-    private void AddSection(string title) => _propPanel.Children.Add(EditorTheme.SectionHeader(title));
-
-    // 这两个薄封装保留：负责把控件按 key 登记进字典，外观统一交给 EditorTheme.FormRow
-    private NumericUpDown AddNum(string key, string label, double min = int.MinValue, double max = int.MaxValue, double inc = 1)
-    {
-        var ctrl = new NumericUpDown { MinValue = min, MaxValue = max, Increment = inc };
-        ctrl.ValueChanged += (_, _) => { if (!_loadingUi && _current != null) ApplyPropCurrent(); };
-        _numBoxes[key] = ctrl;
-        _propPanel.Children.Add(EditorTheme.FormRow(label, ctrl, 160));
-        return ctrl;
-    }
-
-    private TextBox AddText(string key, string label)
-    {
-        var tb = new TextBox();
-        tb.TextChanged += (_, _) =>
-        {
-            if (_loadingUi || _current == null) return;
-            ApplyPropCurrent();
-            if (key == "NameIni") _parser.SetTechName(_current.Id, tb.Text);
-        };
-        _textBoxes[key] = tb;
-        _propPanel.Children.Add(EditorTheme.FormRow(label, tb, 160));
-        return tb;
-    }
-
-    // ============================================================= 列表 =============================================================
-    private void RefreshCategories()
-    {
-        var sel = _categoryCombo.SelectedValue;
-        _categoryCombo.Items.Clear();
-        _categoryCombo.Items.Add(new CategoryItem { Id = -1, Name = Loc.T("CountryTech.AllCategories") });
-        foreach (var cat in _parser.Items.Select(t => t.CategoryId).Distinct().OrderBy(x => x))
-            _categoryCombo.Items.Add(new CategoryItem { Id = cat, Name = Loc.F("CountryTech.CategoryN", cat) });
-        _categoryCombo.DisplayMemberPath = "Name";
-        _categoryCombo.SelectedValuePath = "Id";
-        if (sel == null && _parser.Items.Count > 0)
-        {
-            var firstCat = _parser.Items.Select(t => t.CategoryId).Distinct().OrderBy(x => x).First();
-            _categoryCombo.SelectedValue = firstCat;
-        }
-        else
-        {
-            _categoryCombo.SelectedValue = sel ?? -1;
-        }
-        if (_categoryCombo.SelectedIndex < 0) _categoryCombo.SelectedIndex = 0;
-    }
-
-    private void RefreshList()
-    {
-        int catFilter = _categoryCombo.SelectedValue is int v ? v : -1;
-        var q = _searchBox.Text;
-        bool searching = !string.IsNullOrWhiteSpace(q);
-
-        var items = _parser.Items.Where(t =>
-        {
-            if (catFilter >= 0 && t.CategoryId != catFilter) return false;
-            if (!searching) return true;
-            if (t.Id.ToString().Contains(q)) return true;
-            if (_parser.GetTechName(t.Id).Contains(q, StringComparison.OrdinalIgnoreCase)) return true;
-            if (t.Type.ToString().Contains(q)) return true;
-            if (t.CategoryId.ToString().Contains(q)) return true;
-            return false;
-        }).OrderBy(t => t.CategoryId).ThenBy(t => t.Id);
-
-        _listBox.Items.Clear();
-        foreach (var t in items)
-        {
-            var name = _parser.GetTechName(t.Id);
-            if (string.IsNullOrEmpty(name)) name = Loc.F("CountryTech.UnnamedTech", t.Id);
-            _listBox.Items.Add(new CountryTechListEntry
-            {
-                Id = t.Id,
-                Name = name,
-                CategoryId = t.CategoryId,
-                ResearchLv = t.ResearchLv
-            });
-        }
-        SetStatus(Loc.F("Common.ItemsLoadedFiltered", _parser.Items.Count, _listBox.Items.Count));
+        if (label == Loc.T("CountryTech.Field.Type")) _editor.Form.Reload();
+        else if (label == Loc.T("CountryTech.Field.CategoryId")) RefreshCategories();
+        if (label == Loc.T("JsonEditor.CountryTech.NameIni") || label == Loc.T("CountryTech.Field.Type")) _editor.RefreshRows();
+        // 路径坐标必须成对：奇数个时马上提醒（保存也会被校验拦下）
+        if (label == Loc.T("CountryTech.Field.Lines") && tech.Lines.Count % 2 != 0) SetStatus(Loc.F("CountryTech.OddCoordsStatus", "Lines", tech.Lines.Count));
+        else if (label == Loc.T("CountryTech.Field.Lines2") && tech.Lines2.Count % 2 != 0) SetStatus(Loc.F("CountryTech.OddCoordsStatus", "Lines2", tech.Lines2.Count));
         RenderCanvas();
     }
 
-    private void ListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    /// <summary>双击画布上的节点：切到“基本属性”页签并把光标放进第一个输入框，直接开始改属性。</summary>
+    private void FocusProperties()
     {
-        if (_listBox.SelectedItem is not CountryTechListEntry entry) { ShowEmpty(); return; }
-        _current = _parser.GetById(entry.Id);
-        if (_current == null) { ShowEmpty(); return; }
-        _selectedIds.Clear();
-        _selectedIds.Add(entry.Id);
-        LoadUiFromCurrent();
+        if (_showIniPanel) ShowIniPanel(false);
+        _editor.Form.FocusFirst();
+    }
+
+    protected override IReadOnlyList<string> InvalidFields() => _editor.Form.InvalidFields;
+
+    protected override void OnStateReplaced()
+    {
+        base.OnStateReplaced();
+        if (_showIniPanel) _iniForm.Load(_editor.Current);
+    }
+
+    protected override void OnTextsReloaded()
+    {
+        base.OnTextsReloaded();
+        if (_showIniPanel) _iniForm.Reload();
         RenderCanvas();
     }
 
-    private void ShowEmpty()
+    /// <summary>Ctrl+0 适配视图，PageUp / PageDown 切换分类（跳过“全部”）。</summary>
+    protected override bool HandleSceneKey(Key key, ModifierKeys modifiers, bool textFocused)
     {
-        _loadingUi = true;
-        foreach (var tb in _textBoxes.Values) tb.Text = "";
-        foreach (var nb in _numBoxes.Values) nb.Value = 0;
-        _jsonPreview.Text = "";
-        _loadingUi = false;
-    }
-
-    // ============================================================= 属性读写 =============================================================
-    private void LoadUiFromCurrent()
-    {
-        if (_current == null) return;
-        _loadingUi = true;
-        SetNum("Id", _current.Id);
-        SetNum("CategoryId", _current.CategoryId);
-        SetNum("Categorys", _current.Categorys);
-        SetNum("Type", _current.Type);
-        SetNum("ResearchLv", _current.ResearchLv);
-        SetNum("Position", _current.Position);
-        SetNum("CostMoney", _current.CostMoney);
-        SetNum("CostGear", _current.CostGear);
-        SetNum("CostAtomic", _current.CostAtomic);
-        SetNum("CostMerit", _current.CostMerit);
-        SetNum("Chance", _current.Chance);
-        SetNum("Value", _current.Value);
-        _textBoxes["NameIni"].Text = _parser.GetTechName(_current.Id);
-        _textBoxes["NeedId"].Text = FormatList(_current.NeedId);
-        _textBoxes["Lines"].Text = FormatList(_current.Lines);
-        _textBoxes["Lines2"].Text = FormatList(_current.Lines2);
-        _loadingUi = false;
-        UpdateJsonPreview();
-        if (_showIniPanel) LoadIniPanel();
-    }
-
-    private void ApplyPropCurrent()
-    {
-        if (_current == null) return;
-        _current.Id = GetInt("Id");
-        _current.CategoryId = GetInt("CategoryId");
-        _current.Categorys = GetInt("Categorys");
-        _current.Type = GetInt("Type");
-        _current.ResearchLv = GetInt("ResearchLv");
-        _current.Position = GetInt("Position");
-        _current.CostMoney = GetInt("CostMoney");
-        _current.CostGear = GetInt("CostGear");
-        _current.CostAtomic = GetInt("CostAtomic");
-        _current.CostMerit = GetInt("CostMerit");
-        _current.Chance = GetInt("Chance");
-        _current.Value = GetInt("Value");
-        _current.NeedId = ParseIntList(_textBoxes["NeedId"].Text);
-        _current.Lines = ParseDoubleList(_textBoxes["Lines"].Text);
-        _current.Lines2 = ParseDoubleList(_textBoxes["Lines2"].Text);
-        RenderCanvas();
-        UpdateJsonPreview();
-    }
-
-    private void SetNum(string key, int v) { if (_numBoxes.TryGetValue(key, out var b)) b.Value = v; }
-    private int GetInt(string key) => _numBoxes.TryGetValue(key, out var b) ? (int)Math.Round(b.Value) : 0;
-
-    private static string FormatList<T>(List<T> list) => list == null ? "" : string.Join(", ", list);
-
-    private static List<int> ParseIntList(string s)
-    {
-        var r = new List<int>();
-        if (string.IsNullOrWhiteSpace(s)) return r;
-        foreach (var p in s.Split(',', StringSplitOptions.RemoveEmptyEntries))
-            if (int.TryParse(p.Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var v)) r.Add(v);
-        return r;
-    }
-
-    private static List<double> ParseDoubleList(string s)
-    {
-        var r = new List<double>();
-        if (string.IsNullOrWhiteSpace(s)) return r;
-        foreach (var p in s.Split(',', StringSplitOptions.RemoveEmptyEntries))
-            if (double.TryParse(p.Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var v)) r.Add(v);
-        return r;
-    }
-
-    private void UpdateJsonPreview()
-    {
-        if (_current == null) { _jsonPreview.Text = ""; return; }
-        try { _jsonPreview.Text = JsonSerializer.Serialize(_current, new JsonSerializerOptions { WriteIndented = true }); }
-        catch { _jsonPreview.Text = Loc.T("Common.SerializeFailed"); }
+        if (textFocused) return false;
+        if (modifiers == ModifierKeys.Control && key is Key.D0 or Key.NumPad0)
+        {
+            FitView();
+            return true;
+        }
+        if (modifiers != ModifierKeys.None) return false;
+        if (key == Key.PageUp) { _categories.Step(-1); return true; }
+        if (key == Key.PageDown) { _categories.Step(1); return true; }
+        return false;
     }
 
     // ============================================================= 操作 =============================================================
-    private void OnAdd(object sender, RoutedEventArgs e) => AddAt(1, 0);
 
+    /// <summary>当前操作的分类：选了分类就用它；选“全部”时用当前节点的分类（没有时用第一个分类）。</summary>
+    private int CurrentCategoryId()
+        => !_categories.IsAll ? _categories.Selected : _editor.Current?.CategoryId ?? _parser.Items.Select(t => t.CategoryId).DefaultIfEmpty(1).Min();
+
+    /// <summary>工具栏“新增”：在当前分类第 1 级里第一个空位上建节点（位置 0、1、-1、2、-2…）。</summary>
+    protected override void OnAddCommand()
+    {
+        int categoryId = CurrentCategoryId();
+        var taken = _parser.Items.Where(t => t.CategoryId == categoryId && t.ResearchLv == 1).Select(t => t.Position).ToHashSet();
+        int position = 0;
+        for (int step = 1; taken.Contains(position); step++) position = step % 2 == 1 ? (step + 1) / 2 : -(step / 2);
+        AddAt(1, position);
+    }
+
+    /// <summary>
+    /// 在当前分类的指定网格位置新增节点：对话框里选前置、填 Type（同分类内唯一）；
+    /// 有前置时按网格位置生成连线。名称按 Type 共享，新增节点不写文本。
+    /// </summary>
     private void AddAt(int level, int position)
     {
-        int catId = _categoryCombo.SelectedValue is int c && c >= 0 ? c : 1;
-        int newId = _parser.GetNextIdInCategory(catId);
-        var tech = new CountryTechData
+        Session.Flush();
+        int categoryId = CurrentCategoryId();
+        var inCategory = _parser.Items.Where(t => t.CategoryId == categoryId).ToList();
+        if (inCategory.Any(t => t.ResearchLv == level && t.Position == position))
         {
-            Id = newId,
-            CategoryId = catId,
-            Categorys = 0,
-            Type = 101,
-            ResearchLv = level,
-            Position = position,
-            CostMoney = 100,
-            CostGear = 50,
-            CostAtomic = 25,
-            CostMerit = 1,
-            Chance = 100,
-            Value = 0
+            EditorDialogs.Warning(DialogOwner, Loc.T("CountryTech.MoveConflictTitle"), Loc.T("CountryTech.CellOccupied"));
+            return;
+        }
+        int suggestedType = 101;
+        while (_parser.IsTypeTaken(categoryId, suggestedType)) suggestedType++;
+        var selected = _editor.Current is { } current && current.CategoryId == categoryId ? current : null;
+        var choice = TechNodeDialog.Show(DialogOwner, categoryId, level, position, inCategory, selected, suggestedType,
+            type => _parser.IsTypeTaken(categoryId, type), _parser.GetTechNameByType);
+        if (choice == null) return;
+
+        var tech = _parser.CreateNode(categoryId, level, position, choice.Type, choice.Parent);
+        _editor.Insert(tech, Loc.F("JsonEditor.History.Add", tech.Id));
+        SetStatus(Loc.F("CountryTech.Added", tech.Id));
+    }
+
+    /// <summary>新建分类（科技组）：输入 CategoryId，建一个根节点（第 1 级、位置 0）。</summary>
+    private async void OnAddCategory()
+    {
+        Session.Flush();
+        using var dialog = new SingleInputDialog(AppWindow)
+        {
+            Title = Loc.T("CountryTech.Group.AddTitle"),
+            Description = Loc.T("CountryTech.Group.AddPrompt"),
+            DefaultValue = ""
         };
-        _parser.AddTech(tech);
-        // 默认名会写进 stringtable（游戏数据），不随界面语言变化
-        _parser.SetTechName(newId, $"新科技{newId}");
-        RefreshCategories();
-        RefreshList();
-        foreach (CountryTechListEntry item in _listBox.Items)
-            if (item.Id == newId) { _listBox.SelectedItem = item; break; }
-        SetStatus(Loc.F("CountryTech.Added", newId));
-    }
-
-    private void OnDelete(object sender, RoutedEventArgs e)
-    {
-        if (_current == null) { MessageBox.Show(Loc.T("Common.SelectItemFirst"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
-        var res = MessageBox.Show(Loc.F("CountryTech.DeleteConfirm", _current.Id, _parser.GetTechName(_current.Id)), Loc.T("Common.Delete"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
-        if (res != MessageBoxResult.Yes) return;
-        int id = _current.Id;
-        _parser.RemoveTech(id);
-        _current = null;
-        RefreshCategories();
-        RefreshList();
-        ShowEmpty();
-        SetStatus(Loc.F("CountryTech.Deleted", id));
-    }
-
-    private void OnSave(object sender, RoutedEventArgs e)
-    {
-        if (_parser.SaveAll())
+        var text = (await dialog.ShowAsync())?.Trim();
+        if (string.IsNullOrEmpty(text)) return;
+        if (!int.TryParse(text, out int categoryId))
         {
-            SetStatus(Loc.F("CountryTech.SavedStatus", _parser.ConfigPath));
-            MessageBox.Show(Loc.F("CountryTech.SavedMessage", _parser.ConfigPath, _parser.StringTablePath), Loc.T("Common.SaveSuccess"), MessageBoxButton.OK, MessageBoxImage.Information);
+            EditorDialogs.Error(DialogOwner, Loc.T("Common.Error"), Loc.T("CountryTech.Group.Invalid"));
+            return;
+        }
+        if (_parser.HasCategory(categoryId))
+        {
+            EditorDialogs.Warning(DialogOwner, Loc.T("Common.Hint"), Loc.F("CountryTech.Group.Exists", categoryId));
+            return;
+        }
+        var root = _parser.CreateNode(categoryId, 1, 0, 101, null);
+        _editor.Insert(root, Loc.F("CountryTech.Group.AddHistory", categoryId));
+        // 切到新分类：下拉框的程序性切换不触发列表刷新，这里手动刷新列表并适配视图
+        _categories.Refresh(_parser.Items.Select(t => t.CategoryId), categoryId);
+        _editor.Select(root);
+        FitView();
+        SetStatus(Loc.F("CountryTech.Group.Added", categoryId, root.Id));
+    }
+
+    /// <summary>删除当前分类的全部节点（其它分类对它们的 NeedId 引用一并去掉）。</summary>
+    private void OnDeleteCategory()
+    {
+        if (_categories.IsAll)
+        {
+            EditorDialogs.Info(DialogOwner, Loc.T("Common.Hint"), Loc.T("CountryTech.Group.SelectFirst"));
+            return;
+        }
+        int categoryId = _categories.Selected;
+        int count = _parser.Items.Count(t => t.CategoryId == categoryId);
+        if (!EditorDialogs.Confirm(DialogOwner, Loc.T("CountryTech.Group.Delete"), Loc.F("CountryTech.Group.DeleteConfirm", categoryId, count),
+                Loc.T("Common.Delete"), danger: true))
+            return;
+        Session.Flush();
+        _parser.RemoveCategory(categoryId);
+        _editor.Refresh();
+        Session.Commit(Loc.F("CountryTech.Group.DeleteHistory", categoryId));
+        SetStatus(Loc.F("CountryTech.Group.Deleted", categoryId, count));
+    }
+
+    /// <summary>按 NeedId 重写当前分类所有节点的连线（会覆盖现有路径，先确认）。</summary>
+    private void OnRewriteCategoryLines()
+    {
+        if (_categories.IsAll)
+        {
+            EditorDialogs.Info(DialogOwner, Loc.T("Common.Hint"), Loc.T("CountryTech.Group.SelectFirst"));
+            return;
+        }
+        int categoryId = _categories.Selected;
+        int candidates = _parser.Items.Count(t => t.CategoryId == categoryId && t.NeedId.Count > 0);
+        if (candidates == 0)
+        {
+            EditorDialogs.Info(DialogOwner, Loc.T("Common.Hint"), Loc.T("CountryTech.RewriteNone"));
+            return;
+        }
+        if (!EditorDialogs.Confirm(DialogOwner, Loc.T("CountryTech.RewriteLines"), Loc.F("CountryTech.RewriteConfirm", categoryId, candidates)))
+            return;
+        Session.Flush();
+        var result = _parser.RewriteCategoryLines(categoryId);
+        _editor.Form.Reload();
+        RenderCanvas();
+        Session.Commit(Loc.F("CountryTech.RewriteHistory", categoryId));
+        var message = Loc.F("CountryTech.RewriteDone", result.Changed, result.Candidates);
+        if (result.Skipped.Count > 0) message += Environment.NewLine + Loc.F("CountryTech.RewriteSkipped", string.Join(", ", result.Skipped));
+        SetStatus(message.Replace(Environment.NewLine, " "));
+        EditorDialogs.Info(DialogOwner, Loc.T("CountryTech.RewriteLines"), message);
+    }
+
+    private void OnGenerateLines()
+    {
+        var tech = _editor.Current;
+        if (tech == null)
+        {
+            EditorDialogs.Info(DialogOwner, Loc.T("Common.Hint"), Loc.T("Common.SelectItemFirst"));
+            return;
+        }
+        if (tech.NeedId.Count == 0)
+        {
+            EditorDialogs.Info(DialogOwner, Loc.T("Common.Hint"), Loc.T("CountryTech.NoNeedId"));
+            return;
+        }
+        Session.Flush();
+        int applied = 0;
+        var first = _parser.GetById(tech.NeedId[0]);
+        if (first != null)
+        {
+            tech.Lines = TechTreeGeometry.MakeOrthogonalPath(first, tech);
+            applied++;
         }
         else
         {
-            MessageBox.Show(Loc.T("Common.SaveFailed"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            SetStatus(Loc.F("CountryTech.NeedIdNotFound", tech.NeedId[0]));
         }
-    }
-
-    private void OnReload(object sender, RoutedEventArgs e)
-    {
-        var res = MessageBox.Show(Loc.F("Common.ReloadConfirm", "CountryTechSettings.json"), Loc.T("Common.Reload"), MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (res != MessageBoxResult.Yes) return;
-        _parser.LoadAll();
-        RefreshCategories();
-        RefreshList();
-        ShowEmpty();
-        SetStatus(Loc.T("Common.ReloadedFromDisk"));
-    }
-
-    private void OnGenerateLines(object sender, RoutedEventArgs e)
-    {
-        if (_current == null) { MessageBox.Show(Loc.T("Common.SelectItemFirst"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
-        if (_current.NeedId.Count == 0) { MessageBox.Show(Loc.T("CountryTech.NoNeedId"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
-
-        int applied = 0;
-        if (_current.NeedId.Count >= 1)
+        if (tech.NeedId.Count >= 2 && _parser.GetById(tech.NeedId[1]) is { } second)
         {
-            var src = _parser.GetById(_current.NeedId[0]);
-            if (src != null) { _current.Lines = GenerateOrthogonalPath(src, _current); applied++; }
-            else SetStatus(Loc.F("CountryTech.NeedIdNotFound", _current.NeedId[0]));
+            tech.Lines2 = TechTreeGeometry.MakeOrthogonalPath(second, tech);
+            applied++;
         }
-        if (_current.NeedId.Count >= 2)
-        {
-            var src = _parser.GetById(_current.NeedId[1]);
-            if (src != null) { _current.Lines2 = GenerateOrthogonalPath(src, _current); applied++; }
-        }
-        _loadingUi = true;
-        _textBoxes["Lines"].Text = FormatList(_current.Lines);
-        _textBoxes["Lines2"].Text = FormatList(_current.Lines2);
-        _loadingUi = false;
-        UpdateJsonPreview();
+        _editor.Form.Reload();
+        RenderCanvas();
+        Session.Commit(Loc.F("CountryTech.LinesGenerated", applied));
         SetStatus(Loc.F("CountryTech.LinesGenerated", applied));
     }
 
-    private static List<double> GenerateOrthogonalPath(CountryTechData source, CountryTechData target)
+    protected override void OnValidateCommand()
     {
-        // Lines 存的是相对 target 自身的偏移（DrawStoredLine 从节点自身出发绘制），
-        // 因此必须反向计算：从 target 出发指向 source，终点才能落在 source 上。
-        double sx = source.Position * NodeStepX;
-        double sy = (source.ResearchLv - 1) * NodeStepY;
-        double tx = target.Position * NodeStepX;
-        double ty = (target.ResearchLv - 1) * NodeStepY;
-        int dx = (int)Math.Round((sx - tx) / LineScaleX);
-        int dy = (int)Math.Round((sy - ty) / LineScaleY);
-        if (dx == 0) return dy == 0 ? new List<double>() : new List<double> { 0, dy };
-        if (dy == 0) return new List<double> { dx, 0 };
-        int first = dy / 2;
-        return new List<double> { 0, first, dx, first, dx, dy };
+        var issues = _parser.Validate();
+        ShowValidation(issues.Select(FormatIssue).ToList(), _parser.Items.Count);
     }
 
-    private void OnValidate(object sender, RoutedEventArgs e)
+    private static string FormatIssue(TechIssue issue)
+        => $"{Loc.T(issue.Severity == TechIssueSeverity.Error ? "CountryTech.Validate.Error" : "CountryTech.Validate.Warning")} {issue.Text}";
+
+    /// <summary>有错误的科技树不能保存（游戏读表会出错）；警告不阻断，保存后在状态栏提示条数。</summary>
+    protected override string? CheckBeforeSave()
     {
-        var problems = new List<string>();
-        var seenIds = new HashSet<int>();
-        var typeByCat = new Dictionary<int, HashSet<int>>();
-
-        foreach (var t in _parser.Items)
-        {
-            string pfx = $"[Id={t.Id}] ";
-            if (seenIds.Contains(t.Id)) problems.Add(pfx + Loc.T("Common.DuplicateId"));
-            else seenIds.Add(t.Id);
-
-            if (t.Categorys < 0 || t.Categorys > 4) problems.Add(pfx + Loc.F("CountryTech.Validate.CategorysRange", t.Categorys));
-
-            if (!typeByCat.TryGetValue(t.CategoryId, out var set))
-            {
-                set = new HashSet<int>();
-                typeByCat[t.CategoryId] = set;
-            }
-            if (set.Contains(t.Type)) problems.Add(pfx + Loc.F("CountryTech.Validate.DuplicateType", t.CategoryId, t.Type));
-            else set.Add(t.Type);
-
-            if (t.NeedId.Count > 2) problems.Add(pfx + Loc.F("CountryTech.Validate.TooManyNeedId", t.NeedId.Count));
-
-            if (t.Lines.Count % 2 != 0) problems.Add(pfx + Loc.F("CountryTech.Validate.OddCoords", "Lines", t.Lines.Count));
-            if (t.Lines2.Count % 2 != 0) problems.Add(pfx + Loc.F("CountryTech.Validate.OddCoords", "Lines2", t.Lines2.Count));
-
-            foreach (var nid in t.NeedId)
-                if (_parser.GetById(nid) == null) problems.Add(pfx + Loc.F("CountryTech.Validate.NeedIdMissing", nid));
-
-            if (t.CostMoney < 0 || t.CostGear < 0 || t.CostAtomic < 0) problems.Add(pfx + Loc.T("CountryTech.Validate.NegativeCost"));
-        }
-
-        if (problems.Count == 0)
-            MessageBox.Show(Loc.F("Common.ValidationPassed", _parser.Items.Count), Loc.T("Common.Validate"), MessageBoxButton.OK, MessageBoxImage.Information);
-        else
-        {
-            var msg = string.Join("\n", problems.Take(80));
-            if (problems.Count > 80) msg += "\n" + Loc.F("Common.ValidationMore", problems.Count, 80);
-            MessageBox.Show(msg, Loc.F("Common.ValidationProblems", problems.Count), MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-        SetStatus(Loc.F("Common.ValidationDone", problems.Count));
+        var issues = _parser.Validate();
+        _saveWarnings = issues.Count(i => i.Severity == TechIssueSeverity.Warning);
+        var errors = issues.Where(i => i.Severity == TechIssueSeverity.Error).Select(FormatIssue).ToList();
+        if (errors.Count == 0) return null;
+        var shown = string.Join(Environment.NewLine, errors.Take(12));
+        if (errors.Count > 12) shown += Environment.NewLine + Loc.F("Common.ValidationMore", errors.Count, 12);
+        return Loc.F("CountryTech.SaveBlocked", errors.Count, shown);
     }
 
-    private void SetStatus(string s)
+    protected override void OnSaved()
     {
-        _statusText.Text = s;
-        Debug.WriteLine($"[CountryTechEditScene] {s}");
+        if (_saveWarnings > 0) SetStatus(Loc.F("CountryTech.SavedWithWarnings", string.Join(", ", Session.FileNames), _saveWarnings));
     }
 
     // ============================================================= 科技树画布 =============================================================
-    private (double wx, double wy) Grid2World(double level, double position) => (position * NodeStepX, (level - 1) * NodeStepY);
-    private Point W2S(double wx, double wy) => new Point(wx * _scale + _offsetX, wy * _scale + _offsetY);
+
+    private static (double wx, double wy) Grid2World(double level, double position) => TechTreeGeometry.GridToWorld(level, position);
+    private Point W2S(double wx, double wy) => new(wx * _scale + _offsetX, wy * _scale + _offsetY);
     private (double wx, double wy) S2W(double x, double y) => ((x - _offsetX) / _scale, (y - _offsetY) / _scale);
 
     private (int level, int position) EventGrid(Point screen)
     {
         var (wx, wy) = S2W(screen.X, screen.Y);
-        int level = Math.Max(1, (int)Math.Round(wy / NodeStepY) + 1);
-        int position = (int)Math.Round(wx / NodeStepX);
+        int level = Math.Max(1, (int)Math.Round(wy / TechTreeGeometry.NodeStepY) + 1);
+        int position = (int)Math.Round(wx / TechTreeGeometry.NodeStepX);
         return (level, position);
     }
 
+    private List<CountryTechData> VisibleNodes() => _parser.Items.Where(t => _categories.Matches(t.CategoryId)).ToList();
+
     private void FitView()
     {
-        if (_canvas == null) return;
-        int cat = _categoryCombo.SelectedValue is int c ? c : -1;
-        var nodes = (cat < 0 ? _parser.Items : _parser.Items.Where(t => t.CategoryId == cat)).ToList();
+        var nodes = VisibleNodes();
         int pmin = 0, pmax = 0, lmin = 1, lmax = 1;
-        if (nodes.Count == 0) { pmin = 0; pmax = 4; lmin = 1; lmax = 4; }
+        if (nodes.Count == 0) { pmax = 4; lmax = 4; }
         else
         {
             foreach (var n in nodes)
@@ -688,22 +567,14 @@ public class CountryTechEditScene : UserControl
     {
         var p = W2S(wx, wy);
         var tb = new TextBlock { Text = text, Foreground = fg, FontSize = size };
-        Canvas.SetLeft(tb, p.X); Canvas.SetTop(tb, p.Y);
+        Canvas.SetLeft(tb, p.X);
+        Canvas.SetTop(tb, p.Y);
         _canvas.Children.Add(tb);
     }
 
-    private void AddScreenText(double x, double y, string text, Brush fg, double size, int id, double width = 0)
+    private void AddScreenTextPair(double x, double y, string left, Brush leftFg, double leftSize, string right, Brush rightFg, double rightSize)
     {
-        var tb = new TextBlock { Text = text, Foreground = fg, FontSize = size, Tag = id, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.NoWrap };
-        if (width > 0) { tb.Width = width; tb.TextWrapping = TextWrapping.Wrap; Canvas.SetLeft(tb, x - width / 2); }
-        else { tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity)); Canvas.SetLeft(tb, x - tb.DesiredSize.Width / 2); }
-        Canvas.SetTop(tb, y);
-        _canvas.Children.Add(tb);
-    }
-
-    private void AddScreenTextPair(double x, double y, string left, Brush leftFg, double leftSize, string right, Brush rightFg, double rightSize, int id)
-    {
-        var tb = new TextBlock { Tag = id, TextWrapping = TextWrapping.NoWrap };
+        var tb = new TextBlock { TextWrapping = TextWrapping.NoWrap };
         tb.Inlines.Add(new Run { Text = left, Foreground = leftFg, FontSize = leftSize });
         tb.Inlines.Add(new Run { Text = right, Foreground = rightFg, FontSize = rightSize });
         tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -714,14 +585,12 @@ public class CountryTechEditScene : UserControl
 
     private void RenderCanvas()
     {
-        if (_canvas == null) return;
         _canvas.Children.Clear();
-
-        int cat = _categoryCombo.SelectedValue is int c ? c : -1;
-        var nodes = (cat < 0 ? _parser.Items : _parser.Items.Where(t => t.CategoryId == cat)).ToList();
+        var nodes = VisibleNodes();
+        var selected = new HashSet<CountryTechData>(_editor.SelectedItems, ReferenceEqualityComparer.Instance);
 
         int pmin = 0, pmax = 0, lmin = 1, lmax = 1;
-        if (nodes.Count == 0) { pmin = 0; pmax = 4; lmin = 1; lmax = 4; }
+        if (nodes.Count == 0) { pmax = 4; lmax = 4; }
         else
         {
             foreach (var n in nodes)
@@ -744,9 +613,9 @@ public class CountryTechEditScene : UserControl
             AddText(g.wx, g.wy, "P" + pos, EditorTheme.TextDim, 12);
         }
 
-        var occupied = new HashSet<(int, int)>();
-        foreach (var n in nodes) occupied.Add((n.ResearchLv, n.Position));
+        var occupied = nodes.Select(n => (n.ResearchLv, n.Position)).ToHashSet();
         for (int level = lmin; level <= lmax; level++)
+        {
             for (int pos = pmin; pos <= pmax; pos++)
             {
                 if (occupied.Contains((level, pos))) continue;
@@ -754,9 +623,11 @@ public class CountryTechEditScene : UserControl
                 var p = W2S(gp.wx, gp.wy);
                 var r = Math.Max(3, 5 * _scale);
                 var dot = new Ellipse { Width = 2 * r, Height = 2 * r, Stroke = EditorTheme.BorderStrong };
-                Canvas.SetLeft(dot, p.X - r); Canvas.SetTop(dot, p.Y - r);
+                Canvas.SetLeft(dot, p.X - r);
+                Canvas.SetTop(dot, p.Y - r);
                 _canvas.Children.Add(dot);
             }
+        }
 
         foreach (var node in nodes)
         {
@@ -771,15 +642,12 @@ public class CountryTechEditScene : UserControl
                 foreach (var pid in node.NeedId)
                 {
                     var parent = _parser.GetById(pid);
-                    if (parent == null) continue;
-                    if (cat >= 0 && parent.CategoryId != cat) continue;
+                    if (parent == null || !_categories.Matches(parent.CategoryId)) continue;
                     var ag = Grid2World(node.ResearchLv, node.Position);
-                    var a = W2S(ag.wx, ag.wy);
                     var bg = Grid2World(parent.ResearchLv, parent.Position);
-                    var b = W2S(bg.wx, bg.wy);
                     _canvas.Children.Add(new Polyline
                     {
-                        Points = new PointCollection { a, b },
+                        Points = new PointCollection { W2S(ag.wx, ag.wy), W2S(bg.wx, bg.wy) },
                         Stroke = EditorTheme.Warning,
                         StrokeThickness = Math.Max(1, 2 * _scale),
                         StrokeDashArray = new DoubleCollection { 5, 4 }
@@ -789,7 +657,7 @@ public class CountryTechEditScene : UserControl
         }
 
         foreach (var node in nodes)
-            DrawNode(node, _selectedIds.Contains(node.Id));
+            DrawNode(node, selected.Contains(node));
 
         if (_draggingNode && _dragNode != null)
         {
@@ -797,21 +665,22 @@ public class CountryTechEditScene : UserControl
             var p = W2S(gp.wx, gp.wy);
             var r = NodeRadius * _scale;
             var ghost = new Ellipse { Width = 2 * r, Height = 2 * r, Stroke = EditorTheme.Danger, StrokeThickness = 2, StrokeDashArray = new DoubleCollection { 4, 4 } };
-            Canvas.SetLeft(ghost, p.X - r); Canvas.SetTop(ghost, p.Y - r);
+            Canvas.SetLeft(ghost, p.X - r);
+            Canvas.SetTop(ghost, p.Y - r);
             _canvas.Children.Add(ghost);
         }
     }
 
     private void DrawStoredLine(CountryTechData node, List<double> path)
     {
-        if (path == null || path.Count < 2 || path.Count % 2 != 0) return;
+        if (path.Count < 2 || path.Count % 2 != 0) return;
         var g = Grid2World(node.ResearchLv, node.Position);
         var prev = new Point(g.wx, g.wy);
         var pts = new PointCollection { W2S(prev.X, prev.Y) };
         for (int i = 0; i + 1 < path.Count; i += 2)
         {
-            double px = g.wx + path[i] * LineScaleX;
-            double py = g.wy + path[i + 1] * LineScaleY;
+            double px = g.wx + path[i] * TechTreeGeometry.LineScaleX;
+            double py = g.wy + path[i + 1] * TechTreeGeometry.LineScaleY;
             if (prev.X != px && prev.Y != py) pts.Add(W2S(prev.X, py));
             pts.Add(W2S(px, py));
             prev = new Point(px, py);
@@ -828,8 +697,6 @@ public class CountryTechEditScene : UserControl
     // 按 Type 裁出每个科技的子图缓存，供 DrawNode 显示。
     private void LoadTechIcons()
     {
-        if (_iconsLoaded) return;
-        _iconsLoaded = true;
         try
         {
             var am = AssetManager.Default;
@@ -882,9 +749,9 @@ public class CountryTechEditScene : UserControl
         const string prefix = "countrytech_";
         int i = name.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
         if (i < 0) return -1;
-        string s = name.Substring(i + prefix.Length);
+        string s = name[(i + prefix.Length)..];
         int dot = s.IndexOf('.');
-        if (dot >= 0) s = s.Substring(0, dot);
+        if (dot >= 0) s = s[..dot];
         return int.TryParse(s, out int t) ? t : -1;
     }
 
@@ -893,21 +760,23 @@ public class CountryTechEditScene : UserControl
         var g = Grid2World(node.ResearchLv, node.Position);
         var center = W2S(g.wx, g.wy);
         var radius = NodeRadius * _scale;
+        var name = TypeName(node);
+        if (string.IsNullOrEmpty(name)) name = Loc.F("CountryTech.UnnamedType", node.Type);
 
         if (_techIcons.TryGetValue(node.Type, out var icon) && icon is CroppedBitmap cb)
         {
             double imgH = 2 * radius;
             double imgW = imgH * cb.Width / cb.Height;
-            var img = new Image { Source = icon, Width = imgW, Height = imgH, Stretch = Stretch.Fill, Tag = node.Id };
+            var img = new Image { Source = icon, Width = imgW, Height = imgH, Stretch = Stretch.Fill };
             Canvas.SetLeft(img, center.X - imgW / 2);
             Canvas.SetTop(img, center.Y - imgH / 2);
             _canvas.Children.Add(img);
-
             if (selected)
             {
                 var sel = new Rectangle
                 {
-                    Width = imgW + 4, Height = imgH + 4,
+                    Width = imgW + 4,
+                    Height = imgH + 4,
                     Stroke = EditorTheme.Accent,
                     StrokeThickness = Math.Max(1.5, 2.5 * _scale),
                     Fill = Brushes.Transparent,
@@ -917,10 +786,7 @@ public class CountryTechEditScene : UserControl
                 Canvas.SetTop(sel, center.Y - sel.Height / 2);
                 _canvas.Children.Add(sel);
             }
-
-            var name = _parser.GetTechNameByType(node.Type);
-            if (string.IsNullOrEmpty(name)) name = Loc.F("CountryTech.UnnamedType", node.Type);
-            AddScreenTextPair(center.X, center.Y + imgH / 2 + 2, node.Id.ToString() + "  ", EditorTheme.TextMuted, 12, name, EditorTheme.Text, 11, node.Id);
+            AddScreenTextPair(center.X, center.Y + imgH / 2 + 2, node.Id + "  ", EditorTheme.TextMuted, 12, name, EditorTheme.Text, 11);
             return;
         }
 
@@ -935,23 +801,18 @@ public class CountryTechEditScene : UserControl
             Points = pts,
             Fill = selected ? EditorTheme.Selection : EditorTheme.Bg3,
             Stroke = selected ? EditorTheme.Accent : EditorTheme.BorderStrong,
-            StrokeThickness = Math.Max(1, 2 * _scale),
-            Tag = node.Id
+            StrokeThickness = Math.Max(1, 2 * _scale)
         });
-        var fallbackName = _parser.GetTechNameByType(node.Type);
-        if (string.IsNullOrEmpty(fallbackName)) fallbackName = Loc.F("CountryTech.UnnamedType", node.Type);
-        AddScreenTextPair(center.X, center.Y + 14, node.Id.ToString() + "  ", EditorTheme.TextMuted, 12, fallbackName, EditorTheme.Text, 11, node.Id);
+        AddScreenTextPair(center.X, center.Y + 14, node.Id + "  ", EditorTheme.TextMuted, 12, name, EditorTheme.Text, 11);
     }
 
     // 用屏幕距离命中：遍历当前分类节点，点击落在节点半径内即命中。
     // 不依赖 VisualTreeHelper.HitTest（对 Image 命中不可靠，选中态节点拖不动）。
     private CountryTechData? FindNodeAt(Point p)
     {
-        int cat = _categoryCombo.SelectedValue is int c ? c : -1;
-        var nodes = cat < 0 ? _parser.Items : _parser.Items.Where(t => t.CategoryId == cat);
         CountryTechData? best = null;
         double bestDist = NodeRadius * _scale;
-        foreach (var n in nodes)
+        foreach (var n in VisibleNodes())
         {
             var g = Grid2World(n.ResearchLv, n.Position);
             var s = W2S(g.wx, g.wy);
@@ -960,12 +821,6 @@ public class CountryTechEditScene : UserControl
             if (d < bestDist) { bestDist = d; best = n; }
         }
         return best;
-    }
-
-    private void SelectNodeInList(int id)
-    {
-        foreach (CountryTechListEntry item in _listBox.Items)
-            if (item.Id == id) { _listBox.SelectedItem = item; return; }
     }
 
     // 右键空白处弹出菜单：在此新增节点；右键节点弹出菜单：连接至此节点（设置 NeedId）
@@ -978,7 +833,7 @@ public class CountryTechEditScene : UserControl
         menu.Resources.MergedDictionaries.Add(EditorTheme.Dictionary);
         if (hit != null)
         {
-            var name = _parser.GetTechNameByType(hit.Type);
+            var name = TypeName(hit);
             if (string.IsNullOrEmpty(name)) name = Loc.F("CountryTech.UnnamedType", hit.Type);
             var item = new MenuItem { Header = Loc.F("CountryTech.Menu.ConnectHere", hit.Id, name) };
             item.Click += (_, _) => ConnectToNode(hit);
@@ -997,45 +852,68 @@ public class CountryTechEditScene : UserControl
         menu.IsOpen = true;
     }
 
-    // 把所有选中子节点的 NeedId 设为 target.Id（父级节点为被连接者）
+    /// <summary>把所有选中子节点的 NeedId 设为 target.Id（父级节点为被连接者）。</summary>
     private void ConnectToNode(CountryTechData target)
     {
-        var children = _parser.Items.Where(t => _selectedIds.Contains(t.Id) && t.Id != target.Id).ToList();
+        var children = _editor.SelectedItems.Where(t => !ReferenceEquals(t, target)).ToList();
         if (children.Count == 0)
         {
-            MessageBox.Show(Loc.T("CountryTech.ConnectHint"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information);
+            EditorDialogs.Info(DialogOwner, Loc.T("Common.Hint"), Loc.T("CountryTech.ConnectHint"));
             return;
         }
+        Session.Flush();
         foreach (var child in children)
         {
             child.NeedId = new List<int> { target.Id };
             if (_autoUpdateLines) UpdateConnectedLines(child.Id);
         }
-        RefreshList();
-        if (_current != null) LoadUiFromCurrent();
-        RenderCanvas();
-        SetStatus(Loc.F("CountryTech.Connected", children.Count, target.Id));
+        AfterCanvasEdit(Loc.F("CountryTech.Connected", children.Count, target.Id));
     }
 
-    // 清空所有选中节点的 NeedId（断开与父级的连接）
+    /// <summary>清空所有选中节点的 NeedId（断开与父级的连接）。</summary>
     private void DisconnectNodes()
     {
-        var nodes = _parser.Items.Where(t => _selectedIds.Contains(t.Id)).ToList();
+        var nodes = _editor.SelectedItems;
         if (nodes.Count == 0)
         {
-            MessageBox.Show(Loc.T("CountryTech.UnlinkHint"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information);
+            EditorDialogs.Info(DialogOwner, Loc.T("Common.Hint"), Loc.T("CountryTech.UnlinkHint"));
             return;
         }
+        Session.Flush();
         foreach (var n in nodes)
         {
             n.NeedId.Clear();
             n.Lines.Clear();
             n.Lines2.Clear();
         }
-        RefreshList();
-        if (_current != null) LoadUiFromCurrent();
+        AfterCanvasEdit(Loc.F("CountryTech.Unlinked", nodes.Count));
+    }
+
+    private void AfterCanvasEdit(string message)
+    {
+        _editor.RefreshRows();
+        _editor.Form.Reload();
         RenderCanvas();
-        SetStatus(Loc.F("CountryTech.Unlinked", nodes.Count));
+        Session.Commit(message);
+        SetStatus(message);
+    }
+
+    // 中键：任何位置都是平移视图
+    private void Canvas_MiddleDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Middle) return;
+        _panning = true;
+        _panStart = e.GetPosition(_canvas);
+        _panStartOffX = _offsetX;
+        _panStartOffY = _offsetY;
+        _canvas.CaptureMouse();
+    }
+
+    private void Canvas_MiddleUp(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Middle || !_panning) return;
+        _panning = false;
+        _canvas.ReleaseMouseCapture();
     }
 
     // 左键：点节点=拖动，点空白=平移视图
@@ -1043,20 +921,25 @@ public class CountryTechEditScene : UserControl
     {
         var pt = e.GetPosition(_canvas);
         var node = FindNodeAt(pt);
+        if (node != null && e.ClickCount == 2)
+        {
+            FocusProperties();
+            return;
+        }
         if (node != null)
         {
             _dragNode = node;
             _draggingNode = false;
             _dragStart = pt;
-            _canvas.CaptureMouse();
         }
         else
         {
             _panning = true;
             _panStart = pt;
-            _panStartOffX = _offsetX; _panStartOffY = _offsetY;
-            _canvas.CaptureMouse();
+            _panStartOffX = _offsetX;
+            _panStartOffY = _offsetY;
         }
+        _canvas.CaptureMouse();
     }
 
     private void Canvas_MouseMove(object sender, MouseEventArgs e)
@@ -1069,63 +952,58 @@ public class CountryTechEditScene : UserControl
             RenderCanvas();
             return;
         }
-        if (_dragNode != null)
+        if (_dragNode == null) return;
+        if (!_draggingNode && (Math.Abs(pt.X - _dragStart.X) > 4 || Math.Abs(pt.Y - _dragStart.Y) > 4))
+            _draggingNode = true;
+        if (_draggingNode)
         {
-            if (!_draggingNode && (Math.Abs(pt.X - _dragStart.X) > 4 || Math.Abs(pt.Y - _dragStart.Y) > 4))
-                _draggingNode = true;
-            if (_draggingNode)
-            {
-                (_ghostLevel, _ghostPosition) = EventGrid(pt);
-                RenderCanvas();
-            }
+            (_ghostLevel, _ghostPosition) = EventGrid(pt);
+            RenderCanvas();
         }
     }
 
     private void Canvas_MouseUp(object sender, MouseButtonEventArgs e)
     {
         _canvas.ReleaseMouseCapture();
-        if (_panning) { _panning = false; return; }
-        if (_dragNode != null)
+        if (_panning)
         {
-            var node = _dragNode;
-            if (_draggingNode)
-            {
-                var (level, position) = EventGrid(e.GetPosition(_canvas));
-                bool conflict = _parser.Items.Any(t => t != node && t.CategoryId == node.CategoryId && t.ResearchLv == level && t.Position == position);
-                if (conflict)
-                    MessageBox.Show(Loc.T("CountryTech.MoveConflict"), Loc.T("CountryTech.MoveConflictTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
-                else if (level != node.ResearchLv || position != node.Position)
-                {
-                    node.ResearchLv = level;
-                    node.Position = position;
-                    int changed = _autoUpdateLines ? UpdateConnectedLines(node.Id) : 0;
-                    _current = node;
-                    _selectedIds.Clear();
-                    _selectedIds.Add(node.Id);
-                    LoadUiFromCurrent();
-                    RefreshList();
-                    SetStatus(Loc.F("CountryTech.NodeMoved", changed));
-                }
-            }
-            else
-            {
-                if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
-                {
-                    if (_selectedIds.Contains(node.Id)) _selectedIds.Remove(node.Id);
-                    else _selectedIds.Add(node.Id);
-                    _current = node;
-                    LoadUiFromCurrent();
-                    RenderCanvas();
-                }
-                else
-                {
-                    SelectNodeInList(node.Id);
-                }
-            }
-            _dragNode = null;
-            _draggingNode = false;
-            RenderCanvas();
+            _panning = false;
+            return;
         }
+        var node = _dragNode;
+        if (node == null) return;
+        bool dragged = _draggingNode;
+        _dragNode = null;
+        _draggingNode = false;
+
+        if (dragged)
+        {
+            var (level, position) = EventGrid(e.GetPosition(_canvas));
+            bool conflict = _parser.Items.Any(t => !ReferenceEquals(t, node) && t.CategoryId == node.CategoryId && t.ResearchLv == level && t.Position == position);
+            if (conflict)
+            {
+                EditorDialogs.Warning(DialogOwner, Loc.T("CountryTech.MoveConflictTitle"), Loc.T("CountryTech.MoveConflict"));
+            }
+            else if (level != node.ResearchLv || position != node.Position)
+            {
+                Session.Flush();
+                node.ResearchLv = level;
+                node.Position = position;
+                int changed = _autoUpdateLines ? UpdateConnectedLines(node.Id) : 0;
+                _editor.Select(node);
+                AfterCanvasEdit(Loc.F("CountryTech.NodeMoved", changed));
+                return;
+            }
+        }
+        else if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            _editor.ToggleSelection(node);
+        }
+        else
+        {
+            _editor.Select(node);
+        }
+        RenderCanvas();
     }
 
     private void Canvas_MouseWheel(object sender, MouseWheelEventArgs e)
@@ -1148,20 +1026,18 @@ public class CountryTechEditScene : UserControl
         foreach (var item in _parser.Items)
         {
             var needs = item.NeedId;
-            if ((needs == null || needs.Count == 0 || !needs.Contains(nodeId)) && item.Id != nodeId) continue;
-            if (needs == null || needs.Count == 0) continue;
-            if (needs.Count > 2) continue;
+            if (needs.Count == 0 || needs.Count > 2) continue;
+            if (!needs.Contains(nodeId) && item.Id != nodeId) continue;
             for (int i = 0; i < needs.Count; i++)
             {
                 var parent = _parser.GetById(needs[i]);
                 if (parent == null) continue;
-                var np = MakeOrthogonalPath(parent, item);
+                var np = TechTreeGeometry.MakeOrthogonalPath(parent, item);
                 var cur = i == 0 ? item.Lines : item.Lines2;
-                if (!cur.SequenceEqual(np))
-                {
-                    if (i == 0) item.Lines = np; else item.Lines2 = np;
-                    changed++;
-                }
+                if (cur.SequenceEqual(np)) continue;
+                if (i == 0) item.Lines = np;
+                else item.Lines2 = np;
+                changed++;
             }
             if (needs.Count < 2 && item.Lines2.Count > 0)
             {
@@ -1170,36 +1046,5 @@ public class CountryTechEditScene : UserControl
             }
         }
         return changed;
-    }
-
-    private List<double> MakeOrthogonalPath(CountryTechData parent, CountryTechData item)
-    {
-        // 与 GenerateOrthogonalPath 一致：相对 item 自身反向指向 parent，
-        // 保证移动节点后重算的连线仍连接 parent 与 item 两点。
-        var sg = Grid2World(parent.ResearchLv, parent.Position);
-        var tg = Grid2World(item.ResearchLv, item.Position);
-        int dx = (int)Math.Round((sg.wx - tg.wx) / LineScaleX);
-        int dy = (int)Math.Round((sg.wy - tg.wy) / LineScaleY);
-        if (dx == 0) return dy == 0 ? new List<double>() : new List<double> { 0, dy };
-        if (dy == 0) return new List<double> { dx, 0 };
-        int first = dy / 2;
-        return new List<double> { 0, first, dx, first, dx, dy };
-    }
-
-    // ============================================================= 列表项类型 =============================================================
-    private class CategoryItem
-    {
-        public int Id { get; set; }
-        public string Name { get; set; } = "";
-    }
-
-    private class CountryTechListEntry
-    {
-        public int Id { get; set; }
-        public string Name { get; set; } = "";
-        public int CategoryId { get; set; }
-        public int ResearchLv { get; set; }
-        // 显示文字在每次取用时才翻译，切换语言后重建列表即可换文字
-        public override string ToString() => Loc.F("CountryTech.ListItem", Id, Name, CategoryId, ResearchLv);
     }
 }

@@ -245,15 +245,21 @@ public sealed class DoubleInputDialog : IDisposable
                 ShowValidationError(_inputTextBox1, ValidationMessage1);
                 return;
             }
-            if (MinValue1.HasValue && inputValue1 < MinValue1.Value)
+
+            // 与第二个输入框相同：允许的特殊值（如 -1 表示"不限"）不受范围限制
+            bool isSpecialValue = AllowedSpecialValues1 != null && AllowedSpecialValues1.Contains(inputValue1);
+            if (!isSpecialValue)
             {
-                ShowValidationError(_inputTextBox1, ValidationMessage1);
-                return;
-            }
-            if (MaxValue1.HasValue && inputValue1 > MaxValue1.Value)
-            {
-                ShowValidationError(_inputTextBox1, ValidationMessage1);
-                return;
+                if (MinValue1.HasValue && inputValue1 < MinValue1.Value)
+                {
+                    ShowValidationError(_inputTextBox1, ValidationMessage1);
+                    return;
+                }
+                if (MaxValue1.HasValue && inputValue1 > MaxValue1.Value)
+                {
+                    ShowValidationError(_inputTextBox1, ValidationMessage1);
+                    return;
+                }
             }
         }
 
@@ -438,9 +444,9 @@ public sealed class DoubleInputDialog : IDisposable
             defaultValue1.ToString(), defaultValue2.ToString());
         if (result.HasValue)
         {
-            double v1 = defaultValue1, v2 = defaultValue2;
-            if (result.Value.Value1 != null) double.TryParse(result.Value.Value1, out v1);
-            if (result.Value.Value2 != null) double.TryParse(result.Value.Value2, out v2);
+            // 解析失败时保留默认值（TryParse 失败会把 out 参数写成 0）
+            double v1 = double.TryParse(result.Value.Value1, out double p1) ? p1 : defaultValue1;
+            double v2 = double.TryParse(result.Value.Value2, out double p2) ? p2 : defaultValue2;
             return (v1, v2);
         }
         return (defaultValue1, defaultValue2);
@@ -454,9 +460,8 @@ public sealed class DoubleInputDialog : IDisposable
             defaultValue1.ToString(), defaultValue2.ToString());
         if (result.HasValue)
         {
-            int v1 = defaultValue1, v2 = defaultValue2;
-            if (result.Value.Value1 != null) int.TryParse(result.Value.Value1, out v1);
-            if (result.Value.Value2 != null) int.TryParse(result.Value.Value2, out v2);
+            int v1 = int.TryParse(result.Value.Value1, out int p1) ? p1 : defaultValue1;
+            int v2 = int.TryParse(result.Value.Value2, out int p2) ? p2 : defaultValue2;
             return (v1, v2);
         }
         return (defaultValue1, defaultValue2);

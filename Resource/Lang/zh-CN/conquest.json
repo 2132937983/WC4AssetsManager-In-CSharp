@@ -1,0 +1,18 @@
+{
+  "SceneFile.NewMapConfirm": "确定要新建地图吗？当前地图会保留在场景列表中，可从“场景”切回。",
+  "SceneFile.NewMapName": "新{0}",
+  "SceneFile.NewMapCreated": "[新建] 已创建 {0}（{1}x{2}，尚未保存）",
+  "SceneFile.NewMapFailed": "新建地图失败: {0}",
+  "SceneFile.ExportTerrainFilter": "导出地形为世界地图 (*.bin)",
+  "SceneFile.TerrainExported": "地形已导出为世界地图: {0}",
+
+  "Conquest.New.PickWorldTitle": "选择新征服所基于的世界地图",
+  "Conquest.World.PickTitle": "选择世界地图 world{0}.bin（取消则以空白地形显示）",
+  "Conquest.World.Loaded": "[征服] 世界底图 {0}（{1}x{2}），数据窗口 {3}x{4}，偏移 ({5},{6})",
+  "Conquest.World.NotFound": "未找到地图编号 {0} 对应的世界地图 world{0}.bin。",
+  "Conquest.World.LoadFailed": "无法使用世界地图 {0}: {1}",
+  "Conquest.World.FallbackNote": "将以空白地形显示，省份按数据窗口顺序排列（与建筑、归属的位置不对齐）；保存不受影响。",
+  "Conquest.World.NotWorldMap": "不是世界地图文件: {0}",
+  "Conquest.World.WindowMismatch": "征服的数据窗口（偏移 {0},{1}，{2}x{3}）超出了世界地图范围（{4}x{5}），可能选错了世界地图。",
+  "Conquest.World.TooSmall": "世界地图太小（{0}x{1}），放不下征服的数据窗口（南北两端各需保留 2 行）。"
+}

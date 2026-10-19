@@ -39,6 +39,15 @@ public class BTLHeader
 
     public int ArmyGroupCount => TroopCount;
 
+    /// <summary>
+    /// 单位 / 援军记录是否为 v3 族（64 / 104 字节，内存里放在 ArmiesV3 / ReinforcementsV3）。
+    /// v2 文件的头部语义同 v1，但记录大小同 v3（核对过资源里全部 25 个 v2 关卡）。
+    /// </summary>
+    public static bool UsesV3RecordFamily(int btlVersion) => btlVersion >= 2;
+
+    /// <inheritdoc cref="UsesV3RecordFamily(int)"/>
+    public bool UsesV3Records => UsesV3RecordFamily(BtlVersion);
+
     public static BTLHeader Parse(ReadOnlySpan<byte> data)
     {
         if (data.Length < 128)

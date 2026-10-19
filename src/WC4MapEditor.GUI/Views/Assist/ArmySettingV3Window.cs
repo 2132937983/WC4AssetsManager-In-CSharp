@@ -1,117 +1,121 @@
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Media;
-using WC4MapEditor.Core.Models;
-
 namespace WC4MapEditor.GUI.Views.Assist;
 
-public sealed class ArmySettingV3Window : ArmySettingWindow
+/// <summary>
+/// v3 单位（64 字节 <see cref="Army_3"/>）设置对话框：显示并修改传入单位的副本（新建或编辑都一样），
+/// 确定后由 <see cref="ResultArmy3"/> 返回。
+/// <para>
+/// 与 v1 共用外观和交互；字段按 v3 的含义标注：v1 的爵位 / 胸章 / 关联对话 / 能否攻击 所在字节在 v3 里是
+/// HP 等级 / 废弃字段 / 死亡触发事件 / 等级标志显示，另有"v3扩展属性"分组。表单里没有的字段（填充字节、LegionId）原样保留。
+/// </para>
+/// </summary>
+public sealed class ArmySettingV3Window : ArmySettingWindowBase
 {
     private Army_3 _army3;
-    private bool _isNewArmy3;
 
-    public Army_3 ResultArmy3 => _army3;
-
-    public ArmySettingV3Window(Army_3 army3, bool isNew = false) : base(new Army(), isNew)
+    public ArmySettingV3Window(Army_3 army3, bool isNew = false)
+        : base(isNew ? Loc.T("Assist.Army.CreateV3Title") : Loc.T("Assist.Army.EditV3Title"))
     {
         _army3 = army3;
-        _isNewArmy3 = isNew;
-
-        Title = isNew ? Loc.T("Assist.Army.CreateV3Title") : Loc.T("Assist.Army.EditV3Title");
+        BuildContent();
     }
 
-    protected override void LoadArmyData()
-    {
-        // Load base fields that overlap with Army
-        SetTextBoxValue("coordinate", _army3.Coordinate);
-        SetTextBoxValue("unit_type", _army3.UnitType);
-        SetTextBoxValue("level", _army3.Level);
-        SetTextBoxValue("organization", _army3.Organization);
-        SetTextBoxValue("direction", _army3.Direction);
-        SetTextBoxValue("mobility", _army3.Mobility);
-        SetTextBoxValue("built_round", _army3.BuiltRound);
-        SetTextBoxValue("experience", _army3.Experience);
-        SetTextBoxValue("health_bonus", _army3.HealthBonus);
-        SetTextBoxValue("current_health", _army3.CurrentHealth);
-        SetTextBoxValue("max_health", _army3.MaxHealth);
-        SetTextBoxValue("general", _army3.General);
-        SetTextBoxValue("rank", _army3.Rank);
-        SetTextBoxValue("skill_level1", _army3.SkillLevel1);
-        SetTextBoxValue("skill_level2", _army3.SkillLevel2);
-        SetTextBoxValue("skill_level3", _army3.SkillLevel3);
-        SetTextBoxValue("skill_level4", _army3.SkillLevel4);
-        SetTextBoxValue("skill_level5", _army3.SkillLevel5);
-        SetTextBoxValue("key_point", _army3.KeyPoint);
-        SetTextBoxValue("policy", _army3.Policy);
-        SetTextBoxValue("plan", _army3.Plan);
-        SetTextBoxValue("change_round", _army3.ChangeRound);
-        SetTextBoxValue("morale", _army3.Morale);
-        SetTextBoxValue("duration", _army3.Duration);
+    /// <summary>编辑后的单位；未确定时为传入的原值。</summary>
+    public Army_3 ResultArmy3 => _army3;
 
-        // v3 specific fields - need to add UI for these
-        // For now, store them in the base _textBoxes with v3 prefix keys
-        SetTextBoxValue("transport_ship", _army3.TransportShip);
-        SetTextBoxValue("field1f", _army3.Field1F);
-        SetTextBoxValue("hatred", _army3.Hatred);
-        SetTextBoxValue("attack_target", _army3.AttackTarget);
-        SetTextBoxValue("death_dialogue", _army3.DeathDialogue);
-        SetTextBoxValue("level_mark_display", _army3.LevelMarkDisplay);
-        SetTextBoxValue("anti_defense_mode", _army3.AntiDefenseMode);
-        SetTextBoxValue("medal1", _army3.Medal1);
-        SetTextBoxValue("medal2", _army3.Medal2);
-        SetTextBoxValue("medal3", _army3.Medal3);
-        SetTextBoxValue("ribbon1", _army3.Ribbon1);
-        SetTextBoxValue("ribbon2", _army3.Ribbon2);
-        SetTextBoxValue("ribbon3", _army3.Ribbon3);
+    protected override IReadOnlyList<ArmyFieldGroup> CreateFieldGroups() =>
+    [
+        new(Loc.T("Common.BasicInfo"),
+        [
+            CoordinateField(() => _army3.CoordinateIndex),
+            UnitTypeField(() => _army3.UnitType, v => _army3.UnitType = (byte)v),
+            LevelField(() => _army3.Level, v => _army3.Level = (byte)v),
+            OrganizationField(() => _army3.Organization, v => _army3.Organization = (byte)v),
+            DirectionField(() => _army3.Direction, v => _army3.Direction = (byte)v),
+        ]),
+        new(Loc.T("Assist.Army.Section.Attributes"),
+        [
+            ByteField(Loc.T("Assist.Army.Field.Mobility"), () => _army3.Mobility, v => _army3.Mobility = (byte)v),
+            ByteField(Loc.T("Assist.Army.Field.BuiltRound"), () => _army3.BuiltRound, v => _army3.BuiltRound = (byte)v),
+            Int16Field(Loc.T("Assist.Army.Field.Experience"), () => _army3.Experience, v => _army3.Experience = (short)v),
+            HealthBonusField(() => _army3.HealthBonus, v => _army3.HealthBonus = (short)v),
+            Int16Field(Loc.T("Assist.Army.Field.CurrentHealth"), () => _army3.CurrentHealth, v => _army3.CurrentHealth = (short)v),
+            Int16Field(Loc.T("Assist.Army.Field.MaxHealth"), () => _army3.MaxHealth, v => _army3.MaxHealth = (short)v),
+        ]),
+        new(Loc.T("Assist.Army.Section.General"),
+        [
+            GeneralField(() => _army3.General, v => _army3.General = (short)v),
+            RankField(() => _army3.Rank, v => _army3.Rank = (byte)v),
+            HpLevelField(Loc.T("Assist.Army.Field.HpLevel"), () => _army3.HpLevel, v => _army3.HpLevel = (byte)v),
+        ]),
+        new(Loc.T("Assist.Army.Section.Skills"),
+        [
+            SkillField(1, () => _army3.SkillLevel1, v => _army3.SkillLevel1 = (byte)v),
+            SkillField(2, () => _army3.SkillLevel2, v => _army3.SkillLevel2 = (byte)v),
+            SkillField(3, () => _army3.SkillLevel3, v => _army3.SkillLevel3 = (byte)v),
+            SkillField(4, () => _army3.SkillLevel4, v => _army3.SkillLevel4 = (byte)v),
+            SkillField(5, () => _army3.SkillLevel5, v => _army3.SkillLevel5 = (byte)v),
+        ]),
+        new(Loc.T("Assist.Army.Section.Others"),
+        [
+            KeyPointField(() => _army3.KeyPoint, v => _army3.KeyPoint = (byte)v),
+            PolicyField(() => _army3.Policy, v => _army3.Policy = (byte)v),
+            PlanField(() => _army3.Plan, v => _army3.Plan = (short)v),
+            Int16Field(Loc.T("Assist.Army.Field.ChangeRound"), () => _army3.ChangeRound, v => _army3.ChangeRound = (short)v),
+            MoraleField(() => _army3.Morale, v => _army3.Morale = (byte)v),
+            ByteField(Loc.T("Assist.Army.Field.Duration"), () => _army3.Duration, v => _army3.Duration = (byte)v),
+            ByteField(Loc.T("Assist.Army.Field.DeathDialogue"), () => _army3.DeathDialogue, v => _army3.DeathDialogue = (byte)v)
+                with { Tooltip = Loc.T("Assist.Army.Hint.DeathDialogue") },
+            ByteField(Loc.T("Assist.Army.Field.LevelMarkDisplay"), () => _army3.LevelMarkDisplay, v => _army3.LevelMarkDisplay = (byte)v)
+                with
+                {
+                    Tooltip = Loc.T("Assist.Army.Hint.LevelMark"),
+                    Options =
+                    [
+                        new(0, Loc.T("Assist.Army.Option.LevelMark.0")),
+                        new(9, Loc.T("Assist.Army.Option.LevelMark.9"))
+                    ]
+                },
+        ]),
+        new(Loc.T("Assist.Army.Section.V3Extended"),
+        [
+            ByteField(Loc.T("Assist.Army.Field.TransportShip"), () => _army3.TransportShip, v => _army3.TransportShip = (byte)v)
+                with
+                {
+                    Options =
+                    [
+                        new(0, Loc.T("Assist.Army.Option.TransportShip.0")),
+                        new(2, Loc.T("Assist.Army.Option.TransportShip.2"))
+                    ]
+                },
+            Int16Field(Loc.T("Assist.Army.Field.Hatred"), () => _army3.Hatred, v => _army3.Hatred = (short)v)
+                with { Tooltip = Loc.T("Assist.Army.Hint.Hatred") },
+            Int16Field(Loc.T("Assist.Army.Field.AttackTarget"), () => _army3.AttackTarget, v => _army3.AttackTarget = (short)v)
+                with { Tooltip = Loc.T("Assist.Army.Hint.AttackTarget") },
+            Int32Field(Loc.T("Assist.Army.Field.AntiDefenseMode"), () => _army3.AntiDefenseMode, v => _army3.AntiDefenseMode = v)
+                with { Tooltip = Loc.T("Assist.Army.Hint.AntiDefense") },
+            MedalField(1, () => _army3.Medal1, v => _army3.Medal1 = (byte)v),
+            MedalField(2, () => _army3.Medal2, v => _army3.Medal2 = (byte)v),
+            MedalField(3, () => _army3.Medal3, v => _army3.Medal3 = (byte)v),
+            RibbonField(1, () => _army3.Ribbon1, v => _army3.Ribbon1 = (byte)v),
+            RibbonField(2, () => _army3.Ribbon2, v => _army3.Ribbon2 = (byte)v),
+            RibbonField(3, () => _army3.Ribbon3, v => _army3.Ribbon3 = (byte)v),
+            ByteField(Loc.T("Assist.Army.Field.Field1F"), () => _army3.Field1F, v => _army3.Field1F = (byte)v)
+                with { Tooltip = Loc.T("Assist.Army.Hint.Unknown") },
+        ]),
+        new(Loc.T("Assist.Army.Section.Unused"),
+        [
+            WasteField(1, () => _army3.Waste1, v => _army3.Waste1 = (byte)v),
+            WasteField(2, () => _army3.Waste2, v => _army3.Waste2 = (byte)v),
+            WasteField(3, () => _army3.Waste3, v => _army3.Waste3 = (byte)v),
+        ]),
+    ];
 
-        UpdateGeneralInfo(_army3.General.ToString());
-    }
+    private static ArmyField MedalField(int slot, Func<int> get, Action<int> set)
+        => ByteField(Loc.T($"Assist.Army.Field.Medal{slot}"), get, set) with { Tooltip = Loc.T("Assist.Army.Hint.Medal") };
 
-    protected override void SaveArmyData()
-    {
-        _army3.Coordinate = ParseShort(_textBoxes.GetValueOrDefault("coordinate")?.Text);
-        _army3.UnitType = ParseByte(_textBoxes.GetValueOrDefault("unit_type")?.Text);
-        _army3.Level = ParseByte(_textBoxes.GetValueOrDefault("level")?.Text);
-        _army3.Organization = ParseByte(_textBoxes.GetValueOrDefault("organization")?.Text);
-        _army3.Direction = ParseByte(_textBoxes.GetValueOrDefault("direction")?.Text);
-        _army3.Mobility = ParseByte(_textBoxes.GetValueOrDefault("mobility")?.Text);
-        _army3.BuiltRound = ParseByte(_textBoxes.GetValueOrDefault("built_round")?.Text);
-        _army3.Experience = ParseShort(_textBoxes.GetValueOrDefault("experience")?.Text);
-        _army3.HealthBonus = ParseShort(_textBoxes.GetValueOrDefault("health_bonus")?.Text);
-        _army3.CurrentHealth = ParseShort(_textBoxes.GetValueOrDefault("current_health")?.Text);
-        _army3.MaxHealth = ParseShort(_textBoxes.GetValueOrDefault("max_health")?.Text);
-        _army3.General = ParseShort(_textBoxes.GetValueOrDefault("general")?.Text);
-        _army3.Rank = ParseByte(_textBoxes.GetValueOrDefault("rank")?.Text);
-        _army3.SkillLevel1 = ParseByte(_textBoxes.GetValueOrDefault("skill_level1")?.Text);
-        _army3.SkillLevel2 = ParseByte(_textBoxes.GetValueOrDefault("skill_level2")?.Text);
-        _army3.SkillLevel3 = ParseByte(_textBoxes.GetValueOrDefault("skill_level3")?.Text);
-        _army3.SkillLevel4 = ParseByte(_textBoxes.GetValueOrDefault("skill_level4")?.Text);
-        _army3.SkillLevel5 = ParseByte(_textBoxes.GetValueOrDefault("skill_level5")?.Text);
-        _army3.KeyPoint = ParseByte(_textBoxes.GetValueOrDefault("key_point")?.Text);
-        _army3.Policy = ParseByte(_textBoxes.GetValueOrDefault("policy")?.Text);
-        _army3.Plan = ParseShort(_textBoxes.GetValueOrDefault("plan")?.Text);
-        _army3.ChangeRound = ParseShort(_textBoxes.GetValueOrDefault("change_round")?.Text);
-        _army3.Morale = ParseByte(_textBoxes.GetValueOrDefault("morale")?.Text);
-        _army3.Duration = ParseByte(_textBoxes.GetValueOrDefault("duration")?.Text);
+    private static ArmyField RibbonField(int slot, Func<int> get, Action<int> set)
+        => ByteField(Loc.T($"Assist.Army.Field.Ribbon{slot}"), get, set) with { Tooltip = Loc.T("Assist.Army.Hint.Ribbon") };
 
-        // v3 specific
-        _army3.TransportShip = ParseByte(_textBoxes.GetValueOrDefault("transport_ship")?.Text);
-        _army3.Field1F = ParseByte(_textBoxes.GetValueOrDefault("field1f")?.Text);
-        _army3.Hatred = ParseShort(_textBoxes.GetValueOrDefault("hatred")?.Text);
-        _army3.AttackTarget = ParseShort(_textBoxes.GetValueOrDefault("attack_target")?.Text);
-        _army3.DeathDialogue = ParseByte(_textBoxes.GetValueOrDefault("death_dialogue")?.Text);
-        _army3.LevelMarkDisplay = ParseByte(_textBoxes.GetValueOrDefault("level_mark_display")?.Text);
-        _army3.AntiDefenseMode = ParseInt(_textBoxes.GetValueOrDefault("anti_defense_mode")?.Text);
-        _army3.Medal1 = ParseByte(_textBoxes.GetValueOrDefault("medal1")?.Text);
-        _army3.Medal2 = ParseByte(_textBoxes.GetValueOrDefault("medal2")?.Text);
-        _army3.Medal3 = ParseByte(_textBoxes.GetValueOrDefault("medal3")?.Text);
-        _army3.Ribbon1 = ParseByte(_textBoxes.GetValueOrDefault("ribbon1")?.Text);
-        _army3.Ribbon2 = ParseByte(_textBoxes.GetValueOrDefault("ribbon2")?.Text);
-        _army3.Ribbon3 = ParseByte(_textBoxes.GetValueOrDefault("ribbon3")?.Text);
-    }
-
-    private static int ParseInt(string? text)
-    {
-        return int.TryParse(text, out var value) ? value : 0;
-    }
+    private static ArmyField WasteField(int slot, Func<int> get, Action<int> set)
+        => ByteField(Loc.T($"Assist.Army.Field.Waste{slot}"), get, set) with { Tooltip = Loc.T("Assist.Army.Hint.Waste") };
 }

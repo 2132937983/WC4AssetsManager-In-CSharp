@@ -1,0 +1,18 @@
+{
+  "SceneFile.NewMapConfirm": "Create a new map? The current map stays in the scene list; switch back to it from Scenes.",
+  "SceneFile.NewMapName": "New {0}",
+  "SceneFile.NewMapCreated": "[New] Created {0} ({1}x{2}, not saved yet)",
+  "SceneFile.NewMapFailed": "Failed to create the map: {0}",
+  "SceneFile.ExportTerrainFilter": "Export terrain as world map (*.bin)",
+  "SceneFile.TerrainExported": "Terrain exported as a world map: {0}",
+
+  "Conquest.New.PickWorldTitle": "Select the world map for the new conquest",
+  "Conquest.World.PickTitle": "Select world map world{0}.bin (Cancel shows blank terrain)",
+  "Conquest.World.Loaded": "[Conquest] World map {0} ({1}x{2}), data window {3}x{4} at ({5},{6})",
+  "Conquest.World.NotFound": "No world map found for map number {0} (world{0}.bin).",
+  "Conquest.World.LoadFailed": "Cannot use world map {0}: {1}",
+  "Conquest.World.FallbackNote": "The map is shown on blank terrain with provinces in data-window order (not aligned with buildings and ownership). Saving is not affected.",
+  "Conquest.World.NotWorldMap": "Not a world map file: {0}",
+  "Conquest.World.WindowMismatch": "The conquest data window (offset {0},{1}, {2}x{3}) does not fit the world map ({4}x{5}); the wrong world map may have been selected.",
+  "Conquest.World.TooSmall": "The world map ({0}x{1}) is too small for a conquest data window (2 rows are reserved at the north and south edges)."
+}

@@ -1,21 +1,15 @@
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Text.Encodings.Web;
-using System.Text.Json;
+using System.Globalization;
 using System.Text.Json.Serialization;
-using System.Text.Unicode;
-using WC4MapEditor.Core.Assets;
 using WC4MapEditor.Core.Config;
+using WC4MapEditor.Core.Services;
 
 namespace WC4MapEditor.Core.Parsers.Skill;
 
 /// <summary>
-/// 技能解析器（SkillSettings.json + stringtable_tw.ini 中的
-/// skill_name_{Type} / skill_info_{Type}）。
-/// 采用与 CountryTechSettingParser 相同的单例与路径解析约定。
-/// 技能名/描述不保存在 JSON 中，而是写入 stringtable，索引取 Type。
+/// 技能解析器（SkillSettings.json + stringtable_tw.ini 中的 skill_name_{Type} / skill_info_{Type}）。
+/// 技能名 / 描述按 Type（技能效果）索引，同一 Type 的各级技能共用文本。
 /// </summary>
-public class SkillSettingParser
+public sealed class SkillSettingParser : IGameSettingsSource
 {
     private static readonly object _lock = new();
     private static SkillSettingParser? _instance;
@@ -34,146 +28,71 @@ public class SkillSettingParser
         }
     }
 
-    private readonly AssetManager _manager = AssetManager.Default;
-    private List<SkillSettingData> _skills = new();
-    private StringTableParser? _stringTable;
-
-    public IReadOnlyList<SkillSettingData> All => _skills;
-    public List<SkillSettingData> Items => _skills;
-    public string ConfigPath { get; private set; } = "";
-    public string StringTablePath { get; private set; } = "";
-
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
-        PropertyNameCaseInsensitive = true,
-        AllowTrailingCommas = true,
-        ReadCommentHandling = JsonCommentHandling.Skip
-    };
-
     private SkillSettingParser()
     {
-        ResolvePaths();
+        Table = new GameJsonTable<SkillSettingData>(GameJson.AssetPath("json", "SkillSettings.json"));
+        Strings = StringTableStore.Default;
+        TypeTexts = new RecordTextKeys(Strings, this, "skill_name_{0}", "skill_info_{0}");
         LoadAll();
     }
 
-    private void ResolvePaths()
+    public GameJsonTable<SkillSettingData> Table { get; }
+    public StringTableParser Strings { get; }
+
+    /// <summary>按技能 Type 的文本键：0 = 名称，1 = 描述。</summary>
+    public RecordTextKeys TypeTexts { get; }
+
+    public IReadOnlyList<IEditableTable> Tables => [Table];
+    StringTableParser? IGameSettingsSource.Strings => Strings;
+
+    public List<SkillSettingData> Items => Table.Items;
+    public string ConfigPath => Table.FilePath;
+    public string StringTablePath => Strings.FilePath;
+
+    public void LoadAll() => Table.Load();
+
+    public SkillSettingData? GetById(int id) => Items.FirstOrDefault(s => s.Id == id);
+
+    /// <summary>获取技能名（stringtable 的 skill_name_{Type}）。</summary>
+    public string GetSkillName(int type) => TypeTexts.Get(0, type);
+
+    /// <summary>设置技能名（写入 stringtable 的 skill_name_{Type}）。</summary>
+    public void SetSkillName(int type, string name) => TypeTexts.Set(0, type, name);
+
+    /// <summary>获取技能描述（stringtable 的 skill_info_{Type}）。</summary>
+    public string GetSkillDesc(int type) => TypeTexts.Get(1, type);
+
+    /// <summary>设置技能描述（写入 stringtable 的 skill_info_{Type}）。</summary>
+    public void SetSkillDesc(int type, string desc) => TypeTexts.Set(1, type, desc);
+
+    /// <summary>技能描述（skill_info_{Type}）：%d 换成该技能的 SkillEffect，%% 还原成 %，去掉 [#RRGGBB#文字] 颜色标记。</summary>
+    public string GetSkillEffectText(SkillSettingData skill)
     {
-        if (!_manager.IsLoaded)
-        {
-            try { _manager.ScanDefault(); } catch { }
-        }
-
-        var root = _manager.AssetsRoot;
-        if (!string.IsNullOrEmpty(root) && Directory.Exists(root))
-        {
-            ConfigPath = Path.Combine(root, "json", "SkillSettings.json");
-            StringTablePath = Path.Combine(root, "stringtable_tw.ini");
-        }
-        else
-        {
-            var baseDir = AppContext.BaseDirectory;
-            string? candidate = null;
-            string? current = baseDir;
-            for (int i = 0; i < 8 && !string.IsNullOrEmpty(current); i++)
-            {
-                var test = Path.Combine(current, "Resource", "WC4DATA", "assets");
-                if (Directory.Exists(test)) { candidate = test; break; }
-                current = Path.GetDirectoryName(current);
-            }
-            candidate ??= Path.GetFullPath(Path.Combine(baseDir ?? "", "..", "..", "..", "..", "Resource", "WC4DATA", "assets"));
-
-            ConfigPath = Path.Combine(candidate, "json", "SkillSettings.json");
-            StringTablePath = Path.Combine(candidate, "stringtable_tw.ini");
-        }
-
-        Debug.WriteLine($"[SkillSettingParser] ConfigPath={ConfigPath} StringTablePath={StringTablePath}");
+        var text = GetSkillDesc(skill.Type).Replace("%d", skill.SkillEffect.ToString(CultureInfo.InvariantCulture));
+        return GameText.StripColorTags(text).Replace("%%", "%");
     }
 
-    public void LoadAll()
+    /// <summary>技能图标 general_skill_{Type}（.webp 或 .png）；没有时返回 null。</summary>
+    public string? GetIconPath(int type)
     {
-        LoadSkills();
-        _stringTable = new StringTableParser(StringTablePath);
-    }
-
-    private void LoadSkills()
-    {
-        try
+        foreach (var extension in new[] { "webp", "png" })
         {
-            if (!File.Exists(ConfigPath))
-            {
-                Debug.WriteLine($"[SkillSettingParser] 文件不存在: {ConfigPath}");
-                return;
-            }
-            var json = File.ReadAllText(ConfigPath);
-            var data = JsonSerializer.Deserialize<List<SkillSettingData>>(json, JsonOpts);
-            if (data != null) _skills = data;
+            var path = GameJson.AssetPath("image", "general_skill", $"general_skill_{type}.{extension}");
+            if (File.Exists(path)) return path;
         }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[SkillSettingParser] 加载失败: {ex.Message}");
-        }
-    }
-
-    public SkillSettingData? GetById(int id)
-    {
-        foreach (var s in _skills) if (s.Id == id) return s;
         return null;
     }
 
-    /// <summary>获取技能名（stringtable 的 skill_name_{Type}）。</summary>
-    public string GetSkillName(int type) => _stringTable?.GetValue($"skill_name_{type}", "") ?? "";
+    public int GetNextId() => Math.Max(1000, Items.Count == 0 ? 0 : Items.Max(s => s.Id)) + 1;
 
-    /// <summary>设置技能名（写入 stringtable 的 skill_name_{Type}）。</summary>
-    public void SetSkillName(int type, string name) => _stringTable?.SetValue($"skill_name_{type}", name);
-
-    /// <summary>获取技能描述（stringtable 的 skill_info_{Type}）。</summary>
-    public string GetSkillDesc(int type) => _stringTable?.GetValue($"skill_info_{type}", "") ?? "";
-
-    /// <summary>设置技能描述（写入 stringtable 的 skill_info_{Type}）。</summary>
-    public void SetSkillDesc(int type, string desc) => _stringTable?.SetValue($"skill_info_{type}", desc);
-
-    public int GetNextId()
+    /// <summary>改 Id：新 Id 已被占用时返回 false。名称 / 描述按 Type 共享，不随 Id 移动。</summary>
+    public bool ChangeId(SkillSettingData skill, int newId)
     {
-        int max = 1000;
-        foreach (var s in _skills) if (s.Id > max) max = s.Id;
-        return max + 1;
-    }
-
-    public bool AddSkill(SkillSettingData skill)
-    {
-        if (GetById(skill.Id) != null) return false;
-        _skills.Add(skill);
+        if (skill.Id == newId) return true;
+        if (Items.Any(s => s.Id == newId)) return false;
+        skill.Id = newId;
         return true;
     }
-
-    public bool RemoveSkill(int id)
-    {
-        var s = GetById(id);
-        if (s == null) return false;
-        _skills.Remove(s);
-        return true;
-    }
-
-    public bool SaveAll()
-    {
-        try
-        {
-            var json = JsonSerializer.Serialize(_skills, JsonOpts);
-            File.WriteAllText(ConfigPath, json);
-            _stringTable?.Save();
-            Debug.WriteLine($"[SkillSettingParser] 保存成功: {ConfigPath}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[SkillSettingParser] 保存失败: {ex.Message}");
-            return false;
-        }
-    }
-
-    public void Reload() => LoadAll();
 
     public static void ClearInstance()
     {

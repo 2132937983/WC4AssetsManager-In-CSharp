@@ -1,9 +1,17 @@
 using System.Runtime.InteropServices;
+using WC4MapEditor.Core.Parsers.BTL;
 
 namespace WC4MapEditor.Core.Models;
 
 /// <summary>
-/// 部队数据结构 v3 (64字节) - 使用结构体减少内存开销
+/// 部队数据结构 v3 (64字节) - 使用结构体减少内存开销。
+/// <para>
+/// 记录里的每个字节都原样读写：规范里标为填充的 0x36-0x3F 在原版地图里也常有非零值，
+/// 用 <see cref="Padding36"/> / <see cref="Padding3E"/> 保留，"读入 → 保存"不丢数据。
+/// </para>
+/// <para>
+/// <see cref="LegionId"/> 是编辑器运行期字段，不在文件里：读入时为 <see cref="Army.UnassignedLegion"/>，保存时不写。
+/// </para>
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct Army_3
@@ -49,7 +57,20 @@ public struct Army_3
     public byte Ribbon1;
     public byte Ribbon2;
     public byte Ribbon3;
+    /// <summary>0x36-0x3D：规范记为填充，原版数据里常有非零值，原样保留。</summary>
+    public long Padding36;
+    /// <summary>0x3E-0x3F：规范记为填充，原样保留。</summary>
+    public short Padding3E;
+
+    /// <summary>
+    /// 编辑器运行期的所属军团（归属值），由 L 键、按概率生成等操作设置。不读写文件：
+    /// 文件里 0x36-0x39 是 <see cref="Padding36"/> 的一部分。读入的单位与新建的默认单位为
+    /// <see cref="Army.UnassignedLegion"/>（按所在格子的归属算），不会被当成归属 0 的单位。
+    /// </summary>
     public int LegionId;
+
+    /// <summary>格子序号（按无符号读取：大地图上的序号可能超过 32767）。</summary>
+    public readonly int CoordinateIndex => (ushort)Coordinate;
 
     /// <summary>
     /// 从字节数组解析部队数据 v3
@@ -101,14 +122,16 @@ public struct Army_3
             Ribbon1 = data[offset + 51],
             Ribbon2 = data[offset + 52],
             Ribbon3 = data[offset + 53],
-            LegionId = BitConverter.ToInt32(data[(offset + 54)..])
+            Padding36 = BitConverter.ToInt64(data[(offset + 54)..]),
+            Padding3E = BitConverter.ToInt16(data[(offset + 62)..]),
+            LegionId = Army.UnassignedLegion
         };
     }
 
     /// <summary>
     /// 写入字节数组
     /// </summary>
-    public void ToBytes(Span<byte> data, int offset)
+    public readonly void ToBytes(Span<byte> data, int offset)
     {
         BitConverter.TryWriteBytes(data[offset..], Coordinate);
         data[offset + 2] = UnitType;
@@ -151,7 +174,8 @@ public struct Army_3
         data[offset + 51] = Ribbon1;
         data[offset + 52] = Ribbon2;
         data[offset + 53] = Ribbon3;
-        BitConverter.TryWriteBytes(data[(offset + 54)..], LegionId);
+        BitConverter.TryWriteBytes(data[(offset + 54)..], Padding36);
+        BitConverter.TryWriteBytes(data[(offset + 62)..], Padding3E);
     }
 
     /// <summary>
@@ -160,7 +184,8 @@ public struct Army_3
     public static Army_3 CreateDefault(int coord) => new Army_3
     {
         Coordinate = (short)coord,
-        UnitType = 0,
+        // 兵种 0 表示"无兵种"：等级/编制非 0 时规则检查会把它当残留参数清掉，所以默认给一个合法兵种
+        UnitType = BTLRuleChecker.DefaultUnitType,
         Level = 1,
         Organization = 1,
         Direction = 0,
@@ -200,7 +225,7 @@ public struct Army_3
         Ribbon1 = 0,
         Ribbon2 = 0,
         Ribbon3 = 0,
-        LegionId = 0
+        LegionId = Army.UnassignedLegion
     };
 
     public readonly string GetDirectionName() => Direction switch

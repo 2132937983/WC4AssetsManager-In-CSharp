@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
+using WC4MapEditor.Core.Brush;
 using WC4MapEditor.Core.Config;
 
 namespace WC4MapEditor.GUI.Views.Assist;
@@ -13,35 +14,36 @@ public sealed class BrushSettingsEventArgs : EventArgs
     public int BrushSize { get; }
     public int TerrainType { get; }
     public int TerrainVariant { get; }
-    public int EditLayer { get; }
     public string BrushShape { get; }
 
-    public BrushSettingsEventArgs(int brushSize, int terrainType, int terrainVariant, int editLayer, string brushShape)
+    public BrushSettingsEventArgs(int brushSize, int terrainType, int terrainVariant, string brushShape)
     {
         BrushSize = brushSize;
         TerrainType = terrainType;
         TerrainVariant = terrainVariant;
-        EditLayer = editLayer;
         BrushShape = brushShape;
     }
 }
 
+/// <summary>
+/// 画笔设置窗口（地形 / 省份 / 归属 / 单位画笔共用）：大小、形状、地形与变体（仅地形画笔）、蒙版地形。
+/// <para>
+/// 只有用户在窗口里的操作才发出 <see cref="BrushSettingsChanged"/>；代码设置属性（打开窗口时把画笔当前值灌进来、
+/// [ ] 键改大小后同步显示）不发事件。以前初始化列表时的选中事件会把画笔重置成大小 0 / 地形 0 / 变体 0。
+/// </para>
+/// </summary>
 public sealed class BrushSettingsWindow : Window
 {
-    // "圆形" / "方形" 是 Core（BrushEngine / TerrainModifier）与 Rendering 比较用的标识值，不是界面文字，不能翻译
-    private const string ShapeCircle = "圆形";
-    private const string ShapeSquare = "方形";
-
-    private int _brushSize = 0;
-    private int _selectedTerrainType = 0;
-    private int _selectedTerrainVariant = 0;
-    private int _editLayer = 1;
+    private int _brushSize;
+    private int _selectedTerrainType;
+    private int _selectedTerrainVariant;
     private bool _maskIncludeMode = true;
-    private string _brushShape = ShapeCircle;
+    private string _brushShape = BrushEngine.ShapeCircle;
     private readonly HashSet<int> _maskedTerrainIds = [];
     private bool _isClosing;
     private bool _isExplicitlyShown;
     private bool _isTerrainMode = true;
+    private int _suppressEvents;
 
     private TextBox? _sizeInput;
     private ListBox? _terrainList;
@@ -185,6 +187,8 @@ public sealed class BrushSettingsWindow : Window
             Margin = new Thickness(15)
         };
 
+        _terrainList = null;
+        _variantList = null;
         CreateSizeAndShapeSection(contentPanel);
         if (_isTerrainMode)
         {
@@ -240,8 +244,9 @@ public sealed class BrushSettingsWindow : Window
 
         _sizeInput = new TextBox
         {
-            Text = "0",
-            Width = 60
+            Text = _brushSize.ToString(),
+            Width = 60,
+            ToolTip = Loc.F("Assist.Brush.SizeRange", 0, BrushEngine.MaxRadius)
         };
         _sizeInput.TextChanged += SizeInput_TextChanged;
         _sizeInput.LostFocus += SizeInput_LostFocus;
@@ -251,11 +256,11 @@ public sealed class BrushSettingsWindow : Window
 
         rightPanel.Children.Add(SectionTitle(Loc.T("Assist.Brush.Shape"), first: true));
 
-        // 下拉框只负责显示文字；形状值按 SelectedIndex 映射到 ShapeCircle / ShapeSquare
+        // 下拉框只负责显示文字；形状值按 SelectedIndex 映射到 BrushEngine.ShapeCircle / ShapeSquare
         _shapeCombo = EditorTheme.ComboBox(100);
         _shapeCombo.Items.Add(Loc.T("Assist.Brush.ShapeCircle"));
         _shapeCombo.Items.Add(Loc.T("Assist.Brush.ShapeSquare"));
-        _shapeCombo.SelectedIndex = 0;
+        _shapeCombo.SelectedIndex = _brushShape == BrushEngine.ShapeSquare ? 1 : 0;
         _shapeCombo.SelectionChanged += ShapeCombo_SelectionChanged;
         rightPanel.Children.Add(_shapeCombo);
 
@@ -331,7 +336,7 @@ public sealed class BrushSettingsWindow : Window
         {
             Content = Loc.T("Assist.Brush.MaskOnlySelected"),
             FontSize = 11,
-            IsChecked = true,
+            IsChecked = _maskIncludeMode,
             Margin = new Thickness(10, 6, 0, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -347,46 +352,67 @@ public sealed class BrushSettingsWindow : Window
         descLabel.TextWrapping = TextWrapping.Wrap;
         parent.Children.Add(descLabel);
 
+        // 蒙版可以同时选多种地形（点击切换选中，对齐 VB 的 MultiSimple）
         _maskTerrainList = new ListBox
         {
             Height = 100,
-            FontSize = 11
+            FontSize = 11,
+            SelectionMode = SelectionMode.Multiple
         };
         _maskTerrainList.SelectionChanged += MaskTerrainList_SelectionChanged;
         parent.Children.Add(Boxed(_maskTerrainList));
     }
 
-    public void InitializeTerrainList()
+    /// <summary>
+    /// 地形画笔：把画笔当前的地形与变体灌进窗口（填充并选中地形列表、刷新变体列表）。不发 <see cref="BrushSettingsChanged"/>。
+    /// </summary>
+    public void LoadTerrainBrush(int terrainType, int terrainVariant)
     {
+        _selectedTerrainType = terrainType;
+        _selectedTerrainVariant = terrainVariant;
         if (_terrainList == null) return;
 
-        _terrainList.Items.Clear();
-
-        var terrainTypes = ConfigManager.Instance.GetTerrainTypes();
-        foreach (var terrain in terrainTypes)
+        _suppressEvents++;
+        try
         {
-            _terrainList.Items.Add($"{terrain.Key}: {terrain.Value}");
-            if (terrain.Key == _selectedTerrainType)
-                _terrainList.SelectedIndex = _terrainList.Items.Count - 1;
+            _terrainList.Items.Clear();
+            foreach (var terrain in ConfigManager.Instance.GetTerrainTypes())
+            {
+                _terrainList.Items.Add($"{terrain.Key}: {terrain.Value}");
+                if (terrain.Key == _selectedTerrainType)
+                    _terrainList.SelectedIndex = _terrainList.Items.Count - 1;
+            }
+            if (_terrainList.SelectedItem != null)
+                _terrainList.ScrollIntoView(_terrainList.SelectedItem);
+            UpdateVariantList();
+        }
+        finally
+        {
+            _suppressEvents--;
         }
     }
 
-    public void UpdateVariantList()
+    private void UpdateVariantList()
     {
         if (_variantList == null) return;
 
-        _variantList.Items.Clear();
-
-        int variantCount = ConfigManager.Instance.GetTerrainVariantCount(_selectedTerrainType);
-        for (int i = 0; i < variantCount; i++)
-            _variantList.Items.Add(Loc.F("Assist.Brush.VariantItem", i));
-
-        if (_selectedTerrainVariant < _variantList.Items.Count)
-            _variantList.SelectedIndex = _selectedTerrainVariant;
-        else if (_variantList.Items.Count > 0)
+        _suppressEvents++;
+        try
         {
-            _variantList.SelectedIndex = 0;
-            _selectedTerrainVariant = 0;
+            _variantList.Items.Clear();
+
+            int variantCount = ConfigManager.Instance.GetTerrainVariantCount(_selectedTerrainType);
+            for (int i = 0; i < variantCount; i++)
+                _variantList.Items.Add(Loc.F("Assist.Brush.VariantItem", i));
+
+            if (_selectedTerrainVariant >= _variantList.Items.Count)
+                _selectedTerrainVariant = 0;
+            if (_variantList.Items.Count > 0)
+                _variantList.SelectedIndex = _selectedTerrainVariant;
+        }
+        finally
+        {
+            _suppressEvents--;
         }
     }
 
@@ -394,19 +420,30 @@ public sealed class BrushSettingsWindow : Window
     {
         if (_maskTerrainList == null) return;
 
-        _maskTerrainList.Items.Clear();
-
-        var terrainTypes = ConfigManager.Instance.GetTerrainTypes();
-        foreach (var terrain in terrainTypes)
-            _maskTerrainList.Items.Add($"{terrain.Key}: {terrain.Value}");
+        _suppressEvents++;
+        try
+        {
+            _maskTerrainList.Items.Clear();
+            foreach (var terrain in ConfigManager.Instance.GetTerrainTypes())
+            {
+                int index = _maskTerrainList.Items.Add($"{terrain.Key}: {terrain.Value}");
+                if (_maskedTerrainIds.Contains(terrain.Key))
+                    _maskTerrainList.SelectedItems.Add(_maskTerrainList.Items[index]);
+            }
+        }
+        finally
+        {
+            _suppressEvents--;
+        }
     }
 
     private void SizeInput_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (_sizeInput == null) return;
+        if (_sizeInput == null || _suppressEvents > 0) return;
         if (int.TryParse(_sizeInput.Text, out int size) && size >= 0)
         {
-            _brushSize = size;
+            // 超过上限按上限算，失去焦点时输入框改回实际值
+            _brushSize = BrushEngine.ClampRadius(size);
             RaiseSettingsChanged();
         }
     }
@@ -414,20 +451,28 @@ public sealed class BrushSettingsWindow : Window
     private void SizeInput_LostFocus(object sender, RoutedEventArgs e)
     {
         if (_sizeInput == null) return;
-        if (!int.TryParse(_sizeInput.Text, out int size) || size < 0)
-            _sizeInput.Text = _brushSize.ToString();
+        if (_sizeInput.Text != _brushSize.ToString())
+            SetSizeText();
+    }
+
+    private void SetSizeText()
+    {
+        if (_sizeInput == null) return;
+        _suppressEvents++;
+        try { _sizeInput.Text = _brushSize.ToString(); }
+        finally { _suppressEvents--; }
     }
 
     private void ShapeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_shapeCombo == null) return;
-        _brushShape = _shapeCombo.SelectedIndex == 1 ? ShapeSquare : ShapeCircle;
+        if (_shapeCombo == null || _suppressEvents > 0) return;
+        _brushShape = _shapeCombo.SelectedIndex == 1 ? BrushEngine.ShapeSquare : BrushEngine.ShapeCircle;
         RaiseSettingsChanged();
     }
 
     private void TerrainList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_terrainList == null || _terrainList.SelectedIndex < 0) return;
+        if (_terrainList == null || _suppressEvents > 0 || _terrainList.SelectedIndex < 0) return;
 
         string selectedText = _terrainList.SelectedItem?.ToString() ?? "";
         int colonIndex = selectedText.IndexOf(':');
@@ -441,7 +486,7 @@ public sealed class BrushSettingsWindow : Window
 
     private void VariantList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_variantList == null || _variantList.SelectedIndex < 0) return;
+        if (_variantList == null || _suppressEvents > 0 || _variantList.SelectedIndex < 0) return;
         _selectedTerrainVariant = _variantList.SelectedIndex;
         RaiseSettingsChanged();
     }
@@ -450,12 +495,12 @@ public sealed class BrushSettingsWindow : Window
     {
         if (_maskModeCheckBox == null) return;
         _maskIncludeMode = _maskModeCheckBox.IsChecked == true;
-        RaiseSettingsChanged();
+        if (_suppressEvents == 0) RaiseSettingsChanged();
     }
 
     private void MaskTerrainList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_maskTerrainList == null) return;
+        if (_maskTerrainList == null || _suppressEvents > 0) return;
         _maskedTerrainIds.Clear();
         foreach (var item in _maskTerrainList.SelectedItems)
         {
@@ -469,49 +514,32 @@ public sealed class BrushSettingsWindow : Window
 
     private void RaiseSettingsChanged()
     {
-        BrushSettingsChanged?.Invoke(this, new BrushSettingsEventArgs(_brushSize, _selectedTerrainType, _selectedTerrainVariant, _editLayer, _brushShape));
+        BrushSettingsChanged?.Invoke(this, new BrushSettingsEventArgs(_brushSize, _selectedTerrainType, _selectedTerrainVariant, _brushShape));
     }
 
+    /// <summary>画笔大小（0 ~ <see cref="BrushEngine.MaxRadius"/>）。代码设置时只刷新显示，不发事件。</summary>
     public int BrushSize
     {
         get => _brushSize;
         set
         {
-            _brushSize = Math.Max(0, value);
-            if (_sizeInput != null)
-                _sizeInput.Text = _brushSize.ToString();
+            _brushSize = BrushEngine.ClampRadius(value);
+            SetSizeText();
         }
     }
 
-    public int SelectedTerrainType
-    {
-        get => _selectedTerrainType;
-        set => _selectedTerrainType = value;
-    }
-
-    public int SelectedTerrainVariant
-    {
-        get => _selectedTerrainVariant;
-        set => _selectedTerrainVariant = value;
-    }
-
-    public int EditLayer
-    {
-        get => _editLayer;
-        set => _editLayer = value;
-    }
-
+    /// <summary>画笔形状（<see cref="BrushEngine.ShapeCircle"/> / <see cref="BrushEngine.ShapeSquare"/>）。代码设置时不发事件。</summary>
     public string BrushShape
     {
         get => _brushShape;
         set
         {
-            if (value == ShapeCircle || value == ShapeSquare)
-            {
-                _brushShape = value;
-                if (_shapeCombo != null)
-                    _shapeCombo.SelectedIndex = value == ShapeSquare ? 1 : 0;
-            }
+            if (value != BrushEngine.ShapeCircle && value != BrushEngine.ShapeSquare) return;
+            _brushShape = value;
+            if (_shapeCombo == null) return;
+            _suppressEvents++;
+            try { _shapeCombo.SelectedIndex = value == BrushEngine.ShapeSquare ? 1 : 0; }
+            finally { _suppressEvents--; }
         }
     }
 
@@ -519,9 +547,18 @@ public sealed class BrushSettingsWindow : Window
     public bool MaskIncludeMode => _maskIncludeMode;
     public HashSet<int> MaskedTerrainIds => _maskedTerrainIds;
 
+    /// <summary>
+    /// 是否显示地形 / 变体列表（只有地形画笔用得上）。改动时重建窗口内容：调用方用对象初始化器设置，
+    /// 那时构造函数已经按默认值建好了内容（以前设成 false 也照样显示地形列表）。
+    /// </summary>
     public bool IsTerrainMode
     {
         get => _isTerrainMode;
-        set => _isTerrainMode = value;
+        set
+        {
+            if (_isTerrainMode == value) return;
+            _isTerrainMode = value;
+            Content = CreateWindowContent();
+        }
     }
 }

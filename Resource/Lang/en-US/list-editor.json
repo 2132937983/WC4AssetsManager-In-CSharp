@@ -1,0 +1,18 @@
+{
+  "Assist.ListEditor.Empty": "The list is empty. Click + to add an entry.",
+  "Assist.ListEditor.Add": "Add",
+  "Assist.ListEditor.Duplicate": "Duplicate the selected entry",
+  "Assist.ListEditor.Delete": "Delete the selected entry",
+  "Assist.ListEditor.Apply": "Apply",
+  "Assist.ListEditor.ApplyTooltip": "Apply the changes to this entry (Enter)",
+  "Assist.ListEditor.Applied": "Applied",
+  "Assist.ListEditor.Invalid": "Invalid input",
+  "Assist.ListEditor.Reverted": "Unapplied changes were discarded",
+  "Assist.ListEditor.ConfirmDelete": "Delete {0}? (Ctrl+Z undoes this)",
+  "Assist.ListEditor.NotInteger": "{0}: enter a whole number",
+  "Assist.ListEditor.OutOfRange": "{0}: must be between {1} and {2}",
+  "Assist.ListEditor.UndoEdit": "{0}: edit entry {1}",
+  "Assist.ListEditor.UndoAdd": "{0}: add entry",
+  "Assist.ListEditor.UndoDuplicate": "{0}: duplicate entry {1}",
+  "Assist.ListEditor.UndoDelete": "{0}: delete entry {1}"
+}

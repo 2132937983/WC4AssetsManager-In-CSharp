@@ -14,7 +14,15 @@ public sealed class ConfigManager
     private static readonly object _lock = new();
     private static ConfigManager? _instance;
 
-    public static event Action? StringTableChanged;
+    /// <summary>
+    /// 字符串表重新加载 / 保存 / 放弃修改之后触发。
+    /// 事件源是共享的 <see cref="Services.StringTableStore"/>：任何编辑器保存 stringtable 后，国家名缓存、城市名渲染都会跟着刷新。
+    /// </summary>
+    public static event Action? StringTableChanged
+    {
+        add => Services.StringTableStore.Changed += value;
+        remove => Services.StringTableStore.Changed -= value;
+    }
 
     public static ConfigManager Instance
     {
@@ -37,6 +45,20 @@ public sealed class ConfigManager
 
     private MusicConfig? _musicConfig;
     private SettingTxtData? _settingData;
+
+    /// <summary>
+    /// setting.txt 解析结果；首次访问时确保已初始化。
+    /// 以前只有 <see cref="GetText"/> 会触发初始化，命令行 / 脚本里若先调用 GetCountryColors、GetBuildingConfig 等，
+    /// 拿到的是空配置（例如 legion apply-settings-colors 一个军团的颜色都匹配不到）。
+    /// </summary>
+    private SettingTxtData? SettingData
+    {
+        get
+        {
+            if (!_isInitialized) Initialize();
+            return _settingData;
+        }
+    }
     private Dictionary<int, string> _terrainTypes = new();
     private Dictionary<string, string> _terrainMapping = new();
     private Dictionary<string, int> _terrainImageCounts = new();
@@ -76,6 +98,13 @@ public sealed class ConfigManager
         Debug.WriteLine("[ConfigManager] Configuration initialized");
     }
 
+    /// <summary>
+    /// setting.txt 的位置：从 exe 目录逐级向上找第一份（与 Resource 同一套规则），找不到时指向 exe 同级。
+    /// 设置窗口的写回、背景音乐偏好的保存都用这个路径，保证读写的是同一份文件。
+    /// </summary>
+    public static string SettingFilePath =>
+        ProjectPaths.FindFile("setting.txt") ?? IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "setting.txt");
+
     private string DetectResourcePath()
     {
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -91,9 +120,7 @@ public sealed class ConfigManager
     {
         try
         {
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string configPath = ProjectPaths.FindFile("setting.txt")
-                                ?? IOPath.Combine(baseDir, "setting.txt");
+            string configPath = SettingFilePath;
 
             if (!File.Exists(configPath))
             {
@@ -121,15 +148,37 @@ public sealed class ConfigManager
         }
     }
 
+    /// <summary>WindowMusic.json 的键是小写开头（tracks / filename / crossfadeDuration …），按不区分大小写反序列化。</summary>
+    private static readonly JsonSerializerOptions MusicJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true
+    };
+
     private void LoadMusicConfig()
     {
         try
         {
             string path = IOPath.Combine(_resourcePath, "Music", "WindowMusic.json");
-            if (File.Exists(path))
-                _musicConfig = JsonSerializer.Deserialize<MusicConfig>(File.ReadAllText(path));
+            if (!File.Exists(path))
+            {
+                Debug.WriteLine($"[ConfigManager] 音乐配置文件不存在: {path}");
+                return;
+            }
+
+            var config = JsonSerializer.Deserialize<MusicConfig>(File.ReadAllText(path), MusicJsonOptions);
+            if (config == null) return;
+            // JSON 里写成 null 的列表 / 设置按缺省处理，文件名为空的曲目直接丢弃
+            config.Tracks = (config.Tracks ?? []).Where(t => t != null && !string.IsNullOrWhiteSpace(t.Filename)).ToList();
+            config.Settings ??= new MusicSettings();
+            _musicConfig = config;
+            Debug.WriteLine($"[ConfigManager] 加载了 {config.Tracks.Count} 首音乐");
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ConfigManager] 加载音乐配置失败: {ex.Message}");
+        }
     }
 
     private void LoadConfigFiles()
@@ -514,17 +563,23 @@ public sealed class ConfigManager
         return _textConfig.TryGetValue(key, out var v) ? v : defaultValue;
     }
 
+    /// <summary>
+    /// 主题色（[全局编辑] ThemeColor，0xRRGGBB）。与 VB 版一致一律按十六进制解析，
+    /// 可带 0x / 0X / # 前缀；为空或无法解析时返回 <paramref name="defaultColor"/>。
+    /// </summary>
     public int GetThemeColor(int defaultColor = 0x002fa7)
     {
-        string hex = GetText("ThemeColor", "");
+        string hex = GetText("ThemeColor", "").Trim().TrimStart('#');
         if (string.IsNullOrEmpty(hex))
             return defaultColor;
         try
         {
-            int val = hex.StartsWith("0x") ? Convert.ToInt32(hex, 16) : int.Parse(hex);
-            return val;
+            return Convert.ToInt32(hex, 16) & 0xFFFFFF;
         }
-        catch { return defaultColor; }
+        catch (Exception ex) when (ex is FormatException or OverflowException or ArgumentException)
+        {
+            return defaultColor;
+        }
     }
 
     public enum OpeningAnimationType { Logo, Token, None }
@@ -536,13 +591,24 @@ public sealed class ConfigManager
     }
 
     public string GetMainToken() => GetText("Main_Token", "");
-    public WordCloudConfig GetWordCloudConfig() => _settingData?.WordCloudConfig ?? new WordCloudConfig();
+    public WordCloudConfig GetWordCloudConfig() => SettingData?.WordCloudConfig ?? new WordCloudConfig();
 
     public string GetTexturePath(string folder) => IOPath.Combine(ResourcePath, "Texture", folder);
     public string GetBackgroundPath() => IOPath.Combine(ResourcePath, "Texture", "ZSEditor_BackGround");
     public string GetLoadingBackgroundPath() => IOPath.Combine(ResourcePath, "Texture", "ZSEditor_Loading");
     public string GetLogoPath() => IOPath.Combine(ResourcePath, "Texture", "ZSEditor_Logo");
-    public string GetConsoleBackgroundPath() => IOPath.Combine(ResourcePath, "Texture", "ZSEditor_Console", "Console.jpg");
+
+    /// <summary>
+    /// 控制台背景图：ZSEditor_Console 目录里第一张支持格式的图片（对齐 VB 版 GetConsoleBackgroundImagePath 的自动识别）；
+    /// 目录里没有图片时返回约定的 Console.jpg 路径，由调用方判断文件是否存在。
+    /// </summary>
+    public string GetConsoleBackgroundPath()
+    {
+        string folder = IOPath.Combine(ResourcePath, "Texture", "ZSEditor_Console");
+        string found = FindFirstImage(folder);
+        return found.Length > 0 ? found : IOPath.Combine(folder, "Console.jpg");
+    }
+
     public string GetRenderBackgroundPath() => IOPath.Combine(ResourcePath, "Texture", "ZSEditor_MEBackGround", "MEBackGround.jpg");
     public string GetStageMarkPath() => IOPath.Combine(ResourcePath, "Texture", "StageMark");
     public string GetProvinceMarkPath() => IOPath.Combine(GetStageMarkPath(), "ProvinceMark");
@@ -551,19 +617,36 @@ public sealed class ConfigManager
     public string GetInformationMarkPath() => IOPath.Combine(GetStageMarkPath(), "InformationMark");
     public string GetArmyMarkPath() => IOPath.Combine(GetStageMarkPath(), "ArmyMark");
 
-    public string GetLoadingBackgroundImagePath()
+    /// <summary>加载画面背景图：ZSEditor_Loading 目录里第一张支持格式的图片，没有则返回空串。</summary>
+    public string GetLoadingBackgroundImagePath() => FindFirstImage(GetLoadingBackgroundPath());
+
+    /// <summary>背景图自动识别支持的格式，按此顺序取第一个（与 VB 版一致）</summary>
+    private static readonly string[] BackgroundImageExtensions = { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif" };
+
+    private static string FindFirstImage(string folder)
     {
-        string folder = GetLoadingBackgroundPath();
         if (!Directory.Exists(folder)) return "";
-        foreach (string ext in new[] { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp" })
+        foreach (string ext in BackgroundImageExtensions)
         {
             var files = Directory.GetFiles(folder, "*" + ext);
-            if (files.Length > 0) return files[0];
+            if (files.Length == 0) continue;
+            Array.Sort(files, StringComparer.OrdinalIgnoreCase);
+            return files[0];
         }
         return "";
     }
 
-    public Dictionary<int, int> GetCountryColors() => _settingData?.CountryColors ?? new Dictionary<int, int>();
+    /// <summary>背景音乐配置（Resource/Music/WindowMusic.json）；文件缺失或解析失败时为空列表。</summary>
+    public MusicConfig GetMusicConfig()
+    {
+        if (!_isInitialized) Initialize();
+        return _musicConfig ?? new MusicConfig();
+    }
+
+    /// <summary>背景音乐文件夹（Resource/Music），播放列表里的文件名相对于它。</summary>
+    public string GetMusicPath() => IOPath.Combine(ResourcePath, "Music");
+
+    public Dictionary<int, int> GetCountryColors() => SettingData?.CountryColors ?? new Dictionary<int, int>();
 
     public int GetCountryColor(int countryId, int defaultValue = -1)
     {
@@ -571,21 +654,21 @@ public sealed class ConfigManager
         return colors.TryGetValue(countryId, out int color) ? color : defaultValue;
     }
 
-    public ColorToTerrainConfig GetColorToTerrainConfig() => _settingData?.ColorToTerrainConfig ?? new ColorToTerrainConfig();
+    public ColorToTerrainConfig GetColorToTerrainConfig() => SettingData?.ColorToTerrainConfig ?? new ColorToTerrainConfig();
 
-    public BuildingConfig GetBuildingConfig() => _settingData?.BuildingConfig ?? new BuildingConfig();
+    public BuildingConfig GetBuildingConfig() => SettingData?.BuildingConfig ?? new BuildingConfig();
 
-    public ArmyEditConfig GetArmyEditConfig() => _settingData?.ArmyEditConfig ?? new ArmyEditConfig();
+    public ArmyEditConfig GetArmyEditConfig() => SettingData?.ArmyEditConfig ?? new ArmyEditConfig();
 
-    public LegionEditConfig GetLegionEditConfig() => _settingData?.LegionEditConfig ?? new LegionEditConfig();
+    public LegionEditConfig GetLegionEditConfig() => SettingData?.LegionEditConfig ?? new LegionEditConfig();
 
-    public EventEditConfig GetEventEditConfig() => _settingData?.EventEditConfig ?? new EventEditConfig();
+    public EventEditConfig GetEventEditConfig() => SettingData?.EventEditConfig ?? new EventEditConfig();
 
-    public AirForceEditConfig GetAirForceEditConfig() => _settingData?.AirForceEditConfig ?? new AirForceEditConfig();
+    public AirForceEditConfig GetAirForceEditConfig() => SettingData?.AirForceEditConfig ?? new AirForceEditConfig();
 
-    public CaseEditConfig GetCaseEditConfig() => _settingData?.CaseEditConfig ?? new CaseEditConfig();
+    public CaseEditConfig GetCaseEditConfig() => SettingData?.CaseEditConfig ?? new CaseEditConfig();
 
-    public WeatherEditConfig GetWeatherEditConfig() => _settingData?.WeatherEditConfig ?? new WeatherEditConfig();
+    public WeatherEditConfig GetWeatherEditConfig() => SettingData?.WeatherEditConfig ?? new WeatherEditConfig();
 
     public List<CountryGeneralsConfig> GetGeneralInCountryData()
     {
@@ -711,25 +794,21 @@ public sealed class ConfigManager
         return Assets.AssetManager.Default.GetGeneralSettings();
     }
 
+    /// <summary>字符串表全部条目的快照（与编辑器共用同一份数据，含未保存的修改）。</summary>
     public Dictionary<string, string> GetStringTableData()
-    {
-        if (!_isInitialized) Initialize();
-        return Assets.AssetManager.Default.GetStringTable();
-    }
+        => new(GetStringTableParser().Entries, StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>读字符串表的值（与编辑器共用同一份数据，编辑器保存后立即可见）。</summary>
     public string GetStringTableValue(string key, string defaultValue = "")
-    {
-        if (!_isInitialized) Initialize();
-        return Assets.AssetManager.Default.GetStringTableValue(key, defaultValue);
-    }
+        => GetStringTableParser().GetValue(key, defaultValue);
 
     /// <summary>
-    /// 获取字符串表解析器（支持读写）
+    /// 获取字符串表解析器（支持读写）。同一个文件全程只有一个实例，见 <see cref="Services.StringTableStore"/>。
     /// </summary>
     public StringTableParser GetStringTableParser()
     {
         if (!_isInitialized) Initialize();
-        _stringTableParser ??= new StringTableParser(GetStringTableFilePath());
+        _stringTableParser ??= Services.StringTableStore.Get(GetStringTableFilePath());
         return _stringTableParser;
     }
 
@@ -753,11 +832,7 @@ public sealed class ConfigManager
     /// <summary>
     /// 重新加载字符串表
     /// </summary>
-    public void ReloadStringTable()
-    {
-        _stringTableParser?.Reload();
-        StringTableChanged?.Invoke();
-    }
+    public void ReloadStringTable() => GetStringTableParser().Reload();
 
     public TacticalMapParser? TacticalMapParser
     {
@@ -768,15 +843,42 @@ public sealed class ConfigManager
         }
     }
 
+    /// <summary>
+    /// <see cref="Reload"/> 完成后触发（在调用线程上）：界面据此刷新窗口标题、主题色、开始界面文本、背景音乐等。
+    /// </summary>
+    public static event Action? ConfigReloaded;
+
+    /// <summary>
+    /// 热重载：清空 setting.txt 与 Resource 配置的全部缓存（文本、各节配置、音乐、地形表、ID 集合、
+    /// Config 目录 JSON、字符串表与战术图解析器）后重新加载，再触发 <see cref="ConfigReloaded"/>。
+    /// 设置窗口保存 / 刷新后调用，修改无需重启即可生效。
+    /// </summary>
     public void Reload()
     {
         _isInitialized = false;
         _textConfig.Clear();
         _settingData = null;
+        _musicConfig = null;
+        _terrainTypes.Clear();
+        _terrainMapping.Clear();
+        _terrainImageCounts.Clear();
+        _mapTerrainEntries = null;
+        _buildingTypeIds = null;
+        _armyTypeIds = null;
+        _countryIds = null;
+        _armyLevels = null;
+        _rankIds = null;
+        _qualityIds = null;
+        _generalInCountryData = null;
+        _legionLvSettingData = null;
+        _maxFormationData = null;
+        _generalRandomTemplates = null;
+        _generalSpecialtyTemplates = null;
         _stringTableParser = null;
         _tacticalMapParser = null;
         Core.Parsers.TacticalMapParser.ClearCache();
         Initialize();
+        ConfigReloaded?.Invoke();
     }
 
     private void LoadTacticalMap()
@@ -792,6 +894,38 @@ public sealed class ConfigManager
         }
     }
 
-    public class MusicConfig { public List<MusicTrack>? Tracks { get; set; } }
-    public class MusicTrack { public string? Name { get; set; } public string? Path { get; set; } public int Volume { get; set; } }
+    /// <summary>Resource/Music/WindowMusic.json：背景音乐播放列表与播放设置</summary>
+    public sealed class MusicConfig
+    {
+        public List<MusicTrack> Tracks { get; set; } = new();
+        public MusicSettings Settings { get; set; } = new();
+    }
+
+    /// <summary>播放列表中的一首（filename 相对于 Resource/Music）</summary>
+    public sealed class MusicTrack
+    {
+        public string Filename { get; set; } = "";
+
+        /// <summary>单曲循环：列表里只剩这一首能播时重复播放它（多首时由列表循环决定）</summary>
+        public bool Loop { get; set; }
+
+        /// <summary>该曲目的相对音量 0~1，与主音量相乘</summary>
+        public double Volume { get; set; } = 1.0;
+    }
+
+    /// <summary>WindowMusic.json 的 settings 节</summary>
+    public sealed class MusicSettings
+    {
+        /// <summary>随机播放</summary>
+        public bool Random { get; set; }
+
+        /// <summary>列表循环：播完最后一首回到第一首，否则停止</summary>
+        public bool Loop { get; set; } = true;
+
+        /// <summary>切歌时淡出 / 淡入的时长（毫秒）</summary>
+        public int CrossfadeDuration { get; set; } = 1000;
+
+        /// <summary>默认主音量 0~1（setting.txt 里没有保存过音量时使用）</summary>
+        public double DefaultVolume { get; set; } = 0.8;
+    }
 }

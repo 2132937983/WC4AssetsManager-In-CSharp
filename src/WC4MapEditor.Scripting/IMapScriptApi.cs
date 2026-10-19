@@ -219,8 +219,19 @@ public interface IMapScriptApi
     /// </summary>
     int GetLegionCountryIdAt(int index);
 
-    /// <summary>设置玩家控制军团</summary>
+    /// <summary>设置玩家控制军团（按 ActionId）：该军团控制值为 0（玩家），其余为 1（AI）</summary>
     ScriptOperationResult SetPlayerLegion(int actionId);
+
+    /// <summary>
+    /// 按<b>军团列表索引</b>设置玩家控制军团（该军团控制值 0，其余 1）；索引为负表示没有玩家军团（全部 AI）。
+    /// </summary>
+    ScriptOperationResult SetPlayerLegionAt(int index);
+
+    /// <summary>
+    /// 把第 <paramref name="from"/> 个军团移到 <paramref name="to"/> 位置（列表索引），
+    /// 地图上的归属值与各处对军团下标的引用随之改写；<paramref name="renumberActionIds"/> 为 true 时 ActionId 也按新顺序重排。
+    /// </summary>
+    ScriptOperationResult MoveLegion(int from, int to, bool renumberActionIds);
 
     /// <summary>应用默认颜色到所有军团</summary>
     ScriptOperationResult ApplyDefaultLegionColors();
@@ -254,6 +265,35 @@ public interface IMapScriptApi
 
     /// <summary>按索引设置军团战败条件</summary>
     ScriptOperationResult SetLegionDefeatConditionAt(int index, int value);
+
+    // ---------- 记录列表（事件 / 方案 / 天气 / 战略建设 / 空袭 / 空中支援 / 援军） ----------
+
+    /// <summary>某种记录的条数（kind 见 <see cref="ScriptRecordKinds"/>；未知种类返回 0）</summary>
+    int GetRecordCount(string kind);
+
+    /// <summary>按下标取一条记录，越界或未知种类返回 null</summary>
+    ScriptRecord? GetRecord(string kind, int index);
+
+    /// <summary>
+    /// 列出某种记录的可写字段名（供脚本自省）；字段名与数据结构里的字段一致，大小写不敏感。
+    /// 援军的 Coordinate 不可直接改（要换格子请删除后在新格子重新添加）。
+    /// </summary>
+    IReadOnlyList<string> GetRecordFields(string kind);
+
+    /// <summary>
+    /// 新增一条默认记录。空袭与援军挂在格子上，需要 <paramref name="col"/> / <paramref name="row"/>
+    /// （空袭按游戏数据应放在有机场的格子上）；其余种类忽略这两个参数。
+    /// </summary>
+    ScriptOperationResult AddRecord(string kind, int col = -1, int row = -1);
+
+    /// <summary>按字段名改一条记录的某个数值字段（先经对应模块的校验，不合法时拒绝并说明原因）</summary>
+    ScriptOperationResult SetRecordField(string kind, int index, string field, double value);
+
+    /// <summary>删除一条记录</summary>
+    ScriptOperationResult RemoveRecord(string kind, int index);
+
+    /// <summary>删除某种记录的全部条目</summary>
+    ScriptOperationResult RemoveAllRecords(string kind);
 
     // ---------- 地形修改 ----------
 

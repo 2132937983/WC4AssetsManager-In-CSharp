@@ -8,16 +8,18 @@ using WC4MapEditor.Core.Models;
 
 namespace WC4MapEditor.Rendering.Skia;
 
+/// <summary>
+/// 单位层：单位图标（按朝向镜像）、关键据点光圈、等级徽章、编制板与方案图标；
+/// 将领头像单独由 <see cref="RenderGeneralHeadsOnly"/> 在归属国旗之后绘制（对齐 VB MainRender 的层序）。
+/// v1 / v3 按所绘地图的 <see cref="BTLHeader.BtlVersion"/> 自动选择单位表。
+/// </summary>
 public class ArmyRender : IDisposable
 {
     private const int ATLAS_TILE_SIZE = 64;
-    private const int MAX_ATLAS_DRAW_COUNT = 20000;
     private const double UNIT_IMAGE_SIZE_RATIO = 0.9;
     private const float GENERAL_HEAD_SIZE_RATIO = 0.6f;
     private const double KEY_POINT_SIZE_RATIO = 1.5;
     private const double BASE_HEX_SIZE = 20.0;
-    private static readonly double HEX_HORIZONTAL_SPACING = BASE_HEX_SIZE * 1.5;
-    private static readonly double HEX_VERTICAL_SPACING = BASE_HEX_SIZE * Math.Sqrt(3);
     private static readonly SKColor KEY_POINT_COLOR_1 = new(255, 0, 0, 128);
     private static readonly SKColor KEY_POINT_COLOR_2 = new(0, 255, 0, 128);
 
@@ -39,7 +41,7 @@ public class ArmyRender : IDisposable
     private readonly List<SKPoint> _flippedPositions = new();
     private readonly List<float> _flippedSizes = new();
     private readonly List<(SKPoint Position, float Size, SKColor Color)> _keyPointPositions = new();
-    private readonly List<(SKPoint Position, float Size, SKImage? Image, bool IsDefault)> _generalHeadPositions = new();
+    private readonly List<(SKPoint Position, float Size, SKImage? Image)> _generalHeadPositions = new();
     private readonly List<(SKPoint Position, float Size, int Level)> _levelIconPositions = new();
     private readonly List<(SKPoint BoardPos, SKSize BoardSize, int FormationCount, int Plan)> _formationInfos = new();
 
@@ -55,10 +57,9 @@ public class ArmyRender : IDisposable
     /// </summary>
     private readonly Dictionary<int, SKImage?> _generalHeadCache = new();
 
-    private readonly SKFont _levelFont;
-    private readonly SKPaint _levelTextPaint;
-    private readonly SKPaint _generalDefaultPaint;
-    private readonly SKPaint _generalBorderPaint;
+    private readonly SKPaint _imagePaint = new() { IsAntialias = true };
+    private readonly SKPaint _generalDefaultPaint = new() { IsAntialias = true, Color = new SKColor(255, 215, 0), Style = SKPaintStyle.Fill };
+    private readonly SKPaint _generalBorderPaint = new() { IsAntialias = true, Color = new SKColor(218, 165, 32), Style = SKPaintStyle.Stroke };
 
     public bool ShowUnits
     {
@@ -66,17 +67,13 @@ public class ArmyRender : IDisposable
         set => _showUnits = value;
     }
 
-    public bool IsV3 { get; set; }
+    /// <summary>所绘地图是否为 v3（BtlVersion &gt;= 3）：v3 地图只填 ArmiesV3，v1 / v2 地图只填 Armies。</summary>
+    public bool IsV3 => _mapData.Header.UsesV3Records;
 
     public ArmyRender(Camera camera, MapData mapData)
     {
         _camera = camera;
         _mapData = mapData;
-
-        _levelFont = new SKFont(SKTypeface.Default, 10);
-        _levelTextPaint = new SKPaint { IsAntialias = true, Color = SKColors.White };
-        _generalDefaultPaint = new SKPaint { IsAntialias = true, Color = new SKColor(255, 215, 0), Style = SKPaintStyle.Fill };
-        _generalBorderPaint = new SKPaint { IsAntialias = true, Color = new SKColor(218, 165, 32), Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
 
         InitializeUnitAtlas();
         InitializeLevelAndFormationImages();
@@ -154,27 +151,49 @@ public class ArmyRender : IDisposable
 
     #region 主渲染方法
 
+    /// <summary>
+    /// 绘制单位层（不含将领头像）。每帧先清空缓冲：即使地图上已没有单位，
+    /// 随后的 <see cref="RenderGeneralHeadsOnly"/> 也不会画出上一帧残留的头像。
+    /// </summary>
     public void Render(SKCanvas canvas)
     {
-        if (canvas == null || _mapData == null) return;
-        if (!_showUnits) return;
+        ClearBuffers();
+        if (canvas == null || _mapData == null || !_showUnits) return;
 
-        if (IsV3)
+        try
         {
-            if (_mapData.ArmiesV3 == null || _mapData.ArmiesV3.Count == 0) return;
-            RenderV3(canvas);
+            var visibleBounds = CalculateVisibleBounds();
+            float unitSize = CalculateUnitSize();
+
+            if (IsV3)
+            {
+                foreach (var a in _mapData.ArmiesV3)
+                    Collect(new UnitMark((ushort)a.Coordinate, a.UnitType, a.Direction, a.KeyPoint, a.General, a.Level, a.Organization, a.Plan), visibleBounds, unitSize);
+            }
+            else
+            {
+                foreach (var a in _mapData.Armies)
+                    Collect(new UnitMark((ushort)a.Coordinate, a.UnitType, a.Direction, a.KeyPoint, a.General, a.Level, a.Organization, a.Plan), visibleBounds, unitSize);
+            }
+
+            DrawKeyPoints(canvas);
+            DrawAtlasBatch(canvas);
+            DrawLevelIcons(canvas);
+            DrawFormationInfo(canvas);
         }
-        else
+        catch (Exception ex)
         {
-            if (_mapData.Armies == null || _mapData.Armies.Count == 0) return;
-            RenderV1(canvas);
+            Debug.WriteLine($"[ArmyRender] 绘制单位失败: {ex.Message}");
         }
     }
 
+    /// <summary>
+    /// 将领头像层：画在归属国旗之后，保证头像压在国旗之上（VB DrawGeneralHeadsOnly）。
+    /// 使用同一帧 <see cref="Render"/> 收集的位置；没有头像的将领画金色圆形占位。
+    /// </summary>
     public void RenderGeneralHeadsOnly(SKCanvas canvas)
     {
-        if (canvas == null || _mapData == null || !_showUnits) return;
-        if (_generalHeadPositions.Count == 0) return;
+        if (canvas == null || !_showUnits || _generalHeadPositions.Count == 0) return;
 
         try
         {
@@ -186,121 +205,12 @@ public class ArmyRender : IDisposable
         }
     }
 
-    private void RenderV1(SKCanvas canvas)
-    {
-        try
-        {
-            ClearBuffers();
-
-            var visibleBounds = CalculateVisibleBounds();
-            float unitSize = CalculateUnitSize();
-            float halfSize = unitSize / 2;
-
-            foreach (var army in _mapData.Armies)
-            {
-                var screenPos = CalculateScreenPosition(army.Coordinate);
-                if (screenPos == null) continue;
-                if (!IsInVisibleBounds(screenPos.Value, visibleBounds)) continue;
-
-                int unitType = army.UnitType;
-                if (!_unitAtlasMap.ContainsKey(unitType))
-                {
-                    if (_unitAtlasMap.ContainsKey(0)) unitType = 0;
-                    else continue;
-                }
-
-                float scale = unitSize / ATLAS_TILE_SIZE;
-                float tx = screenPos.Value.X - halfSize;
-                float ty = screenPos.Value.Y - halfSize;
-
-                if (army.Direction == 1)
-                {
-                    _flippedSpriteRects.Add(_unitAtlasMap[unitType]);
-                    _flippedPositions.Add(new SKPoint(tx, ty));
-                    _flippedSizes.Add(unitSize);
-                }
-                else
-                {
-                    _spriteRects.Add(_unitAtlasMap[unitType]);
-                    _transforms.Add(new SKRotationScaleMatrix(scale, 0, tx, ty));
-                }
-
-                CollectKeyPointIfNeeded(army.KeyPoint, screenPos.Value, unitSize);
-                CollectGeneralHeadIfNeeded(army.General, screenPos.Value, unitSize);
-                CollectLevelIconIfNeeded(army.Level, screenPos.Value, unitSize);
-                CollectFormationInfoIfNeeded(army.Organization, army.Plan, screenPos.Value, unitSize);
-            }
-
-            DrawKeyPoints(canvas);
-            DrawAtlasBatch(canvas);
-            DrawLevelIcons(canvas);
-            DrawFormationInfo(canvas);
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ArmyRender] 绘制v1单位失败: {ex.Message}");
-        }
-    }
-
-    private void RenderV3(SKCanvas canvas)
-    {
-        try
-        {
-            ClearBuffers();
-
-            var visibleBounds = CalculateVisibleBounds();
-            float unitSize = CalculateUnitSize();
-            float halfSize = unitSize / 2;
-
-            foreach (var army in _mapData.ArmiesV3)
-            {
-                var screenPos = CalculateScreenPosition(army.Coordinate);
-                if (screenPos == null) continue;
-                if (!IsInVisibleBounds(screenPos.Value, visibleBounds)) continue;
-
-                int unitType = army.UnitType;
-                if (!_unitAtlasMap.ContainsKey(unitType))
-                {
-                    if (_unitAtlasMap.ContainsKey(0)) unitType = 0;
-                    else continue;
-                }
-
-                float scale = unitSize / ATLAS_TILE_SIZE;
-                float tx = screenPos.Value.X - halfSize;
-                float ty = screenPos.Value.Y - halfSize;
-
-                if (army.Direction == 1)
-                {
-                    _flippedSpriteRects.Add(_unitAtlasMap[unitType]);
-                    _flippedPositions.Add(new SKPoint(tx, ty));
-                    _flippedSizes.Add(unitSize);
-                }
-                else
-                {
-                    _spriteRects.Add(_unitAtlasMap[unitType]);
-                    _transforms.Add(new SKRotationScaleMatrix(scale, 0, tx, ty));
-                }
-
-                CollectKeyPointIfNeeded(army.KeyPoint, screenPos.Value, unitSize);
-                CollectGeneralHeadIfNeeded(army.General, screenPos.Value, unitSize);
-                CollectLevelIconIfNeeded(army.Level, screenPos.Value, unitSize);
-                CollectFormationInfoIfNeeded(army.Organization, army.Plan, screenPos.Value, unitSize);
-            }
-
-            DrawKeyPoints(canvas);
-            DrawAtlasBatch(canvas);
-            DrawLevelIcons(canvas);
-            DrawFormationInfo(canvas);
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ArmyRender] 绘制v3单位失败: {ex.Message}");
-        }
-    }
-
     #endregion
 
     #region 数据收集
+
+    /// <summary>v1 / v3 单位共有的绘制字段。</summary>
+    private readonly record struct UnitMark(int Cell, byte UnitType, byte Direction, byte KeyPoint, short General, byte Level, byte Organization, short Plan);
 
     private void ClearBuffers()
     {
@@ -314,6 +224,45 @@ public class ArmyRender : IDisposable
         _levelIconPositions.Clear();
         _formationInfos.Clear();
     }
+
+    /// <summary>
+    /// 收集一个单位。图集里既没有该兵种也没有 0 号兵种时不画图标，
+    /// 但关键据点、将领、等级、编制照常收集（与 VB 一致，以前会整个跳过）。
+    /// </summary>
+    private void Collect(in UnitMark unit, SKRect visibleBounds, float unitSize)
+    {
+        var screenPos = CalculateScreenPosition(unit.Cell);
+        if (screenPos == null || !visibleBounds.Contains(screenPos.Value.X, screenPos.Value.Y)) return;
+        var pos = screenPos.Value;
+
+        if (TryGetUnitTile(unit.UnitType, out var tile))
+        {
+            float halfSize = unitSize / 2;
+            float tx = pos.X - halfSize;
+            float ty = pos.Y - halfSize;
+
+            // SKRotationScaleMatrix 不支持负缩放（会转成旋转 180 度），朝右的单位单独镜像绘制
+            if (unit.Direction == 1)
+            {
+                _flippedSpriteRects.Add(tile);
+                _flippedPositions.Add(new SKPoint(tx, ty));
+                _flippedSizes.Add(unitSize);
+            }
+            else
+            {
+                _spriteRects.Add(tile);
+                _transforms.Add(new SKRotationScaleMatrix(unitSize / ATLAS_TILE_SIZE, 0, tx, ty));
+            }
+        }
+
+        CollectKeyPointIfNeeded(unit.KeyPoint, pos, unitSize);
+        CollectGeneralHeadIfNeeded(unit.General, pos, unitSize);
+        CollectLevelIconIfNeeded(unit.Level, pos, unitSize);
+        CollectFormationInfoIfNeeded(unit.Organization, unit.Plan, pos, unitSize);
+    }
+
+    private bool TryGetUnitTile(int unitType, out SKRect tile)
+        => _unitAtlasMap.TryGetValue(unitType, out tile) || _unitAtlasMap.TryGetValue(0, out tile);
 
     private void CollectKeyPointIfNeeded(byte keyPoint, SKPoint screenPos, float unitSize)
     {
@@ -329,11 +278,7 @@ public class ArmyRender : IDisposable
 
         float headSize = unitSize * GENERAL_HEAD_SIZE_RATIO;
         var headPos = new SKPoint(screenPos.X, screenPos.Y - unitSize * 0.6f);
-
-        SKImage? headImage = ResolveGeneralHead(general);
-        bool isDefault = headImage == null;
-
-        _generalHeadPositions.Add((headPos, headSize, headImage, isDefault));
+        _generalHeadPositions.Add((headPos, headSize, ResolveGeneralHead(general)));
     }
 
     /// <summary>按将领 Id 取头像，结果（含"无头像"的 null）缓存在 <see cref="_generalHeadCache"/>。</summary>
@@ -352,14 +297,9 @@ public class ArmyRender : IDisposable
             return cached;
 
         SKImage? headImage = null;
-        var generalSetting = GeneralSettingParser.Instance;
-        if (generalSetting != null)
-        {
-            var generalData = generalSetting.GetById(general);
-            string? ename = generalData?.EName;
-            if (!string.IsNullOrEmpty(ename))
-                headImage = tacticalCache.GetImage($"head_{ename}.png");
-        }
+        string? ename = GeneralSettingParser.Instance.GetEname(general);
+        if (!string.IsNullOrEmpty(ename))
+            headImage = tacticalCache.GetImage($"head_{ename}.png");
 
         _generalHeadCache[general] = headImage;
         return headImage;
@@ -417,77 +357,49 @@ public class ArmyRender : IDisposable
         {
             if (_unitAtlas == null) return;
 
-            using var paint = new SKPaint { IsAntialias = true };
-
             if (_transforms.Count > 0)
+                canvas.DrawAtlas(_unitAtlas, _spriteRects.ToArray(), _transforms.ToArray(), _imagePaint);
+
+            for (int i = 0; i < _flippedPositions.Count; i++)
             {
-                canvas.DrawAtlas(_unitAtlas, _spriteRects.ToArray(), _transforms.ToArray(), paint);
-            }
+                var pos = _flippedPositions[i];
+                var size = _flippedSizes[i];
+                var dstRect = new SKRect(pos.X, pos.Y, pos.X + size, pos.Y + size);
 
-            if (_flippedPositions.Count > 0)
-            {
-                for (int i = 0; i < _flippedPositions.Count; i++)
-                {
-                    var spriteRect = _flippedSpriteRects[i];
-                    var pos = _flippedPositions[i];
-                    var size = _flippedSizes[i];
-
-                    var dstRect = new SKRect(pos.X, pos.Y, pos.X + size, pos.Y + size);
-
-                    canvas.Save();
-                    canvas.Translate(dstRect.MidX, dstRect.MidY);
-                    canvas.Scale(-1, 1);
-                    canvas.Translate(-dstRect.MidX, -dstRect.MidY);
-                    canvas.DrawImage(_unitAtlas, spriteRect, dstRect, paint);
-                    canvas.Restore();
-                }
+                canvas.Save();
+                canvas.Translate(dstRect.MidX, dstRect.MidY);
+                canvas.Scale(-1, 1);
+                canvas.Translate(-dstRect.MidX, -dstRect.MidY);
+                canvas.DrawImage(_unitAtlas, _flippedSpriteRects[i], dstRect, _imagePaint);
+                canvas.Restore();
             }
         }
     }
 
     private void DrawGeneralHeads(SKCanvas canvas)
     {
-        if (_generalHeadPositions.Count == 0) return;
-
-        using var paint = new SKPaint { IsAntialias = true };
-
-        foreach (var headInfo in _generalHeadPositions)
+        foreach (var (position, size, image) in _generalHeadPositions)
         {
-            float halfSize = headInfo.Size / 2;
-
-            if (headInfo.IsDefault)
+            float halfSize = size / 2;
+            if (image != null)
             {
-                paint.Style = SKPaintStyle.Fill;
-                paint.Color = new SKColor(255, 215, 0);
-                canvas.DrawCircle(headInfo.Position.X, headInfo.Position.Y, halfSize, paint);
-
-                paint.Style = SKPaintStyle.Stroke;
-                paint.Color = new SKColor(218, 165, 32);
-                paint.StrokeWidth = halfSize * 0.1f;
-                canvas.DrawCircle(headInfo.Position.X, headInfo.Position.Y, halfSize, paint);
+                var dstRect = new SKRect(position.X - halfSize, position.Y - halfSize, position.X + halfSize, position.Y + halfSize);
+                canvas.DrawImage(image, dstRect, _imagePaint);
             }
-            else if (headInfo.Image != null)
+            else
             {
-                var dstRect = new SKRect(
-                    headInfo.Position.X - halfSize,
-                    headInfo.Position.Y - halfSize,
-                    headInfo.Position.X + halfSize,
-                    headInfo.Position.Y + halfSize);
-                canvas.DrawImage(headInfo.Image, dstRect, paint);
+                canvas.DrawCircle(position.X, position.Y, halfSize, _generalDefaultPaint);
+                _generalBorderPaint.StrokeWidth = halfSize * 0.1f;
+                canvas.DrawCircle(position.X, position.Y, halfSize, _generalBorderPaint);
             }
         }
     }
 
     private void DrawLevelIcons(SKCanvas canvas)
     {
-        if (_levelIconPositions.Count == 0) return;
-
-        using var paint = new SKPaint { IsAntialias = true };
-
         foreach (var levelInfo in _levelIconPositions)
         {
-            if (!_levelIconCache.TryGetValue(levelInfo.Level, out var levelImage)) continue;
-            if (levelImage == null) continue;
+            if (!_levelIconCache.TryGetValue(levelInfo.Level, out var levelImage) || levelImage == null) continue;
 
             float halfSize = levelInfo.Size / 2;
             var dstRect = new SKRect(
@@ -496,15 +408,13 @@ public class ArmyRender : IDisposable
                 levelInfo.Position.X + halfSize,
                 levelInfo.Position.Y + halfSize);
 
-            canvas.DrawImage(levelImage, dstRect, paint);
+            canvas.DrawImage(levelImage, dstRect, _imagePaint);
         }
     }
 
     private void DrawFormationInfo(SKCanvas canvas)
     {
         if (_formationInfos.Count == 0 || _formationBoardCache == null || _formationIconCache == null) return;
-
-        using var paint = new SKPaint { IsAntialias = true };
 
         foreach (var info in _formationInfos)
         {
@@ -513,20 +423,17 @@ public class ArmyRender : IDisposable
                 info.BoardPos.Y - info.BoardSize.Height / 2,
                 info.BoardPos.X + info.BoardSize.Width / 2,
                 info.BoardPos.Y + info.BoardSize.Height / 2);
-            canvas.DrawImage(_formationBoardCache, boardRect, paint);
+            canvas.DrawImage(_formationBoardCache, boardRect, _imagePaint);
 
             float formationSize = info.BoardSize.Width * 0.3f;
-            int displayCount = Math.Min(info.FormationCount, (int)4);
+            int displayCount = Math.Min(info.FormationCount, 4);
 
             for (int i = 0; i < displayCount; i++)
             {
                 int row = i / 2;
                 int col = i % 2;
-                float offsetX = (col - 0.5f) * info.BoardSize.Width * 0.4f;
-                float offsetY = (row - 0.5f) * info.BoardSize.Height * 0.4f;
-
-                float formationX = info.BoardPos.X + offsetX;
-                float formationY = info.BoardPos.Y + offsetY;
+                float formationX = info.BoardPos.X + (col - 0.5f) * info.BoardSize.Width * 0.4f;
+                float formationY = info.BoardPos.Y + (row - 0.5f) * info.BoardSize.Height * 0.4f;
 
                 var formationRect = new SKRect(
                     formationX - formationSize / 2,
@@ -534,27 +441,24 @@ public class ArmyRender : IDisposable
                     formationX + formationSize / 2,
                     formationY + formationSize / 2);
 
-                canvas.DrawImage(_formationIconCache, formationRect, paint);
+                canvas.DrawImage(_formationIconCache, formationRect, _imagePaint);
             }
 
-            if (_actionPlanCache.TryGetValue(info.Plan, out var planImage) || _actionPlanCache.TryGetValue(0, out planImage))
+            if ((_actionPlanCache.TryGetValue(info.Plan, out var planImage) || _actionPlanCache.TryGetValue(0, out planImage))
+                && planImage != null)
             {
-                if (planImage != null)
-                {
-                    float planAspect = (float)planImage.Height / planImage.Width;
-                    float planWidth = info.BoardSize.Width * 0.5f;
-                    float planHeight = planWidth * planAspect;
-                    float planX = info.BoardPos.X;
-                    float planY = info.BoardPos.Y - info.BoardSize.Height * 1.0f;
+                float planWidth = info.BoardSize.Width * 0.5f;
+                float planHeight = planWidth * planImage.Height / planImage.Width;
+                float planX = info.BoardPos.X;
+                float planY = info.BoardPos.Y - info.BoardSize.Height;
 
-                    var planRect = new SKRect(
-                        planX - planWidth / 2,
-                        planY - planHeight / 2,
-                        planX + planWidth / 2,
-                        planY + planHeight / 2);
+                var planRect = new SKRect(
+                    planX - planWidth / 2,
+                    planY - planHeight / 2,
+                    planX + planWidth / 2,
+                    planY + planHeight / 2);
 
-                    canvas.DrawImage(planImage, planRect, paint);
-                }
+                canvas.DrawImage(planImage, planRect, _imagePaint);
             }
         }
     }
@@ -571,19 +475,13 @@ public class ArmyRender : IDisposable
         return new SKRect(-margin, -margin, viewWidth + margin, viewHeight + margin);
     }
 
-    private static bool IsInVisibleBounds(SKPoint point, SKRect bounds)
+    private SKPoint? CalculateScreenPosition(int cell)
     {
-        return bounds.Contains(point.X, point.Y);
-    }
+        if (_mapData.MapWidth <= 0 || _mapData.MapHeight <= 0) return null;
 
-    private SKPoint? CalculateScreenPosition(int coordinate)
-    {
-        if (_mapData == null || _mapData.MapWidth <= 0 || _mapData.MapHeight <= 0) return null;
-
-        int row = coordinate / _mapData.MapWidth;
-        int col = coordinate % _mapData.MapWidth;
-
-        if (row < 0 || row >= _mapData.MapHeight || col < 0 || col >= _mapData.MapWidth) return null;
+        int row = cell / _mapData.MapWidth;
+        int col = cell % _mapData.MapWidth;
+        if (row >= _mapData.MapHeight) return null;
 
         var (screenX, screenY) = _camera.HexToScreen(col, row);
         return new SKPoint((float)screenX, (float)screenY);
@@ -616,8 +514,7 @@ public class ArmyRender : IDisposable
         _actionPlanCache.Clear();
         _generalHeadCache.Clear(); // 头像归 TacticalMapImageCache 所有，只清引用
 
-        _levelFont.Dispose();
-        _levelTextPaint.Dispose();
+        _imagePaint.Dispose();
         _generalDefaultPaint.Dispose();
         _generalBorderPaint.Dispose();
     }

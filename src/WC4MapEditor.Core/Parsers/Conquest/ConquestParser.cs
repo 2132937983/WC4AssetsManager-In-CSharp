@@ -1,8 +1,11 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using WC4MapEditor.Core.Analyzers;
+using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Models;
 using WC4MapEditor.Core.Parsers.BTL;
+using WC4MapEditor.Core.Parsers.World;
 
 namespace WC4MapEditor.Core.Parsers.Conquest;
 
@@ -16,8 +19,6 @@ public class ConquestParser
     public string HexFilePath { get; private set; } = "";
     public BTLHeader Header { get; private set; } = null!;
     public int BtlVersion => Header?.BtlVersion ?? 0;
-
-    public bool BelongOffset { get; private set; }
 
     public List<Legion> Legions { get; } = new();
     public List<Province> Provinces { get; } = new();
@@ -86,6 +87,7 @@ public class ConquestParser
     private void ParseAllData()
     {
         ResetLoadFlags();
+        Header = null!;
         GetHeaderData();
     }
 
@@ -129,15 +131,24 @@ public class ConquestParser
         return Legions;
     }
 
+    /// <summary>按文件头排出的数据块地址表（征服布局：没有地形块）。</summary>
+    private BTLLayout Layout
+    {
+        get
+        {
+            if (Header == null) GetHeaderData();
+            return BTLLayout.ForConquest(Header);
+        }
+    }
+
     public List<Province> GetProvinceData()
     {
         if (_provincesLoaded) return Provinces;
-        if (Header == null) GetHeaderData();
         if (!_legionsLoaded) GetLegionData();
 
-        var offsets = ConquestOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount);
+        var span = Layout[BtlBlock.Province];
         Provinces.Clear();
-        Provinces.AddRange(BTLProvinceModule.Parse(HexData, offsets.province, Header.SelectableTileCount));
+        Provinces.AddRange(BTLProvinceModule.Parse(HexData, span.StartInt, span.Count));
         _provincesLoaded = true;
         return Provinces;
     }
@@ -145,24 +156,11 @@ public class ConquestParser
     public List<string> GetBelongData()
     {
         if (_belongsLoaded) return Belongs;
-        if (Header == null) GetHeaderData();
         if (!_provincesLoaded) GetProvinceData();
 
-        var offsets = ConquestOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount);
-
-        BelongOffset = false;
-        if (Legions.Count > 0)
-        {
-            int minActionId = Legions.Min(l => l.ActionId);
-            if (minActionId > 0)
-            {
-                BelongOffset = true;
-                Debug.WriteLine($"[ConquestParser] 检测到军团actionid从{minActionId}开始，归属值将自动+1偏移");
-            }
-        }
-
+        var span = Layout[BtlBlock.Belong];
         Belongs.Clear();
-        Belongs.AddRange(BTLBelongModule.Parse(HexData, offsets.belong, Header.SelectableTileCount, BelongOffset));
+        Belongs.AddRange(BTLBelongModule.Parse(HexData, span.StartInt, span.Count));
         _belongsLoaded = true;
         return Belongs;
     }
@@ -170,12 +168,11 @@ public class ConquestParser
     public List<Building> GetBuildingData()
     {
         if (_buildingsLoaded) return Buildings;
-        if (Header == null) GetHeaderData();
         if (!_belongsLoaded) GetBelongData();
 
-        var offsets = ConquestOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount);
+        var span = Layout[BtlBlock.Building];
         Buildings.Clear();
-        Buildings.AddRange(BTLBuildingModule.Parse(HexData, offsets.building, Header.BuildingCount));
+        Buildings.AddRange(BTLBuildingModule.Parse(HexData, span.StartInt, span.Count));
         _buildingsLoaded = true;
         return Buildings;
     }
@@ -183,14 +180,13 @@ public class ConquestParser
     public List<Army> GetTroopData()
     {
         if (_armiesLoaded) return Armies;
-        if (Header == null) GetHeaderData();
         if (!_buildingsLoaded) GetBuildingData();
 
-        int dataEnd = ConquestOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount).dataEnd;
+        var span = Layout[BtlBlock.Army];
         Armies.Clear();
         ArmiesV3.Clear();
 
-        var (v1, v3) = BTLArmyModule.Parse(HexData, dataEnd, Header.TroopCount, BtlVersion);
+        var (v1, v3) = BTLArmyModule.Parse(HexData, span.StartInt, span.Count, BtlVersion);
         Armies.AddRange(v1);
         ArmiesV3.AddRange(v3);
         _armiesLoaded = true;
@@ -200,13 +196,11 @@ public class ConquestParser
     public List<Trap> GetTrapData()
     {
         if (_trapsLoaded) return Traps;
-        if (Header == null) GetHeaderData();
         if (!_armiesLoaded) GetTroopData();
 
-        int dataEnd = ConquestOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount).dataEnd;
-        int offset = dataEnd + (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion));
+        var span = Layout[BtlBlock.Trap];
         Traps.Clear();
-        Traps.AddRange(BTLTrapModule.Parse(HexData, offset, Header.TrapCount));
+        Traps.AddRange(BTLTrapModule.Parse(HexData, span.StartInt, span.Count));
         _trapsLoaded = true;
         return Traps;
     }
@@ -214,15 +208,11 @@ public class ConquestParser
     public List<MapCase> GetCaseData()
     {
         if (_casesLoaded) return Cases;
-        if (Header == null) GetHeaderData();
         if (!_trapsLoaded) GetTrapData();
 
-        int dataEnd = ConquestOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount).dataEnd;
-        int offset = dataEnd +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12);
+        var span = Layout[BtlBlock.Case];
         Cases.Clear();
-        Cases.AddRange(BTLCaseModule.Parse(HexData, offset, Header.PlanCount));
+        Cases.AddRange(BTLCaseModule.Parse(HexData, span.StartInt, span.Count));
         _casesLoaded = true;
         return Cases;
     }
@@ -230,16 +220,11 @@ public class ConquestParser
     public List<Weather> GetWeatherData()
     {
         if (_weathersLoaded) return Weathers;
-        if (Header == null) GetHeaderData();
         if (!_casesLoaded) GetCaseData();
 
-        int dataEnd = ConquestOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount).dataEnd;
-        int offset = dataEnd +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16);
+        var span = Layout[BtlBlock.Weather];
         Weathers.Clear();
-        Weathers.AddRange(BTLWeatherModule.Parse(HexData, offset, Header.WeatherCount));
+        Weathers.AddRange(BTLWeatherModule.Parse(HexData, span.StartInt, span.Count));
         _weathersLoaded = true;
         return Weathers;
     }
@@ -247,17 +232,11 @@ public class ConquestParser
     public List<MapEvent> GetEventData()
     {
         if (_eventsLoaded) return Events;
-        if (Header == null) GetHeaderData();
         if (!_weathersLoaded) GetWeatherData();
 
-        int dataEnd = ConquestOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount).dataEnd;
-        int offset = dataEnd +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16) +
-                     (Header.WeatherCount * 16);
+        var span = Layout[BtlBlock.Event];
         Events.Clear();
-        Events.AddRange(BTLEventModule.Parse(HexData, offset, Header.EventCount));
+        Events.AddRange(BTLEventModule.Parse(HexData, span.StartInt, span.Count));
         _eventsLoaded = true;
         return Events;
     }
@@ -265,20 +244,13 @@ public class ConquestParser
     public List<Reinforcement> GetReinforcementData()
     {
         if (_reinforcementsLoaded) return Reinforcements;
-        if (Header == null) GetHeaderData();
         if (!_eventsLoaded) GetEventData();
 
-        int dataEnd = ConquestOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount).dataEnd;
-        int offset = dataEnd +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16) +
-                     (Header.WeatherCount * 16) +
-                     (Header.EventCount * 44);
+        var span = Layout[BtlBlock.Reinforcement];
         Reinforcements.Clear();
         ReinforcementsV3.Clear();
 
-        var (v1, v3) = BTLReinforcementModule.Parse(HexData, offset, Header.ReinforcementCount, BtlVersion);
+        var (v1, v3) = BTLReinforcementModule.Parse(HexData, span.StartInt, span.Count, BtlVersion);
         Reinforcements.AddRange(v1);
         ReinforcementsV3.AddRange(v3);
         _reinforcementsLoaded = true;
@@ -288,19 +260,11 @@ public class ConquestParser
     public List<AirForce> GetAirForceData()
     {
         if (_airForcesLoaded) return AirForces;
-        if (Header == null) GetHeaderData();
         if (!_reinforcementsLoaded) GetReinforcementData();
 
-        int dataEnd = ConquestOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount).dataEnd;
-        int offset = dataEnd +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16) +
-                     (Header.WeatherCount * 16) +
-                     (Header.EventCount * 44) +
-                     (Header.ReinforcementCount * BTLReinforcementModule.GetReinforcementSize(BtlVersion));
+        var span = Layout[BtlBlock.AirRaid];
         AirForces.Clear();
-        AirForces.AddRange(BTLAirForceModule.Parse(HexData, offset, Header.AirRaidCount));
+        AirForces.AddRange(BTLAirForceModule.Parse(HexData, span.StartInt, span.Count));
         _airForcesLoaded = true;
         return AirForces;
     }
@@ -308,20 +272,11 @@ public class ConquestParser
     public List<UnitPlacement> GetUnitPlaceData()
     {
         if (_unitPlacesLoaded) return UnitPlaces;
-        if (Header == null) GetHeaderData();
         if (!_airForcesLoaded) GetAirForceData();
 
-        int dataEnd = ConquestOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount).dataEnd;
-        int offset = dataEnd +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16) +
-                     (Header.WeatherCount * 16) +
-                     (Header.EventCount * 44) +
-                     (Header.ReinforcementCount * BTLReinforcementModule.GetReinforcementSize(BtlVersion)) +
-                     (Header.AirRaidCount * 20);
+        var span = Layout[BtlBlock.UnitPlacement];
         UnitPlaces.Clear();
-        UnitPlaces.AddRange(BTLUnitPlacementModule.Parse(HexData, offset, Header.PlacementA + Header.PlacementB));
+        UnitPlaces.AddRange(BTLUnitPlacementModule.Parse(HexData, span.StartInt, span.Count));
         _unitPlacesLoaded = true;
         return UnitPlaces;
     }
@@ -329,21 +284,11 @@ public class ConquestParser
     public List<Capital> GetCapitalData()
     {
         if (_capitalsLoaded) return Capitals;
-        if (Header == null) GetHeaderData();
         if (!_unitPlacesLoaded) GetUnitPlaceData();
 
-        int dataEnd = ConquestOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount).dataEnd;
-        int offset = dataEnd +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16) +
-                     (Header.WeatherCount * 16) +
-                     (Header.EventCount * 44) +
-                     (Header.ReinforcementCount * BTLReinforcementModule.GetReinforcementSize(BtlVersion)) +
-                     (Header.AirRaidCount * 20) +
-                     ((Header.PlacementA + Header.PlacementB) * 8);
+        var span = Layout[BtlBlock.Capital];
         Capitals.Clear();
-        Capitals.AddRange(BTLCapitalModule.Parse(HexData, offset, Header.ConqueredFlagPosition));
+        Capitals.AddRange(BTLCapitalModule.Parse(HexData, span.StartInt, span.Count));
         _capitalsLoaded = true;
         return Capitals;
     }
@@ -351,22 +296,11 @@ public class ConquestParser
     public List<StrategicConstruction> GetStrategyConstructionData()
     {
         if (_strategyLoaded) return StrategyConstructions;
-        if (Header == null) GetHeaderData();
         if (!_capitalsLoaded) GetCapitalData();
 
-        int dataEnd = ConquestOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount).dataEnd;
-        int offset = dataEnd +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16) +
-                     (Header.WeatherCount * 16) +
-                     (Header.EventCount * 44) +
-                     (Header.ReinforcementCount * BTLReinforcementModule.GetReinforcementSize(BtlVersion)) +
-                     (Header.AirRaidCount * 20) +
-                     ((Header.PlacementA + Header.PlacementB) * 8) +
-                     (Header.ConqueredFlagPosition * 4);
+        var span = Layout[BtlBlock.Strategy];
         StrategyConstructions.Clear();
-        StrategyConstructions.AddRange(BTLStrategyModule.Parse(HexData, offset, Header.StrategyCount));
+        StrategyConstructions.AddRange(BTLStrategyModule.Parse(HexData, span.StartInt, span.Count));
         _strategyLoaded = true;
         return StrategyConstructions;
     }
@@ -374,31 +308,31 @@ public class ConquestParser
     public List<AirSupport> GetAirSupportData()
     {
         if (_airSupportsLoaded) return AirSupports;
-        if (Header == null) GetHeaderData();
         if (!_strategyLoaded) GetStrategyConstructionData();
 
-        int dataEnd = ConquestOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount).dataEnd;
-        int offset = dataEnd +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16) +
-                     (Header.WeatherCount * 16) +
-                     (Header.EventCount * 44) +
-                     (Header.ReinforcementCount * BTLReinforcementModule.GetReinforcementSize(BtlVersion)) +
-                     (Header.AirRaidCount * 20) +
-                     ((Header.PlacementA + Header.PlacementB) * 8) +
-                     (Header.ConqueredFlagPosition * 4) +
-                     (Header.StrategyCount * 16);
+        var span = Layout[BtlBlock.AirSupport];
         AirSupports.Clear();
-        AirSupports.AddRange(BTLAirSupportModule.Parse(HexData, offset, Header.AirSupportCount));
+        AirSupports.AddRange(BTLAirSupportModule.Parse(HexData, span.StartInt, span.Count));
         _airSupportsLoaded = true;
         return AirSupports;
+    }
+
+    /// <summary>文件末尾、最后一个数据块之后的字节（扩展数据块），原样取出；没有则为空。</summary>
+    public byte[] GetExtensionData()
+    {
+        long start = Layout.End;
+        return start < HexData.Length ? HexData[(int)start..] : Array.Empty<byte>();
     }
 
     #region 直接操作 MapData 的静态方法 - 消除数据重复
 
     /// <summary>
     /// 从文件加载所有数据到 MapData，Parser 不持有数据副本。
+    /// <para>
+    /// 数据窗口布局：网格 = MapLength x MapWidth（只有窗口本身），地形空白，省份按文件顺序摆放。
+    /// CLI 与无界面工具走这条路径（归属数组与网格一一对应，实体坐标仍是世界索引）；界面上的征服场景改用
+    /// <see cref="LoadOnWorldMap"/> 把征服画在世界地图上。
+    /// </para>
     /// </summary>
     public static MapData LoadToMapData(string filePath)
     {
@@ -410,7 +344,45 @@ public class ConquestParser
     }
 
     /// <summary>
-    /// 从 Parser 填充 MapData，Parser 用完即弃。
+    /// 以世界地图为底图加载征服文件（对应 VB ConquestRenderScene.Create + FillConquestDataToMapData）。
+    /// <para>
+    /// 网格与地形取自世界地图，省份按 <see cref="ConquestWindow"/> 放回数据窗口所在的世界格子，
+    /// 这样省份/省会、归属、建筑与单位全部落在同一套世界坐标上。
+    /// 不照搬 VB 的错位：VB 加载时忽略 MapClipX、宽度用 "世界宽度 + MapClipX"，保存时却减去 MapClipX，
+    /// 有横向偏移的文件每保存一次就错位一次。
+    /// </para>
+    /// </summary>
+    /// <exception cref="InvalidDataException">不是世界地图文件，或数据窗口放不进该世界地图（选错了底图）</exception>
+    public static ConquestWorldMapData LoadOnWorldMap(string filePath, string worldMapPath)
+    {
+        var world = LoadWorldMap(worldMapPath);
+        var parser = new ConquestParser(filePath);
+        var header = parser.GetHeaderData();
+        var window = ConquestWindow.FromHeader(header);
+        if (!window.FitsIn(world.MapWidth, world.MapHeight))
+        {
+            throw new InvalidDataException(Loc.F("Conquest.World.WindowMismatch",
+                window.ClipX, window.ClipY, window.Width, window.Height, world.MapWidth, world.MapHeight));
+        }
+
+        var mapData = new ConquestWorldMapData(worldMapPath) { Header = header };
+        CopyWorldTerrain(world, mapData);
+
+        var provinceData = parser.GetProvinceData();
+        int cells = Math.Min(window.CellCount, provinceData.Count);
+        for (int i = 0; i < cells; i++)
+        {
+            var (col, row) = window.ToWorld(i, mapData.MapWidth);
+            mapData.SetProvince(col, row, provinceData[i]);
+        }
+
+        PopulateScenarioData(parser, mapData);
+        mapData.FilePath = filePath;
+        return mapData;
+    }
+
+    /// <summary>
+    /// 从 Parser 填充 MapData（数据窗口布局），Parser 用完即弃。
     /// </summary>
     public static void PopulateMapData(ConquestParser parser, MapData mapData)
     {
@@ -423,9 +395,14 @@ public class ConquestParser
         for (int i = 0; i < Math.Min(provinceData.Count, mapData.TerrainCount); i++)
             mapData.SetProvince(i, provinceData[i]);
 
+        PopulateScenarioData(parser, mapData);
+    }
+
+    /// <summary>网格以外的数据（军团、归属、各实体列表），两种布局共用。</summary>
+    private static void PopulateScenarioData(ConquestParser parser, MapData mapData)
+    {
         mapData.Legions = new System.Collections.ObjectModel.ObservableCollection<Legion>(parser.GetLegionData());
         mapData.Belongs = parser.GetBelongData();
-        mapData.BelongOffset = parser.BelongOffset;
         mapData.Buildings = new System.Collections.ObjectModel.ObservableCollection<Building>(parser.GetBuildingData());
 
         var armies = parser.GetTroopData();
@@ -446,6 +423,23 @@ public class ConquestParser
         mapData.Capitals = new System.Collections.ObjectModel.ObservableCollection<Capital>(parser.GetCapitalData());
         mapData.StrategyConstructions = new System.Collections.ObjectModel.ObservableCollection<StrategicConstruction>(parser.GetStrategyConstructionData());
         mapData.AirSupports = new System.Collections.ObjectModel.ObservableCollection<AirSupport>(parser.GetAirSupportData());
+        mapData.ExtensionData = parser.GetExtensionData();
+    }
+
+    /// <summary>读取并校验世界地图（文件头签名不对的 .bin 不是地图，直接拒绝，避免按垃圾尺寸分配内存）。</summary>
+    private static MapData LoadWorldMap(string worldMapPath)
+    {
+        if (!WorldParser.TryReadHeader(worldMapPath, out _, out _))
+            throw new InvalidDataException(Loc.F("Conquest.World.NotWorldMap", worldMapPath));
+        return WorldParser.LoadFromFile(worldMapPath);
+    }
+
+    /// <summary>按世界地图尺寸建网格并复制地形；省份全部初始化为"无省份"（数据窗口以外没有省份）。</summary>
+    private static void CopyWorldTerrain(MapData world, MapData target)
+    {
+        target.InitializeTerrain(world.MapWidth, world.MapHeight);
+        for (int i = 0; i < target.TerrainCount; i++)
+            target.SetTerrain(i, world.GetTerrain(i));
     }
 
     /// <summary>
@@ -455,37 +449,7 @@ public class ConquestParser
     {
         int totalTiles = mapWidth * mapHeight;
         var mapData = new MapData();
-        mapData.Header = new BTLHeader
-        {
-            BtlVersion = 1,
-            MapNumber = mapNumber,
-            MapClipX = 0,
-            MapClipY = 2,
-            MapLength = mapWidth,   // 列数（宽），与读取端 PopulateMapData 一致
-            MapWidth = mapHeight,   // 行数（高）
-            ArmyCount = numLegions,
-            BuildingCount = 0,
-            TroopCount = 0,
-            PlanCount = 0,
-            EventCount = 0,
-            WeatherCount = 0,
-            VictoryCondition = 1,
-            MinTurns = 999,
-            MaxTurns = 999,
-            ReinforcementCount = 0,
-            AirRaidCount = 0,
-            TrapCount = 0,
-            StrategyCount = 0,
-            AirSupportCount = 0,
-            PlacementA = 0,
-            PlacementB = 0,
-            ConqueredFlagPosition = 0,
-            Unknown4 = 1,
-            SelectableTileCount = totalTiles,
-            AccumulatedEconomy = 0,
-            AccumulatedIndustry = 0,
-            AccumulatedTech = 0
-        };
+        mapData.Header = CreateNewHeader(mapWidth, mapHeight, numLegions, mapNumber);
 
         mapData.MapWidth = mapWidth;
         mapData.MapHeight = mapHeight;
@@ -504,9 +468,85 @@ public class ConquestParser
         for (int i = 0; i < totalTiles; i++)
             mapData.Belongs.Add("FF");
 
-        mapData.BelongOffset = false;
         mapData.FilePath = string.Empty;
         return mapData;
+    }
+
+    /// <summary>
+    /// 新建征服的文件头：MapLength = 列数（宽），MapWidth = 行数（高），与读取端、StageParser 一致
+    /// （以前写反了，非正方形的新征服地图重新打开会被转置）。
+    /// </summary>
+    private static BTLHeader CreateNewHeader(int mapWidth, int mapHeight, int numLegions, int mapNumber) => new()
+    {
+        BtlVersion = 1,
+        MapNumber = mapNumber,
+        MapClipX = 0,
+        MapClipY = 2,
+        MapLength = mapWidth,
+        MapWidth = mapHeight,
+        ArmyCount = numLegions,
+        BuildingCount = 0,
+        TroopCount = 0,
+        PlanCount = 0,
+        EventCount = 0,
+        WeatherCount = 0,
+        VictoryCondition = 1,
+        MinTurns = 999,
+        MaxTurns = 999,
+        ReinforcementCount = 0,
+        AirRaidCount = 0,
+        TrapCount = 0,
+        StrategyCount = 0,
+        AirSupportCount = 0,
+        PlacementA = 0,
+        PlacementB = 0,
+        ConqueredFlagPosition = 0,
+        Unknown4 = 1,
+        SelectableTileCount = mapWidth * mapHeight,
+        AccumulatedEconomy = 0,
+        AccumulatedIndustry = 0,
+        AccumulatedTech = 0
+    };
+
+    /// <summary>
+    /// 在世界地图上新建征服（对齐 VB ConquestRenderScene.CreateNewMap）：
+    /// MapClipX = 0、MapClipY = 2，数据窗口 = 世界宽度 x (世界高度 - 2 * MapClipY)，即南北两端各留 2 行。
+    /// </summary>
+    /// <exception cref="InvalidDataException">不是世界地图文件，或地图太小放不下数据窗口</exception>
+    public static ConquestWorldMapData CreateNewOnWorldMap(string worldMapPath, int numLegions, int mapNumber)
+    {
+        const int clipY = 2;
+        var world = LoadWorldMap(worldMapPath);
+        int windowWidth = world.MapWidth;
+        int windowHeight = world.MapHeight - 2 * clipY;
+        if (windowWidth <= 0 || windowHeight <= 0)
+            throw new InvalidDataException(Loc.F("Conquest.World.TooSmall", world.MapWidth, world.MapHeight));
+
+        var template = CreateNewMapData(windowWidth, windowHeight, numLegions, mapNumber);
+        var mapData = new ConquestWorldMapData(worldMapPath)
+        {
+            Header = template.Header,
+            Legions = new System.Collections.ObjectModel.ObservableCollection<Legion>(template.Legions),
+            Belongs = template.Belongs
+        };
+        CopyWorldTerrain(world, mapData);
+        mapData.FilePath = string.Empty;
+        return mapData;
+    }
+
+    /// <summary>
+    /// 把 MapData 序列化成征服布局的文件字节（没有地形块）。
+    /// <para>
+    /// 省份数组按布局取回：世界底图布局（<see cref="ConquestWorldMapData"/>）按数据窗口逐格取回，
+    /// 数据窗口布局本身就是文件顺序。省份 / 归属块的格数取两者较大者：官方文件按 8 对齐补齐的部分（值为 0）原样补回，
+    /// 归属数组本来就含补齐部分（见 <see cref="BTLWriter"/>）。
+    /// </para>
+    /// <para>归属值就是文件里的原始字节（军团列表的 0 起下标，0xFF = 无归属），不做任何偏移。</para>
+    /// </summary>
+    public static byte[] BuildBytes(MapData mapData)
+    {
+        BTLWriter.SyncEntityCounts(mapData);
+        return BTLWriter.Build(mapData, null, WindowProvincesToBytes(mapData));
     }
 
     /// <summary>
@@ -520,163 +560,11 @@ public class ConquestParser
             return false;
         }
 
-        var header = mapData.Header;
-        header.ArmyCount = mapData.Legions.Count;
-        header.BuildingCount = mapData.Buildings.Count;
-        header.TroopCount = header.BtlVersion >= 3 ? mapData.ArmiesV3.Count : mapData.Armies.Count;
-        header.PlanCount = mapData.Cases.Count;
-        header.EventCount = mapData.Events.Count;
-        header.WeatherCount = mapData.Weathers.Count;
-        header.ReinforcementCount = header.BtlVersion >= 3 ? mapData.ReinforcementsV3.Count : mapData.Reinforcements.Count;
-        header.AirRaidCount = mapData.AirForces.Count;
-        header.TrapCount = mapData.Traps.Count;
-        header.StrategyCount = mapData.StrategyConstructions.Count;
-        header.AirSupportCount = mapData.AirSupports.Count;
-
-        if (mapData.TerrainCount != header.SelectableTileCount)
-            header.SelectableTileCount = mapData.TerrainCount;
-
-        if (mapData.UnitPlaces.Count != header.PlacementA + header.PlacementB)
-        {
-            header.PlacementA = mapData.UnitPlaces.Count;
-            header.PlacementB = 0;
-        }
-
-        if (mapData.Capitals.Count != header.ConqueredFlagPosition)
-            header.ConqueredFlagPosition = mapData.Capitals.Count;
-
-        var resultData = new List<byte>();
-        resultData.AddRange(header.ToBytes());
-
-        foreach (var legion in mapData.Legions)
-        {
-            var buf = new byte[300];
-            legion.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        resultData.AddRange(mapData.ProvincesToBytes());
-
-        foreach (var belong in mapData.Belongs)
-        {
-            byte belongByte = byte.Parse(belong, System.Globalization.NumberStyles.HexNumber);
-            if (mapData.BelongOffset)
-                belongByte = (byte)((belongByte - 1) & 0xFF);
-            resultData.Add(belongByte);
-        }
-
-        foreach (var building in mapData.Buildings)
-        {
-            var buf = new byte[32];
-            building.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        if (header.BtlVersion >= 3)
-        {
-            foreach (var troop in mapData.ArmiesV3)
-            {
-                var buf = new byte[64];
-                troop.ToBytes(buf, 0);
-                resultData.AddRange(buf);
-            }
-        }
-        else
-        {
-            foreach (var troop in mapData.Armies)
-            {
-                var buf = new byte[48];
-                troop.ToBytes(buf, 0);
-                resultData.AddRange(buf);
-            }
-        }
-
-        foreach (var trap in mapData.Traps)
-        {
-            var buf = new byte[12];
-            trap.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        foreach (var caseItem in mapData.Cases)
-        {
-            var buf = new byte[16];
-            caseItem.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        foreach (var weather in mapData.Weathers)
-        {
-            var buf = new byte[16];
-            weather.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        foreach (var eventItem in mapData.Events)
-        {
-            var buf = new byte[44];
-            eventItem.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        if (header.BtlVersion >= 3)
-        {
-            foreach (var r in mapData.ReinforcementsV3)
-            {
-                var buf = new byte[104];
-                r.ToBytes(buf, 0);
-                resultData.AddRange(buf);
-            }
-        }
-        else
-        {
-            foreach (var r in mapData.Reinforcements)
-            {
-                var buf = new byte[80];
-                r.ToBytes(buf, 0);
-                resultData.AddRange(buf);
-            }
-        }
-
-        foreach (var airforce in mapData.AirForces)
-        {
-            var buf = new byte[20];
-            airforce.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        foreach (var unitPlace in mapData.UnitPlaces)
-        {
-            var buf = new byte[8];
-            unitPlace.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        foreach (var capital in mapData.Capitals)
-        {
-            var buf = new byte[4];
-            capital.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        foreach (var sc in mapData.StrategyConstructions)
-        {
-            var buf = new byte[16];
-            sc.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        foreach (var airsupport in mapData.AirSupports)
-        {
-            var buf = new byte[16];
-            airsupport.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
+        var data = BuildBytes(mapData);
         try
         {
-            File.WriteAllBytes(outputPath, resultData.ToArray());
-            Debug.WriteLine($"[ConquestParser] 成功保存到: {outputPath} ({resultData.Count} 字节)");
+            File.WriteAllBytes(outputPath, data);
+            Debug.WriteLine($"[ConquestParser] 成功保存到: {outputPath} ({data.Length} 字节)");
             return true;
         }
         catch (Exception ex)
@@ -688,6 +576,26 @@ public class ConquestParser
         }
     }
 
+    /// <summary>
+    /// 按文件顺序取出省份数组（不含补齐部分）。
+    /// 世界底图布局按数据窗口逐格取回（窗口越出网格的格子 —— 文件头被改过时 —— 记为无省份）；
+    /// 数据窗口布局的网格就是窗口本身。
+    /// </summary>
+    private static byte[] WindowProvincesToBytes(MapData mapData)
+    {
+        if (mapData is not ConquestWorldMapData || mapData.MapWidth <= 0)
+            return mapData.ProvincesToBytes();
+
+        var window = ConquestWindow.FromHeader(mapData.Header);
+        var bytes = new byte[window.CellCount * 2];
+        for (int i = 0; i < window.CellCount; i++)
+        {
+            var (col, row) = window.ToWorld(i, mapData.MapWidth);
+            mapData.GetProvince(col, row).ToBytes(bytes, i * 2);
+        }
+        return bytes;
+    }
+
     #endregion
 
     #region 兼容旧接口 - 供 BTLAnalyzer / CLI 使用
@@ -697,39 +605,7 @@ public class ConquestParser
         try
         {
             int totalTiles = mapWidth * mapHeight;
-            Header = new BTLHeader
-            {
-                BtlVersion = 1,
-                MapNumber = mapNumber,
-                MapClipX = 0,
-                MapClipY = 2,
-                // 与 StageParser / 两个读取端一致：MapLength = 列数（宽），MapWidth = 行数（高）。
-                // 以前写反了，非正方形的新征服地图重新打开会被转置。
-                MapLength = mapWidth,
-                MapWidth = mapHeight,
-                ArmyCount = numLegions,
-                BuildingCount = 0,
-                TroopCount = 0,
-                PlanCount = 0,
-                EventCount = 0,
-                WeatherCount = 0,
-                VictoryCondition = 1,
-                MinTurns = 999,
-                MaxTurns = 999,
-                ReinforcementCount = 0,
-                AirRaidCount = 0,
-                TrapCount = 0,
-                StrategyCount = 0,
-                AirSupportCount = 0,
-                PlacementA = 0,
-                PlacementB = 0,
-                ConqueredFlagPosition = 0,
-                Unknown4 = 1,
-                SelectableTileCount = totalTiles,
-                AccumulatedEconomy = 0,
-                AccumulatedIndustry = 0,
-                AccumulatedTech = 0
-            };
+            Header = CreateNewHeader(mapWidth, mapHeight, numLegions, mapNumber);
             Legions.Clear(); Provinces.Clear(); Belongs.Clear(); Buildings.Clear();
             Armies.Clear(); ArmiesV3.Clear(); Traps.Clear(); Cases.Clear();
             Weathers.Clear(); Events.Clear();
@@ -750,12 +626,12 @@ public class ConquestParser
             _strategyLoaded = _airSupportsLoaded = true;
             HexData = Array.Empty<byte>();
             HexFilePath = "";
-            BelongOffset = false;
             Debug.WriteLine($"[ConquestParser] 成功创建新征服: {mapWidth}x{mapHeight}, {numLegions}个军团, 地图编号{mapNumber}");
             return true;
         }
         catch (Exception ex)
         {
+            LastError = ex.Message;
             Debug.WriteLine($"[ConquestParser] 创建新征服失败: {ex.Message}");
             return false;
         }
@@ -764,6 +640,7 @@ public class ConquestParser
     /// <summary>最近一次 SaveData 失败的原因（成功时为 null），供界面提示。</summary>
     public string? LastError { get; private set; }
 
+    /// <summary>把 Parser 当前持有的数据保存成文件（与 <see cref="SaveFromMapData"/> 走同一套序列化）。</summary>
     public bool SaveData(string outputPath)
     {
         LastError = null;
@@ -774,172 +651,11 @@ public class ConquestParser
             return false;
         }
 
-        Header.ArmyCount = Legions.Count;
-        Header.BuildingCount = Buildings.Count;
-        Header.TroopCount = BtlVersion >= 3 ? ArmiesV3.Count : Armies.Count;
-        Header.PlanCount = Cases.Count;
-        Header.EventCount = Events.Count;
-        Header.WeatherCount = Weathers.Count;
-        Header.ReinforcementCount = BtlVersion >= 3 ? ReinforcementsV3.Count : Reinforcements.Count;
-        Header.AirRaidCount = AirForces.Count;
-        Header.TrapCount = Traps.Count;
-        Header.StrategyCount = StrategyConstructions.Count;
-        Header.AirSupportCount = AirSupports.Count;
-
-        if (Provinces.Count != Header.SelectableTileCount)
-            Header.SelectableTileCount = Provinces.Count;
-
-        if (Belongs.Count != Header.SelectableTileCount)
-            Header.SelectableTileCount = Belongs.Count;
-
-        int totalPlacementCount = Header.PlacementA + Header.PlacementB;
-        if (UnitPlaces.Count != totalPlacementCount)
-        {
-            Header.PlacementA = UnitPlaces.Count;
-            Header.PlacementB = 0;
-        }
-
-        if (Capitals.Count != Header.ConqueredFlagPosition)
-            Header.ConqueredFlagPosition = Capitals.Count;
-
-        var resultData = new List<byte>();
-        resultData.AddRange(Header.ToBytes());
-
-        foreach (var legion in Legions)
-        {
-            var buf = new byte[300];
-            legion.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        foreach (var province in Provinces)
-        {
-            var provinceBytes = new byte[2];
-            province.ToBytes(provinceBytes, 0);
-            resultData.AddRange(provinceBytes);
-        }
-
-        foreach (var belong in Belongs)
-        {
-            byte belongByte = byte.Parse(belong, System.Globalization.NumberStyles.HexNumber);
-            if (BelongOffset)
-                belongByte = (byte)((belongByte - 1) & 0xFF);
-            resultData.Add(belongByte);
-        }
-
-        foreach (var building in Buildings)
-        {
-            var buf = new byte[32];
-            building.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        if (BtlVersion >= 3)
-        {
-            foreach (var troop in ArmiesV3)
-            {
-                var buf = new byte[64];
-                troop.ToBytes(buf, 0);
-                resultData.AddRange(buf);
-            }
-        }
-        else
-        {
-            foreach (var troop in Armies)
-            {
-                var buf = new byte[48];
-                troop.ToBytes(buf, 0);
-                resultData.AddRange(buf);
-            }
-        }
-
-        foreach (var trap in Traps)
-        {
-            var buf = new byte[12];
-            trap.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        foreach (var caseItem in Cases)
-        {
-            var buf = new byte[16];
-            caseItem.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        foreach (var weather in Weathers)
-        {
-            var buf = new byte[16];
-            weather.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        foreach (var eventItem in Events)
-        {
-            var buf = new byte[44];
-            eventItem.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        if (BtlVersion >= 3)
-        {
-            foreach (var r in ReinforcementsV3)
-            {
-                var buf = new byte[104];
-                r.ToBytes(buf, 0);
-                resultData.AddRange(buf);
-            }
-        }
-        else
-        {
-            foreach (var r in Reinforcements)
-            {
-                var buf = new byte[80];
-                r.ToBytes(buf, 0);
-                resultData.AddRange(buf);
-            }
-        }
-
-        foreach (var airforce in AirForces)
-        {
-            var buf = new byte[20];
-            airforce.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        foreach (var unitPlace in UnitPlaces)
-        {
-            var buf = new byte[8];
-            unitPlace.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        foreach (var capital in Capitals)
-        {
-            var buf = new byte[4];
-            capital.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        foreach (var sc in StrategyConstructions)
-        {
-            var buf = new byte[16];
-            sc.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
-        foreach (var airsupport in AirSupports)
-        {
-            var buf = new byte[16];
-            airsupport.ToBytes(buf, 0);
-            resultData.AddRange(buf);
-        }
-
         try
         {
-            File.WriteAllBytes(outputPath, resultData.ToArray());
-            Debug.WriteLine($"[ConquestParser] 成功保存到: {outputPath} ({resultData.Count} 字节)");
-            return true;
+            var mapData = new MapData();
+            PopulateMapData(this, mapData);
+            return SaveFromMapData(mapData, outputPath);
         }
         catch (Exception ex)
         {

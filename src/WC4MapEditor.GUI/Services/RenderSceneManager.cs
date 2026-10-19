@@ -6,6 +6,7 @@ using WC4MapEditor.Core.Models;
 using WC4MapEditor.Core.Parsers.Conquest;
 using WC4MapEditor.Core.Parsers.Stage;
 using WC4MapEditor.Core.Parsers.World;
+using WC4MapEditor.Core.Services;
 
 namespace WC4MapEditor.GUI.Services;
 
@@ -28,6 +29,12 @@ public sealed class RenderSceneInfo
     public DateTime LastAccessTime { get; set; } = DateTime.Now;
     public bool IsCachedToDisk { get; set; }
     public string CacheFilePath { get; set; } = "";
+
+    /// <summary>
+    /// 征服场景所用的世界底图（空 = 按数据窗口布局显示）。随 <see cref="RenderSceneManager.SetSceneMapData"/> 记录，
+    /// 从磁盘缓存恢复时用它重新铺上同一张底图，否则切回来省份/建筑就不再对齐世界地形。
+    /// </summary>
+    public string WorldMapPath { get; set; } = "";
 }
 
 public sealed class SceneSwitchRequestEventArgs : EventArgs
@@ -75,16 +82,15 @@ public sealed class RenderSceneManager
     public event Action<int>? ActiveSceneChanged;
     public event EventHandler<SceneSwitchRequestEventArgs>? SceneSwitchRequested;
 
+    /// <summary>
+    /// 按文件判断应由哪种场景打开：.bin/.dat = 世界地图；.btl 按文件头 MapNumber 区分
+    /// （大于 0 = 征服布局，否则战役），不再看文件名前缀 —— 大量征服布局的官方文件并不以 conquest 开头。
+    /// </summary>
     public static RenderSceneType GetSceneTypeByFilePath(string filePath)
     {
         var ext = IOPath.GetExtension(filePath).ToLowerInvariant();
-        if (ext is ".bin" or ".dat") return RenderSceneType.Test;
         if (ext == ".btl")
-        {
-            var name = IOPath.GetFileNameWithoutExtension(filePath).ToLowerInvariant();
-            if (name.StartsWith("conquest")) return RenderSceneType.Conquest;
-            return RenderSceneType.Stage;
-        }
+            return BtlTypeDetector.Detect(filePath) == BTLFileType.Conquest ? RenderSceneType.Conquest : RenderSceneType.Stage;
         return RenderSceneType.Test;
     }
 
@@ -172,9 +178,36 @@ public sealed class RenderSceneManager
             if (_scenes.TryGetValue(sceneId, out var scene))
             {
                 scene.MapData = mapData;
+                scene.WorldMapPath = mapData is ConquestWorldMapData world ? world.WorldMapPath : "";
                 scene.LastAccessTime = DateTime.Now;
             }
         }
+    }
+
+    /// <summary>场景是否有可用的磁盘缓存（缓存里可能有尚未保存到原文件的编辑）。</summary>
+    public bool HasDiskCache(int sceneId)
+    {
+        lock (_lock)
+        {
+            return _scenes.TryGetValue(sceneId, out var scene) && scene.IsCachedToDisk && File.Exists(scene.CacheFilePath);
+        }
+    }
+
+    /// <summary>
+    /// 另存为之后让场景记录指向新文件（并按新文件名改名）。
+    /// 否则切走再切回时 <see cref="LoadSceneFromDisk"/> 会把路径还原成旧文件，下一次 Ctrl+S 覆盖的就是原文件。
+    /// </summary>
+    public void UpdateSceneFile(int sceneId, string filePath)
+    {
+        lock (_lock)
+        {
+            if (!_scenes.TryGetValue(sceneId, out var scene)) return;
+            if (string.Equals(scene.MapFilePath, filePath, StringComparison.OrdinalIgnoreCase)) return;
+
+            scene.MapFilePath = filePath;
+            scene.SceneName = IOPath.GetFileNameWithoutExtension(filePath);
+        }
+        SceneListChanged?.Invoke();
     }
 
     public void ActivateScene(int sceneId)
@@ -227,6 +260,11 @@ public sealed class RenderSceneManager
                         Debug.WriteLine($"[SceneManager] 场景 {sceneId} 已缓存到磁盘: {scene.CacheFilePath}");
                     }
                 }
+                else if (scene.IsCachedToDisk && File.Exists(scene.CacheFilePath))
+                {
+                    // 内存已释放、缓存仍在：缓存就是最新数据（可能含未保存的编辑），不能再拿原文件覆盖它
+                    Debug.WriteLine($"[SceneManager] 场景 {sceneId} 已有缓存，保持不变");
+                }
                 else if (File.Exists(scene.MapFilePath))
                 {
                     File.Copy(scene.MapFilePath, scene.CacheFilePath, true);
@@ -260,7 +298,7 @@ public sealed class RenderSceneManager
                 {
                     RenderSceneType.Test => WorldParser.LoadFromFile(filePath),
                     RenderSceneType.Stage => StageParser.LoadToMapData(filePath),
-                    RenderSceneType.Conquest => ConquestParser.LoadToMapData(filePath),
+                    RenderSceneType.Conquest => LoadConquest(filePath, scene.WorldMapPath),
                     RenderSceneType.Campaign => StageParser.LoadToMapData(filePath),
                     _ => WorldParser.LoadFromFile(filePath)
                 };
@@ -383,6 +421,26 @@ public sealed class RenderSceneManager
             SceneListChanged?.Invoke();
             Debug.WriteLine("[SceneManager] 所有场景已清理");
         }
+    }
+
+    /// <summary>
+    /// 征服缓存/文件恢复：场景原来铺着世界底图就还铺同一张（缓存是标准征服 BTL，两种布局都能读）；
+    /// 底图已不可用（文件被移走、文件头裁剪参数被改到放不进底图）时退回数据窗口布局，至少数据不丢。
+    /// </summary>
+    private static MapData LoadConquest(string filePath, string worldMapPath)
+    {
+        if (!string.IsNullOrEmpty(worldMapPath) && File.Exists(worldMapPath))
+        {
+            try
+            {
+                return ConquestParser.LoadOnWorldMap(filePath, worldMapPath);
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+            {
+                Debug.WriteLine($"[SceneManager] 世界底图不可用，按数据窗口布局恢复: {ex.Message}");
+            }
+        }
+        return ConquestParser.LoadToMapData(filePath);
     }
 
     private static bool SaveWorldMapData(MapData mapData, string filePath)

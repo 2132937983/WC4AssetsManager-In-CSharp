@@ -186,29 +186,7 @@ public class LegionDomainRender : IDisposable
         int mapHeight = mapData.MapHeight;
         if (mapWidth == 0 || mapHeight == 0) return -1;
 
-        int row = index / mapWidth;
-        int col = index % mapWidth;
-
-        int mapClipX = mapData.Header?.MapClipX ?? 0;
-        int mapClipY = mapData.Header?.MapClipY ?? 0;
-
-        if (mapClipY > 0 && row < mapClipY) return -1;
-        if (mapClipX > 0 && col < mapClipX) return -1;
-
-        int conquestWidth = mapData.Header?.MapLength ?? 0;
-        if (conquestWidth <= 0) conquestWidth = mapWidth - mapClipX;
-
-        int actualCol = col - mapClipX;
-        int actualRow = row - mapClipY;
-
-        if (actualCol >= conquestWidth)
-        {
-            actualCol -= conquestWidth;
-            actualRow++;
-        }
-
-        int actualIndex = actualRow * conquestWidth + actualCol;
-
+        int actualIndex = mapData.GetBelongIndex(index % mapWidth, index / mapWidth);
         if (actualIndex < 0 || actualIndex >= mapData.Belongs.Count) return -1;
 
         string belongStr = mapData.Belongs[actualIndex];

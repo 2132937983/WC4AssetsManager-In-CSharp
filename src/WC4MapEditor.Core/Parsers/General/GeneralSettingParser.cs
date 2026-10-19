@@ -1,21 +1,16 @@
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Globalization;
-using System.Text.Encodings.Web;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Text.Unicode;
-using System.Xml;
 using System.Xml.Linq;
-using WC4MapEditor.Core.Assets;
+using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Models;
+using WC4MapEditor.Core.Services;
 
 namespace WC4MapEditor.Core.Parsers.General;
 
-public class GeneralSettingParser
+/// <summary>
+/// 将领解析器（GeneralSettings.json + config/def_portraitpos.xml）。
+/// 名称直接保存在 JSON 里，不写 stringtable。
+/// </summary>
+public sealed class GeneralSettingParser : IGameSettingsSource
 {
     private static readonly object _lock = new();
     private static GeneralSettingParser? _instance;
@@ -34,193 +29,59 @@ public class GeneralSettingParser
         }
     }
 
-    private readonly AssetManager _manager = AssetManager.Default;
-
-    private List<GeneralSettingData> _data = new();
-    public IReadOnlyList<GeneralSettingData> All => _data;
-
     /// <summary>
-    /// Id → 将领 的惰性索引。渲染器每帧按 Id 查将领，原先的 FirstOrDefault 是对全表线性扫描。
-    /// 失效点：_data 被整体替换（LoadGeneralSettings）、增删（AddNewGeneral / DeleteGeneral）时置空，
-    /// 由 GetById 下次查询时重建；外部还可能直接改某个将领的 Id（编辑器属性面板），
-    /// 所以 GetById 命中后会核对 Id，不符时回退线性查找并丢弃索引自愈。
+    /// Id → 将领 的惰性索引。渲染器每帧按 Id 查将领，线性扫描太慢。
+    /// 记录被整体替换（加载 / 撤销）或条数变化时重建；命中后再核对 Id，外部改了 Id 时回退线性查找并丢弃索引。
     /// </summary>
     private Dictionary<int, GeneralSettingData>? _idIndex;
-    private int _idIndexSourceCount = -1;
-
-    public string ConfigPath { get; private set; }
-    public string PortraitPosPath { get; private set; }
-    public string GeneralPhotoDir { get; private set; }
-    public string HeadsDir { get; private set; }
-
-    private readonly Dictionary<string, PortraitPosEntry> _portraits = new(StringComparer.OrdinalIgnoreCase);
-    public IReadOnlyDictionary<string, PortraitPosEntry> Portraits => _portraits;
-
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
-        PropertyNameCaseInsensitive = true,
-        AllowTrailingCommas = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        // 数值字段容错：允许 "1019" / null / 1019.0 等非标准写法
-        NumberHandling = JsonNumberHandling.AllowReadingFromString,
-        Converters = { new SafeInt32Converter(), new SafeIntListConverter() }
-    };
+    private int _idIndexCount = -1;
+    private int _idIndexVersion = -1;
 
     private GeneralSettingParser()
     {
-        ResolvePaths();
+        Table = new GameJsonTable<GeneralSettingData>(GameJson.AssetPath("json", "GeneralSettings.json"));
+        PortraitTable = new XmlRowTable<PortraitPosEntry>(GameJson.AssetPath("config", "def_portraitpos.xml"), "Portraits", "general", ReadPortrait, WritePortrait);
+        GeneralPhotoDir = GameJson.AssetPath("image", "generalphoto");
+        HeadsDir = GameJson.AssetPath("image", "heads");
         LoadAll();
     }
 
-    private void ResolvePaths()
-    {
-        // 如果 AssetManager 未扫描，先尝试默认路径扫描
-        if (!_manager.IsLoaded)
-        {
-            try { _manager.ScanDefault(); } catch { /* 静默处理 */ }
-        }
+    public GameJsonTable<GeneralSettingData> Table { get; }
+    public XmlRowTable<PortraitPosEntry> PortraitTable { get; }
 
-        var root = _manager.AssetsRoot;
-        if (!string.IsNullOrEmpty(root) && Directory.Exists(root))
-        {
-            ConfigPath = Path.Combine(root, "json", "GeneralSettings.json");
-            PortraitPosPath = Path.Combine(root, "config", "def_portraitpos.xml");
-            GeneralPhotoDir = Path.Combine(root, "image", "generalphoto");
-            HeadsDir = Path.Combine(root, "image", "heads");
-        }
-        else
-        {
-            // 兜底：从执行目录向上搜索 Resource/WC4DATA/assets
-            var baseDir = AppContext.BaseDirectory;
-            string? candidate = null;
-            string? current = baseDir;
-            for (int i = 0; i < 8 && !string.IsNullOrEmpty(current); i++)
-            {
-                var test = Path.Combine(current, "Resource", "WC4DATA", "assets");
-                if (Directory.Exists(test)) { candidate = test; break; }
-                current = Path.GetDirectoryName(current);
-            }
-            candidate ??= Path.GetFullPath(Path.Combine(baseDir ?? "", "..", "..", "..", "..", "Resource", "WC4DATA", "assets"));
+    public IReadOnlyList<IEditableTable> Tables => [Table, PortraitTable];
+    StringTableParser? IGameSettingsSource.Strings => null;
 
-            ConfigPath = Path.Combine(candidate, "json", "GeneralSettings.json");
-            PortraitPosPath = Path.Combine(candidate, "config", "def_portraitpos.xml");
-            GeneralPhotoDir = Path.Combine(candidate, "image", "generalphoto");
-            HeadsDir = Path.Combine(candidate, "image", "heads");
-        }
+    public List<GeneralSettingData> Items => Table.Items;
+    public IReadOnlyList<GeneralSettingData> All => Table.Items;
 
-        Debug.WriteLine($"[GeneralSettingParser] 解析路径:");
-        Debug.WriteLine($"  ConfigPath      = {ConfigPath}");
-        Debug.WriteLine($"  PortraitPosPath = {PortraitPosPath}");
-        Debug.WriteLine($"  GeneralPhotoDir = {GeneralPhotoDir}");
-        Debug.WriteLine($"  HeadsDir        = {HeadsDir}");
-    }
+    public string ConfigPath => Table.FilePath;
+    public string PortraitPosPath => PortraitTable.FilePath;
+    public string GeneralPhotoDir { get; }
+    public string HeadsDir { get; }
 
     public void LoadAll()
     {
-        LoadGeneralSettings();
-        LoadPortraitPos();
+        _idIndex = null;
+        Table.Load();
+        PortraitTable.Load();
     }
 
     public void Reload() => LoadAll();
 
-    // ============================== GeneralSettings.json ==============================
-    public void LoadGeneralSettings()
-    {
-        // 下面所有分支都会替换 _data，索引一律作废。
-        _idIndex = null;
-        try
-        {
-            if (!File.Exists(ConfigPath))
-            {
-                Debug.WriteLine($"[GeneralSettingParser] 配置文件不存在: {ConfigPath}");
-                _data = new List<GeneralSettingData>();
-                return;
-            }
-            var json = File.ReadAllText(ConfigPath);
-            if (string.IsNullOrWhiteSpace(json))
-            {
-                _data = new List<GeneralSettingData>();
-                return;
-            }
-
-            try
-            {
-                _data = JsonSerializer.Deserialize<List<GeneralSettingData>>(json, JsonOpts) ?? new List<GeneralSettingData>();
-            }
-            catch (Exception ex)
-            {
-                // 整体解析失败时降级为逐条解析，只丢弃损坏的条目，避免"一条坏数据清空全部"
-                Debug.WriteLine($"[GeneralSettingParser] 整体解析失败，降级为逐条解析: {ex.Message}");
-                _data = DeserializeTolerant(json);
-            }
-            Debug.WriteLine($"[GeneralSettingParser] 已加载 {_data.Count} 个将领配置");
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[GeneralSettingParser] 加载 GeneralSettings.json 失败: {ex.Message}");
-            _data = new List<GeneralSettingData>();
-        }
-    }
-
-    /// <summary>
-    /// 逐条反序列化：损坏的条目单独跳过，其余条目正常加载
-    /// </summary>
-    private List<GeneralSettingData> DeserializeTolerant(string json)
-    {
-        var result = new List<GeneralSettingData>();
-        try
-        {
-            using var doc = JsonDocument.Parse(json, new JsonDocumentOptions
-            {
-                AllowTrailingCommas = true,
-                CommentHandling = JsonCommentHandling.Skip
-            });
-
-            if (doc.RootElement.ValueKind != JsonValueKind.Array)
-            {
-                Debug.WriteLine("[GeneralSettingParser] 根节点不是数组，无法解析");
-                return result;
-            }
-
-            int index = 0;
-            foreach (var el in doc.RootElement.EnumerateArray())
-            {
-                try
-                {
-                    var item = el.Deserialize<GeneralSettingData>(JsonOpts);
-                    if (item != null) result.Add(item);
-                }
-                catch (Exception ex)
-                {
-                    var raw = string.Empty;
-                    try { raw = el.GetRawText(); } catch { /* 忽略 */ }
-                    if (raw.Length > 200) raw = raw.Substring(0, 200) + "...";
-                    Debug.WriteLine($"[GeneralSettingParser] 第 {index} 条将领数据损坏已跳过: {ex.Message} | 内容: {raw}");
-                }
-                index++;
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[GeneralSettingParser] 逐条解析也失败: {ex.Message}");
-        }
-        return result;
-    }
+    // ============================================================= 查询 =============================================================
 
     public GeneralSettingData? GetById(int id)
     {
         var index = _idIndex;
-        if (index == null || _idIndexSourceCount != _data.Count)
+        if (index == null || _idIndexCount != Items.Count || _idIndexVersion != Table.Version)
             index = RebuildIdIndex();
 
         if (index.TryGetValue(id, out var hit) && hit.Id == id)
             return hit;
 
-        // 未命中、或命中项的 Id 已被外部改写：索引可能过期，回退到与原实现相同的线性查找。
-        // 线性查找有结果或命中项 Id 不符，都说明索引确实失效，丢弃以便下次重建。
-        var found = _data.FirstOrDefault(g => g.Id == id);
+        // 未命中、或命中项的 Id 已被外部改写：索引可能过期，回退线性查找并丢弃索引以便下次重建。
+        var found = Items.FirstOrDefault(g => g.Id == id);
         if (found != null || hit != null)
             _idIndex = null;
         return found;
@@ -228,131 +89,75 @@ public class GeneralSettingParser
 
     private Dictionary<int, GeneralSettingData> RebuildIdIndex()
     {
-        var index = new Dictionary<int, GeneralSettingData>(_data.Count);
-        foreach (var g in _data)
+        var index = new Dictionary<int, GeneralSettingData>(Items.Count);
+        foreach (var g in Items)
             index.TryAdd(g.Id, g); // 重复 Id 保留首个，与 FirstOrDefault 语义一致
         _idIndex = index;
-        _idIndexSourceCount = _data.Count;
+        _idIndexCount = Items.Count;
+        _idIndexVersion = Table.Version;
         return index;
     }
 
-    public GeneralSettingData? GetByEName(string ename) => _data.FirstOrDefault(g => string.Equals(g.EName, ename, StringComparison.OrdinalIgnoreCase));
+    public GeneralSettingData? GetByEName(string ename) => Items.FirstOrDefault(g => string.Equals(g.EName, ename, StringComparison.OrdinalIgnoreCase));
 
-    public int GetNextId() => _data.Count == 0 ? 1001 : _data.Max(g => g.Id) + 1;
+    public int GetNextId() => Items.Count == 0 ? 1001 : Items.Max(g => g.Id) + 1;
 
-    public bool SaveGeneralSettings(string? outputPath = null)
-    {
-        try
-        {
-            var path = outputPath ?? ConfigPath;
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            var json = JsonSerializer.Serialize(_data, JsonOpts);
-            File.WriteAllText(path, json, System.Text.Encoding.UTF8);
-            Debug.WriteLine($"[GeneralSettingParser] 已保存 {_data.Count} 个将领配置 -> {path}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[GeneralSettingParser] 保存失败: {ex.Message}");
-            return false;
-        }
-    }
-
-    // ============================== PortraitPos ==============================
-    public void LoadPortraitPos()
-    {
-        _portraits.Clear();
-        try
-        {
-            if (!File.Exists(PortraitPosPath))
-            {
-                Debug.WriteLine($"[GeneralSettingParser] portraitpos不存在: {PortraitPosPath}");
-                return;
-            }
-            var doc = XDocument.Load(PortraitPosPath);
-            var root = doc.Element("Portraits");
-            if (root == null) return;
-            foreach (var el in root.Elements("general"))
-            {
-                var name = (string?)el.Attribute("name") ?? string.Empty;
-                if (string.IsNullOrEmpty(name)) continue;
-                var entry = new PortraitPosEntry
-                {
-                    Name = name,
-                    PosX = (int?)el.Attribute("posx") ?? -30,
-                    PosY = (int?)el.Attribute("posy") ?? 40,
-                    Scale = (double?)el.Attribute("scale") ?? 1.0
-                };
-                _portraits[name] = entry;
-            }
-            Debug.WriteLine($"[GeneralSettingParser] 已加载 {_portraits.Count} 个 PortraitPos");
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[GeneralSettingParser] 加载 PortraitPos 失败: {ex.Message}");
-        }
-    }
+    // ============================================================= PortraitPos =============================================================
 
     public PortraitPosEntry? GetPortrait(string ename)
-        => string.IsNullOrEmpty(ename) ? null : _portraits.GetValueOrDefault(ename);
+        => string.IsNullOrEmpty(ename) ? null : PortraitTable.Entries.FirstOrDefault(p => string.Equals(p.Name, ename, StringComparison.OrdinalIgnoreCase));
 
     public PortraitPosEntry EnsurePortraitDefault(string ename)
     {
         if (string.IsNullOrEmpty(ename)) throw new ArgumentNullException(nameof(ename));
-        if (!_portraits.TryGetValue(ename, out var p))
-        {
-            p = new PortraitPosEntry { Name = ename, PosX = -30, PosY = 40, Scale = 1.0 };
-            _portraits[ename] = p;
-        }
+        var p = GetPortrait(ename);
+        if (p != null) return p;
+        p = new PortraitPosEntry { Name = ename, PosX = -30, PosY = 40, Scale = 1.0 };
+        PortraitTable.Entries.Add(p);
         return p;
     }
 
     public bool RemovePortrait(string ename)
-        => !string.IsNullOrEmpty(ename) && _portraits.Remove(ename);
+        => !string.IsNullOrEmpty(ename) && PortraitTable.Entries.RemoveAll(p => string.Equals(p.Name, ename, StringComparison.OrdinalIgnoreCase)) > 0;
 
-    public bool SavePortraitPos(string? outputPath = null)
+    /// <summary>将领 EName 改变时立绘位置跟着改名（新名字还没有位置时）。</summary>
+    public void RenamePortrait(string oldName, string newName)
     {
-        try
-        {
-            var path = outputPath ?? PortraitPosPath;
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            var settings = new XmlWriterSettings
-            {
-                Indent = true,
-                IndentChars = "  ",
-                OmitXmlDeclaration = false,
-                Encoding = System.Text.Encoding.UTF8
-            };
-            using var writer = XmlWriter.Create(path, settings);
-            writer.WriteStartElement("Portraits");
-            foreach (var kv in _portraits.Values.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
-            {
-                writer.WriteStartElement("general");
-                writer.WriteAttributeString("name", kv.Name);
-                writer.WriteAttributeString("posx", kv.PosX.ToString());
-                writer.WriteAttributeString("posy", kv.PosY.ToString());
-                writer.WriteAttributeString("scale", kv.Scale.ToString("0.0######", System.Globalization.CultureInfo.InvariantCulture));
-                writer.WriteEndElement();
-            }
-            writer.WriteEndElement();
-            Debug.WriteLine($"[GeneralSettingParser] 已保存 PortraitPos {_portraits.Count} 项 -> {path}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[GeneralSettingParser] 保存 PortraitPos 失败: {ex.Message}");
-            return false;
-        }
+        if (string.IsNullOrEmpty(oldName) || string.IsNullOrEmpty(newName) || GetPortrait(newName) != null) return;
+        var p = GetPortrait(oldName);
+        if (p != null) p.Name = newName;
     }
 
-    // ============================== 复合操作（新增/删除 同步两边） ==============================
+    private static PortraitPosEntry? ReadPortrait(XElement el)
+    {
+        var name = (string?)el.Attribute("name");
+        if (string.IsNullOrEmpty(name)) return null;
+        return new PortraitPosEntry
+        {
+            Name = name,
+            PosX = (int?)el.Attribute("posx") ?? -30,
+            PosY = (int?)el.Attribute("posy") ?? 40,
+            Scale = (double?)el.Attribute("scale") ?? 1.0
+        };
+    }
+
+    private static IReadOnlyList<KeyValuePair<string, string>> WritePortrait(PortraitPosEntry p) =>
+    [
+        new("name", p.Name),
+        new("posx", p.PosX.ToString(CultureInfo.InvariantCulture)),
+        new("posy", p.PosY.ToString(CultureInfo.InvariantCulture)),
+        new("scale", p.Scale.ToString("0.0######", CultureInfo.InvariantCulture))
+    ];
+
+    // ============================================================= 复合操作（新增/删除 同步两边） =============================================================
+
     public (GeneralSettingData g, PortraitPosEntry p) AddNewGeneral(string name, string ename, int? id = null)
     {
-        if (string.IsNullOrWhiteSpace(ename)) throw new ArgumentException("EName 不能为空");
-        if (GetByEName(ename) != null) throw new InvalidOperationException($"已存在同名将领 EName={ename}");
+        if (string.IsNullOrWhiteSpace(ename)) throw new ArgumentException(Loc.T("JsonEditor.General.ENameRequired"));
+        if (GetByEName(ename) != null) throw new InvalidOperationException(Loc.F("JsonEditor.General.ENameTaken", ename));
 
         int finalId = id ?? GetNextId();
-        if (GetById(finalId) != null) throw new InvalidOperationException($"ID={finalId} 已被占用");
+        if (GetById(finalId) != null) throw new InvalidOperationException(Loc.F("JsonEditor.Error.IdTaken", finalId));
 
         var g = new GeneralSettingData
         {
@@ -363,7 +168,7 @@ public class GeneralSettingParser
             Skills = new List<int>(),
             Medals = new List<int>()
         };
-        _data.Add(g);
+        Items.Add(g);
         _idIndex = null;
 
         // 新增时 portraitpos = posx=-30, posy=40, scale=1.0
@@ -371,24 +176,42 @@ public class GeneralSettingParser
         return (g, p);
     }
 
-    public bool DeleteGeneral(int id)
+    public bool DeleteGeneral(GeneralSettingData g)
     {
-        var g = GetById(id);
-        if (g == null) return false;
-        _data.Remove(g);
+        if (!Items.Remove(g)) return false;
         _idIndex = null;
         if (!string.IsNullOrEmpty(g.EName)) RemovePortrait(g.EName);
         return true;
     }
 
-    public bool SaveAll()
+    /// <summary>改 Id：新 Id 已被占用时返回 false。</summary>
+    public bool ChangeId(GeneralSettingData general, int newId)
     {
-        var ok1 = SaveGeneralSettings();
-        var ok2 = SavePortraitPos();
-        return ok1 && ok2;
+        if (general.Id == newId) return true;
+        if (Items.Any(g => g.Id == newId)) return false;
+        general.Id = newId;
+        _idIndex = null;
+        return true;
     }
 
-    // ============================== 辅助：VB 版本的专长/军衔/技能等级算法 ==============================
+    /// <summary>复制将领时：给副本一个不重复的 EName，并复制原将领的立绘位置。</summary>
+    public void PrepareCopy(GeneralSettingData copy, string sourceEName)
+    {
+        string baseName = string.IsNullOrEmpty(copy.EName) ? "general" : copy.EName;
+        string ename = $"{baseName}_{copy.Id}";
+        for (int n = 2; GetByEName(ename) != null; n++) ename = $"{baseName}_{copy.Id}_{n}";
+        copy.EName = ename;
+        _idIndex = null;
+        var source = GetPortrait(sourceEName);
+        if (source == null) return;
+        var target = EnsurePortraitDefault(ename);
+        target.PosX = source.PosX;
+        target.PosY = source.PosY;
+        target.Scale = source.Scale;
+    }
+
+    // ============================================================= 辅助：VB 版本的专长/军衔/技能等级算法 =============================================================
+
     public string GetSpecialty(int generalId)
     {
         var g = GetById(generalId);
@@ -410,7 +233,8 @@ public class GeneralSettingParser
     public string? GetEname(int id) => GetById(id)?.EName;
     public static int CalculateSkillLevel(int skillId) => Math.Max(1, skillId % 10);
 
-    // ============================== 图片路径解析 ==============================
+    // ============================================================= 图片路径解析 =============================================================
+
     public string? GetGeneralPhotoPath(string ename)
     {
         if (string.IsNullOrEmpty(ename)) return null;
@@ -427,95 +251,5 @@ public class GeneralSettingParser
         if (File.Exists(f1)) return f1;
         var f2 = Path.Combine(HeadsDir, $"general_circle_{ename}.png");
         return File.Exists(f2) ? f2 : null;
-    }
-}
-
-/// <summary>
-/// 宽松的 int 读取转换器：容忍 null、字符串数字、浮点数、布尔等非常规写法
-/// </summary>
-public sealed class SafeInt32Converter : JsonConverter<int>
-{
-    public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        switch (reader.TokenType)
-        {
-            case JsonTokenType.Number:
-                if (reader.TryGetInt32(out var i)) return i;
-                if (reader.TryGetDouble(out var d)) return Clamp(d);
-                return 0;
-
-            case JsonTokenType.String:
-                var s = reader.GetString();
-                if (string.IsNullOrWhiteSpace(s)) return 0;
-                if (int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var si)) return si;
-                if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var sd)) return Clamp(sd);
-                return 0;
-
-            case JsonTokenType.True:
-                return 1;
-            case JsonTokenType.False:
-                return 0;
-            default:
-                return 0;
-        }
-    }
-
-    public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options)
-        => writer.WriteNumberValue(value);
-
-    private static int Clamp(double d)
-    {
-        if (double.IsNaN(d) || double.IsInfinity(d)) return 0;
-        if (d >= int.MaxValue) return int.MaxValue;
-        if (d <= int.MinValue) return int.MinValue;
-        return (int)Math.Round(d);
-    }
-}
-
-/// <summary>
-/// 宽松的 List&lt;int&gt; 读取转换器：容忍 null、单个数字、逗号分隔字符串等写法
-/// </summary>
-public sealed class SafeIntListConverter : JsonConverter<List<int>>
-{
-    private static readonly SafeInt32Converter IntReader = new();
-
-    public override List<int> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        var list = new List<int>();
-        switch (reader.TokenType)
-        {
-            case JsonTokenType.Number:
-                list.Add(IntReader.Read(ref reader, typeof(int), options));
-                return list;
-
-            case JsonTokenType.String:
-                var s = reader.GetString();
-                if (!string.IsNullOrWhiteSpace(s))
-                {
-                    foreach (var part in s.Split(',', ';', '|', ' ', '\t'))
-                    {
-                        if (int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
-                            list.Add(v);
-                    }
-                }
-                return list;
-
-            case JsonTokenType.StartArray:
-                while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
-                {
-                    list.Add(IntReader.Read(ref reader, typeof(int), options));
-                }
-                return list;
-
-            default:
-                return list;
-        }
-    }
-
-    public override void Write(Utf8JsonWriter writer, List<int> value, JsonSerializerOptions options)
-    {
-        writer.WriteStartArray();
-        foreach (var v in value) writer.WriteNumberValue(v);
-        writer.WriteEndArray();
     }
 }

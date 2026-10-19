@@ -1,0 +1,30 @@
+{
+  // 数据使用方：命令行（check / army / trap）、Lua 脚本接口、模式切换状态消息、格子信息。
+
+  // ---------------- 命令行 ----------------
+  "Cli.Check.EventPassed": "[事件] 引用检查全部通过",
+  "Cli.Check.EventIssues": "[事件] 发现 {0} 处问题：",
+  "Cli.Check.EventFailed": "[事件] 引用检查失败: {0}",
+  "Cli.Army.ColBelong": "归属",
+  "Cli.Army.SetLegionDesc": "设置单位所属军团：单位的归属就是所在格子的归属，这里改的是该格的归属值",
+  "Cli.Army.NoUnitAt": "({0},{1}) 没有单位",
+  "Cli.Trap.ColActionId": "行动ID",
+
+  // ---------------- Lua 脚本接口 ----------------
+  "Script.NoUnitAt": "({0},{1}) 没有单位",
+  "Script.OutOfMap": "坐标 ({0},{1}) 超出地图范围",
+  "Script.OperationFailed": "操作失败",
+  "Script.NoUnitType": "无兵种",
+  "Script.UnknownUnitType": "未知({0})",
+  "Script.UndoRun": "Lua 脚本 ({0})",
+  "Script.Record.UnknownKind": "未知的记录种类 '{0}'",
+  "Script.Record.IndexOutOfRange": "记录索引 {0} 超出范围（当前共 {1} 条）",
+  "Script.Record.UnknownField": "未知字段 '{0}'；可用字段：{1}",
+  "Script.Record.FieldSet": "已设置记录[{0}] 的 {1} = {2}",
+
+  // ---------------- 模式切换 ----------------
+  "Mode.Status.SwitchedTo": "已切换到: {0}",
+
+  // ---------------- 格子信息 ----------------
+  "Assist.HexInfo.Value.ActionRef": "{0}（归属 {1} / 国家ID {2}）"
+}

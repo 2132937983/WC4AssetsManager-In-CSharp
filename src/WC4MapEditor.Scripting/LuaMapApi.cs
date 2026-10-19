@@ -17,12 +17,14 @@ namespace WC4MapEditor.Scripting;
 public sealed class LuaMapApi
 {
     private readonly IMapScriptApi _api;
+    private readonly Script _script;
     private readonly Action<string> _log;
     private readonly Action<int> _addAffected;
 
-    internal LuaMapApi(IMapScriptApi api, Action<string> log, Action<int> addAffected)
+    internal LuaMapApi(IMapScriptApi api, Script script, Action<string> log, Action<int> addAffected)
     {
         _api = api;
+        _script = script;
         _log = log;
         _addAffected = addAffected;
     }
@@ -227,6 +229,8 @@ public sealed class LuaMapApi
     public ScriptOperationResult SetLegionActionIdAt(int index, int actionId) => Report(_api.SetLegionActionIdAt(index, actionId));
     public int GetLegionCountryIdAt(int index) => _api.GetLegionCountryIdAt(index);
     public ScriptOperationResult SetPlayerLegion(int actionId) => Report(_api.SetPlayerLegion(actionId));
+    public ScriptOperationResult SetPlayerLegionAt(int index) => Report(_api.SetPlayerLegionAt(index));
+    public ScriptOperationResult MoveLegion(int from, int to, bool renumberActionIds = false) => Report(_api.MoveLegion(from, to, renumberActionIds));
     public ScriptOperationResult ApplyDefaultLegionColors() => Report(_api.ApplyDefaultLegionColors());
     public ScriptOperationResult ApplyLegionColorsFromSettings() => Report(_api.ApplyLegionColorsFromSettings());
     public ScriptOperationResult RandomizeLegionLevels() => Report(_api.RandomizeLegionLevels());
@@ -238,6 +242,93 @@ public sealed class LuaMapApi
     public ScriptOperationResult RemoveLegionAt(int index) => Report(_api.RemoveLegionAt(index));
     public ScriptOperationResult SetLegionCampAt(int index, int camp) => Report(_api.SetLegionCampAt(index, camp));
     public ScriptOperationResult SetLegionDefeatConditionAt(int index, int value) => Report(_api.SetLegionDefeatConditionAt(index, value));
+
+    // ---------- 记录列表 ----------
+    // 事件 / 方案 / 天气 / 战略建设 / 空袭 / 空中支援 / 援军共用一套形状：
+    //   map.EventCount                 条数
+    //   map.GetEvent(i)                取第 i 条（从 0 起）→ 表：字段名 → 值，另有 Index 与 xxxName 文字标签；越界为 nil
+    //   map.GetEventFields()           可写字段名
+    //   map.SetEventField(i, 字段, 值)  改字段（先经对应模块校验）
+    //   map.AddEvent()                 新增默认记录（空袭 / 援军为 AddAirRaid(col, row) / AddReinforcement(col, row)）
+    //   map.RemoveEvent(i) / map.RemoveAllEvents()
+    // 其余种类把 Event 换成 Case / Weather / Strategic / AirRaid / AirSupport / Reinforcement（复数同理）。
+
+    // 事件
+    public int EventCount => _api.GetRecordCount(ScriptRecordKinds.Event);
+    public Table? GetEvent(int index) => ToTable(_api.GetRecord(ScriptRecordKinds.Event, index));
+    public IReadOnlyList<string> GetEventFields() => _api.GetRecordFields(ScriptRecordKinds.Event);
+    public ScriptOperationResult SetEventField(int index, string field, double value) => Report(_api.SetRecordField(ScriptRecordKinds.Event, index, field, value));
+    public ScriptOperationResult AddEvent() => Report(_api.AddRecord(ScriptRecordKinds.Event));
+    public ScriptOperationResult RemoveEvent(int index) => Report(_api.RemoveRecord(ScriptRecordKinds.Event, index));
+    public ScriptOperationResult RemoveAllEvents() => Report(_api.RemoveAllRecords(ScriptRecordKinds.Event));
+
+    // 方案
+    public int CaseCount => _api.GetRecordCount(ScriptRecordKinds.Case);
+    public Table? GetCase(int index) => ToTable(_api.GetRecord(ScriptRecordKinds.Case, index));
+    public IReadOnlyList<string> GetCaseFields() => _api.GetRecordFields(ScriptRecordKinds.Case);
+    public ScriptOperationResult SetCaseField(int index, string field, double value) => Report(_api.SetRecordField(ScriptRecordKinds.Case, index, field, value));
+    public ScriptOperationResult AddCase() => Report(_api.AddRecord(ScriptRecordKinds.Case));
+    public ScriptOperationResult RemoveCase(int index) => Report(_api.RemoveRecord(ScriptRecordKinds.Case, index));
+    public ScriptOperationResult RemoveAllCases() => Report(_api.RemoveAllRecords(ScriptRecordKinds.Case));
+
+    // 天气
+    public int WeatherCount => _api.GetRecordCount(ScriptRecordKinds.Weather);
+    public Table? GetWeather(int index) => ToTable(_api.GetRecord(ScriptRecordKinds.Weather, index));
+    public IReadOnlyList<string> GetWeatherFields() => _api.GetRecordFields(ScriptRecordKinds.Weather);
+    public ScriptOperationResult SetWeatherField(int index, string field, double value) => Report(_api.SetRecordField(ScriptRecordKinds.Weather, index, field, value));
+    public ScriptOperationResult AddWeather() => Report(_api.AddRecord(ScriptRecordKinds.Weather));
+    public ScriptOperationResult RemoveWeather(int index) => Report(_api.RemoveRecord(ScriptRecordKinds.Weather, index));
+    public ScriptOperationResult RemoveAllWeathers() => Report(_api.RemoveAllRecords(ScriptRecordKinds.Weather));
+
+    // 战略建设
+    public int StrategicCount => _api.GetRecordCount(ScriptRecordKinds.Strategic);
+    public Table? GetStrategic(int index) => ToTable(_api.GetRecord(ScriptRecordKinds.Strategic, index));
+    public IReadOnlyList<string> GetStrategicFields() => _api.GetRecordFields(ScriptRecordKinds.Strategic);
+    public ScriptOperationResult SetStrategicField(int index, string field, double value) => Report(_api.SetRecordField(ScriptRecordKinds.Strategic, index, field, value));
+    public ScriptOperationResult AddStrategic() => Report(_api.AddRecord(ScriptRecordKinds.Strategic));
+    public ScriptOperationResult RemoveStrategic(int index) => Report(_api.RemoveRecord(ScriptRecordKinds.Strategic, index));
+    public ScriptOperationResult RemoveAllStrategics() => Report(_api.RemoveAllRecords(ScriptRecordKinds.Strategic));
+
+    // 空袭
+    public int AirRaidCount => _api.GetRecordCount(ScriptRecordKinds.AirRaid);
+    public Table? GetAirRaid(int index) => ToTable(_api.GetRecord(ScriptRecordKinds.AirRaid, index));
+    public IReadOnlyList<string> GetAirRaidFields() => _api.GetRecordFields(ScriptRecordKinds.AirRaid);
+    public ScriptOperationResult SetAirRaidField(int index, string field, double value) => Report(_api.SetRecordField(ScriptRecordKinds.AirRaid, index, field, value));
+    public ScriptOperationResult AddAirRaid(int col, int row) => Report(_api.AddRecord(ScriptRecordKinds.AirRaid, col, row));
+    public ScriptOperationResult RemoveAirRaid(int index) => Report(_api.RemoveRecord(ScriptRecordKinds.AirRaid, index));
+    public ScriptOperationResult RemoveAllAirRaids() => Report(_api.RemoveAllRecords(ScriptRecordKinds.AirRaid));
+
+    // 空中支援
+    public int AirSupportCount => _api.GetRecordCount(ScriptRecordKinds.AirSupport);
+    public Table? GetAirSupport(int index) => ToTable(_api.GetRecord(ScriptRecordKinds.AirSupport, index));
+    public IReadOnlyList<string> GetAirSupportFields() => _api.GetRecordFields(ScriptRecordKinds.AirSupport);
+    public ScriptOperationResult SetAirSupportField(int index, string field, double value) => Report(_api.SetRecordField(ScriptRecordKinds.AirSupport, index, field, value));
+    public ScriptOperationResult AddAirSupport() => Report(_api.AddRecord(ScriptRecordKinds.AirSupport));
+    public ScriptOperationResult RemoveAirSupport(int index) => Report(_api.RemoveRecord(ScriptRecordKinds.AirSupport, index));
+    public ScriptOperationResult RemoveAllAirSupports() => Report(_api.RemoveAllRecords(ScriptRecordKinds.AirSupport));
+
+    // 援军
+    public int ReinforcementCount => _api.GetRecordCount(ScriptRecordKinds.Reinforcement);
+    public Table? GetReinforcement(int index) => ToTable(_api.GetRecord(ScriptRecordKinds.Reinforcement, index));
+    public IReadOnlyList<string> GetReinforcementFields() => _api.GetRecordFields(ScriptRecordKinds.Reinforcement);
+    public ScriptOperationResult SetReinforcementField(int index, string field, double value) => Report(_api.SetRecordField(ScriptRecordKinds.Reinforcement, index, field, value));
+    public ScriptOperationResult AddReinforcement(int col, int row) => Report(_api.AddRecord(ScriptRecordKinds.Reinforcement, col, row));
+    public ScriptOperationResult RemoveReinforcement(int index) => Report(_api.RemoveRecord(ScriptRecordKinds.Reinforcement, index));
+    public ScriptOperationResult RemoveAllReinforcements() => Report(_api.RemoveAllRecords(ScriptRecordKinds.Reinforcement));
+
+    /// <summary>记录快照 → Lua 表：字段名 → 数值，加 Index 与文字标签。</summary>
+    private Table? ToTable(ScriptRecord? record)
+    {
+        if (record == null) return null;
+
+        var table = new Table(_script);
+        table.Set("Index", DynValue.NewNumber(record.Index));
+        foreach (var (name, value) in record.Values)
+            table.Set(name, DynValue.NewNumber(value));
+        foreach (var (name, text) in record.Labels)
+            table.Set(name, DynValue.NewString(text));
+        return table;
+    }
 
     // ---------- 地形修改 ----------
 

@@ -28,6 +28,9 @@ public sealed class DebugConsoleWindow : Window
     private bool _cursorVisible = true;
     private int _renderedLineCount;
 
+    /// <summary>已排队一次整屏刷新：连续写多行时合并成一次重建（以前每写一行就重建一遍上千个文本块）</summary>
+    private bool _refreshQueued;
+
     public DebugConsoleWindow(DebugConsole console, Window ownerWindow)
     {
         EditorTheme.Apply(this);
@@ -389,10 +392,11 @@ public sealed class DebugConsoleWindow : Window
     }
 
     /// <summary>
-    /// 可拖入控制台的脚本类型：.zme（命令行脚本，逐行执行）与 .lua（Lua 脚本）。
+    /// 可拖入执行的脚本类型：.zme（命令行脚本，逐行执行；.zsc 是 VB 版的叫法，按同样方式执行）与 .lua（Lua 脚本）。
     /// </summary>
-    private static bool IsSupportedScript(string path)
+    public static bool IsSupportedScript(string path)
         => path.EndsWith(".zme", StringComparison.OrdinalIgnoreCase)
+        || path.EndsWith(".zsc", StringComparison.OrdinalIgnoreCase)
         || path.EndsWith(".lua", StringComparison.OrdinalIgnoreCase);
 
     private void OnFileDragOver(object sender, DragEventArgs e)
@@ -415,86 +419,88 @@ public sealed class DebugConsoleWindow : Window
         var files = (string[]?)e.Data.GetData(DataFormats.FileDrop);
         if (files == null || files.Length == 0) return;
 
-        foreach (var file in files)
+        foreach (var file in files.Where(IsSupportedScript))
         {
-            // .lua 交给 lua 命令执行：输出、撤销、路径处理都与手动输入完全一致，
-            // 不需要在这里再维护一套执行逻辑。路径加引号以兼容含空格的目录。
-            if (file.EndsWith(".lua", StringComparison.OrdinalIgnoreCase))
-            {
-                _console.WriteLine(Loc.F("Assist.Console.RunLuaScript", System.IO.Path.GetFileName(file)));
-                // 用 BatchExecuteInput：它会先查本地命令表再回退到命令宿主，
-                // 而 ExecuteInput 在本地表里找不到时会先吐一句"未知命令"。
-                _console.BatchExecuteInput($"lua \"{file}\"");
-                RefreshDisplay();
-                _scrollViewer.ScrollToBottom();
-                continue;
-            }
-
-            if (!file.EndsWith(".zme", StringComparison.OrdinalIgnoreCase)) continue;
-
-            _console.WriteLine(Loc.F("Assist.Console.LoadScript", System.IO.Path.GetFileName(file)));
-
-            var savedCallback = _console.InvalidateCallback;
-            _console.InvalidateCallback = null;
-            _console.BeginBatchMode();
-
-            // 只依赖 ICommandHost 抽象（由 DebugConsole 暴露），不直接碰具体命令宿主
-            var cliHost = _console.CommandHost;
-            cliHost.BeginBatchMode();
-
-            try
-            {
-                var lines = await System.IO.File.ReadAllLinesAsync(file);
-                int totalLines = lines.Length;
-                int executedCount = 0;
-                int skippedCount = 0;
-                const int refreshInterval = 200;
-
-                for (int i = 0; i < totalLines; i++)
-                {
-                    // 同样支持行尾注释，与 run 命令的解析保持一致
-                    string line = Core.Commands.CommandLineText.StripComment(lines[i].Trim());
-
-                    if (string.IsNullOrEmpty(line))
-                    {
-                        skippedCount++;
-                        continue;
-                    }
-
-                    if (Core.Commands.CommandLineText.IsCommentLine(line))
-                    {
-                        skippedCount++;
-                        continue;
-                    }
-
-                    _console.BatchExecuteInput(line);
-                    executedCount++;
-
-                    if (executedCount % refreshInterval == 0)
-                    {
-                        _console.WriteLine(Loc.F("Assist.Console.ScriptProgress", executedCount, totalLines));
-                        RefreshDisplayIncremental();
-                        _scrollViewer.ScrollToBottom();
-                        await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);
-                    }
-                }
-
-                _console.WriteLine(Loc.F("Assist.Console.ScriptDone", executedCount, skippedCount, totalLines));
-            }
-            catch (Exception ex)
-            {
-                _console.WriteLine(Loc.F("Assist.Console.ScriptFailed", ex.Message));
-            }
-            finally
-            {
-                cliHost.EndBatchMode();
-                _console.EndBatchMode();
-                _console.InvalidateCallback = savedCallback;
-            }
-
+            await RunScriptFileAsync(_console, file, RefreshDisplayIncremental);
             RefreshDisplayIncremental();
             _scrollViewer.ScrollToBottom();
         }
+    }
+
+    /// <summary>
+    /// 执行一个脚本文件：.lua 交给 lua 命令；.zme / .zsc 逐行执行（支持整行与行尾注释），每 200 行报一次进度。
+    /// 控制台窗口的拖放与渲染场景的拖放共用这一套，输出、撤销都与手动输入完全一致。
+    /// </summary>
+    /// <param name="console">执行命令并接收输出的控制台</param>
+    /// <param name="file">脚本路径</param>
+    /// <param name="progressRefresh">执行期间刷新显示的方式；为 null 时用控制台原来的整屏刷新</param>
+    public static async Task RunScriptFileAsync(DebugConsole console, string file, Action? progressRefresh = null)
+    {
+        if (file.EndsWith(".lua", StringComparison.OrdinalIgnoreCase))
+        {
+            console.WriteLine(Loc.F("Assist.Console.RunLuaScript", System.IO.Path.GetFileName(file)));
+            // 用 BatchExecuteInput：它会先查本地命令表再回退到命令宿主，
+            // 而 ExecuteInput 在本地表里找不到时会先吐一句"未知命令"。路径加引号以兼容含空格的目录。
+            console.BatchExecuteInput($"lua \"{file}\"");
+            return;
+        }
+
+        console.WriteLine(Loc.F("Assist.Console.LoadScript", System.IO.Path.GetFileName(file)));
+
+        // 批量执行期间摘掉"每写一行就整屏重建"的回调，按进度手动刷新
+        var savedCallback = console.InvalidateCallback;
+        var refresh = progressRefresh ?? savedCallback;
+        console.InvalidateCallback = null;
+        console.BeginBatchMode();
+
+        // 只依赖 ICommandHost 抽象（由 DebugConsole 暴露），不直接碰具体命令宿主
+        var cliHost = console.CommandHost;
+        cliHost.BeginBatchMode();
+
+        try
+        {
+            var lines = await System.IO.File.ReadAllLinesAsync(file);
+            int totalLines = lines.Length;
+            int executedCount = 0;
+            int skippedCount = 0;
+            const int refreshInterval = 200;
+
+            for (int i = 0; i < totalLines; i++)
+            {
+                // 同样支持行尾注释，与 run 命令的解析保持一致
+                string line = Core.Commands.CommandLineText.StripComment(lines[i].Trim());
+
+                if (string.IsNullOrEmpty(line) || Core.Commands.CommandLineText.IsCommentLine(line))
+                {
+                    skippedCount++;
+                    continue;
+                }
+
+                console.BatchExecuteInput(line);
+                executedCount++;
+
+                if (executedCount % refreshInterval == 0)
+                {
+                    console.WriteLine(Loc.F("Assist.Console.ScriptProgress", executedCount, totalLines));
+                    refresh?.Invoke();
+                    await Dispatcher.Yield(DispatcherPriority.Background);
+                }
+            }
+
+            console.WriteLine(Loc.F("Assist.Console.ScriptDone", executedCount, skippedCount, totalLines));
+        }
+        catch (Exception ex)
+        {
+            console.WriteLine(Loc.F("Assist.Console.ScriptFailed", ex.Message));
+        }
+        finally
+        {
+            cliHost.EndBatchMode();
+            console.EndBatchMode();
+            console.InvalidateCallback = savedCallback;
+        }
+
+        refresh?.Invoke();
     }
 
     private void NavigateHistory(int direction)
@@ -513,8 +519,11 @@ public sealed class DebugConsoleWindow : Window
 
     private void RefreshDisplay()
     {
+        if (_refreshQueued) return;
+        _refreshQueued = true;
         Dispatcher.BeginInvoke(() =>
         {
+            _refreshQueued = false;
             _textPanel.Children.Clear();
 
             var lines = _console.GetLogLines();

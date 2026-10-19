@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using SkiaSharp;
@@ -38,6 +37,9 @@ public class ProvinceRender : IDisposable
     private readonly SKPaint _borderPaint = new() { IsAntialias = true, Style = SKPaintStyle.Stroke };
     private readonly SKPaint _capitalHexPaint = new() { IsAntialias = true, Style = SKPaintStyle.Fill, Color = new SKColor(255, 215, 0, 200) };
     private readonly List<(float X, float Y)> _capitalDrawCalls = new();
+
+    // 省界颜色按省区值缓存，每帧开头清空：同一省区的格子共用同一个省会归属，不必每格重新查归属与军团。
+    private readonly Dictionary<int, SKColor> _borderColorCache = new();
 
     private static readonly double[] EdgeAngles = { -60, 0, 60, 120, 180, 240 };
 
@@ -155,6 +157,7 @@ public class ProvinceRender : IDisposable
         borderPaint.StrokeWidth = borderWidth;
 
         _capitalDrawCalls.Clear();
+        _borderColorCache.Clear();
         var capitalDrawCalls = enableCapital ? _capitalDrawCalls : null;
 
         for (int col = startCol; col <= endCol; col++)
@@ -178,7 +181,7 @@ public class ProvinceRender : IDisposable
                 canvas.DrawPath(hexPath, fillPaint);
                 canvas.Restore();
 
-                DrawProvinceBorders(canvas, col, row, provinceId, (float)centerX, (float)centerY, hexSize, borderWidth, borderPaint, mapData, mapData.Belongs, mapData.Legions);
+                DrawProvinceBorders(canvas, col, row, provinceId, (float)centerX, (float)centerY, hexSize, borderWidth, borderPaint, mapData);
 
                 if (enableCapital && capitalDrawCalls != null)
                 {
@@ -305,12 +308,11 @@ public class ProvinceRender : IDisposable
     }
 
     private void DrawProvinceBorders(SKCanvas canvas, int col, int row, int provinceValue,
-        float screenX, float screenY, float hexSize, float borderWidth, SKPaint paint, MapData mapData,
-        List<string>? belongs, ObservableCollection<Legion>? legions)
+        float screenX, float screenY, float hexSize, float borderWidth, SKPaint paint, MapData mapData)
     {
         // paint 由调用方复用（Style 已为 Stroke、StrokeWidth 已设好），这里只更新颜色，
         // 避免可视范围内逐格 new SKPaint。
-        paint.Color = GetBorderColor(provinceValue, belongs, legions);
+        paint.Color = GetBorderColor(provinceValue, mapData);
 
         for (int edgeIndex = 0; edgeIndex < 6; edgeIndex++)
         {
@@ -382,54 +384,37 @@ public class ProvinceRender : IDisposable
         return new SKColor(r, g, b, PROVINCE_ALPHA);
     }
 
-    private static SKColor GetBorderColor(int provinceValue, List<string>? belongs, ObservableCollection<Legion>? legions)
+    private SKColor GetBorderColor(int provinceValue, MapData mapData)
     {
-        var borderColor = SKColors.Black;
+        if (_borderColorCache.TryGetValue(provinceValue, out var cached)) return cached;
 
-        int? capitalBelongValue = GetCapitalBelongValue(provinceValue, belongs);
-        if (capitalBelongValue.HasValue)
-        {
-            var legionColor = GetLegionColor(capitalBelongValue.Value, legions);
-            if (legionColor.HasValue)
-            {
-                borderColor = legionColor.Value;
-            }
-        }
-
-        return borderColor;
+        var color = ResolveBorderColor(provinceValue, mapData);
+        _borderColorCache[provinceValue] = color;
+        return color;
     }
 
-    private static int? GetCapitalBelongValue(int provinceValue, List<string>? belongs)
+    /// <summary>
+    /// 省界颜色 = 省会格子所属军团的颜色（对齐 VB 版 ProvinceRender.GetBorderColor）。
+    /// <para>
+    /// 省会的归属必须用 <see cref="MapData.GetBelongValue"/> 按格子坐标取：征服地图的归属数组只覆盖 MapClip 裁剪区，
+    /// 存的是裁剪区内的相对索引，直接拿省会索引去下标归属数组会取到别的格子（VB 同样做了这层换算）。
+    /// 省区值没有指向真正的省会（那一格的省区值不等于自身索引）、省会无归属（0xFF）或军团不存在时画黑色。
+    /// </para>
+    /// </summary>
+    private static SKColor ResolveBorderColor(int provinceValue, MapData mapData)
     {
-        // 0 与 0xFFFF 都表示无省区（扩展地图产生的旧数据里可能是 0）
-        if (provinceValue == 0 || provinceValue == 0xFFFF) return null;
+        int width = mapData.MapWidth;
+        if (width <= 0 || provinceValue < 0 || provinceValue >= width * mapData.MapHeight) return SKColors.Black;
 
-        int capitalIndex = provinceValue;
-        if (belongs == null || capitalIndex < 0 || capitalIndex >= belongs.Count) return null;
+        int capitalCol = provinceValue % width;
+        int capitalRow = provinceValue / width;
+        if (mapData.GetProvinceRef(capitalCol, capitalRow).ProvinceValue != provinceValue) return SKColors.Black;
 
-        return GetBelongValue(capitalIndex, belongs);
-    }
+        int belong = mapData.GetBelongValue(capitalCol, capitalRow);
+        var legions = mapData.Legions;
+        if (belong == 0xFF || belong < 0 || belong >= legions.Count) return SKColors.Black;
 
-    private static int? GetBelongValue(int index, List<string>? belongs)
-    {
-        if (belongs == null || index < 0 || index >= belongs.Count) return null;
-
-        string belongHex = belongs[index];
-        if (string.IsNullOrEmpty(belongHex)) return null;
-
-        if (int.TryParse(belongHex, System.Globalization.NumberStyles.HexNumber, null, out int value))
-            return value;
-
-        return null;
-    }
-
-    private static SKColor? GetLegionColor(int belongValue, ObservableCollection<Legion>? legions)
-    {
-        if (legions == null || legions.Count == 0) return null;
-        if (belongValue == 255) return null;
-        if (belongValue < 0 || belongValue >= legions.Count) return null;
-
-        var legion = legions[belongValue];
+        var legion = legions[belong];
         return new SKColor(legion.ColorR, legion.ColorG, legion.ColorB);
     }
 

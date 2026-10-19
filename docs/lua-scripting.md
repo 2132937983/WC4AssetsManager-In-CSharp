@@ -530,12 +530,13 @@ if r.Success then print('放置成功') end
 map.RemoveArmy(10, 20)
 ```
 
-#### `map.SetArmyLegion(col, row, legionId)`
+#### `map.SetArmyLegion(col, row, belong)`
 
-设置单位所属军团 ID。
+设置单位所属军团。**单位的归属就是它所在格子的归属**（单位记录里没有存军团），所以这里改的是该格的归属值，
+等价于 `map.SetBelong(col, row, belong)`；该格没有单位时失败。
 
 ```lua
-map.SetArmyLegion(10, 20, 3)   -- 归入 3 号军团
+map.SetArmyLegion(10, 20, 3)   -- 归入 3 号军团（该格归属改为 3）
 ```
 
 #### `map.SetArmyPlan(col, row, plan)`
@@ -645,7 +646,7 @@ map.AutoAssignGenerals(2, 5)   -- 归属 2 分配 5 个将领
 
 ```lua
 map.ForEachArmy(function(a)
-    if a.LegionId == 2 and a.Level < 3 then
+    if a.Belong == 2 and a.Level < 3 then
         map.SetArmyField(a.Col, a.Row, 'Level', 3)
     end
 end)
@@ -660,16 +661,16 @@ end)
 **按字段名读写单位属性**（大小写不敏感）—— 这是修改单位对象的通用入口：
 
 `UnitType` `Level` `Organization` `Direction` `Mobility` `BuiltRound` `Experience` `HealthBonus`
-`CurrentHealth` `MaxHealth` `General` `Rank` `KeyPoint` `Policy` `Plan` `Morale` `CanAttack` `LegionId`
+`CurrentHealth` `MaxHealth` `General` `Rank` `KeyPoint` `Policy` `Plan` `Morale` `CanAttack`
 以及 **v3 专有**：`HpLevel` `TransportShip` `Hatred` `AttackTarget` `DeathDialogue` `LevelMarkDisplay` `AntiDefenseMode`
 
 ```lua
-map.SetArmyField(10, 20, 'LegionId', 3)     -- 归入 3 号军团
 map.SetArmyField(10, 20, 'Level', 5)        -- 等级改 5
 map.SetArmyField(10, 20, 'Morale', 255)     -- 士气下降
 ```
 
 > ⚠️ v3 专有字段写在 **v1 地图**上会失败并提示"该版本的数据结构没有它"（不是静默忽略）。写之前看 `a.Version`。
+> 所属军团不在字段清单里：它就是所在格子的归属，用 `map.SetArmyLegion` / `map.SetBelong` 改。
 
 ### 5.5 军团操作
 
@@ -691,10 +692,29 @@ map.SetLegionActionId(0, 1)
 
 #### `map.SetPlayerLegion(actionId)`
 
-设置玩家军团（按 ActionId）。
+设置玩家军团（按 ActionId）：该军团的控制值设为 **0（玩家）**，其余军团设为 1（AI）。
 
 ```lua
 map.SetPlayerLegion(1)
+```
+
+#### `map.SetPlayerLegionAt(index)`
+
+同上，但按**列表索引**（= 归属值）指定军团；`index` 为负数表示没有玩家军团（全部 AI，征服地图由开局选择决定玩家）。
+
+```lua
+map.SetPlayerLegionAt(0)    -- 0 号军团是玩家
+map.SetPlayerLegionAt(-1)   -- 全部 AI
+```
+
+#### `map.MoveLegion(from, to, renumberActionIds)`
+
+把第 `from` 个军团移到 `to` 位置（列表索引）。地图上的归属值与各处对军团下标的引用随之改写；
+`renumberActionIds` 为 `true` 时 ActionId 也按新顺序重排（默认 `false`）。
+
+```lua
+map.MoveLegion(3, 0)          -- 3 号军团挪到最前
+map.MoveLegion(3, 0, true)    -- 同时重排 ActionId
 ```
 
 #### `map.ApplyDefaultLegionColors()`
@@ -942,6 +962,56 @@ print(string.format('连接 %d 条路径', r.AffectedCount))
 map.Log('处理完毕')
 ```
 
+### 5.8 记录列表（事件 / 方案 / 天气 / 战略建设 / 空袭 / 空中支援 / 援军）
+
+这七种数据都是"一条条记录的列表"，接口形状完全一致（下表以事件 `Event` 为例）：
+
+| 成员 | 说明 |
+|---|---|
+| `map.EventCount` | 条数（实时值） |
+| `map.GetEvent(i)` | 取第 `i` 条（**从 0 起**），返回字段表（见 [6.5](#65-记录对象)），越界返回 `nil` |
+| `map.GetEventFields()` | 可写字段名清单 |
+| `map.SetEventField(i, field, value)` | 按字段名改一个字段（大小写不敏感，按字段宽度钳位）；先经对应模块校验，不合法时失败并说明原因 |
+| `map.AddEvent()` | 新增一条默认记录 |
+| `map.RemoveEvent(i)` / `map.RemoveAllEvents()` | 删除一条 / 全部 |
+
+其余六种把 `Event` 换成对应名字（复数同理）：
+
+| 数据 | 名字 | 新增 | 说明 |
+|---|---|---|---|
+| 事件 | `Event` | `map.AddEvent()` | 新事件序号 = 最大序号 + 1 |
+| 方案（AI 方针） | `Case` | `map.AddCase()` | 方针编号取下一个空闲编号 |
+| 天气 | `Weather` | `map.AddWeather()` | 接在现有天气之后，持续 1 回合 |
+| 战略建设 | `Strategic` | `map.AddStrategic()` | 第一个军团 + 代码表第一条策略 |
+| 空袭 | `AirRaid` | `map.AddAirRaid(col, row)` | 挂在该格上，军团取该格归属 |
+| 空中支援 | `AirSupport` | `map.AddAirSupport()` | 没有坐标 |
+| 援军 | `Reinforcement` | `map.AddReinforcement(col, row)` | 按地图版本自动用 v1/v2 或 v3 记录；`Coordinate` 不能直接改（要换格子请删除后在新格子重新添加） |
+
+军团类字段（事件的 `TriggerLegion` / `AffectedLegion`、战略建设的 `LegionId`、空袭 / 空中支援的 `OwnerLegion`、援军的 `OwnerCountry` / `OwnerLegion`）
+存的都是军团的 **ActionId**，不是归属值。
+
+```lua
+-- 把所有 2 回合触发的事件改成 3 回合
+for i = 0, map.EventCount - 1 do
+    local e = map.GetEvent(i)
+    if e.TriggerCondition == 2 and e.TriggerRound == 2 then
+        map.SetEventField(i, 'TriggerRound', 3)
+    end
+end
+
+-- 在 (40, 30) 的机场上加一条空袭并设回合
+local r = map.AddAirRaid(40, 30)
+if r.Success then map.SetAirRaidField(map.AirRaidCount - 1, 'TriggerRound', 5) end
+
+-- 天气：列出全部
+for i = 0, map.WeatherCount - 1 do
+    local w = map.GetWeather(i)
+    print(i, w.WeatherTypeName, w.TriggerRound, w.Duration)
+end
+```
+
+> 这些修改与其它接口一样记入整批撤销（`Ctrl+Z` 一次退回整个脚本）。
+
 ---
 
 ## 六、对象字段参考
@@ -1038,7 +1108,7 @@ print('结果: ' .. r.Message)      -- ✓ 也可以直接取字段
 |---|---|
 | `a.Col` / `a.Row` / `a.Index` | 所在格子 |
 | `a.Version` | **1 = v1，3 = v3** |
-| `a.UnitType` / `a.UnitTypeName` | 兵种 / 中文名（步兵·骑兵·弓箭手·海军·空军） |
+| `a.UnitType` / `a.UnitTypeName` | 兵种 / 名称（按兵种配置表与字符串表解析，无兵种为"无兵种"） |
 | `a.Level` / `a.Organization` | 等级 / 编制 |
 | `a.Direction` / `a.DirectionName` | 朝向 |
 | `a.Mobility` / `a.BuiltRound` / `a.Experience` | 机动 / 建造回合 / 经验 |
@@ -1048,7 +1118,8 @@ print('结果: ' .. r.Message)      -- ✓ 也可以直接取字段
 | `a.Policy` / `a.PolicyName` | 政策（自由行动/猛攻/缓慢进攻/坚守/撤退） |
 | `a.Plan` | 方案（0-4） |
 | `a.Morale` / `a.MoraleName` | 士气 |
-| `a.CanAttack` / `a.LegionId` | 可攻击 / 所属军团 |
+| `a.CanAttack` | 可攻击 |
+| `a.Belong` / `a.LegionId` | 所属军团的归属值（255 = 所在格子无归属）：单位的归属就是**所在格子的归属**，两个名字等价（`LegionId` 是旧脚本沿用的名字） |
 | `a.HpLevel` `a.TransportShip` `a.Hatred` `a.AttackTarget` `a.DeathDialogue` `a.LevelMarkDisplay` `a.AntiDefenseMode` | **v3 专有**（v1 恒为 0） |
 
 同样是**只读快照**，改属性用 `map.SetArmyField`。
@@ -1060,7 +1131,7 @@ print('结果: ' .. r.Message)      -- ✓ 也可以直接取字段
 | `l.Index` | **列表索引 == 归属值** |
 | `l.ActionId` / `l.CountryId` | 行动顺序 / 国家 ID |
 | `l.InitialEconomy` / `l.InitialIndustry` / `l.InitialTech` | 初始经济 / 工业 / 科技 |
-| `l.IsPlayerControlled` / `l.IsPlayer` | 是否玩家控制（0/1 与布尔两种写法） |
+| `l.IsPlayerControlled` / `l.IsPlayer` | 控制值（**0 = 玩家，1 = AI**）/ 是否玩家控制（布尔便捷值） |
 | `l.Camp` / `l.DefeatCondition` | 阵营 / 战败条件 |
 | `l.CountryHpRate` / `l.CountryTaxRate` | 国家血率 / 税率（浮点） |
 | `l.ColorR` / `l.ColorG` / `l.ColorB` | 颜色 |
@@ -1070,13 +1141,23 @@ print('结果: ' .. r.Message)      -- ✓ 也可以直接取字段
 
 科技等级那几十个字段不在快照里逐个列出 —— 需要时用 `map.SetLegionField` 按名写，读的话直接查 `map.GetLegionFields()` 之外的模型字段（需要的话再补进快照）。
 
+### 6.5 记录对象
+
+`map.GetEvent(i)` 等返回的是一张 Lua 表（只读快照）：键是数据结构里的字段名（数值），再加
+
+- `Index`：记录在列表中的下标；
+- 文字标签（只读）：事件的 `TriggerConditionName` / `TriggerEventName`，天气的 `WeatherTypeName`，空袭的 `UnitTypeName` / `AmmoTypeName`，
+  空中支援的 `AirForceTypeName` / `AmmoTypeName`，战略建设的 `ConstructionName`。
+
+完整字段清单用 `map.GetXxxFields()` 查；改值请用 `map.SetXxxField`，给快照赋值不生效。
+
 ## 七、重要语义与坑
 
 这一节是最容易踩的地方，建议完整读一遍。
 
 ### 7.1 撤销是整批的
 
-**每执行一次 `lua` 命令，整次执行被包成一个撤销单元**。不管脚本改了多少格、执行了多少步，`Ctrl+Z` 都是**一次性**退回脚本执行前的状态。
+**每执行一次 `lua` 命令，整次执行被包成一个撤销单元**（快照所有实体列表 + 省份 + 归属）。不管脚本改了多少格、执行了多少步，`Ctrl+Z` 都是**一次性**退回脚本执行前的状态。
 
 这意味着：
 

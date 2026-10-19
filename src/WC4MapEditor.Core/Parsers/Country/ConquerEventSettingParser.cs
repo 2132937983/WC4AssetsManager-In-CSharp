@@ -1,20 +1,18 @@
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Unicode;
-using WC4MapEditor.Core.Assets;
 using WC4MapEditor.Core.Config;
+using WC4MapEditor.Core.Services;
 
 namespace WC4MapEditor.Core.Parsers.Country;
 
 /// <summary>
 /// 征服事件解析器（ConquerEventSettings.json + stringtable_tw.ini 的
-/// conquest_event_{Id} / conquest_event_intro_{Id}）。
+/// conquest_event_{Id} / conquest_event_desc_{Id}）。
+/// <para>
+/// 描述键是 conquest_event_desc_{Id}（127 个征服事件全都有）。旧实现误用 event_intro_{Id}，
+/// 那是活动介绍（例如曼纳海姆防线），与征服事件 101–109 撞号，编辑 / 删除会改坏活动文本。
+/// </para>
 /// </summary>
-public class ConquerEventSettingParser
+public sealed class ConquerEventSettingParser : IGameSettingsSource
 {
     private static readonly object _lock = new();
     private static ConquerEventSettingParser? _instance;
@@ -33,146 +31,54 @@ public class ConquerEventSettingParser
         }
     }
 
-    private readonly AssetManager _manager = AssetManager.Default;
-    private List<ConquerEventData> _events = new();
-    private StringTableParser? _stringTable;
-
-    public IReadOnlyList<ConquerEventData> All => _events;
-    public IReadOnlyList<ConquerEventData> Items => _events;
-    public string ConfigPath { get; private set; } = "";
-    public string StringTablePath { get; private set; } = "";
-
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
-        PropertyNameCaseInsensitive = true,
-        AllowTrailingCommas = true,
-        ReadCommentHandling = JsonCommentHandling.Skip
-    };
-
     private ConquerEventSettingParser()
     {
-        ResolvePaths();
+        Table = new GameJsonTable<ConquerEventData>(GameJson.AssetPath("json", "ConquerEventSettings.json"));
+        Strings = StringTableStore.Default;
+        Texts = new RecordTextKeys(Strings, this, "conquest_event_{0}", "conquest_event_desc_{0}");
         LoadAll();
     }
 
-    private void ResolvePaths()
+    public GameJsonTable<ConquerEventData> Table { get; }
+    public StringTableParser Strings { get; }
+
+    /// <summary>每个事件的文本键：0 = 标题，1 = 描述。</summary>
+    public RecordTextKeys Texts { get; }
+
+    public IReadOnlyList<IEditableTable> Tables => [Table];
+    StringTableParser? IGameSettingsSource.Strings => Strings;
+
+    public List<ConquerEventData> Items => Table.Items;
+    public string ConfigPath => Table.FilePath;
+    public string StringTablePath => Strings.FilePath;
+
+    public void LoadAll() => Table.Load();
+
+    public ConquerEventData? GetById(int id) => Items.FirstOrDefault(e => e.Id == id);
+
+    public string GetEventName(int id) => Texts.Get(0, id);
+    public void SetEventName(int id, string name) => Texts.Set(0, id, name);
+    public string GetEventDesc(int id) => Texts.Get(1, id);
+    public void SetEventDesc(int id, string desc) => Texts.Set(1, id, desc);
+
+    public int GetNextId() => (Items.Count == 0 ? 0 : Math.Max(0, Items.Max(e => e.Id))) + 1;
+
+    /// <summary>删除事件及其标题 / 描述文本。</summary>
+    public void Remove(ConquerEventData ev)
     {
-        Debug.WriteLine($"[ConquerEventSettingParser] ResolvePaths 开始: manager.IsLoaded={_manager.IsLoaded}, manager.AssetsRoot={_manager.AssetsRoot}");
-        if (!_manager.IsLoaded)
-        {
-            try { _manager.ScanDefault(); } catch (Exception ex) { Debug.WriteLine($"[ConquerEventSettingParser] ScanDefault 失败: {ex.Message}"); }
-        }
-
-        Debug.WriteLine($"[ConquerEventSettingParser] ScanDefault 后: manager.IsLoaded={_manager.IsLoaded}, manager.AssetsRoot={_manager.AssetsRoot}");
-        var root = _manager.AssetsRoot;
-        if (!string.IsNullOrEmpty(root) && Directory.Exists(root))
-        {
-            ConfigPath = Path.Combine(root, "json", "ConquerEventSettings.json");
-            StringTablePath = Path.Combine(root, "stringtable_tw.ini");
-        }
-        else
-        {
-            var baseDir = AppContext.BaseDirectory;
-            Debug.WriteLine($"[ConquerEventSettingParser] AssetsRoot 不可用，回退搜索. baseDir={baseDir}");
-            string? candidate = null;
-            string? current = baseDir;
-            for (int i = 0; i < 8 && !string.IsNullOrEmpty(current); i++)
-            {
-                var test = Path.Combine(current, "Resource", "WC4DATA", "assets");
-                if (Directory.Exists(test)) { candidate = test; break; }
-                current = Path.GetDirectoryName(current);
-            }
-            candidate ??= Path.GetFullPath(Path.Combine(baseDir ?? "", "..", "..", "..", "..", "Resource", "WC4DATA", "assets"));
-
-            ConfigPath = Path.Combine(candidate, "json", "ConquerEventSettings.json");
-            StringTablePath = Path.Combine(candidate, "stringtable_tw.ini");
-        }
-
-        Debug.WriteLine($"[ConquerEventSettingParser] ConfigPath={ConfigPath} (存在={File.Exists(ConfigPath)}), StringTablePath={StringTablePath} (存在={File.Exists(StringTablePath)})");
+        Items.Remove(ev);
+        Texts.Remove(ev.Id);
     }
 
-    public void LoadAll()
+    /// <summary>改 Id：新 Id 已被占用时返回 false；标题 / 描述跟着移到新 Id。</summary>
+    public bool ChangeId(ConquerEventData ev, int newId)
     {
-        LoadEvents();
-        _stringTable = new StringTableParser(StringTablePath);
-    }
-
-    private void LoadEvents()
-    {
-        try
-        {
-            if (!File.Exists(ConfigPath))
-            {
-                Debug.WriteLine($"[ConquerEventSettingParser] 文件不存在: {ConfigPath}");
-                return;
-            }
-            var json = File.ReadAllText(ConfigPath);
-            Debug.WriteLine($"[ConquerEventSettingParser] 文件已读取, 长度={json.Length} 字符");
-            var data = JsonSerializer.Deserialize<List<ConquerEventData>>(json, JsonOpts);
-            if (data != null) _events = data;
-            Debug.WriteLine($"[ConquerEventSettingParser] 反序列化完成: {_events.Count} 条事件");
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ConquerEventSettingParser] 加载失败: {ex.Message}");
-        }
-    }
-
-    public ConquerEventData? GetById(int id)
-    {
-        foreach (var e in _events) if (e.Id == id) return e;
-        return null;
-    }
-
-    public string GetEventName(int id) => _stringTable?.GetValue($"conquest_event_{id}", "") ?? "";
-    public void SetEventName(int id, string name) => _stringTable?.SetValue($"conquest_event_{id}", name);
-    public string GetEventDesc(int id) => _stringTable?.GetValue($"event_intro_{id}", "") ?? "";
-    public void SetEventDesc(int id, string desc) => _stringTable?.SetValue($"event_intro_{id}", desc);
-
-    public int GetNextId()
-    {
-        int max = 0;
-        foreach (var e in _events) if (e.Id > max) max = e.Id;
-        return max + 1;
-    }
-
-    public bool AddEvent(ConquerEventData ev)
-    {
-        if (GetById(ev.Id) != null) return false;
-        _events.Add(ev);
+        if (ev.Id == newId) return true;
+        if (Items.Any(e => e.Id == newId)) return false;
+        Texts.Move(ev.Id, newId);
+        ev.Id = newId;
         return true;
     }
-
-    public bool RemoveEvent(int id)
-    {
-        var e = GetById(id);
-        if (e == null) return false;
-        _events.Remove(e);
-        _stringTable?.Remove($"conquest_event_{id}");
-        _stringTable?.Remove($"event_intro_{id}");
-        return true;
-    }
-
-    public bool SaveAll()
-    {
-        try
-        {
-            var json = JsonSerializer.Serialize(_events, JsonOpts);
-            File.WriteAllText(ConfigPath, json);
-            _stringTable?.Save();
-            Debug.WriteLine($"[ConquerEventSettingParser] 保存成功: {ConfigPath}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ConquerEventSettingParser] 保存失败: {ex.Message}");
-            return false;
-        }
-    }
-
-    public void Reload() => LoadAll();
 
     public static void ClearInstance()
     {
@@ -183,7 +89,7 @@ public class ConquerEventSettingParser
 /// <summary>
 /// 征服事件（ConquerEventSettings.json）。
 /// 名称/描述不保存在 JSON 中，而是写入 stringtable_tw.ini 的
-/// conquest_event_{Id} 与 conquest_event_intro_{Id} 键。
+/// conquest_event_{Id} 与 conquest_event_desc_{Id} 键。
 /// </summary>
 public class ConquerEventData
 {

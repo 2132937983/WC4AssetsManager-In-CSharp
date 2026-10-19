@@ -1,911 +1,729 @@
 using WC4MapEditor.Core.Config;
-using WC4MapEditor.Core.Input;
-using WC4MapEditor.Core.Modifiers;
 using WC4MapEditor.Core.Models;
+using WC4MapEditor.Core.Modifiers;
 using WC4MapEditor.Core.Selection;
 
 namespace WC4MapEditor.Core.Mode;
 
 /// <summary>
-/// 单位部署模式 - 对齐VB版本功能
-/// 创建单位时自动设置归属，支持v1和v3单位编辑窗口
+/// 单位部署模式：单位（v1 / v3 按地图版本自动分派）与陷阱。
+/// <para>
+/// 单位的数据操作都在 <see cref="IArmyModule"/>（<see cref="ArmyModifier"/> / <see cref="ArmyV3Modifier"/>）里，
+/// 陷阱在 <see cref="TrapModifier"/>，占领事件联动用 <see cref="EventModifier"/>；本模式只决定按键 → 动作 → 模块函数，
+/// 并负责撤销记录：单格 / 选区操作用 <see cref="ArmyHexState"/> 前后快照，整图批量操作用实体快照。
+/// </para>
 /// </summary>
-public sealed class ArmyDeployMode : IModeHandler
+public sealed class ArmyDeployMode : ModeBase
 {
-    public EditMode Mode => EditMode.ArmyDeploy;
-    public string DisplayName => "单位部署";
-    public ModifierKind PrimaryModifierKind => ModifierKind.Army;
-    public ModifierKind[] ModifierKinds => new[] { ModifierKind.Army, ModifierKind.Belong, ModifierKind.Province, ModifierKind.Trap };
-    // 启用选择器：左键单击选择、右键拖动框选（Shift 加选 / Ctrl 减选），
-    // 框选只命中存在单位的格子（见渲染层 GetSelectionFilter 的 ArmyDeploy 分支）。
-    public bool RequiresSelection => true;
+    /// <summary>Ctrl+F 上一次查找的等级与命中下标：再次查找同一等级时跳到下一个。</summary>
+    private int _findLevel = 1;
+    private int _findIndex = -1;
 
-    public string HelpText =>
-        "单位编辑模式快捷键:\n" +
-        "左键单击 - 选择单位（Shift 加选 / Ctrl 减选）\n" +
-        "右键拖动 - 框选单位（Shift 并入 / Ctrl 剔除）\n" +
-        "右键单击 - 选择单位\n" +
-        "C - 复制单位（多选选中时批量复制）\n" +
-        "V - 粘贴单位（有批量复制时按原布局粘贴，以当前格为左上角）\n" +
-        "X - 删除单位（多选选中时批量删除）\n" +
-        "Delete - 删除单位（多选选中时批量删除）\n" +
-        "Q - 创建/修改单位\n" +
-        "L - 按归属设置军团\n" +
-        "Ctrl+Q - 多选时设置方案/单选时设置占领事件\n" +
-        "E - 按配置修改军团强度(可指定归属与强度等级)\n" +
-        "R - 随机化军团单位(可指定归属)\n" +
-        "I - 按概率生成单位(可指定归属，-1为所有军团)\n" +
-        "G - 自动分配将领(可指定归属与将领数量)\n" +
-        "T - 循环切换单位方案(0-4)\n" +
-        "Y - 批量修改单位方案(可指定归属与方案值)\n" +
-        "Shift+Delete - 删除指定归属的所有单位(可输入归属ID)\n" +
-        "Ctrl+C - 复制单位/陷阱\n" +
-        "Ctrl+V - 粘贴单位/陷阱\n" +
-        "Ctrl+X - 删除单位/陷阱\n" +
-        "F - 创建/修改陷阱\n" +
-        "Ctrl+G - 按概率批量生成陷阱（跳过海洋与建筑格）\n" +
-        "Ctrl+R - 随机化陷阱等级(可指定军团值)\n" +
-        "H - 切换单位橡皮擦画笔（左键拖动批量删除单位）\n" +
-        "[ / ] - 减小/增大橡皮擦半径";
+    public override EditMode Mode => EditMode.ArmyDeploy;
+    protected override string LocKey => "Army";
+    protected override string DefaultDisplayName => "单位部署";
+    public override ModifierKind PrimaryModifierKind => ModifierKind.Army;
+    public override ModifierKind[] ModifierKinds => new[] { ModifierKind.Army, ModifierKind.ArmyV3, ModifierKind.Trap, ModifierKind.Event };
+    public override bool RequiresSelection => true;
 
-    public IEnumerable<ModeKeyBinding> GetKeyBindings()
+    // VB 单位模式：国家领域、建筑、单位、陷阱、归属国旗，以及数据范围外格子的红叉（基类 Draw → DrawClippedTiles）
+    public override ModeRenderLayers RenderLayers => ModeRenderLayers.Building | ModeRenderLayers.Army | ModeRenderLayers.Trap
+                                                   | ModeRenderLayers.LegionDomain | ModeRenderLayers.BelongFlag | ModeRenderLayers.ClippedTiles;
+
+    /// <summary>框选只命中有单位（v1 或 v3）的格子。</summary>
+    public override Func<HexCoord, bool>? CreateSelectionFilter(MapData map)
     {
-        return new[]
-        {
-            new ModeKeyBinding("AD_Delete", KeyCodes.Delete, KeyModifiers.None, "remove", "删除单位"),
-            new ModeKeyBinding("AD_C", KeyCodes.C, KeyModifiers.None, "copy", "复制单位"),
-            new ModeKeyBinding("AD_V", KeyCodes.V, KeyModifiers.None, "paste", "粘贴单位"),
-            new ModeKeyBinding("AD_L", KeyCodes.L, KeyModifiers.None, "set_legion", "按归属设置军团"),
-            new ModeKeyBinding("AD_Q", KeyCodes.Q, KeyModifiers.None, "open_create", "打开单位创建窗口"),
-
-            // 单位批量操作
-            new ModeKeyBinding("AD_X", KeyCodes.X, KeyModifiers.None, "remove", "删除单位（多选时批量删除）"),
-            new ModeKeyBinding("AD_T", KeyCodes.T, KeyModifiers.None, "cycle_plan", "循环切换单位方案(0-4)"),
-            new ModeKeyBinding("AD_CQ", KeyCodes.Q, KeyModifiers.Ctrl, "set_plan_or_event", "多选时设置方案/单选时设置占领事件"),
-            new ModeKeyBinding("AD_Y", KeyCodes.Y, KeyModifiers.None, "batch_plan_by_legion", "批量修改单位方案(可指定归属与方案值)"),
-            new ModeKeyBinding("AD_E", KeyCodes.E, KeyModifiers.None, "legion_strength", "按配置修改军团强度(可指定归属与强度等级)"),
-            new ModeKeyBinding("AD_R", KeyCodes.R, KeyModifiers.None, "randomize_legion", "随机化军团单位(可指定归属)"),
-            new ModeKeyBinding("AD_I", KeyCodes.I, KeyModifiers.None, "generate_by_probability", "按概率生成单位(-1为所有军团)"),
-            new ModeKeyBinding("AD_G", KeyCodes.G, KeyModifiers.None, "auto_general", "自动分配将领(可指定归属与将领数量)"),
-            new ModeKeyBinding("AD_SDEL", KeyCodes.Delete, KeyModifiers.Shift, "remove_by_belong", "删除指定归属的所有单位(可输入归属ID)"),
-
-            // 陷阱编辑
-            new ModeKeyBinding("AD_F", KeyCodes.F, KeyModifiers.None, "trap_place", "在光标格放置/修改陷阱"),
-            new ModeKeyBinding("AD_CC", KeyCodes.C, KeyModifiers.Ctrl, "trap_copy", "复制陷阱"),
-            new ModeKeyBinding("AD_CV", KeyCodes.V, KeyModifiers.Ctrl, "trap_paste", "粘贴陷阱"),
-            new ModeKeyBinding("AD_CX", KeyCodes.X, KeyModifiers.Ctrl, "trap_remove", "删除光标格陷阱"),
-            new ModeKeyBinding("AD_CG", KeyCodes.G, KeyModifiers.Ctrl, "trap_generate", "按概率批量生成陷阱（跳过海洋与建筑）"),
-            new ModeKeyBinding("AD_CR", KeyCodes.R, KeyModifiers.Ctrl, "trap_random_levels", "随机化陷阱等级(可指定军团值)"),
-
-            // 单位橡皮擦画笔
-            new ModeKeyBinding("AD_H", KeyCodes.H, KeyModifiers.None, "toggle_brush", "切换单位橡皮擦画笔"),
-            new ModeKeyBinding("AD_BrushDec", KeyCodes.OemOpenBrackets, KeyModifiers.None, "brush_decrease", "减小橡皮擦半径"),
-            new ModeKeyBinding("AD_BrushInc", KeyCodes.OemCloseBrackets, KeyModifiers.None, "brush_increase", "增大橡皮擦半径"),
-        };
+        var cells = new HashSet<int>();
+        foreach (var a in map.Armies) cells.Add((ushort)a.Coordinate);
+        foreach (var a in map.ArmiesV3) cells.Add((ushort)a.Coordinate);
+        return c => cells.Contains(c.ToIndex(map.MapWidth));
     }
 
-    public async Task<bool> HandleKeyAction(string action, int col, int row, ModeContext context)
+    protected override void DefineActions(ModeActionTable t)
     {
-        var army = context.GetModifier<ArmyModifier>()!;
-        var belong = context.GetModifier<BelongModifier>()!;
-        var province = context.GetModifier<ProvinceModifier>()!;
-        bool modified = false;
-
-        switch (action)
-        {
-            case "apply":
-                {
-                    // 放置单位并自动设置归属
-                    var oldBelong = context.MapData?.GetBelongValue(col, row);
-                    var provinceBelong = GetProvinceCapitalBelong(col, row, context);
-
-                    context.RecordEntityChange($"放置单位 ({col},{row})",
-                        () =>
-                        {
-                            army.Apply(col, row);
-                            // 自动设置归属：如果格子有省区，则设置为省会格子的归属
-                            if (provinceBelong >= 0)
-                            {
-                                belong.SetBelongByCountryId(col, row, provinceBelong);
-                            }
-                        },
-                        () =>
-                        {
-                            army.Remove(col, row);
-                            // 恢复原来的归属
-                            if (oldBelong.HasValue)
-                            {
-                                belong.SetBelongByCountryId(col, row, oldBelong.Value);
-                            }
-                        });
-                    modified = true;
-                    break;
-                }
-            case "copy":
-                {
-                    var selector = HexSelector.Instance;
-                    if (selector.SelectedCount > 1)
-                    {
-                        var count = army.CopyArmyGroup(selector.SelectedHexes);
-                        if (count > 0)
-                        {
-                            context.RaiseStatusMessage?.Invoke($"已复制 {count} 个单位（多选）");
-                            return true;
-                        }
-                    }
-                    var result = army.CopyArmy(col, row);
-                    context.RaiseStatusMessage?.Invoke(result.Message);
-                    return result.Success;
-                }
-            case "paste":
-                {
-                    var pasteMapData = context.MapData;
-
-                    // 多选粘贴：以当前格作为选区左上角，按原相对布局批量放置
-                    if (army.HasCopiedArmyGroup && pasteMapData != null)
-                    {
-                        var pastedCoords = new List<HexCoord>();
-                        var pasteBelongBackup = new List<(int Col, int Row, int? Belong)>();
-
-                        context.RecordEntityChange($"粘贴单位组 ({col},{row})",
-                            () =>
-                            {
-                                pastedCoords.Clear();
-                                pasteBelongBackup.Clear();
-
-                                foreach (var c in army.PasteArmyGroup(col, row))
-                                {
-                                    pasteBelongBackup.Add((c.Col, c.Row, pasteMapData.GetBelongValue(c.Col, c.Row)));
-                                    pastedCoords.Add(c);
-                                }
-
-                                // 与单选一致：按各自格子所在省会自动设置归属
-                                foreach (var c in pastedCoords)
-                                {
-                                    int pb = GetProvinceCapitalBelong(c.Col, c.Row, context);
-                                    if (pb >= 0) belong.SetBelongByCountryId(c.Col, c.Row, pb);
-                                }
-                            },
-                            () =>
-                            {
-                                foreach (var c in pastedCoords)
-                                {
-                                    pasteMapData.RemoveArmyAt(c.Col, c.Row);
-                                    pasteMapData.RemoveArmyV3At(c.Col, c.Row);
-                                }
-                                foreach (var (c, r, b) in pasteBelongBackup)
-                                {
-                                    if (b.HasValue) belong.SetBelongByCountryId(c, r, b.Value);
-                                }
-                            });
-
-                        context.NotifyDataModified?.Invoke();
-                        context.RaiseStatusMessage?.Invoke($"已粘贴单位组到 ({col},{row})");
-                        return true;
-                    }
-
-                    var oldBelong = context.MapData?.GetBelongValue(col, row);
-                    var provinceBelong = GetProvinceCapitalBelong(col, row, context);
-
-                    context.RecordEntityChange($"粘贴单位 ({col},{row})",
-                        () =>
-                        {
-                            army.PasteArmy(col, row);
-                            if (provinceBelong >= 0)
-                            {
-                                belong.SetBelongByCountryId(col, row, provinceBelong);
-                            }
-                        },
-                        () =>
-                        {
-                            army.Remove(col, row);
-                            if (oldBelong.HasValue)
-                            {
-                                belong.SetBelongByCountryId(col, row, oldBelong.Value);
-                            }
-                        });
-                    modified = true;
-                    break;
-                }
-            case "remove":
-                {
-                    var removeMapData = context.MapData;
-                    var selector = HexSelector.Instance;
-
-                    // 多选删除：清除选区中所有单位（v1 与 v3 一并处理，与框选过滤器的判定一致）
-                    if (selector.SelectedCount > 1 && removeMapData != null)
-                    {
-                        var removed = new List<(int Col, int Row, Army? V1, Army_3? V3)>();
-                        foreach (var coord in selector.SelectedHexes)
-                        {
-                            var v1 = removeMapData.GetArmyAt(coord.Col, coord.Row);
-                            var v3 = removeMapData.GetArmyV3At(coord.Col, coord.Row);
-                            if (v1.HasValue || v3.HasValue)
-                                removed.Add((coord.Col, coord.Row, v1, v3));
-                        }
-
-                        if (removed.Count > 0)
-                        {
-                            var armyV3 = context.GetModifier<ArmyV3Modifier>();
-                            var removeBelongBackup = new List<(int Col, int Row, int? Belong)>();
-
-                            context.RecordEntityChange($"删除 {removed.Count} 个单位",
-                                () =>
-                                {
-                                    removeBelongBackup.Clear();
-                                    foreach (var (c, r, _, _) in removed)
-                                        removeBelongBackup.Add((c, r, removeMapData.GetBelongValue(c, r)));
-
-                                    foreach (var (c, r, _, _) in removed)
-                                    {
-                                        removeMapData.RemoveArmyAt(c, r);
-                                        removeMapData.RemoveArmyV3At(c, r);
-                                        belong.SetBelongByCountryId(c, r, 0xFF);
-                                    }
-                                },
-                                () =>
-                                {
-                                    foreach (var (c, r, v1, v3) in removed)
-                                    {
-                                        if (v1.HasValue) army.Apply(c, r, v1.Value);
-                                        if (v3.HasValue) armyV3?.Apply(c, r, v3.Value);
-                                    }
-                                    foreach (var (c, r, b) in removeBelongBackup)
-                                    {
-                                        if (b.HasValue) belong.SetBelongByCountryId(c, r, b.Value);
-                                    }
-                                });
-
-                            context.NotifyDataModified?.Invoke();
-                            context.RaiseStatusMessage?.Invoke($"已删除 {removed.Count} 个单位");
-                            return true;
-                        }
-                    }
-
-                    var oldArmy = context.MapData?.GetArmyAt(col, row);
-                    var oldBelong = context.MapData?.GetBelongValue(col, row);
-                    if (oldArmy != null)
-                    {
-                        var saved = oldArmy.Value;
-                        context.RecordEntityChange($"删除单位 ({col},{row})",
-                            () =>
-                            {
-                                army.Remove(col, row);
-                                // 清除归属
-                                belong.SetBelongByCountryId(col, row, 0xFF);
-                            },
-                            () =>
-                            {
-                                army.Apply(col, row, saved);
-                                if (oldBelong.HasValue)
-                                {
-                                    belong.SetBelongByCountryId(col, row, oldBelong.Value);
-                                }
-                            });
-                    }
-                    else
-                    {
-                        army.Remove(col, row);
-                        belong.SetBelongByCountryId(col, row, 0xFF);
-                    }
-                    modified = true;
-                    break;
-                }
-            case "set_legion":
-                {
-                    int legionId = belong.GetBelongValue(col, row) ?? 0;
-                    context.RecordEntityChange($"设置军团 ({col},{row})",
-                        () => army.SetLegionId(col, row, legionId), () => { });
-                    modified = true;
-                    break;
-                }
-            case "open_create":
-                // 打开单位创建窗口
-                OpenArmyCreateWindow(context, col, row);
-                return true;
-
-            // ===== 单位批量操作 =====
-
-            case "cycle_plan":
-            case "set_plan_or_event":
-                {
-                    var planMapData = context.MapData;
-                    if (planMapData == null) return false;
-
-                    var selector = HexSelector.Instance;
-                    bool multi = selector.SelectedCount > 1;
-
-                    // Ctrl+Q 单选且为 v1 地图时循环切换占领事件（Army_3 无该字段，故 v3 走方案切换）
-                    if (action == "set_plan_or_event" && !multi && planMapData.Header.BtlVersion < 3)
-                    {
-                        int idx = planMapData.FindArmyIndex(col, row);
-                        if (idx < 0)
-                        {
-                            context.RaiseStatusMessage?.Invoke("该位置没有单位");
-                            return false;
-                        }
-
-                        byte oldEvent = planMapData.Armies[idx].OccupationEvent;
-                        byte newEvent = (byte)((oldEvent + 1) % 5);
-
-                        context.RecordEntityChange($"修改占领事件 ({col},{row})",
-                            () =>
-                            {
-                                var a = planMapData.Armies[idx];
-                                a.OccupationEvent = newEvent;
-                                planMapData.ReplaceArmy(idx, a);
-                            },
-                            () =>
-                            {
-                                var a = planMapData.Armies[idx];
-                                a.OccupationEvent = oldEvent;
-                                planMapData.ReplaceArmy(idx, a);
-                            });
-
-                        context.NotifyDataModified?.Invoke();
-                        context.RaiseStatusMessage?.Invoke($"占领事件 ({col},{row}): {oldEvent} -> {newEvent}");
-                        return true;
-                    }
-
-                    var r = RunArmyOp(context, col, row,
-                        m => multi ? m.QuickModifyArmyPlanForSelected(CollectSelectedArmies(planMapData))
-                                   : m.QuickModifyArmyPlan(col, row),
-                        m => multi ? m.QuickModifyArmyPlanForSelected(CollectSelectedArmiesV3(planMapData))
-                                   : m.QuickModifyArmyPlan(col, row));
-
-                    context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke(r.Message);
-                    return r.Success;
-                }
-            case "batch_plan_by_legion":
-                {
-                    if (context.DialogService == null) return false;
-
-                    // 对齐 VB BatchModifyArmyPlanByLegion 的双输入框：
-                    // 归属值 -1 表示所有军团，方案值 -1 表示随机
-                    int suggestedBelong = ResolveTargetBelong(context, col, row);
-
-                    var (confirmed, belongText, planText) = await context.DialogService.ShowDoubleInputDialogAsync(
-                        "批量修改单位方案",
-                        "归属值（-1 为所有军团）：",
-                        "方案值（0-4，-1 为随机）：",
-                        suggestedBelong.ToString(),
-                        "-1");
-                    if (!confirmed) return false;
-
-                    if (!int.TryParse(belongText, out int targetBelong))
-                    {
-                        context.RaiseStatusMessage?.Invoke("输入的归属值无效");
-                        return false;
-                    }
-                    if (!int.TryParse(planText, out int planValue))
-                    {
-                        context.RaiseStatusMessage?.Invoke("输入的方案值无效");
-                        return false;
-                    }
-
-                    // 原单输入框用 min=-1 / max=4 做过范围约束，双输入框没有该能力，这里补回
-                    if (planValue < -1 || planValue > 4)
-                    {
-                        context.RaiseStatusMessage?.Invoke("方案值需在 0-4 之间，或输入 -1（随机）");
-                        return false;
-                    }
-
-                    var r = RunArmyOp(context, col, row,
-                        m => m.BatchModifyArmyPlanByLegion(targetBelong, planValue),
-                        m => m.BatchModifyArmyPlanByLegion(targetBelong, planValue));
-
-                    context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke(targetBelong < 0
-                        ? $"所有军团 {r.Message}"
-                        : $"归属 [{targetBelong}] {r.Message}");
-                    return r.Success;
-                }
-            case "legion_strength":
-                {
-                    if (context.DialogService == null) return false;
-
-                    // 强度等级范围从配置动态获取，对齐 VB 的 configs.Min(c => c.Id) / Max(c => c.Id)
-                    var levelConfigs = ConfigManager.Instance.GetAllLegionLevelConfigs();
-                    int minLevel = levelConfigs.Count > 0 ? levelConfigs.Min(c => c.Id) : 1;
-                    int maxLevel = levelConfigs.Count > 0 ? levelConfigs.Max(c => c.Id) : 1;
-
-                    // 归属默认取当前格推断结果；强度默认最低等级，-1 表示按国家配置自动调整
-                    int suggestedBelong = ResolveTargetBelong(context, col, row);
-
-                    var (confirmed, belongText, levelText) = await context.DialogService.ShowDoubleInputDialogAsync(
-                        "修改军团强度",
-                        "军团ID（-1 为全部）：",
-                        $"强度等级（{minLevel}-{maxLevel}，-1 为按国家配置自动调整）：",
-                        suggestedBelong.ToString(),
-                        minLevel.ToString());
-                    if (!confirmed) return false;
-
-                    if (!int.TryParse(belongText, out int targetBelong))
-                    {
-                        context.RaiseStatusMessage?.Invoke("输入的军团ID无效");
-                        return false;
-                    }
-                    if (!int.TryParse(levelText, out int levelId))
-                    {
-                        context.RaiseStatusMessage?.Invoke("输入的强度等级无效");
-                        return false;
-                    }
-
-                    // VB 原版的取值约束：归属 -1~255，等级 minLevel~maxLevel 外加特殊值 -1
-                    if (targetBelong < -1 || targetBelong > 255)
-                    {
-                        context.RaiseStatusMessage?.Invoke("军团ID需在 -1-255 之间");
-                        return false;
-                    }
-                    if (levelId != -1 && (levelId < minLevel || levelId > maxLevel))
-                    {
-                        // 对齐 VB：校验失败时列出全部可用等级，方便选择
-                        var availableLevels = string.Join(", ", levelConfigs.Select(c => $"{c.Id}={c.Name}"));
-                        context.RaiseStatusMessage?.Invoke(
-                            $"强度等级需在 {minLevel}-{maxLevel} 之间，或输入 -1。可用等级: {availableLevels}");
-                        return false;
-                    }
-
-                    var r = RunArmyOp(context, col, row,
-                        m => m.ModifyLegionStrength(targetBelong, levelId),
-                        m => m.ModifyLegionStrength(targetBelong, levelId));
-
-                    context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke(targetBelong < 0
-                        ? $"所有军团 {r.Message}"
-                        : $"归属 [{targetBelong}] {r.Message}");
-                    return r.Success;
-                }
-            case "randomize_legion":
-                {
-                    if (context.DialogService == null) return false;
-
-                    // 对齐 VB RandomizeLegionArmies：该功能只有一个归属参数，故用单输入框（-1 为全部军团）
-                    int suggestedBelong = ResolveTargetBelong(context, col, row);
-
-                    var input = await context.DialogService.ShowInputDialogAsync(
-                        "随机化军团单位", "归属值（-1 为全部）：", suggestedBelong.ToString());
-                    if (input == null) return false;
-                    if (!int.TryParse(input, out int targetBelong))
-                    {
-                        context.RaiseStatusMessage?.Invoke("输入的归属值无效");
-                        return false;
-                    }
-
-                    var r = RunArmyOp(context, col, row,
-                        m => m.RandomizeLegionArmies(targetBelong),
-                        m => m.RandomizeLegionArmies(targetBelong));
-
-                    context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke(targetBelong < 0
-                        ? $"所有军团 {r.Message}"
-                        : $"归属 [{targetBelong}] {r.Message}");
-                    return r.Success;
-                }
-            case "generate_by_probability":
-                {
-                    if (context.DialogService == null) return false;
-
-                    // 归属默认取当前格推断结果（省会归属优先，其次当前格归属），
-                    // 用户可手动改为 -1，表示对所有军团执行（底层 GetValidProvinces 已支持 -1）。
-                    int suggestedBelong = ResolveTargetBelong(context, col, row);
-
-                    var (confirmed, belongText, probText) = await context.DialogService.ShowDoubleInputDialogAsync(
-                        "按概率生成单位",
-                        "归属ID（-1 为所有军团）：",
-                        "生成概率（0-100）：",
-                        suggestedBelong.ToString(),
-                        "50");
-                    if (!confirmed) return false;
-
-                    if (!int.TryParse(belongText, out int targetBelong))
-                    {
-                        context.RaiseStatusMessage?.Invoke("输入的归属ID无效");
-                        return false;
-                    }
-                    if (!int.TryParse(probText, out int probability))
-                    {
-                        context.RaiseStatusMessage?.Invoke("输入的生成概率无效");
-                        return false;
-                    }
-
-                    var r = RunArmyOp(context, col, row,
-                        m => m.GenerateArmiesByProbability(targetBelong, probability),
-                        m => m.GenerateArmiesByProbability(targetBelong, probability));
-
-                    context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke(targetBelong < 0
-                        ? $"所有军团 {r.Message}"
-                        : $"归属 [{targetBelong}] {r.Message}");
-                    return r.Success;
-                }
-            case "auto_general":
-                {
-                    if (context.DialogService == null) return false;
-
-                    // 对齐 VB AutoAssignGeneralsToArmies 的双输入框：归属值 + 将领数量。
-                    // 底层 requestedGeneralCount = -1 表示按可用将领数上限分配；adaptToUnits=true 按兵种适配
-                    int suggestedBelong = ResolveTargetBelong(context, col, row);
-
-                    var (confirmed, belongText, countText) = await context.DialogService.ShowDoubleInputDialogAsync(
-                        "自动分配将领",
-                        "归属值（-1 为所有军团）：",
-                        "将领数量（-1 为最大数量）：",
-                        suggestedBelong.ToString(),
-                        "-1");
-                    if (!confirmed) return false;
-
-                    if (!int.TryParse(belongText, out int targetBelong))
-                    {
-                        context.RaiseStatusMessage?.Invoke("输入的归属值无效");
-                        return false;
-                    }
-                    if (!int.TryParse(countText, out int requestedCount))
-                    {
-                        context.RaiseStatusMessage?.Invoke("输入的将领数量无效");
-                        return false;
-                    }
-
-                    var r = RunArmyOp(context, col, row,
-                        m => m.AutoAssignGeneralsToArmies(targetBelong, requestedCount, clearExisting: false, adaptToUnits: true),
-                        m => m.AutoAssignGeneralsToArmies3(targetBelong, requestedCount, clearExisting: false, adaptToUnits: true));
-
-                    context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke(targetBelong < 0
-                        ? $"所有军团 {r.Message}"
-                        : $"归属 [{targetBelong}] {r.Message}");
-                    return r.Success;
-                }
-            case "remove_by_belong":
-                {
-                    if (context.DialogService == null) return false;
-
-                    // 对齐 VB DeleteArmiesByBelong：先输入归属ID（原版默认 0）。
-                    // 注意底层是按单位自身的 LegionId 精确匹配，-1 不对应任何单位（不是“全部”语义）。
-                    int defaultBelong = ResolveTargetBelong(context, col, row);
-                    if (defaultBelong < 0) defaultBelong = 0;
-
-                    var input = await context.DialogService.ShowInputDialogAsync(
-                        "删除指定归属的所有单位",
-                        "归属ID（按单位自身的军团归属精确匹配）：",
-                        defaultBelong.ToString());
-                    if (input == null) return false;
-                    if (!int.TryParse(input, out int targetBelong))
-                    {
-                        context.RaiseStatusMessage?.Invoke("输入的归属ID无效");
-                        return false;
-                    }
-
-                    var confirmed = await context.DialogService.ShowConfirmDialogAsync(
-                        "删除指定归属的所有单位",
-                        $"确定删除归属 [{targetBelong}] 的所有单位？此操作不可撤销。",
-                        "删除", "取消");
-                    if (!confirmed) return false;
-
-                    var r = RunArmyOp(context, col, row,
-                        m => m.DeleteArmiesByBelong(targetBelong),
-                        m => m.DeleteArmiesByBelong(targetBelong));
-
-                    context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke(r.Message);
-                    return r.Success;
-                }
-
-            // ===== 陷阱编辑 =====
-
-            case "trap_place":
-                {
-                    var trap = context.GetModifier<TrapModifier>();
-                    if (trap == null) return false;
-
-                    // 陷阱的「所属军团」字段（Trap.LegionId）取当前格所在省份的省会格子归属值，
-                    // 与放置单位的归属规则一致。
-                    // 注意：只把归属值写入陷阱自身的字段，不改动所在格子归属。
-                    var provinceBelong = GetProvinceCapitalBelong(col, row, context);
-                    var before = trap.GetTrapAt(col, row);
-
-                    // 该格已有陷阱 → 打开编辑窗口修改它（VB 原版 OpenTrapEditorAt + ShowTrapEditDialog）
-                    if (before.HasValue)
-                    {
-                        if (context.DialogService == null) return false;
-
-                        var (confirmed, edited) = await context.DialogService
-                            .ShowTrapSettingDialogAsync(before.Value, isNew: false);
-                        if (!confirmed) return false;
-
-                        var old = before.Value;
-                        context.RecordEntityChange($"修改陷阱 ({col},{row})",
-                            () => trap.Apply(col, row, edited),
-                            () => trap.Apply(col, row, old));
-
-                        context.NotifyDataModified?.Invoke();
-                        context.RaiseStatusMessage?.Invoke(
-                            $"已修改陷阱 ({col},{row})：编制={edited.Organization}, 军团={edited.LegionId}, 血量={edited.Health}");
-                        return true;
-                    }
-
-                    // 该格没有陷阱 → 创建新陷阱
-                    context.RecordEntityChange($"放置陷阱 ({col},{row})",
-                        () =>
-                        {
-                            // 有省区时用省会归属，否则退回当前格自身的归属值
-                            trap.SelectedLegionId = provinceBelong >= 0
-                                ? provinceBelong
-                                : (context.MapData?.GetBelongValue(col, row) ?? 0);
-
-                            // Apply 内部会把 SelectedLegionId 写入 Trap.LegionId
-                            trap.Apply(col, row);
-                        },
-                        () =>
-                        {
-                            if (before.HasValue) trap.Apply(col, row, before.Value);
-                            else trap.Remove(col, row);
-                        });
-
-                    context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke(provinceBelong >= 0
-                        ? $"已放置陷阱 ({col},{row})，所属军团={provinceBelong}（省会归属）"
-                        : $"已放置陷阱 ({col},{row})");
-                    return true;
-                }
-            case "trap_copy":
-                {
-                    var trap = context.GetModifier<TrapModifier>();
-                    if (trap == null) return false;
-                    var r = trap.CopyTrap(col, row);
-                    context.RaiseStatusMessage?.Invoke(r.Message);
-                    return r.Success;
-                }
-            case "trap_paste":
-                {
-                    var trap = context.GetModifier<TrapModifier>();
-                    if (trap == null) return false;
-                    var r = trap.PasteTrap(col, row);
-                    context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke(r.Message);
-                    return r.Success;
-                }
-            case "trap_remove":
-                {
-                    var trap = context.GetModifier<TrapModifier>();
-                    if (trap == null) return false;
-
-                    var before = trap.GetTrapAt(col, row);
-                    if (!before.HasValue)
-                    {
-                        context.RaiseStatusMessage?.Invoke("该位置没有陷阱");
-                        return false;
-                    }
-
-                    context.RecordEntityChange($"删除陷阱 ({col},{row})",
-                        () => trap.Remove(col, row),
-                        () => trap.Apply(col, row, before.Value));
-
-                    context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke($"已删除陷阱 ({col},{row})");
-                    return true;
-                }
-            case "trap_generate":
-                {
-                    var trap = context.GetModifier<TrapModifier>();
-                    if (trap == null || context.DialogService == null) return false;
-
-                    var input = await context.DialogService.ShowInputDialogAsync(
-                        "批量生成陷阱", "生成概率（1-100）：", "50", 1, 100);
-                    if (input == null || !int.TryParse(input, out int probability)) return false;
-
-                    // 按概率自由生成：仅跳过海洋/空地与已有建筑的格子，不按归属筛选
-                    var r = trap.GenerateTrapsFree(probability);
-                    context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke(r.Message);
-                    return r.Success;
-                }
-            case "trap_random_levels":
-                {
-                    var trap = context.GetModifier<TrapModifier>();
-                    if (trap == null || context.DialogService == null) return false;
-
-                    // 对齐 VB RandomizeTrapLevels：原版是「军团值」+「随机概率」两次输入，
-                    // 这里合并成一个双输入框；军团值 -1 表示所有军团（底层已支持）。
-                    int suggestedLegion = GetProvinceCapitalBelong(col, row, context);
-                    if (suggestedLegion < 0) suggestedLegion = context.MapData?.GetBelongValue(col, row) ?? -1;
-
-                    var (confirmed, legionText, probText) = await context.DialogService.ShowDoubleInputDialogAsync(
-                        "随机化陷阱等级",
-                        "军团值（-1 为所有军团）：",
-                        "随机概率（1-100）：",
-                        suggestedLegion.ToString(),
-                        "50");
-                    if (!confirmed) return false;
-
-                    if (!int.TryParse(legionText, out int legionValue))
-                    {
-                        context.RaiseStatusMessage?.Invoke("输入的军团值无效");
-                        return false;
-                    }
-                    if (!int.TryParse(probText, out int probability))
-                    {
-                        context.RaiseStatusMessage?.Invoke("输入的随机概率无效");
-                        return false;
-                    }
-
-                    // 原单输入框用 min=1 / max=100 约束，双输入框没有该能力，这里补回
-                    if (probability < 1 || probability > 100)
-                    {
-                        context.RaiseStatusMessage?.Invoke("随机概率需在 1-100 之间");
-                        return false;
-                    }
-
-                    var r = trap.RandomizeTrapLevels(legionValue, probability);
-                    context.NotifyDataModified?.Invoke();
-                    context.RaiseStatusMessage?.Invoke(r.Message);
-                    return r.Success;
-                }
-            case "toggle_brush":
-                {
-                    var brush = army.Brush;
-                    brush.Toggle();
-                    context.RaiseStatusMessage?.Invoke(brush.Active
-                        ? $"单位橡皮擦已开启 - 左键拖动删除单位，半径: {brush.Radius}"
-                        : "单位橡皮擦已关闭");
-                    return true;
-                }
-            case "brush_decrease":
-                army.Brush.DecreaseRadius();
-                context.RaiseStatusMessage?.Invoke($"橡皮擦半径: {army.Brush.Radius}");
-                return true;
-            case "brush_increase":
-                army.Brush.IncreaseRadius();
-                context.RaiseStatusMessage?.Invoke($"橡皮擦半径: {army.Brush.Radius}");
-                return true;
-        }
-
-        if (modified) context.NotifyDataModified?.Invoke();
-        return modified;
+        t.GestureCommand(ModeGesture.LeftClick, "select", "选择单位（Shift 加选 / Ctrl 减选），状态栏显示单位与陷阱信息", ShowHexInfo)
+         .HelpLine("box_select", ModeGesture.RightDrag, "框选单位（Shift 并入 / Ctrl 剔除）")
+         .HelpLine("right_click", ModeGesture.RightClick, "选择单位")
+         .GestureCommand(ModeGesture.Escape, "cancel", "取消多选", CancelMultiSelection)
+         .Command("AD_C", KeyCodes.C, "copy", "复制单位（多选选中时批量复制）", CopyUnits)
+         .Edit("AD_V", KeyCodes.V, "paste", "粘贴单位（有批量复制时按原布局粘贴，以当前格为左上角）", PasteUnits)
+         .Edit("AD_X", KeyCodes.X, "remove", "删除单位（多选选中时批量删除）", RemoveUnits)
+         .Alias("AD_Delete", KeyCodes.Delete, "remove")
+         .Edit("AD_Q", KeyCodes.Q, "open_create", "创建/修改单位", CreateOrEditUnitAsync)
+         .Edit("AD_L", KeyCodes.L, "set_legion", "按归属设置军团", SetLegionFromBelong)
+         .Edit("AD_CQ", KeyChord.Ctrl(KeyCodes.Q), "set_plan_or_event", "多选时设置方案/单选时设置占领事件", SetPlanOrEventAsync)
+         .Edit("AD_E", KeyCodes.E, "legion_strength", "按配置修改军团强度(可指定归属与强度等级)", ModifyStrengthAsync)
+         .Edit("AD_R", KeyCodes.R, "randomize_legion", "随机化军团单位(可指定归属)", RandomizeUnitsAsync)
+         .Edit("AD_I", KeyCodes.I, "generate_by_probability", "按概率生成单位(可指定归属，-1为所有军团)", GenerateUnitsAsync)
+         .Edit("AD_G", KeyCodes.G, "auto_general", "自动分配将领(可指定归属与将领数量)", AssignGeneralsAsync)
+         .Edit("AD_T", KeyCodes.T, "cycle_plan", "循环切换单位方案(0-4)", CyclePlan)
+         .Edit("AD_Y", KeyCodes.Y, "batch_plan_by_legion", "批量修改单位方案(可指定归属与方案值)", BatchPlanAsync)
+         .Edit("AD_SDEL", KeyChord.Shift(KeyCodes.Delete), "remove_by_belong", "删除指定归属的所有单位(可输入归属ID)", RemoveByBelongAsync)
+         .Edit("AD_CSDEL", KeyChord.CtrlShift(KeyCodes.Delete), "remove_all", "删除所有单位（需确认）", RemoveAllUnitsAsync)
+         .Command("AD_CC", KeyChord.Ctrl(KeyCodes.C), "trap_copy", "复制陷阱（格子上没有陷阱时复制单位）", CopyTrapOrUnit)
+         .Edit("AD_CV", KeyChord.Ctrl(KeyCodes.V), "trap_paste", "粘贴陷阱（没有复制的陷阱时粘贴单位）", PasteTrapOrUnit)
+         .Edit("AD_CX", KeyChord.Ctrl(KeyCodes.X), "trap_remove", "删除陷阱（格子上没有陷阱时删除单位）", RemoveTrapOrUnit)
+         .Edit("AD_F", KeyCodes.F, "trap_place", "创建/修改陷阱", PlaceOrEditTrapAsync)
+         .Edit("AD_SF", KeyChord.Shift(KeyCodes.F), "trap_cycle_level", "循环切换陷阱等级(1-4)", CycleTrapLevel)
+         .Edit("AD_SR", KeyChord.Shift(KeyCodes.R), "trap_randomize", "随机化陷阱属性（等级、所属军团、血量）", RandomizeTrap)
+         .Edit("AD_CG", KeyChord.Ctrl(KeyCodes.G), "trap_generate", "按归属与概率批量生成陷阱（跳过建筑格，可选是否包含海洋）", GenerateTrapsAsync)
+         .Edit("AD_CI", KeyChord.Ctrl(KeyCodes.I), "trap_generate_by_province", "每个省份按概率生成一个陷阱", GenerateTrapsByProvinceAsync)
+         .Edit("AD_CR", KeyChord.Ctrl(KeyCodes.R), "trap_random_levels", "随机化陷阱等级(可指定军团值)", RandomizeTrapLevelsAsync)
+         .Command("AD_CF", KeyChord.Ctrl(KeyCodes.F), "trap_find", "按等级查找陷阱（重复查找同一等级时跳到下一个）", FindTrapAsync)
+         .Edit("AD_CDEL", KeyChord.Ctrl(KeyCodes.Delete), "trap_remove_all", "删除所有陷阱（需确认）", RemoveAllTrapsAsync)
+         .Command("AD_H", KeyCodes.H, "toggle_brush", "切换单位橡皮擦画笔（右键拖动批量删除单位）", ToggleEraser)
+         .Command("AD_BrushDec", KeyCodes.OemOpenBrackets, "brush_decrease", "减小橡皮擦半径", a => ResizeEraser(a, -1))
+         .Command("AD_BrushInc", KeyCodes.OemCloseBrackets, "brush_increase", "增大橡皮擦半径", a => ResizeEraser(a, 1));
     }
 
-    /// <summary>
-    /// 获取指定格子所在省份的省会格子归属
-    /// 通过 ProvinceValue 找到省会坐标，然后获取该坐标的归属值
-    /// </summary>
-    private int GetProvinceCapitalBelong(int col, int row, ModeContext context)
+    #region 选择 / 信息
+
+    /// <summary>左键选中格子后在状态栏显示该格的单位与陷阱（VB SelectArmyAt）。</summary>
+    private static bool ShowHexInfo(ModeActionArgs a)
     {
-        // 取值逻辑已提取到 MapData，供放置单位与陷阱生成共用一份
-        return context.MapData?.GetProvinceCapitalBelong(col, row) ?? -1;
+        if (a.Map == null) return false;
+        var parts = new[] { Units(a).DescribeUnitAt(a.Col, a.Row), a.Module<TrapModifier>().DescribeTrapAt(a.Col, a.Row) }
+            .Where(s => s != null);
+        string text = string.Join(Loc.T("Mode.Army.Msg.InfoSeparator", "；"), parts);
+        a.Status(text.Length > 0 ? text : Loc.F("Mode.Army.Msg.EmptyHex", a.Col, a.Row));
+        return true;
     }
 
-    /// <summary>
-    /// 解析批量操作的目标归属：优先取省会归属，其次取当前格归属，都无效时为 -1（全部军团）
-    /// </summary>
-    private int ResolveTargetBelong(ModeContext context, int col, int row)
+    /// <summary>Esc：有多选时先清空多选（VB 单位模式同样先取消框选）；否则交给场景弹出返回确认。</summary>
+    private static bool CancelMultiSelection(ModeActionArgs a)
     {
-        var provinceBelong = GetProvinceCapitalBelong(col, row, context);
-        if (provinceBelong >= 0) return provinceBelong;
-        return context.MapData?.GetBelongValue(col, row) ?? -1;
+        var selector = HexSelector.Instance;
+        if (selector.SelectedCount <= 1) return false;
+        selector.ClearSelection();
+        a.Status(Loc.T("Mode.Army.Msg.SelectionCleared", "已取消多选"));
+        return true;
     }
 
-    /// <summary>
-    /// 按地图版本把操作分发到 v1 / v3 单位修改器
-    /// </summary>
-    private static ModifierResult RunArmyOp(
-        ModeContext context, int col, int row,
-        Func<ArmyModifier, ModifierResult> v1Op,
-        Func<ArmyV3Modifier, ModifierResult> v3Op)
+    #endregion
+
+    #region 单位：复制 / 粘贴 / 删除 / 军团 / 方案
+
+    private static bool CopyUnits(ModeActionArgs a)
     {
-        var mapData = context.MapData;
-        if (mapData == null) return ModifierResult.Fail("地图数据未初始化");
-
-        if (mapData.Header.BtlVersion >= 3)
+        if (a.Map == null) return false;
+        var units = Units(a);
+        var cells = a.TargetCells();
+        if (cells.Count > 1)
         {
-            var v3 = context.GetModifier<ArmyV3Modifier>();
-            return v3 == null ? ModifierResult.Fail("v3单位修改器未初始化") : v3Op(v3);
-        }
-
-        var v1 = context.GetModifier<ArmyModifier>();
-        return v1 == null ? ModifierResult.Fail("单位修改器未初始化") : v1Op(v1);
-    }
-
-    private static List<Army> CollectSelectedArmies(MapData mapData)
-    {
-        var list = new List<Army>();
-        foreach (var hc in HexSelector.Instance.SelectedHexes)
-        {
-            var a = mapData.GetArmyAt(hc.Col, hc.Row);
-            if (a.HasValue) list.Add(a.Value);
-        }
-        return list;
-    }
-
-    private static List<Army_3> CollectSelectedArmiesV3(MapData mapData)
-    {
-        var list = new List<Army_3>();
-        foreach (var hc in HexSelector.Instance.SelectedHexes)
-        {
-            var a = mapData.GetArmyV3At(hc.Col, hc.Row);
-            if (a.HasValue) list.Add(a.Value);
-        }
-        return list;
-    }
-
-    /// <summary>
-    /// 打开单位创建窗口
-    /// </summary>
-    private async void OpenArmyCreateWindow(ModeContext context, int col, int row)
-    {
-        if (context.DialogService == null)
-        {
-            context.RaiseStatusMessage?.Invoke("对话框服务未初始化");
-            return;
-        }
-
-        var mapData = context.MapData;
-        if (mapData == null) return;
-
-        int coord = row * mapData.MapWidth + col;
-
-        // 根据地图版本选择v1或v3单位
-        bool isV3 = mapData.Header.BtlVersion >= 3;
-
-        if (isV3)
-        {
-            var army3 = Army_3.CreateDefault(coord);
-            var (confirmed, resultArmy3) = await context.DialogService.ShowArmySettingV3DialogAsync(army3, isNew: true);
-            if (confirmed)
+            int count = units.CopyArmyGroup(cells);
+            if (count > 0)
             {
-                var provinceBelong = GetProvinceCapitalBelong(col, row, context);
-                var oldBelong = mapData.GetBelongValue(col, row);
-                var armyV3Modifier = context.GetModifier<ArmyV3Modifier>()!;
-                var belong = context.GetModifier<BelongModifier>()!;
-
-                context.RecordEntityChange($"创建v3单位 ({col},{row})",
-                    () =>
-                    {
-                        armyV3Modifier.Apply(col, row, resultArmy3);
-                        if (provinceBelong >= 0)
-                        {
-                            belong.SetBelongByCountryId(col, row, provinceBelong);
-                        }
-                    },
-                    () =>
-                    {
-                        armyV3Modifier.Remove(col, row);
-                        belong.SetBelongByCountryId(col, row, oldBelong);
-                    });
-
-                context.NotifyDataModified?.Invoke();
-                context.RaiseStatusMessage?.Invoke($"已创建v3单位 at ({col},{row})");
+                a.Status(Loc.F("Mode.Army.Msg.GroupCopied", count));
+                return true;
             }
         }
-        else
-        {
-            var army = Army.CreateDefault(coord);
-            var (confirmed, resultArmy) = await context.DialogService.ShowArmySettingDialogAsync(army, isNew: true);
-            if (confirmed)
-            {
-                var provinceBelong = GetProvinceCapitalBelong(col, row, context);
-                var oldBelong = mapData.GetBelongValue(col, row);
-                var armyModifier = context.GetModifier<ArmyModifier>()!;
-                var belong = context.GetModifier<BelongModifier>()!;
-
-                context.RecordEntityChange($"创建单位 ({col},{row})",
-                    () =>
-                    {
-                        armyModifier.Apply(col, row, resultArmy);
-                        if (provinceBelong >= 0)
-                        {
-                            belong.SetBelongByCountryId(col, row, provinceBelong);
-                        }
-                    },
-                    () =>
-                    {
-                        armyModifier.Remove(col, row);
-                        belong.SetBelongByCountryId(col, row, oldBelong);
-                    });
-
-                context.NotifyDataModified?.Invoke();
-                context.RaiseStatusMessage?.Invoke($"已创建单位 at ({col},{row})");
-            }
-        }
+        return Report(a, units.CopyArmy(a.Col, a.Row));
     }
+
+    /// <summary>粘贴：有多选复制时按原布局粘贴，否则粘贴单格复制；目标格归属与 LegionId 取省会归属（省会无归属时不改）。</summary>
+    private static bool PasteUnits(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        var units = Units(a);
+        if (units.HasCopiedArmyGroup)
+            return ChangeMap(a, Loc.F("Mode.Army.Undo.PasteGroup", a.Col, a.Row), () => units.PasteArmyGroup(a.Col, a.Row, autoBelong: true));
+        return ChangeCells(a, Loc.F("Mode.Army.Undo.Paste", a.Col, a.Row), [a.Cell], () => units.PasteArmy(a.Col, a.Row, autoBelong: true));
+    }
+
+    /// <summary>删除目标格（多选时为整个选区）上的单位。不再顺带把格子归属清成 0xFF（VB 从不这样做）。</summary>
+    private static bool RemoveUnits(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        var cells = a.TargetCells();
+        return ChangeCells(a, Loc.F("Mode.Army.Undo.Remove", a.Col, a.Row), cells, () => Units(a).RemoveUnits(cells));
+    }
+
+    private static bool SetLegionFromBelong(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        var cells = a.TargetCells();
+        return ChangeCells(a, Loc.F("Mode.Army.Undo.SetLegion", a.Col, a.Row), cells, () => Units(a).SetLegionIdFromBelong(cells));
+    }
+
+    private static bool CyclePlan(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        var cells = a.TargetCells();
+        return ChangeCells(a, Loc.F("Mode.Army.Undo.CyclePlan", a.Col, a.Row), cells, () => Units(a).CyclePlan(cells));
+    }
+
+    #endregion
+
+    #region 单位：Q 创建 / 修改
+
+    /// <summary>
+    /// Q：格子上有单位时用设置窗口编辑它（取消不改任何东西，撤销恢复原单位），没有时以默认值新建
+    /// （新单位的 LegionId 与格子归属取省会归属）。窗口里改了坐标且目标格为空时，单位移动过去。
+    /// </summary>
+    private static async Task<bool> CreateOrEditUnitAsync(ModeActionArgs a)
+    {
+        if (a.Map is not { } map) return false;
+        if (a.Dialogs is not { } dialogs) return NoDialog(a);
+
+        return map.Header.UsesV3Records
+            ? await EditUnitAsync(a, a.Module<ArmyV3Modifier>(), dialogs.ShowArmySettingV3DialogAsync)
+            : await EditUnitAsync(a, a.Module<ArmyModifier>(), dialogs.ShowArmySettingDialogAsync);
+    }
+
+    private static async Task<bool> EditUnitAsync<TUnit>(ModeActionArgs a, ArmyModifierBase<TUnit> module,
+        Func<TUnit, bool, Task<(bool confirmed, TUnit unit)>> showDialog) where TUnit : struct
+    {
+        var existing = module.GetUnitAt(a.Col, a.Row);
+        bool isNew = existing == null;
+        var (confirmed, edited) = await showDialog(existing ?? module.CreateUnitTemplate(a.Col, a.Row), isNew);
+        if (!confirmed) return false;
+
+        var cell = a.Cell;
+        var dest = module.CoordOf(edited);
+        string? moveNote = null;
+        if (dest != cell && (!InMap(a.Map!, dest) || module.HasUnitAt(dest.Col, dest.Row)))
+        {
+            if (InMap(a.Map!, dest)) moveNote = Loc.F("Mode.Army.Msg.MoveBlocked", dest.Col, dest.Row);
+            dest = cell;
+        }
+
+        string message = isNew ? Loc.F("Mode.Army.Msg.UnitCreated", dest.Col, dest.Row)
+                       : dest != cell ? Loc.F("Mode.Army.Msg.UnitMoved", dest.Col, dest.Row)
+                       : Loc.F("Mode.Army.Msg.UnitUpdated", dest.Col, dest.Row);
+        if (moveNote != null) message += Loc.T("Mode.Army.Msg.InfoSeparator", "；") + moveNote;
+
+        string undo = isNew ? Loc.F("Mode.Army.Undo.CreateUnit", dest.Col, dest.Row) : Loc.F("Mode.Army.Undo.EditUnit", a.Col, a.Row);
+        HexCoord[] cells = dest == cell ? [cell] : [cell, dest];
+        return ChangeCells(a, undo, cells, () =>
+        {
+            if (dest != cell) module.Remove(cell.Col, cell.Row);
+            return module.PlaceUnit(dest.Col, dest.Row, edited, autoBelong: isNew);
+        }, message);
+    }
+
+    #endregion
+
+    #region 单位：Ctrl+Q 方案 / 占领事件
+
+    /// <summary>
+    /// Ctrl+Q：多选时为选中单位输入方案值；单选 v1 单位时输入占领触发事件序号，
+    /// 并把该序号对应事件的触发条件改为"部队触发"（VB SetArmyOccupationEventById）。
+    /// v3 单位没有占领事件字段，单选时也走方案输入。
+    /// </summary>
+    private static async Task<bool> SetPlanOrEventAsync(ModeActionArgs a)
+    {
+        if (a.Map is not { } map) return false;
+        if (a.Dialogs == null) return NoDialog(a);
+
+        var cells = a.TargetCells();
+        return cells.Count == 1 && !map.Header.UsesV3Records
+            ? await SetOccupationEventAsync(a)
+            : await SetPlanAsync(a, cells);
+    }
+
+    private static async Task<bool> SetPlanAsync(ModeActionArgs a, IReadOnlyList<HexCoord> cells)
+    {
+        var units = Units(a);
+        var first = cells.Select(c => units.GetFieldsAt(c.Col, c.Row)).FirstOrDefault(f => f.HasValue);
+        if (first == null)
+        {
+            a.Status(Loc.T("Module.Army.NoUnit", "该位置没有单位"));
+            return false;
+        }
+
+        string? input = await a.Dialogs!.ShowInputDialogAsync(
+            Loc.T("Mode.Army.Dialog.PlanTitle", "设置单位方案"),
+            Loc.F("Mode.Army.Dialog.PlanPrompt", cells.Count),
+            first.Value.Plan.ToString(), 0, 4);
+        if (input == null) return false;
+        if (!TryParse(input, 0, 4, out int plan)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidPlan", "方案值需在 0-4 之间"));
+
+        return ChangeCells(a, Loc.F("Mode.Army.Undo.SetPlan", a.Col, a.Row), cells, () => units.SetPlan(cells, plan));
+    }
+
+    private static async Task<bool> SetOccupationEventAsync(ModeActionArgs a)
+    {
+        var map = a.Map!;
+        var army = a.Module<ArmyModifier>();
+        byte? current = army.GetOccupationEvent(a.Col, a.Row);
+        if (current == null)
+        {
+            a.Status(Loc.T("Module.Army.NoUnit", "该位置没有单位"));
+            return false;
+        }
+
+        string? input = await a.Dialogs!.ShowInputDialogAsync(
+            Loc.T("Mode.Army.Dialog.EventTitle", "设置占领触发事件"),
+            Loc.T("Mode.Army.Dialog.EventPrompt", "事件序号（0-255，0 表示不触发事件）："),
+            current.Value.ToString(), 0, 255);
+        if (input == null) return false;
+        if (!TryParse(input, 0, 255, out int eventId)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidEvent", "事件序号需在 0-255 之间"));
+
+        var events = a.Module<EventModifier>();
+        bool linked = false;
+        ModifierResult result = default;
+        a.Context.Owner.RecordEntitiesSnapshot(Loc.F("Mode.Army.Undo.SetEvent", a.Col, a.Row), () =>
+        {
+            result = army.SetOccupationEvent(a.Col, a.Row, (byte)eventId);
+            int index = result.Success && eventId != 0 ? events.GetEventIndex(eventId) : -1;
+            if (index < 0) return;
+            linked = true;
+            var mapEvent = map.Events[index];
+            mapEvent.TriggerCondition = 1;
+            events.UpdateEvent(index, mapEvent);
+        });
+
+        a.Status(!result.Success ? result.Message ?? ""
+               : eventId == 0 ? Loc.T("Mode.Army.Msg.EventCleared", "已清除单位的占领触发事件")
+               : linked ? Loc.F("Mode.Army.Msg.EventLinked", eventId)
+               : Loc.F("Mode.Army.Msg.EventMissing", eventId));
+        return result.Success;
+    }
+
+    #endregion
+
+    #region 单位：整图批量（E / R / I / G / Y / Shift+Delete / Ctrl+Shift+Delete）
+
+    private static async Task<bool> ModifyStrengthAsync(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        if (a.Dialogs == null) return NoDialog(a);
+
+        // 强度等级范围从配置动态获取，对齐 VB 的 configs.Min(c => c.Id) / Max(c => c.Id)
+        var levelConfigs = ConfigManager.Instance.GetAllLegionLevelConfigs();
+        int minLevel = levelConfigs.Count > 0 ? levelConfigs.Min(c => c.Id) : 1;
+        int maxLevel = levelConfigs.Count > 0 ? levelConfigs.Max(c => c.Id) : 1;
+
+        var (confirmed, belongText, levelText) = await a.Dialogs.ShowDoubleInputDialogAsync(
+            Loc.T("Mode.Army.Dialog.StrengthTitle", "修改军团强度"),
+            Loc.T("Mode.Army.Dialog.BelongAllPrompt", "归属值（-1 为所有军团）："),
+            Loc.F("Mode.Army.Dialog.StrengthLevelPrompt", minLevel, maxLevel),
+            SuggestedBelong(a).ToString(), minLevel.ToString());
+        if (!confirmed) return false;
+
+        if (!TryParse(belongText, -1, 255, out int belong)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidBelong", "归属值需在 -1 到 255 之间"));
+        if (!int.TryParse(levelText?.Trim(), out int level) || (level != -1 && (level < minLevel || level > maxLevel)))
+        {
+            // 对齐 VB：校验失败时列出全部可用等级，方便选择
+            string available = string.Join(", ", levelConfigs.Select(c => $"{c.Id}={c.Name}"));
+            return Invalid(a, Loc.F("Mode.Army.Msg.InvalidStrengthLevel", minLevel, maxLevel, available));
+        }
+
+        return ChangeMapForBelong(a, Loc.T("Mode.Army.Undo.Strength", "修改军团强度"), belong, () => Units(a).ModifyLegionStrength(belong, level));
+    }
+
+    private static async Task<bool> RandomizeUnitsAsync(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        if (a.Dialogs == null) return NoDialog(a);
+
+        // 对齐 VB RandomizeLegionArmies：只有一个归属参数，用单输入框（-1 为全部军团）
+        string? input = await a.Dialogs.ShowInputDialogAsync(
+            Loc.T("Mode.Army.Dialog.RandomizeTitle", "随机化军团单位"),
+            Loc.T("Mode.Army.Dialog.BelongAllPrompt", "归属值（-1 为所有军团）："),
+            SuggestedBelong(a).ToString());
+        if (input == null) return false;
+        if (!TryParse(input, -1, 255, out int belong)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidBelong", "归属值需在 -1 到 255 之间"));
+
+        return ChangeMapForBelong(a, Loc.T("Mode.Army.Undo.Randomize", "随机化军团单位"), belong, () => Units(a).RandomizeLegionArmies(belong));
+    }
+
+    private static async Task<bool> GenerateUnitsAsync(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        if (a.Dialogs == null) return NoDialog(a);
+
+        var (confirmed, belongText, probText) = await a.Dialogs.ShowDoubleInputDialogAsync(
+            Loc.T("Mode.Army.Dialog.GenerateTitle", "按概率生成单位"),
+            Loc.T("Mode.Army.Dialog.BelongAllPrompt", "归属值（-1 为所有军团）："),
+            Loc.T("Mode.Army.Dialog.ProbabilityPrompt", "生成概率（0-100）："),
+            SuggestedBelong(a).ToString(), "50");
+        if (!confirmed) return false;
+
+        if (!TryParse(belongText, -1, 255, out int belong)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidBelong", "归属值需在 -1 到 255 之间"));
+        if (!TryParse(probText, 0, 100, out int probability)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidProbability", "概率需在 0-100 之间"));
+
+        return ChangeMapForBelong(a, Loc.T("Mode.Army.Undo.Generate", "按概率生成单位"), belong, () => Units(a).GenerateArmiesByProbability(belong, probability));
+    }
+
+    /// <summary>G：归属 + 将领数量，再依次确认"是否清除现有将领""是否让将领适配单位"（VB AutoAssignGeneralsToArmies）。</summary>
+    private static async Task<bool> AssignGeneralsAsync(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        if (a.Dialogs is not { } dialogs) return NoDialog(a);
+
+        var (confirmed, belongText, countText) = await dialogs.ShowDoubleInputDialogAsync(
+            Loc.T("Mode.Army.Dialog.GeneralsTitle", "自动分配将领"),
+            Loc.T("Mode.Army.Dialog.BelongAllPrompt", "归属值（-1 为所有军团）："),
+            Loc.T("Mode.Army.Dialog.GeneralCountPrompt", "将领数量（-1 为最大数量）："),
+            SuggestedBelong(a).ToString(), "-1");
+        if (!confirmed) return false;
+
+        if (!TryParse(belongText, -1, 255, out int belong)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidBelong", "归属值需在 -1 到 255 之间"));
+        if (!TryParse(countText, -1, int.MaxValue, out int count)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidGeneralCount", "将领数量需为 -1 或非负整数"));
+
+        bool clearExisting = await dialogs.ShowConfirmDialogAsync(
+            Loc.T("Mode.Army.Dialog.ClearGeneralsTitle", "清除现有将领"),
+            Loc.T("Mode.Army.Dialog.ClearGeneralsMessage", "是否清除现有单位上的将领？\n\n选择【是】：清除现有将领，拥有将领的单位也会重新分配新将领\n选择【否】：保留现有将领，跳过已有将领的单位"),
+            Loc.T("Common.Yes", "是"), Loc.T("Common.No", "否"));
+        bool adaptToUnits = await dialogs.ShowConfirmDialogAsync(
+            Loc.T("Mode.Army.Dialog.AdaptGeneralsTitle", "将领适配单位"),
+            Loc.T("Mode.Army.Dialog.AdaptGeneralsMessage", "是否让将领适配单位？\n\n选择【是】：将领按专长匹配对应类型的单位（步兵将领->步兵单位）\n选择【否】：尽可能分配所有将领，不匹配时随机分配单位类型"),
+            Loc.T("Common.Yes", "是"), Loc.T("Common.No", "否"));
+
+        return ChangeMapForBelong(a, Loc.T("Mode.Army.Undo.Generals", "自动分配将领"), belong,
+            () => Units(a).AssignGenerals(belong, count, clearExisting, adaptToUnits));
+    }
+
+    private static async Task<bool> BatchPlanAsync(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        if (a.Dialogs == null) return NoDialog(a);
+
+        // 对齐 VB BatchModifyArmyPlanByLegion 的双输入框：归属值 -1 表示所有军团，方案值 -1 表示随机
+        var (confirmed, belongText, planText) = await a.Dialogs.ShowDoubleInputDialogAsync(
+            Loc.T("Mode.Army.Dialog.BatchPlanTitle", "批量修改单位方案"),
+            Loc.T("Mode.Army.Dialog.BelongAllPrompt", "归属值（-1 为所有军团）："),
+            Loc.T("Mode.Army.Dialog.BatchPlanPrompt", "方案值（0-4，-1 为随机）："),
+            SuggestedBelong(a).ToString(), "-1");
+        if (!confirmed) return false;
+
+        if (!TryParse(belongText, -1, 255, out int belong)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidBelong", "归属值需在 -1 到 255 之间"));
+        if (!TryParse(planText, -1, 4, out int plan)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidBatchPlan", "方案值需在 0-4 之间，或输入 -1（随机）"));
+
+        return ChangeMapForBelong(a, Loc.T("Mode.Army.Undo.BatchPlan", "批量修改单位方案"), belong, () => Units(a).BatchModifyArmyPlanByLegion(belong, plan));
+    }
+
+    /// <summary>Shift+Delete：删除归属为输入值的所有单位（单位的归属 = 所在格子的归属值）。</summary>
+    private static async Task<bool> RemoveByBelongAsync(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        if (a.Dialogs is not { } dialogs) return NoDialog(a);
+
+        string? input = await dialogs.ShowInputDialogAsync(
+            Loc.T("Mode.Army.Dialog.RemoveByBelongTitle", "删除指定归属的所有单位"),
+            Loc.T("Mode.Army.Dialog.RemoveByBelongPrompt", "归属值（按单位所在格子的归属匹配）："),
+            Math.Max(0, SuggestedBelong(a)).ToString(), 0, 255);
+        if (input == null) return false;
+        if (!TryParse(input, 0, 255, out int belong)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidOwner", "归属值需在 0-255 之间"));
+
+        bool sure = await dialogs.ShowConfirmDialogAsync(
+            Loc.T("Mode.Army.Dialog.RemoveByBelongTitle", "删除指定归属的所有单位"),
+            Loc.F("Mode.Army.Dialog.RemoveByBelongConfirm", belong),
+            Loc.T("Common.Delete", "删除"), Loc.T("Common.Cancel", "取消"));
+        if (!sure) return false;
+
+        return ChangeMap(a, Loc.F("Mode.Army.Undo.RemoveByBelong", belong), () => Units(a).DeleteArmiesByBelong(belong));
+    }
+
+    /// <summary>Ctrl+Shift+Delete：确认后删除全部单位（v1 与 v3 两张表；VB 里是无选区时按 Delete）。</summary>
+    private static async Task<bool> RemoveAllUnitsAsync(ModeActionArgs a)
+    {
+        if (a.Map is not { } map) return false;
+        if (a.Dialogs is not { } dialogs) return NoDialog(a);
+
+        int total = map.Armies.Count + map.ArmiesV3.Count;
+        if (total == 0)
+        {
+            a.Status(Loc.T("Mode.Army.Msg.NoUnits", "地图上没有单位"));
+            return false;
+        }
+
+        bool sure = await dialogs.ShowConfirmDialogAsync(
+            Loc.T("Mode.Army.Dialog.RemoveAllTitle", "删除所有单位"),
+            Loc.F("Mode.Army.Dialog.RemoveAllConfirm", total),
+            Loc.T("Common.Delete", "删除"), Loc.T("Common.Cancel", "取消"));
+        if (!sure) return false;
+
+        return ChangeMap(a, Loc.T("Mode.Army.Undo.RemoveAll", "删除所有单位"), () =>
+        {
+            a.Module<ArmyModifier>().DeleteAllArmies();
+            a.Module<ArmyV3Modifier>().DeleteAllArmies();
+            return ModifierResult.Ok(Loc.F("Module.Army.AllDeleted", total), total);
+        });
+    }
+
+    #endregion
+
+    #region 陷阱
+
+    /// <summary>
+    /// Ctrl+C：格子上有陷阱时复制陷阱，否则复制单位。复制单位成功时清空陷阱剪贴板，
+    /// 这样 Ctrl+V 粘贴的总是最近一次 Ctrl+C 复制的东西（VB 里取决于陷阱剪贴板是否残留旧内容）。
+    /// </summary>
+    private static bool CopyTrapOrUnit(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        var trap = a.Module<TrapModifier>();
+        if (trap.GetTrapAt(a.Col, a.Row).HasValue) return Report(a, trap.CopyTrap(a.Col, a.Row));
+        if (!CopyUnits(a)) return false;
+        trap.ClearCopiedTrap();
+        return true;
+    }
+
+    private static bool PasteTrapOrUnit(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        var trap = a.Module<TrapModifier>();
+        if (!trap.HasCopiedTrap) return PasteUnits(a);
+        return ChangeCells(a, Loc.F("Mode.Army.Undo.PasteTrap", a.Col, a.Row), [a.Cell], () => trap.PasteTrap(a.Col, a.Row));
+    }
+
+    private static bool RemoveTrapOrUnit(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        var trap = a.Module<TrapModifier>();
+        var cells = a.TargetCells();
+        if (!cells.Any(c => trap.GetTrapAt(c.Col, c.Row).HasValue)) return RemoveUnits(a);
+        return ChangeCells(a, Loc.F("Mode.Army.Undo.RemoveTrap", a.Col, a.Row), cells, () => trap.RemoveTraps(cells));
+    }
+
+    /// <summary>F：空格放一个 1 级陷阱（所属军团按本格归属推断，建筑格拒绝）；已有陷阱时打开陷阱设置窗口修改。</summary>
+    private static async Task<bool> PlaceOrEditTrapAsync(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        var trap = a.Module<TrapModifier>();
+        var existing = trap.GetTrapAt(a.Col, a.Row);
+        if (existing == null)
+            return ChangeCells(a, Loc.F("Mode.Army.Undo.PlaceTrap", a.Col, a.Row), [a.Cell], () => trap.CreateTrapAt(a.Col, a.Row));
+
+        if (a.Dialogs == null) return NoDialog(a);
+        var (confirmed, edited) = await a.Dialogs.ShowTrapSettingDialogAsync(existing.Value, isNew: false);
+        if (!confirmed) return false;
+
+        return ChangeCells(a, Loc.F("Mode.Army.Undo.EditTrap", a.Col, a.Row), [a.Cell], () => trap.Apply(a.Col, a.Row, edited),
+            Loc.F("Mode.Army.Msg.TrapEdited", a.Col, a.Row, edited.Organization, edited.LegionId, edited.Health));
+    }
+
+    private static bool CycleTrapLevel(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        return ChangeCells(a, Loc.F("Mode.Army.Undo.TrapLevel", a.Col, a.Row), [a.Cell],
+            () => a.Module<TrapModifier>().CycleTrapLevel(a.Col, a.Row));
+    }
+
+    private static bool RandomizeTrap(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        return ChangeCells(a, Loc.F("Mode.Army.Undo.RandomizeTrap", a.Col, a.Row), [a.Cell],
+            () => a.Module<TrapModifier>().RandomizeTrapAttributes(a.Col, a.Row));
+    }
+
+    /// <summary>Ctrl+G：归属值（-1 = 所有归属）+ 概率，再确认是否包含海洋格（VB 按归属生成，C# 早先改成了不分归属的自由生成）。</summary>
+    private static async Task<bool> GenerateTrapsAsync(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        if (a.Dialogs is not { } dialogs) return NoDialog(a);
+
+        var (confirmed, belongText, probText) = await dialogs.ShowDoubleInputDialogAsync(
+            Loc.T("Mode.Army.Dialog.TrapGenerateTitle", "批量生成陷阱"),
+            Loc.T("Mode.Army.Dialog.BelongAllPrompt", "归属值（-1 为所有军团）："),
+            Loc.T("Mode.Army.Dialog.ProbabilityPrompt", "生成概率（0-100）："),
+            SuggestedBelong(a).ToString(), "50");
+        if (!confirmed) return false;
+
+        if (!TryParse(belongText, -1, 255, out int belong)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidBelong", "归属值需在 -1 到 255 之间"));
+        if (!TryParse(probText, 0, 100, out int probability)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidProbability", "概率需在 0-100 之间"));
+
+        bool includeSea = await dialogs.ShowConfirmDialogAsync(
+            Loc.T("Mode.Army.Dialog.TrapGenerateTitle", "批量生成陷阱"),
+            Loc.T("Mode.Army.Dialog.TrapIncludeSea", "是否也在海洋格上生成陷阱（水雷）？"),
+            Loc.T("Common.Yes", "是"), Loc.T("Common.No", "否"));
+
+        return ChangeTraps(a, Loc.T("Mode.Army.Undo.TrapGenerate", "批量生成陷阱"),
+            () => a.Module<TrapModifier>().GenerateTraps(belong, probability, includeSea));
+    }
+
+    private static async Task<bool> GenerateTrapsByProvinceAsync(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        if (a.Dialogs == null) return NoDialog(a);
+
+        string? input = await a.Dialogs.ShowInputDialogAsync(
+            Loc.T("Mode.Army.Dialog.TrapByProvinceTitle", "按省份生成陷阱"),
+            Loc.T("Mode.Army.Dialog.TrapByProvincePrompt", "每个省份生成一个陷阱的概率（0-100）："),
+            "10", 0, 100);
+        if (input == null) return false;
+        if (!TryParse(input, 0, 100, out int probability)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidProbability", "概率需在 0-100 之间"));
+
+        return ChangeTraps(a, Loc.T("Mode.Army.Undo.TrapByProvince", "按省份生成陷阱"),
+            () => a.Module<TrapModifier>().GenerateTrapsByProvince(probability));
+    }
+
+    /// <summary>Ctrl+R：军团值（陷阱的所属军团 ActionId，-1 = 所有陷阱）+ 每个陷阱的重抽概率。</summary>
+    private static async Task<bool> RandomizeTrapLevelsAsync(ModeActionArgs a)
+    {
+        if (a.Map is not { } map) return false;
+        if (a.Dialogs == null) return NoDialog(a);
+
+        var trap = a.Module<TrapModifier>();
+        int suggested = ArmyPlacementRules.ResolveOwner(map, a.Col, a.Row) >= 0 ? trap.ResolveTrapLegion(a.Col, a.Row) : -1;
+        var (confirmed, legionText, probText) = await a.Dialogs.ShowDoubleInputDialogAsync(
+            Loc.T("Mode.Army.Dialog.TrapLevelsTitle", "随机化陷阱等级"),
+            Loc.T("Mode.Army.Dialog.TrapLegionPrompt", "军团值（-1 为所有军团）："),
+            Loc.T("Mode.Army.Dialog.TrapLevelsProbability", "随机概率（1-100）："),
+            suggested.ToString(), "50");
+        if (!confirmed) return false;
+
+        if (!TryParse(legionText, -1, short.MaxValue, out int legion)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidLegion", "输入的军团值无效"));
+        if (!TryParse(probText, 1, 100, out int probability)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidProbability1", "随机概率需在 1-100 之间"));
+
+        return ChangeTraps(a, Loc.T("Mode.Army.Undo.TrapLevels", "随机化陷阱等级"), () => trap.RandomizeTrapLevels(legion, probability));
+    }
+
+    /// <summary>Ctrl+F：输入等级，选中并把视野移到下一个该等级的陷阱。</summary>
+    private async Task<bool> FindTrapAsync(ModeActionArgs a)
+    {
+        if (a.Map == null) return false;
+        if (a.Dialogs == null) return NoDialog(a);
+
+        string? input = await a.Dialogs.ShowInputDialogAsync(
+            Loc.T("Mode.Army.Dialog.TrapFindTitle", "查找陷阱"),
+            Loc.T("Mode.Army.Dialog.TrapFindPrompt", "陷阱等级（编制）："),
+            _findLevel.ToString(), 0, short.MaxValue);
+        if (input == null) return false;
+        if (!TryParse(input, 0, short.MaxValue, out int level)) return Invalid(a, Loc.T("Mode.Army.Msg.InvalidTrapLevel", "输入的陷阱等级无效"));
+
+        var matches = a.Module<TrapModifier>().FindTrapsByLevel(level);
+        if (matches.Count == 0)
+        {
+            a.Status(Loc.F("Mode.Army.Msg.TrapNotFound", level));
+            return false;
+        }
+
+        _findIndex = level == _findLevel ? (_findIndex + 1) % matches.Count : 0;
+        _findLevel = level;
+        var hit = matches[_findIndex];
+        HexSelector.Instance.Select(hit);
+        a.Context.NotifyMoveCameraToHex?.Invoke(hit.Col, hit.Row);
+        a.Status(Loc.F("Mode.Army.Msg.TrapFound", level, _findIndex + 1, matches.Count, hit.Col, hit.Row));
+        return true;
+    }
+
+    private static async Task<bool> RemoveAllTrapsAsync(ModeActionArgs a)
+    {
+        if (a.Map is not { } map) return false;
+        if (a.Dialogs is not { } dialogs) return NoDialog(a);
+
+        if (map.Traps.Count == 0)
+        {
+            a.Status(Loc.T("Mode.Army.Msg.NoTraps", "地图上没有陷阱"));
+            return false;
+        }
+
+        bool sure = await dialogs.ShowConfirmDialogAsync(
+            Loc.T("Mode.Army.Dialog.RemoveAllTrapsTitle", "删除所有陷阱"),
+            Loc.F("Mode.Army.Dialog.RemoveAllTrapsConfirm", map.Traps.Count),
+            Loc.T("Common.Delete", "删除"), Loc.T("Common.Cancel", "取消"));
+        if (!sure) return false;
+
+        return ChangeTraps(a, Loc.T("Mode.Army.Undo.RemoveAllTraps", "删除所有陷阱"), () => a.Module<TrapModifier>().DeleteAllTraps());
+    }
+
+    #endregion
+
+    #region 橡皮擦
+
+    /// <summary>
+    /// H：开关单位橡皮擦。开关、画笔设置窗口与预览都由场景处理（与地形画笔一致），这里只发通知。
+    /// 场景开启时的提示（共享翻译 Render.Status.EraserOn）写的是"左键拖动"，实际擦除用右键，开启后用本模式的提示覆盖。
+    /// </summary>
+    private static bool ToggleEraser(ModeActionArgs a)
+    {
+        a.Context.NotifyBrushToggled?.Invoke();
+        var brush = a.Module<ArmyModifier>().Brush;
+        if (brush.Active) a.Status(Loc.F("Mode.Army.Msg.EraserOn", brush.Radius));
+        return true;
+    }
+
+    private static bool ResizeEraser(ModeActionArgs a, int delta)
+    {
+        var brush = a.Module<ArmyModifier>().Brush;
+        if (delta < 0) brush.DecreaseRadius();
+        else brush.IncreaseRadius();
+        a.Status(Loc.F("Mode.Army.Msg.EraserRadius", brush.Radius));
+        a.Context.NotifyBrushSizeChanged?.Invoke();
+        return true;
+    }
+
+    #endregion
+
+    #region 辅助
+
+    /// <summary>按地图版本取单位模块：BtlVersion &gt;= 3 用 v3 单位表。</summary>
+    private static IArmyModule Units(ModeActionArgs a)
+        => a.Map!.Header.UsesV3Records ? a.Module<ArmyV3Modifier>() : a.Module<ArmyModifier>();
+
+    /// <summary>批量对话框里的建议归属：省会归属优先，其次当前格归属，都没有时 -1（全部）。</summary>
+    private static int SuggestedBelong(ModeActionArgs a) => ArmyPlacementRules.ResolveOwner(a.Map!, a.Col, a.Row);
+
+    private static bool InMap(MapData map, HexCoord c) => c.Col >= 0 && c.Row >= 0 && c.Col < map.MapWidth && c.Row < map.MapHeight;
+
+    private static bool Report(ModeActionArgs a, ModifierResult result)
+    {
+        a.Status(result.Message ?? "");
+        return result.Success;
+    }
+
+    private static bool NoDialog(ModeActionArgs a)
+    {
+        a.Status(Loc.T("Mode.Army.Msg.NoDialog", "对话框服务未初始化"));
+        return false;
+    }
+
+    private static bool Invalid(ModeActionArgs a, string message)
+    {
+        a.Status(message);
+        return false;
+    }
+
+    private static bool TryParse(string? text, int min, int max, out int value)
+        => int.TryParse(text?.Trim(), out value) && value >= min && value <= max;
+
+    /// <summary>
+    /// 修改若干格子并记录撤销：前后各拍一份 <see cref="ArmyHexState"/>（单位、陷阱、归属，含列表位置）。
+    /// 模块返回失败或数据没有变化时不记录；状态栏显示 <paramref name="successMessage"/>（缺省为模块消息）。
+    /// </summary>
+    private static bool ChangeCells(ModeActionArgs a, string undoText, IReadOnlyCollection<HexCoord> cells,
+        Func<ModifierResult> change, string? successMessage = null)
+    {
+        var map = a.Map!;
+        var before = ArmyHexState.Capture(map, cells);
+        var result = change();
+        if (!result.Success) return Report(a, result);
+
+        a.Status(successMessage ?? result.Message ?? "");
+        var after = ArmyHexState.Capture(map, cells);
+        if (after.SameAs(before)) return false;
+        a.Context.RecordEntityChange(undoText, () => after.Restore(map), () => before.Restore(map));
+        return true;
+    }
+
+    /// <summary>整图批量修改单位（同时可能改到格子归属、军团系数）：用全部实体 + 省份 + 归属快照记录撤销。</summary>
+    private static bool ChangeMap(ModeActionArgs a, string undoText, Func<ModifierResult> change)
+    {
+        ModifierResult result = default;
+        a.Context.Owner.RecordEntitiesSnapshot(undoText, () => result = change());
+        return Report(a, result);
+    }
+
+    /// <summary>同 <see cref="ChangeMap"/>，状态栏消息前加上"所有军团 / 归属 [N]"。</summary>
+    private static bool ChangeMapForBelong(ModeActionArgs a, string undoText, int belong, Func<ModifierResult> change)
+    {
+        ModifierResult result = default;
+        a.Context.Owner.RecordEntitiesSnapshot(undoText, () => result = change());
+        string message = result.Message ?? "";
+        a.Status(belong < 0 ? Loc.F("Mode.Army.Msg.AllLegions", message) : Loc.F("Mode.Army.Msg.ForBelong", belong, message));
+        return result.Success;
+    }
+
+    /// <summary>批量修改陷阱列表：只快照陷阱表记录撤销。</summary>
+    private static bool ChangeTraps(ModeActionArgs a, string undoText, Func<ModifierResult> change)
+    {
+        ModifierResult result = default;
+        a.Context.RecordCollectionChange(undoText, a.Map!.Traps, () => result = change());
+        return Report(a, result);
+    }
+
+    #endregion
 }

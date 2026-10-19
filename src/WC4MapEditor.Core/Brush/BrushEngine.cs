@@ -1,10 +1,26 @@
 namespace WC4MapEditor.Core.Brush;
 
+/// <summary>
+/// 画笔：开关、半径、形状与"画笔覆盖哪些格子"的几何计算。
+/// 地形 / 省份 / 归属 / 单位四个模块共用这一份，半径上限也只在这里定义一次。
+/// </summary>
 public sealed class BrushEngine
 {
+    /// <summary>
+    /// 画笔半径上限。[ ] 键、画笔设置窗口的输入框与各模块的半径属性都按它钳位
+    /// （以前 ] 键封顶 20 而窗口能输入任意值，窗口里设成 30 后按一下 ] 反而缩回 20）。
+    /// </summary>
+    public const int MaxRadius = 20;
+
+    /// <summary>形状标识值：与渲染层、画笔设置窗口比较用，不是界面文字，不能翻译。</summary>
+    public const string ShapeCircle = "圆形";
+
+    /// <inheritdoc cref="ShapeCircle"/>
+    public const string ShapeSquare = "方形";
+
     private bool _active;
     private int _radius;
-    private string _shape = "圆形";
+    private string _shape = ShapeCircle;
 
     public bool Active
     {
@@ -15,7 +31,7 @@ public sealed class BrushEngine
     public int Radius
     {
         get => _radius;
-        set => _radius = Math.Max(0, value);
+        set => _radius = ClampRadius(value);
     }
 
     public string Shape
@@ -23,6 +39,9 @@ public sealed class BrushEngine
         get => _shape;
         set => _shape = value;
     }
+
+    /// <summary>把半径夹到 0 ~ <see cref="MaxRadius"/>。</summary>
+    public static int ClampRadius(int radius) => Math.Clamp(radius, 0, MaxRadius);
 
     public bool Toggle()
     {
@@ -32,17 +51,17 @@ public sealed class BrushEngine
 
     public void IncreaseRadius()
     {
-        _radius++;
+        Radius = _radius + 1;
     }
 
     public void DecreaseRadius()
     {
-        if (_radius > 0) _radius--;
+        Radius = _radius - 1;
     }
 
     public List<(int col, int row)> GetHexesInBrush(int centerCol, int centerRow, int mapWidth, int mapHeight)
     {
-        if (_shape == "方形")
+        if (_shape == ShapeSquare)
             return GetHexesInSquare(centerCol, centerRow, _radius, mapWidth, mapHeight);
         return GetHexesInRadius(centerCol, centerRow, _radius, mapWidth, mapHeight);
     }

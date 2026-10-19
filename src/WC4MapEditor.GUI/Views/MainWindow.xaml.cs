@@ -88,6 +88,12 @@ public partial class MainWindow : Window
     /// <summary>命令行 <c>--open &lt;地图文件&gt;</c>：启动后直接加载该 .btl / .bin 进入对应渲染场景（走开始界面注册的 open 命令）。</summary>
     public static string? StartupOpenFile { get; set; }
 
+    /// <summary>命令行 <c>--mode &lt;EditMode&gt;</c>：配合 --open，地图加载后切到该编辑模式（如 MapCaseEdit），便于截图检查。</summary>
+    public static string? StartupMode { get; set; }
+
+    /// <summary>命令行 <c>--editor &lt;种类&gt;</c>：配合 --open，切模式后再打开该编辑窗口（种类见 EditorKinds，如 mapcase.list）。</summary>
+    public static string? StartupEditor { get; set; }
+
     /// <summary>
     /// 鼠标输入管理器（由 DI 注入，供各渲染场景共享）
     /// </summary>
@@ -133,6 +139,8 @@ public partial class MainWindow : Window
         //  · AI 视觉统一丢给 EditModeManager 分发，由它按 request.SceneMode 决定走地图截图还是场景截图。
         EditModeManager.SetSceneScreenshotCallback(CaptureSceneScreenshot);
         WC4MapEditor.AI.Tools.AiBridge.ScreenshotCapturer = EditModeManager.CaptureScreenshot;
+
+        InitializeStartScreenServices();
     }
 
     private void SetupWindow()
@@ -169,42 +177,39 @@ public partial class MainWindow : Window
         RenderSceneManager.Instance.SceneSwitchRequested += OnSceneSwitchRequested;
 
         double targetTop = Top;
-        double screenHeight = SystemParameters.PrimaryScreenHeight;
-        Top = screenHeight;
         Opacity = 0;
-
-        var topAnim = new DoubleAnimation(screenHeight, targetTop, TimeSpan.FromMilliseconds(500))
-        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
-        var opacityAnim = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(400));
-
-        BeginAnimation(TopProperty, topAnim);
-        BeginAnimation(OpacityProperty, opacityAnim);
-
         RemoveWindowBorder();
-        ShowOpeningAnimation();
+        MusicPlayerService.Instance.RestoreFromSettings();
+
+        // 开屏动画（setting.txt 的 OpeningAnimation：Logo / Token / None）在独立的置顶窗口里播放，期间主窗口保持透明；
+        // 播完后主窗口再滑入并进入开始界面。资源缺失、无法播放时直接进入。
+        var animation = ConfigManager.Instance.GetOpeningAnimationType();
+        if (!PlayOpeningAnimation(animation, () => EnterStartScreen(targetTop)))
+            EnterStartScreen(targetTop);
     }
 
-    private void ShowOpeningAnimation()
+    private void EnterStartScreen(double targetTop)
     {
-        var animType = ConfigManager.Instance.GetOpeningAnimationType();
-        switch (animType)
-        {
-            case ConfigManager.OpeningAnimationType.None:
-                SwitchToBeginScene();
-                break;
-            case ConfigManager.OpeningAnimationType.Logo:
-                ShowLogoAnimationAsync();
-                break;
-            case ConfigManager.OpeningAnimationType.Token:
-                ShowTokenAnimationAsync();
-                break;
-        }
+        PlayWindowEntrance(targetTop);
+        SwitchToBeginScene();
+        Activate();
     }
 
-    private async void ShowLogoAnimationAsync()
+    /// <summary>
+    /// 播放开屏动画，播完时调用 <paramref name="onFinished"/>。
+    /// 选了 None、资源缺失或无法播放时返回 false（此时不会调用 onFinished）。
+    /// </summary>
+    private bool PlayOpeningAnimation(ConfigManager.OpeningAnimationType type, Action onFinished) => type switch
+    {
+        ConfigManager.OpeningAnimationType.Logo => ShowLogoAnimation(onFinished),
+        ConfigManager.OpeningAnimationType.Token => ShowTokenAnimation(onFinished),
+        _ => false
+    };
+
+    private bool ShowLogoAnimation(Action onFinished)
     {
         string logoPath = IOPath.Combine(ConfigManager.Instance.GetLogoPath(), "Logo.png");
-        if (!System.IO.File.Exists(logoPath)) { SwitchToBeginScene(); return; }
+        if (!System.IO.File.Exists(logoPath)) return false;
 
         var logoWindow = new Window
         {
@@ -228,7 +233,12 @@ public partial class MainWindow : Window
             bitmap.Freeze();
             image.Source = bitmap;
         }
-        catch { SwitchToBeginScene(); return; }
+        catch (Exception ex)
+        {
+            // 文件损坏 / 格式不支持时 WPF 解码器抛的异常类型很多，统一跳过动画
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] Logo 图片读取失败: {ex.Message}");
+            return false;
+        }
 
         var grid = new Grid();
         grid.Children.Add(image);
@@ -289,7 +299,11 @@ public partial class MainWindow : Window
                     {
                         stay.Stop();
                         var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(300));
-                        fadeOut.Completed += (s3, e3) => logoWindow.Close();
+                        fadeOut.Completed += (s3, e3) =>
+                        {
+                            logoWindow.Close();
+                            onFinished();
+                        };
                         logoWindow.BeginAnimation(OpacityProperty, fadeOut);
                     };
                     stay.Start();
@@ -298,13 +312,14 @@ public partial class MainWindow : Window
             logoWindow.Top = positionY;
         };
         timer.Start();
+        return true;
     }
 
-    private async void ShowTokenAnimationAsync()
+    private bool ShowTokenAnimation(Action onFinished)
     {
         string tokenText = ConfigManager.Instance.GetMainToken();
         var wcConfig = ConfigManager.Instance.GetWordCloudConfig();
-        if (string.IsNullOrWhiteSpace(tokenText)) { SwitchToBeginScene(); return; }
+        if (string.IsNullOrWhiteSpace(tokenText)) return false;
 
         var tokenWindow = new Window
         {
@@ -378,8 +393,15 @@ public partial class MainWindow : Window
         tokenTimer.Start();
 
         var closeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1 + wcConfig.AnimationKeep + 1) };
-        closeTimer.Tick += (s, e) => { closeTimer.Stop(); tokenWindow.Close(); };
+        closeTimer.Tick += (s, e) =>
+        {
+            closeTimer.Stop();
+            tokenTimer.Stop();
+            tokenWindow.Close();
+            onFinished();
+        };
         closeTimer.Start();
+        return true;
     }
 
     private void SwitchToBeginScene()
@@ -402,6 +424,40 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(() => WC4MapEditor.AI.Tools.AiBridge.CommandRunner?.Invoke("open " + openFile), DispatcherPriority.ApplicationIdle);
         }
 
+        var startupMode = StartupMode;
+        var startupEditor = StartupEditor;
+        if (!string.IsNullOrWhiteSpace(openFile) && (!string.IsNullOrWhiteSpace(startupMode) || !string.IsNullOrWhiteSpace(startupEditor)))
+        {
+            StartupMode = null;
+            StartupEditor = null;
+            // 地图加载与场景初始化需要几秒（与截图计时一致：截图在 10 秒时进行）
+            var modeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
+            modeTimer.Tick += (_, _) =>
+            {
+                modeTimer.Stop();
+                var manager = WC4MapEditor.Core.Modifiers.EditModeManager.Instance;
+                if (!string.IsNullOrWhiteSpace(startupMode))
+                {
+                    if (Enum.TryParse<WC4MapEditor.Core.Modifiers.EditMode>(startupMode, true, out var mode))
+                        manager.SwitchMode(mode);
+                    else
+                        Console.WriteLine($"[startup] unknown --mode {startupMode}");
+                }
+                if (!string.IsNullOrWhiteSpace(startupEditor))
+                {
+                    var editorTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+                    editorTimer.Tick += (_, _) =>
+                    {
+                        editorTimer.Stop();
+                        bool ok = manager.OpenEditor(new WC4MapEditor.Core.Mode.EditorRequest(startupEditor));
+                        Console.WriteLine($"[startup] --editor {startupEditor}: {(ok ? "opened" : "not available")}");
+                    };
+                    editorTimer.Start();
+                }
+            };
+            modeTimer.Start();
+        }
+
         var shotPath = StartupScreenshot;
         if (!string.IsNullOrWhiteSpace(shotPath))
         {
@@ -417,6 +473,8 @@ public partial class MainWindow : Window
                     MaxPixels = 2600
                 });
                 Console.WriteLine(result.Ok ? $"[screenshot] {result.Path}" : $"[screenshot] FAILED: {result.Message}");
+                if (result.Ok && CaptureOpenWindows(result.Path) is { } windowsPath)
+                    Console.WriteLine($"[screenshot] {windowsPath}");
                 Application.Current.Shutdown();
             };
             timer.Start();
@@ -502,6 +560,12 @@ public partial class MainWindow : Window
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
         if (_isClosing) { base.OnClosing(e); return; }
+        // 当前场景有未保存修改时先询问（保存 / 放弃 / 取消）；取消则不关闭窗口
+        if (_currentScene is WC4MapEditor.GUI.Views.EditScenes.IUnsavedChangesScene unsaved && !unsaved.ConfirmLeave())
+        {
+            e.Cancel = true;
+            return;
+        }
         e.Cancel = true;
         _isClosing = true;
         RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
@@ -587,6 +651,11 @@ public partial class MainWindow : Window
         return false;
     }
 
+    /// <summary>
+    /// 切到另一种类型的场景（场景页签 / 在场景里打开了别的类型的文件）。
+    /// 新场景带着已分配的场景号创建，加载时优先读该场景的磁盘缓存（见 RenderSceneBase.LoadInitialMapData），
+    /// 未保存的编辑不会因为换了场景类型而丢失。
+    /// </summary>
     private void OnSceneSwitchRequested(object? sender, SceneSwitchRequestEventArgs e)
     {
         Dispatcher.Invoke(() =>
@@ -601,7 +670,7 @@ public partial class MainWindow : Window
         });
     }
 
-    private RenderSceneBase? CreateRenderScene(RenderSceneType sceneType, string mapFilePath)
+    internal RenderSceneBase? CreateRenderScene(RenderSceneType sceneType, string mapFilePath)
     {
         return sceneType switch
         {
@@ -613,8 +682,18 @@ public partial class MainWindow : Window
         };
     }
 
+    /// <summary>按文件类型创建对应的渲染场景：.bin/.dat → 世界地图；.btl 按文件头区分战役 / 征服。</summary>
+    internal RenderSceneBase CreateRenderSceneForFile(string mapFilePath)
+        => CreateRenderScene(RenderSceneManager.GetSceneTypeByFilePath(mapFilePath), mapFilePath)!;
+
     public void SetCurrentScene(UserControl scene)
     {
+        // 从外部切换场景（导航栏、AI 打开场景等）前，离开有未保存修改的编辑场景要先询问；
+        // 场景自己的返回按钮已问过，此时修改已保存或放弃，这里不会重复弹窗
+        if (_currentScene is WC4MapEditor.GUI.Views.EditScenes.IUnsavedChangesScene unsaved
+            && !ReferenceEquals(_currentScene, scene) && !unsaved.ConfirmLeave())
+            return;
+        CancelLoadingTransition();
         if (_currentScene != null)
         {
             // 如果是渲染场景（战役/征服等），显示加载画面
@@ -639,97 +718,6 @@ public partial class MainWindow : Window
             _currentScene = scene;
             _mainGrid.Children.Add(scene);
             FadeInScene(scene);
-        }
-    }
-
-    private void ShowLoadingAndSwitchScene(UserControl newScene)
-    {
-        // 显示加载图像
-        string loadingImagePath = ConfigManager.Instance.GetLoadingBackgroundImagePath();
-        Image? loadingImage = null;
-
-        if (!string.IsNullOrEmpty(loadingImagePath) && System.IO.File.Exists(loadingImagePath))
-        {
-            try
-            {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.UriSource = new Uri(loadingImagePath, UriKind.Absolute);
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.EndInit();
-                bitmap.Freeze();
-
-                loadingImage = new Image
-                {
-                    Source = bitmap,
-                    Stretch = Stretch.UniformToFill,
-                    Opacity = 0
-                };
-                _mainGrid.Children.Add(loadingImage);
-                loadingImage.BeginAnimation(UIElement.OpacityProperty,
-                    new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200)));
-            }
-            catch { }
-        }
-
-        // 淡出当前场景
-        if (_currentScene != null)
-        {
-            var fo = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(200));
-            fo.Completed += (s, e) =>
-            {
-                _mainGrid.Children.Remove(_currentScene);
-                if (_currentScene is IDisposable d) d.Dispose();
-
-                // 切换到新场景（先隐藏）
-                newScene.Opacity = 0;
-                _currentScene = newScene;
-                _mainGrid.Children.Add(newScene);
-
-                // 给新场景一点加载时间，然后淡出加载画面，显示新场景
-                var loadTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
-                loadTimer.Tick += (s2, e2) =>
-                {
-                    loadTimer.Stop();
-
-                    // 淡入新场景
-                    newScene.BeginAnimation(UIElement.OpacityProperty,
-                        new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300)));
-
-                    // 淡出并移除加载图像
-                    if (loadingImage != null)
-                    {
-                        var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(300));
-                        fadeOut.Completed += (s3, e3) =>
-                        {
-                            if (_mainGrid.Children.Contains(loadingImage))
-                                _mainGrid.Children.Remove(loadingImage);
-                        };
-                        loadingImage.BeginAnimation(UIElement.OpacityProperty, fadeOut);
-                    }
-                };
-                loadTimer.Start();
-            };
-            _currentScene.BeginAnimation(UIElement.OpacityProperty, fo);
-        }
-        else
-        {
-            newScene.Opacity = 0;
-            _currentScene = newScene;
-            _mainGrid.Children.Add(newScene);
-            newScene.BeginAnimation(UIElement.OpacityProperty,
-                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300)));
-
-            if (loadingImage != null)
-            {
-                var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(300));
-                fadeOut.Completed += (s3, e3) =>
-                {
-                    if (_mainGrid.Children.Contains(loadingImage))
-                        _mainGrid.Children.Remove(loadingImage);
-                };
-                loadingImage.BeginAnimation(UIElement.OpacityProperty, fadeOut);
-            }
         }
     }
 
@@ -881,6 +869,61 @@ public partial class MainWindow : Window
         {
             return WC4MapEditor.Core.Services.MapScreenshotResult.Fail(
                 Loc.F("Main.SceneScreenshotFailed", ex.GetType().Name, ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// 命令行 <c>--screenshot</c> 的附加输出：编辑窗口等独立窗口不在主窗口的视觉树里，主图里看不到。
+    /// 这里把当前打开的其它窗口各渲染一遍、从上到下排成一张 <c>&lt;主图名&gt;_windows.png</c>；没有其它窗口时不生成，返回 null。
+    /// </summary>
+    private string? CaptureOpenWindows(string mainShotPath)
+    {
+        var windows = Application.Current.Windows.OfType<Window>()
+            .Where(w => w != this && w.IsVisible && w.ActualWidth >= 1 && w.ActualHeight >= 1)
+            .ToList();
+        if (windows.Count == 0) return null;
+
+        try
+        {
+            const int gap = 8;
+            var dpi = VisualTreeHelper.GetDpi(this);
+            var shots = windows.Select(w =>
+            {
+                int pxW = Math.Max(1, (int)Math.Round(w.ActualWidth * dpi.DpiScaleX));
+                int pxH = Math.Max(1, (int)Math.Round(w.ActualHeight * dpi.DpiScaleY));
+                var shot = new RenderTargetBitmap(pxW, pxH, 96.0 * dpi.DpiScaleX, 96.0 * dpi.DpiScaleY, PixelFormats.Pbgra32);
+                shot.Render(w);
+                return shot;
+            }).ToList();
+
+            int totalW = shots.Max(s => s.PixelWidth);
+            int totalH = shots.Sum(s => s.PixelHeight) + gap * (shots.Count - 1);
+            var canvas = new DrawingVisual();
+            using (var dc = canvas.RenderOpen())
+            {
+                dc.DrawRectangle(Brushes.DimGray, null, new Rect(0, 0, totalW, totalH));
+                double y = 0;
+                foreach (var shot in shots)
+                {
+                    dc.DrawImage(shot, new Rect(0, y, shot.PixelWidth, shot.PixelHeight));
+                    y += shot.PixelHeight + gap;
+                }
+            }
+
+            var bitmap = new RenderTargetBitmap(totalW, totalH, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(canvas);
+
+            string path = System.IO.Path.ChangeExtension(mainShotPath, null) + "_windows.png";
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write))
+                encoder.Save(fs);
+            return path;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[screenshot] windows capture FAILED: {ex.GetType().Name}: {ex.Message}");
+            return null;
         }
     }
 

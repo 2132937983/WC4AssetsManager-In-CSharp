@@ -1,44 +1,34 @@
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
-using System.Windows.Media.Effects;
-using System.Windows.Media.Imaging;
-using SkiaSharp;
-using WC4MapEditor.Core.Config;
-using WC4MapEditor.Core.Parsers;
-using WC4MapEditor.Core.Models;
+using System.Globalization;
 
 namespace WC4MapEditor.GUI.Views.Assist;
 
+/// <summary>
+/// 归属列表对话框（归属编辑模式 Q 键）—— 对齐 VB 版 Assist/BelionList。
+/// <para>
+/// 选择一个军团（归属值 = 军团在列表里的序号，0 起），或在输入框里直接输入归属值（0-255，255 = 无归属）。
+/// 输入可以是十进制、带 0x 的十六进制，或含 A-F 的十六进制；超出 0-255 时在框下提示、不关闭。
+/// 地图没有军团时列表为空，仍可手动输入。
+/// </para>
+/// </summary>
 public sealed class BelongListWindow : Window
 {
     private readonly List<Legion> _legionList;
-    private readonly Dictionary<int, BitmapSource> _flagCache = new();
-    private readonly Dictionary<int, string> _countryNameCache = new();
-    private SKBitmap? _tacticalSurfaceBitmap;
-    private bool _tacticalSurfaceLoadAttempted;
-    private ListBox? _listBox;
-    private TextBox? _inputTextBox;
-    private int _selectedIndex = -1;
-    private bool _confirmed;
-    private int? _selectedValue;
-    private bool _isClosing;
+    private readonly ListBox _listBox = new() { SelectionMode = SelectionMode.Single };
+    private readonly TextBox _inputTextBox = new();
+    private readonly TextBlock _error = new() { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+    private bool _syncingInput;
 
-    public int? SelectedValue => _selectedValue;
-    public bool IsConfirmed => _confirmed;
+    public int? SelectedValue { get; private set; }
+    public bool IsConfirmed { get; private set; }
 
     public BelongListWindow(List<Legion> legions)
     {
         EditorTheme.Apply(this);
         _legionList = legions ?? new List<Legion>();
 
-        PreloadFlags();
-
         Title = Loc.T("Assist.BelongList.Title");
         Width = 420;
-        Height = 560;
+        Height = 580;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ResizeMode = ResizeMode.NoResize;
         WindowStyle = WindowStyle.None;
@@ -54,126 +44,13 @@ public sealed class BelongListWindow : Window
             var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150));
             fadeIn.Completed += (_, _) =>
             {
-                _inputTextBox?.Focus();
-                _inputTextBox?.SelectAll();
+                _inputTextBox.Focus();
+                _inputTextBox.SelectAll();
             };
             BeginAnimation(OpacityProperty, fadeIn);
         };
 
         PreviewKeyDown += Window_PreviewKeyDown;
-    }
-
-    private void PreloadFlags()
-    {
-        foreach (var legion in _legionList)
-        {
-            if (!_flagCache.ContainsKey(legion.CountryId))
-            {
-                var flagImage = LoadFlagImage(legion.CountryId);
-                if (flagImage != null)
-                    _flagCache[legion.CountryId] = flagImage;
-            }
-        }
-    }
-
-    private BitmapSource? LoadFlagImage(int countryId)
-    {
-        try
-        {
-            var tacticalMapParser = ConfigManager.Instance.TacticalMapParser;
-            if (tacticalMapParser != null)
-            {
-                var imageDef = tacticalMapParser.GetImageDef($"flag_{countryId}.png");
-                if (imageDef != null)
-                {
-                    var surfaceBitmap = GetTacticalSurfaceBitmap(tacticalMapParser);
-                    if (surfaceBitmap != null)
-                        return ExtractFlagFromTacticalMap(surfaceBitmap, imageDef);
-                }
-            }
-
-            var basePath = System.IO.Path.Combine(ConfigManager.Instance.GetStageMarkPath(), "CountryFlag");
-            var flagPath = System.IO.Path.Combine(basePath, $"flag_{countryId}.png");
-
-            if (!System.IO.File.Exists(flagPath))
-            {
-                if (countryId == 0 || countryId == 255)
-                    flagPath = System.IO.Path.Combine(basePath, "flag_1.png");
-            }
-
-            if (System.IO.File.Exists(flagPath))
-            {
-                var bitmap = new BitmapImage(new Uri(flagPath, UriKind.Absolute));
-                bitmap.Freeze();
-                return bitmap;
-            }
-        }
-        catch { }
-        return null;
-    }
-
-    /// <summary>
-    /// 惰性解码战术地图大图，**整张图只解码一次**供所有国旗裁剪复用。
-    /// <para>
-    /// 原实现对每个国家都执行一次 MemoryStream + SKBitmap.Decode（都是整张大图），
-    /// 国家数量上百时会让窗口弹出前卡顿数秒。
-    /// </para>
-    /// </summary>
-    private SKBitmap? GetTacticalSurfaceBitmap(TacticalMapParser parser)
-    {
-        if (_tacticalSurfaceLoadAttempted) return _tacticalSurfaceBitmap;
-        _tacticalSurfaceLoadAttempted = true;
-
-        var surfaceData = parser.SurfaceData;
-        if (surfaceData == null) return null;
-
-        try
-        {
-            using var stream = new System.IO.MemoryStream(surfaceData);
-            _tacticalSurfaceBitmap = SKBitmap.Decode(stream);
-        }
-        catch
-        {
-            _tacticalSurfaceBitmap = null;
-        }
-
-        return _tacticalSurfaceBitmap;
-    }
-
-    /// <summary>
-    /// 从战术地图大图上裁剪出指定国旗。
-    /// 直接用 Bgra8888 像素构造 <see cref="BitmapSource"/>，跳过 PNG 编解码
-    /// （每个国家一面旗、数量可达数百，PNG 编解码会成为主要开销）。
-    /// </summary>
-    private static BitmapSource? ExtractFlagFromTacticalMap(SKBitmap surfaceBitmap, TacticalMapImageDef imageDef)
-    {
-        try
-        {
-            int x = imageDef.X;
-            int y = imageDef.Y;
-            int w = Math.Min(imageDef.Width, surfaceBitmap.Width - x);
-            int h = Math.Min(imageDef.Height, surfaceBitmap.Height - y);
-
-            if (x < 0 || y < 0 || w <= 0 || h <= 0) return null;
-
-            // 预乘 Bgra8888 的内存布局与 WPF 的 Pbgra32 一致
-            var info = new SKImageInfo(w, h, SKColorType.Bgra8888, SKAlphaType.Premul);
-            using var subsetBitmap = new SKBitmap(info);
-            using (var canvas = new SKCanvas(subsetBitmap))
-            {
-                canvas.Clear(SKColors.Transparent);
-                canvas.DrawBitmap(surfaceBitmap, -x, -y);
-            }
-
-            var result = BitmapSource.Create(
-                w, h, 96, 96,
-                PixelFormats.Pbgra32, null,
-                subsetBitmap.GetPixels(), h * subsetBitmap.RowBytes, subsetBitmap.RowBytes);
-            result.Freeze();
-            return result;
-        }
-        catch { }
-        return null;
     }
 
     private FrameworkElement CreateUI()
@@ -197,7 +74,7 @@ public sealed class BelongListWindow : Window
 
         var grid = new Grid();
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(50) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(50) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(60) });
 
@@ -245,43 +122,43 @@ public sealed class BelongListWindow : Window
         return panel;
     }
 
-    private DockPanel CreateInputPanel()
+    private StackPanel CreateInputPanel()
     {
-        var panel = new DockPanel { Margin = new Thickness(15, 5, 15, 5) };
+        var row = new DockPanel();
 
         var label = EditorTheme.FieldLabel(Loc.T("Assist.BelongList.ValueLabel"));
         label.Margin = new Thickness(0, 0, 10, 0);
         DockPanel.SetDock(label, Dock.Left);
-        panel.Children.Add(label);
+        row.Children.Add(label);
 
-        _inputTextBox = new TextBox
-        {
-            ToolTip = Loc.T("Assist.BelongList.InputTip")
-        };
-        _inputTextBox.TextChanged += InputTextBox_TextChanged;
+        _inputTextBox.ToolTip = Loc.T("Assist.BelongList.InputTip");
+        _inputTextBox.TextChanged += (_, _) => OnInputChanged();
         _inputTextBox.PreviewTextInput += InputTextBox_PreviewTextInput;
-        panel.Children.Add(_inputTextBox);
+        row.Children.Add(_inputTextBox);
 
+        _error.Foreground = EditorTheme.Danger;
+        _error.FontSize = 11;
+        _error.Margin = new Thickness(0, 4, 0, 0);
+
+        var panel = new StackPanel { Margin = new Thickness(15, 5, 15, 5) };
+        panel.Children.Add(row);
+        panel.Children.Add(_error);
         return panel;
     }
 
     private Border CreateListPanel()
     {
-        _listBox = new ListBox
-        {
-            SelectionMode = SelectionMode.Single
-        };
         // 列表项是直接塞进 Items 的 UIElement，容器回收模式下复用容器会把同一个元素挂到两个父级上，改回标准虚拟化
         VirtualizingPanel.SetVirtualizationMode(_listBox, VirtualizationMode.Standard);
 
         for (int i = 0; i < _legionList.Count; i++)
-        {
-            var item = CreateLegionListItem(_legionList[i], i);
-            _listBox.Items.Add(item);
-        }
+            _listBox.Items.Add(CreateLegionListItem(_legionList[i], i));
 
         _listBox.SelectionChanged += ListBox_SelectionChanged;
-        _listBox.MouseDoubleClick += ListBox_MouseDoubleClick;
+        _listBox.MouseDoubleClick += (_, _) =>
+        {
+            if (_listBox.SelectedIndex >= 0) ConfirmSelection();
+        };
 
         // 主题里的 ListBox 本身无底无框，用一层面板画出列表区域
         var host = EditorTheme.Panel(new Thickness(1));
@@ -291,75 +168,31 @@ public sealed class BelongListWindow : Window
         return host;
     }
 
-    private Border CreateLegionListItem(Legion legion, int index)
+    /// <summary>列表项：国旗 + "归属值 - 国家名"（显示的就是选中后写入的归属值，即军团序号）。</summary>
+    private static Border CreateLegionListItem(Legion legion, int index)
     {
-        var border = new Border
-        {
-            Background = Brushes.Transparent,
-            Tag = legion,
-            DataContext = index
-        };
-
         var panel = new DockPanel { Margin = new Thickness(5) };
-
-        var flagBorder = new Border
-        {
-            Width = 56,
-            Height = 42,
-            Background = Brushes.Transparent,
-            ClipToBounds = false,
-            Margin = new Thickness(0, 0, 10, 0)
-        };
-        DockPanel.SetDock(flagBorder, Dock.Left);
 
         var flagImage = new Image
         {
             Width = 56,
             Height = 42,
             Stretch = Stretch.Uniform,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
+            Margin = new Thickness(0, 0, 10, 0),
+            Source = FlagImageLoader.Load(legion.CountryId)
         };
+        DockPanel.SetDock(flagImage, Dock.Left);
+        panel.Children.Add(flagImage);
 
-        if (_flagCache.ContainsKey(legion.CountryId))
-            flagImage.Source = _flagCache[legion.CountryId];
-
-        flagBorder.Child = flagImage;
-        panel.Children.Add(flagBorder);
-
-        var infoPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-
-        var countryName = GetCountryName(legion.CountryId);
         var nameText = new TextBlock
         {
-            // 显示列表位置（1 基，便于核对），实际写入的归属值是 0 基位置索引
-            Text = Loc.F("Assist.Common.LegionItem", index + 1, countryName),
-            FontSize = 14
+            Text = Loc.F("Assist.BelongList.Item", index, WC4MapEditor.Core.Config.CountryNameProvider.Get(legion.CountryId)),
+            FontSize = 14,
+            VerticalAlignment = VerticalAlignment.Center
         };
-        infoPanel.Children.Add(nameText);
+        panel.Children.Add(nameText);
 
-        panel.Children.Add(infoPanel);
-        border.Child = panel;
-
-        return border;
-    }
-
-    private string GetCountryName(int countryId)
-    {
-        if (_countryNameCache.TryGetValue(countryId, out var cached))
-            return cached;
-
-        var name = Loc.F("Assist.Common.CountryFallback", countryId);
-        try
-        {
-            var value = ConfigManager.Instance.GetStringTableValue($"country_{countryId}");
-            if (!string.IsNullOrEmpty(value))
-                name = value;
-        }
-        catch { }
-
-        _countryNameCache[countryId] = name;
-        return name;
+        return new Border { Background = Brushes.Transparent, Child = panel };
     }
 
     private StackPanel CreateButtonPanel()
@@ -385,115 +218,102 @@ public sealed class BelongListWindow : Window
         return panel;
     }
 
-    private void InputTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    // ------------------------------------------------------------------ 输入
+
+    /// <summary>
+    /// 解析归属值：带 0x 的、或含 A-F 字母的按十六进制，否则按十进制；必须在 0-255 内。
+    /// VB 版把不带 0x 的十六进制当十进制解析失败（确认等于取消），又把 0x 值按十进制检查范围（0x100 被放行）。
+    /// </summary>
+    private static bool TryParseBelong(string text, out int value)
     {
-        if (_inputTextBox == null) return;
-        var text = _inputTextBox.Text.Trim();
-        if (string.IsNullOrEmpty(text)) return;
+        value = -1;
+        string s = text.Trim();
+        if (s.Length == 0) return false;
 
-        var checkText = text;
-        if (checkText.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-            checkText = checkText[2..];
+        bool hex = s.StartsWith("0x", StringComparison.OrdinalIgnoreCase);
+        if (hex) s = s[2..];
+        if (!hex && s.Any(c => !char.IsDigit(c))) hex = true;
 
-        if (int.TryParse(checkText, out var value))
-        {
-            if (value < 0)
-            {
-                _inputTextBox.Text = "0";
-                _inputTextBox.CaretIndex = _inputTextBox.Text.Length;
-            }
-            else if (value > 255)
-            {
-                _inputTextBox.Text = "255";
-                _inputTextBox.CaretIndex = _inputTextBox.Text.Length;
-            }
-        }
+        bool ok = hex
+            ? int.TryParse(s, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value)
+            : int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+        return ok && value >= 0 && value <= 255;
     }
 
+    private void OnInputChanged()
+    {
+        if (_syncingInput) return;
+        string text = _inputTextBox.Text.Trim();
+        if (text.Length == 0 || TryParseBelong(text, out _))
+        {
+            _error.Visibility = Visibility.Collapsed;
+            return;
+        }
+        ShowError(Loc.T("Assist.BelongList.InvalidValue", "归属值应为 0-255（十进制，或 0x 开头的十六进制）"));
+    }
+
+    private void ShowError(string message)
+    {
+        _error.Text = message;
+        _error.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>只允许输入数字、十六进制字母与 0x 前缀。</summary>
     private void InputTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
     {
-        var newText = _inputTextBox!.Text + e.Text;
+        var newText = _inputTextBox.Text + e.Text;
+        if (newText.Equals("0x", StringComparison.OrdinalIgnoreCase)) return;
 
-        if (string.IsNullOrEmpty(newText)) return;
-
-        if (newText.Equals("0x", StringComparison.OrdinalIgnoreCase) ||
-            newText.Equals("0X", StringComparison.OrdinalIgnoreCase))
-            return;
-
-        var checkText = newText;
-        if (checkText.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-            checkText = checkText[2..];
-
-        foreach (var c in checkText.ToUpper())
-        {
-            if (!char.IsDigit(c) && (c < 'A' || c > 'F'))
-            {
-                e.Handled = true;
-                return;
-            }
-        }
+        var checkText = newText.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? newText[2..] : newText;
+        if (checkText.ToUpperInvariant().Any(c => !char.IsDigit(c) && (c < 'A' || c > 'F')))
+            e.Handled = true;
     }
 
     private void ListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_listBox == null) return;
-        _selectedIndex = _listBox.SelectedIndex;
-        if (_selectedIndex >= 0 && _selectedIndex < _legionList.Count)
-        {
-            // 归属值 = 军团在列表中的位置索引（不再用 ActionId）
-            if (_inputTextBox != null)
-                _inputTextBox.Text = _selectedIndex.ToString();
-        }
+        int index = _listBox.SelectedIndex;
+        if (index < 0 || index >= _legionList.Count) return;
+
+        // 归属值 = 军团在列表中的位置索引
+        _syncingInput = true;
+        _inputTextBox.Text = index.ToString(CultureInfo.InvariantCulture);
+        _syncingInput = false;
+        _error.Visibility = Visibility.Collapsed;
     }
 
-    private void ListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (_selectedIndex >= 0 && _selectedIndex < _legionList.Count)
-        {
-            if (_inputTextBox != null)
-                _inputTextBox.Text = _selectedIndex.ToString();
-            ConfirmSelection();
-        }
-    }
-
+    /// <summary>输入框有值时以输入为准（必须是 0-255），否则取列表选中项的序号；都没有时提示而不是当成取消。</summary>
     private void ConfirmSelection()
     {
-        if (_inputTextBox == null) return;
-        var inputValue = _inputTextBox.Text.Trim();
-
-        if (!string.IsNullOrEmpty(inputValue))
+        string text = _inputTextBox.Text.Trim();
+        int value;
+        if (text.Length > 0)
         {
-            if (inputValue.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            if (!TryParseBelong(text, out value))
             {
-                if (int.TryParse(inputValue[2..], System.Globalization.NumberStyles.HexNumber, null, out var hexValue))
-                {
-                    _selectedValue = hexValue;
-                    _confirmed = true;
-                }
-            }
-            else if (int.TryParse(inputValue, out var decValue))
-            {
-                _selectedValue = decValue;
-                _confirmed = true;
+                ShowError(Loc.T("Assist.BelongList.InvalidValue", "归属值应为 0-255（十进制，或 0x 开头的十六进制）"));
+                return;
             }
         }
-        else if (_selectedIndex >= 0 && _selectedIndex < _legionList.Count)
+        else if (_listBox.SelectedIndex >= 0 && _listBox.SelectedIndex < _legionList.Count)
         {
-            // 归属值 = 军团在列表中的位置索引（不再用 ActionId）
-            _selectedValue = _selectedIndex;
-            _confirmed = true;
+            value = _listBox.SelectedIndex;
+        }
+        else
+        {
+            ShowError(Loc.T("Assist.BelongList.NothingChosen", "请输入归属值，或在列表中选择一个军团"));
+            return;
         }
 
-        DialogResult = _confirmed;
-        FadeOutAndClose();
+        SelectedValue = value;
+        IsConfirmed = true;
+        DialogResult = true;
     }
 
     private void CancelAndClose()
     {
-        _confirmed = false;
-        _selectedValue = null;
+        IsConfirmed = false;
+        SelectedValue = null;
         DialogResult = false;
-        FadeOutAndClose();
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -508,40 +328,11 @@ public sealed class BelongListWindow : Window
                 CancelAndClose();
                 e.Handled = true;
                 break;
-            case Key.Tab:
-                if (_legionList.Count > 0)
-                {
-                    _selectedIndex = _selectedIndex < 0 ? 0 : (_selectedIndex + 1) % _legionList.Count;
-                    if (_listBox != null)
-                    {
-                        _listBox.SelectedIndex = _selectedIndex;
-                        if (_listBox.Items.Count > _selectedIndex)
-                            _listBox.ScrollIntoView(_listBox.Items[_selectedIndex]);
-                    }
-                    if (_selectedIndex >= 0 && _selectedIndex < _legionList.Count && _inputTextBox != null)
-                        _inputTextBox.Text = _selectedIndex.ToString();
-                }
+            case Key.Tab when _legionList.Count > 0:
+                _listBox.SelectedIndex = (_listBox.SelectedIndex + 1) % _legionList.Count;
+                _listBox.ScrollIntoView(_listBox.SelectedItem);
                 e.Handled = true;
                 break;
         }
-    }
-
-    private void FadeOutAndClose()
-    {
-        if (_isClosing) return;
-        _isClosing = true;
-        var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(100));
-        fadeOut.Completed += (_, _) => Close();
-        BeginAnimation(OpacityProperty, fadeOut);
-    }
-
-    protected override void OnClosed(EventArgs e)
-    {
-        // 释放复用的战术地图位图（_flagCache 中的 BitmapImage 已 Freeze，无需手动释放）
-        _tacticalSurfaceBitmap?.Dispose();
-        _tacticalSurfaceBitmap = null;
-        _flagCache.Clear();
-        _countryNameCache.Clear();
-        base.OnClosed(e);
     }
 }

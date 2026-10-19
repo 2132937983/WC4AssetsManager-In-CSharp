@@ -1,397 +1,141 @@
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text.Json;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
 using WC4MapEditor.Core.Parsers.BuildingSetting;
 using WC4MapEditor.GUI.Views.Assist;
+using WC4MapEditor.GUI.Views.EditScenes;
 
 namespace WC4MapEditor.GUI.Views;
 
 /// <summary>
 /// 建筑与设施编辑场景（对应 Python 工具的 BuildingFacility 编辑器，双模合一：
 /// BuildingSettings.json + FacilitySettings.json，名称直接来自 JSON）。
+/// 两张表共用一个编辑会话（一起撤销 / 保存），顶栏单选按钮切换当前编辑的表。
 /// </summary>
-public class BuildingFacilityEditScene : UserControl
+public class BuildingFacilityEditScene : JsonEditorScene
 {
-    /// <summary>表单行字段名列宽：这里的标签带英文属性名，比默认的 180 宽一点。</summary>
     private const double LabelWidth = 200;
 
-    private readonly MainWindow _window;
     private readonly BuildingFacilitySettingParser _parser = BuildingFacilitySettingParser.Instance;
-
-    private Grid _root = null!;
-    private ListBox _listBox = null!;
-    private TextBox _searchBox = null!;
-    private TextBlock _statusText = null!;
-    private ContentControl _propHost = null!;
-    private ScrollViewer _buildingScroll = null!;
-    private ScrollViewer _facilityScroll = null!;
-
-    private string _mode = "building";
-    private BuildingSettingData? _building;
-    private FacilitySettingData? _facility;
-    private bool _loadingUi;
-
-    private readonly Dictionary<string, TextBox> _textBoxes = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, NumericUpDown> _numBoxes = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, CheckBox> _checkBoxes = new(StringComparer.Ordinal);
-    private NumericUpDown _facilityIdBox = null!;
+    private readonly TableEditor<BuildingSettingData> _buildings;
+    private readonly TableEditor<FacilitySettingData> _facilities;
+    private readonly RadioButton _buildingRadio;
+    private readonly RadioButton _facilityRadio;
+    private readonly ContentControl _listHost = new();
+    private readonly ContentControl _formHost = new();
     private Image _buildingPreview = null!;
     private TextBlock _buildingPreviewTip = null!;
-    private TextBox _buildingJson = null!;
-    private TextBox _facilityJson = null!;
+    private bool _facilityMode;
 
-    public BuildingFacilityEditScene(MainWindow window)
+    public BuildingFacilityEditScene(MainWindow window) : base(window, "Building", BuildingFacilitySettingParser.Instance)
     {
-        _window = window;
-        EditorTheme.Apply(this);
-        BuildUI();
-        RefreshList();
-        Loaded += (_, _) => Dispatcher.BeginInvoke(() =>
+        _buildings = Register(new TableEditor<BuildingSettingData>(this, _parser.BuildingTable, new TableEditorOptions<BuildingSettingData>
         {
-            if (_listBox.Items.Count > 0) _listBox.SelectedIndex = 0;
-        }, DispatcherPriority.Loaded);
-    }
-
-    // ============================================================= 布局 =============================================================
-    private void BuildUI()
-    {
-        _root = new Grid();
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(44) });
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
-        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
-        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
-        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            Describe = b => $"[{b.Id}] {b.Name}",
+            GetId = b => b.Id,
+            SetId = (b, id) => b.Id = id,
+            NextId = _ => _parser.GetNextBuildingId(),
+            SearchPlaceholder = Loc.T("Building.SearchPlaceholder")
+        }, LabelWidth));
+        _facilities = Register(new TableEditor<FacilitySettingData>(this, _parser.FacilityTable, new TableEditorOptions<FacilitySettingData>
+        {
+            Describe = f => $"[{f.Id}] {f.Name}",
+            GetId = f => f.Id,
+            SetId = (f, id) => f.Id = id,
+            NextId = _ => _parser.GetNextFacilityId(),
+            SearchPlaceholder = Loc.T("Building.SearchPlaceholder")
+        }, LabelWidth));
+        BuildBuildingForm(_buildings.Form);
+        BuildFacilityForm(_facilities.Form);
 
         // 建筑 / 设施 两种模式的切换放在顶栏右侧、操作按钮之前
-        var buildingRadio = new RadioButton
-        {
-            Content = Loc.T("Building.ModeBuilding"),
-            GroupName = "mode",
-            IsChecked = true,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        var facilityRadio = new RadioButton
-        {
-            Content = Loc.T("Building.ModeFacility"),
-            GroupName = "mode",
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(10, 0, 0, 0)
-        };
-        buildingRadio.Checked += (_, _) => SwitchMode("building");
-        facilityRadio.Checked += (_, _) => SwitchMode("facility");
+        _buildingRadio = new RadioButton { Content = Loc.T("Building.ModeBuilding"), GroupName = "buildingMode", IsChecked = true, VerticalAlignment = VerticalAlignment.Center, Focusable = false };
+        _facilityRadio = new RadioButton { Content = Loc.T("Building.ModeFacility"), GroupName = "buildingMode", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), Focusable = false };
+        _buildingRadio.Checked += (_, _) => SwitchMode(false);
+        _facilityRadio.Checked += (_, _) => SwitchMode(true);
 
-        var topBar = EditorTheme.TopBar(Loc.T("Building.Title"), (_, _) => _window.ReturnToMainScene(),
-            buildingRadio,
-            facilityRadio,
-            EditorTheme.VSeparator(),
-            EditorTheme.Button(Loc.T("Common.Add"), OnAdd),
-            EditorTheme.DangerButton(Loc.T("Common.Delete"), OnDelete),
-            EditorTheme.PrimaryButton(Loc.T("Common.Save"), OnSave),
-            EditorTheme.Button(Loc.T("Common.Reload"), OnReload),
-            EditorTheme.Button(Loc.T("Common.Validate"), OnValidate));
-        Grid.SetRow(topBar, 0); Grid.SetColumnSpan(topBar, 3);
-        _root.Children.Add(topBar);
-
-        var left = EditorTheme.Panel(new Thickness(0, 0, 1, 0));
-        Grid.SetRow(left, 1); Grid.SetColumn(left, 0);
-        var leftGrid = new Grid();
-        leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-
-        var search = EditorTheme.SearchBox(Loc.T("Building.SearchPlaceholder"), out _searchBox);
-        search.Margin = new Thickness(8);
-        _searchBox.TextChanged += (_, _) => RefreshList();
-        Grid.SetRow(search, 0);
-        leftGrid.Children.Add(search);
-
-        _listBox = new ListBox();
-        _listBox.SelectionChanged += ListBox_SelectionChanged;
-        Grid.SetRow(_listBox, 1);
-        leftGrid.Children.Add(_listBox);
-
-        left.Child = leftGrid;
-        _root.Children.Add(left);
-
-        var splitter = EditorTheme.VSplitter();
-        Grid.SetRow(splitter, 1); Grid.SetColumn(splitter, 1);
-        _root.Children.Add(splitter);
-
-        _propHost = new ContentControl();
-        Grid.SetRow(_propHost, 1); Grid.SetColumn(_propHost, 2);
-        BuildPanels();
-        _root.Children.Add(_propHost);
-
-        var status = EditorTheme.StatusBar(out _statusText, Loc.T("Common.Ready"));
-        Grid.SetRow(status, 2); Grid.SetColumnSpan(status, 3);
-        _root.Children.Add(status);
-
-        Content = _root;
-        _propHost.Content = _buildingScroll;
+        Content = CreateListFormLayout(CreateTopBar(Loc.T("Building.Title"), _buildingRadio, _facilityRadio), _listHost, _formHost);
+        _facilities.SelectFirst();
+        _buildings.SelectFirst();
+        ShowMode();
     }
 
-    private void BuildPanels()
-    {
-        _buildingScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        var bp = new StackPanel();
-        bp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Preview")));
-        bp.Children.Add(EditorTheme.FormRow(Loc.T("Building.Field.Texture"), BuildBuildingPreview(), LabelWidth));
-        bp.Children.Add(EditorTheme.SectionHeader(Loc.T("Common.BasicInfo")));
-        AddNum(bp, "B.Id", Loc.T("Building.Field.BuildingId"), 0, int.MaxValue);
-        AddText(bp, "B.Name", Loc.T("Building.Field.Name"));
-        AddNum(bp, "B.Type", Loc.T("Building.Field.Type"), 0, int.MaxValue);
-        bp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Produce")));
-        AddNum(bp, "B.ProduceMoney", Loc.T("Building.Field.ProduceMoney"), 0, int.MaxValue);
-        AddNum(bp, "B.ProduceGear", Loc.T("Building.Field.ProduceGear"), 0, int.MaxValue);
-        AddNum(bp, "B.ProduceAtomic", Loc.T("Building.Field.ProduceAtomic"), 0, int.MaxValue);
-        bp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Links")));
-        AddNum(bp, "B.ArmyId", Loc.T("Building.Field.ArmyId"), 0, int.MaxValue);
-        bp.Children.Add(EditorTheme.FormRow(Loc.T("Building.Field.FacilityIdLink"), BuildFacilityIdRow(), LabelWidth));
-        bp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Other")));
-        AddText(bp, "B.ResName", Loc.T("Building.Field.ResName"));
-        AddNum(bp, "B.StyleCount", Loc.T("Building.Field.StyleCount"), 0, int.MaxValue);
-        AddNum(bp, "B.MeritExp", Loc.T("Building.Field.MeritExp"), 0, int.MaxValue);
-        _buildingJson = AddJsonPreview(bp);
-        _buildingScroll.Content = bp;
+    // ============================================================= 表单 =============================================================
 
-        _facilityScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        var fp = new StackPanel();
-        fp.Children.Add(EditorTheme.SectionHeader(Loc.T("Common.BasicInfo")));
-        AddNum(fp, "F.Id", Loc.T("Building.Field.FacilityIdSelf"), 0, int.MaxValue);
-        AddText(fp, "F.Name", Loc.T("Building.Field.Name"));
-        AddNum(fp, "F.Level", Loc.T("Building.Field.Level"), 0, int.MaxValue);
-        AddNum(fp, "F.Type", Loc.T("Building.Field.Type"), 0, int.MaxValue);
-        var typeMeaning = EditorTheme.Muted(Loc.T("Building.TypeMeaningText"));
+    private void BuildBuildingForm(RecordForm<BuildingSettingData> f)
+    {
+        f.Section(Loc.T("Building.Section.Preview"));
+        f.Row(Loc.T("Building.Field.Texture"), BuildBuildingPreview());
+        f.OnLoad(RefreshBuildingPreview);
+
+        f.Section(Loc.T("Common.BasicInfo"));
+        f.KeyInt(Loc.T("Building.Field.BuildingId"), b => b.Id, (b, id) =>
+        {
+            if (!_parser.ChangeBuildingId(b, id)) return Loc.F("JsonEditor.Error.IdTaken", id);
+            RefreshBuildingPreview(b);
+            return null;
+        });
+        f.Text(Loc.T("Building.Field.Name"), b => b.Name, (b, v) => b.Name = v);
+        f.Int(Loc.T("Building.Field.Type"), b => b.Type, (b, v) => b.Type = v);
+
+        f.Section(Loc.T("Building.Section.Produce"));
+        f.Int(Loc.T("Building.Field.ProduceMoney"), b => b.ProduceMoney, (b, v) => b.ProduceMoney = v);
+        f.Int(Loc.T("Building.Field.ProduceGear"), b => b.ProduceGear, (b, v) => b.ProduceGear = v);
+        f.Int(Loc.T("Building.Field.ProduceAtomic"), b => b.ProduceAtomic, (b, v) => b.ProduceAtomic = v);
+
+        f.Section(Loc.T("Building.Section.Links"));
+        f.Int(Loc.T("Building.Field.ArmyId"), b => b.ArmyId, (b, v) => b.ArmyId = v, decorate: box => ReferenceFields.Single(box, ReferenceKinds.Unit));
+        f.Int(Loc.T("Building.Field.FacilityIdLink"), b => b.FacilityId, (b, v) => b.FacilityId = v, decorate: box =>
+        {
+            box.Width = 120;
+            var jump = EditorTheme.Button(Loc.T("Building.JumpToFacility"), (_, _) => JumpToFacility((int)Math.Round(box.Value)));
+            jump.Margin = new Thickness(8, 0, 0, 0);
+            jump.Focusable = false;
+            var panel = new StackPanel { Orientation = Orientation.Horizontal };
+            panel.Children.Add(box);
+            panel.Children.Add(jump);
+            return panel;
+        });
+
+        f.Section(Loc.T("Building.Section.Other"));
+        f.Text(Loc.T("Building.Field.ResName"), b => b.ResName, (b, v) => b.ResName = string.IsNullOrWhiteSpace(v) ? null : v);
+        f.Int(Loc.T("Building.Field.StyleCount"), b => b.StyleCount, (b, v) => b.StyleCount = v);
+        f.Int(Loc.T("Building.Field.MeritExp"), b => b.MeritExp, (b, v) => b.MeritExp = v);
+
+        f.JsonPreview(height: 180);
+    }
+
+    private void BuildFacilityForm(RecordForm<FacilitySettingData> f)
+    {
+        f.Section(Loc.T("Common.BasicInfo"));
+        f.KeyInt(Loc.T("Building.Field.FacilityIdSelf"), x => x.Id, (x, id) => _parser.ChangeFacilityId(x, id) ? null : Loc.F("JsonEditor.Error.IdTaken", id));
+        f.Text(Loc.T("Building.Field.Name"), x => x.Name, (x, v) => x.Name = v);
+        f.Int(Loc.T("Building.Field.Level"), x => x.Level, (x, v) => x.Level = v);
+        f.Int(Loc.T("Building.Field.Type"), x => x.Type, (x, v) => x.Type = v);
+        // Type 的含义来自 stringtable 的 facility_*（游戏里显示的设施名称），不是写死的文字
+        var typeMeaning = EditorTheme.Muted("");
         typeMeaning.VerticalAlignment = VerticalAlignment.Center;
-        fp.Children.Add(EditorTheme.FormRow(Loc.T("Building.Field.TypeMeaning"), typeMeaning, LabelWidth));
-        fp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Recovery")));
-        AddNum(fp, "F.CityRecovery", Loc.T("Building.Field.CityRecovery"), 0, int.MaxValue);
-        AddNum(fp, "F.ArmyRecovery", Loc.T("Building.Field.ArmyRecovery"), 0, int.MaxValue);
-        fp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Produce")));
-        AddNum(fp, "F.ProduceMoney", Loc.T("Building.Field.ProduceMoney"), 0, int.MaxValue);
-        AddNum(fp, "F.ProduceGear", Loc.T("Building.Field.ProduceGear"), 0, int.MaxValue);
-        AddNum(fp, "F.ProduceAtomic", Loc.T("Building.Field.ProduceAtomic"), 0, int.MaxValue);
-        fp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Cost")));
-        AddNum(fp, "F.CostMoney", Loc.T("Building.Field.CostMoney"), 0, int.MaxValue);
-        AddNum(fp, "F.CostGear", Loc.T("Building.Field.CostGear"), 0, int.MaxValue);
-        AddNum(fp, "F.CostAtomic", Loc.T("Building.Field.CostAtomic"), 0, int.MaxValue);
-        AddNum(fp, "F.Only", Loc.T("Building.Field.Only"), 0, int.MaxValue);
-        fp.Children.Add(EditorTheme.SectionHeader(Loc.T("Building.Section.Unlock")));
-        AddText(fp, "F.UnlockArmy", Loc.T("Building.Field.UnlockArmy"));
-        AddText(fp, "F.UnlockArmyType", Loc.T("Building.Field.UnlockArmyType"));
-        _facilityJson = AddJsonPreview(fp);
-        _facilityScroll.Content = fp;
-    }
+        typeMeaning.TextWrapping = TextWrapping.Wrap;
+        f.Row(Loc.T("Building.Field.TypeMeaning"), typeMeaning);
+        f.OnLoad(_ => typeMeaning.Text = string.Join("   ", _parser.FacilityTypeNames().Select(t => $"{t.Type}: {t.Name}")));
 
-    private UIElement BuildFacilityIdRow()
-    {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal };
-        _facilityIdBox = new NumericUpDown { MinValue = 0, MaxValue = int.MaxValue, Increment = 1, Width = 120 };
-        _facilityIdBox.ValueChanged += (_, _) => { if (!_loadingUi && _building != null) ApplyBuilding(); };
-        _numBoxes["B.FacilityId"] = _facilityIdBox;
-        var jump = EditorTheme.Button(Loc.T("Building.JumpToFacility"));
-        jump.Margin = new Thickness(8, 0, 0, 0);
-        jump.Click += (_, _) => JumpToFacility((int)Math.Round(_facilityIdBox.Value));
-        panel.Children.Add(_facilityIdBox);
-        panel.Children.Add(jump);
-        return panel;
-    }
+        f.Section(Loc.T("Building.Section.Recovery"));
+        f.Int(Loc.T("Building.Field.CityRecovery"), x => x.CityRecovery, (x, v) => x.CityRecovery = v);
+        f.Int(Loc.T("Building.Field.ArmyRecovery"), x => x.ArmyRecovery, (x, v) => x.ArmyRecovery = v);
 
-    // ============================================================= 控件辅助 =============================================================
-    private NumericUpDown AddNum(StackPanel panel, string key, string label, double min, double max, double inc = 1)
-    {
-        var ctrl = new NumericUpDown { MinValue = min, MaxValue = max, Increment = inc };
-        ctrl.ValueChanged += (_, _) => { if (!_loadingUi) ApplyActive(); };
-        _numBoxes[key] = ctrl;
-        panel.Children.Add(EditorTheme.FormRow(label, ctrl, LabelWidth));
-        return ctrl;
-    }
+        f.Section(Loc.T("Building.Section.Produce"));
+        f.Int(Loc.T("Building.Field.ProduceMoney"), x => x.ProduceMoney, (x, v) => x.ProduceMoney = v);
+        f.Int(Loc.T("Building.Field.ProduceGear"), x => x.ProduceGear, (x, v) => x.ProduceGear = v);
+        f.Int(Loc.T("Building.Field.ProduceAtomic"), x => x.ProduceAtomic, (x, v) => x.ProduceAtomic = v);
 
-    private TextBox AddText(StackPanel panel, string key, string label)
-    {
-        var tb = new TextBox();
-        tb.TextChanged += (_, _) => { if (!_loadingUi) ApplyActive(); };
-        _textBoxes[key] = tb;
-        panel.Children.Add(EditorTheme.FormRow(label, tb, LabelWidth));
-        return tb;
-    }
+        f.Section(Loc.T("Building.Section.Cost"));
+        f.Int(Loc.T("Building.Field.CostMoney"), x => x.CostMoney, (x, v) => x.CostMoney = v);
+        f.Int(Loc.T("Building.Field.CostGear"), x => x.CostGear, (x, v) => x.CostGear = v);
+        f.Int(Loc.T("Building.Field.CostAtomic"), x => x.CostAtomic, (x, v) => x.CostAtomic = v);
+        f.Int(Loc.T("Building.Field.Only"), x => x.Only, (x, v) => x.Only = v);
 
-    private static TextBox AddJsonPreview(StackPanel panel)
-    {
-        panel.Children.Add(EditorTheme.SectionHeader(Loc.T("Common.JsonPreview")));
-        var tb = EditorTheme.MonoTextBox(180);
-        tb.Margin = new Thickness(10, 8, 10, 12);
-        panel.Children.Add(tb);
-        return tb;
-    }
+        f.Section(Loc.T("Building.Section.Unlock"));
+        f.IntList(Loc.T("Building.Field.UnlockArmy"), x => x.UnlockArmy, (x, v) => x.UnlockArmy = v, decorate: box => ReferenceFields.Multi(box, ReferenceKinds.Unit));
+        f.IntList(Loc.T("Building.Field.UnlockArmyType"), x => x.UnlockArmyType, (x, v) => x.UnlockArmyType = v);
 
-    // ============================================================= 模式切换 =============================================================
-    private void SwitchMode(string mode)
-    {
-        if (_mode == mode) return;
-        _mode = mode;
-        _propHost.Content = mode == "building" ? _buildingScroll : _facilityScroll;
-        _searchBox.Text = "";
-        RefreshList();
-        ShowEmpty();
-        SetStatus(mode == "building" ? Loc.T("Building.SwitchedToBuilding") : Loc.T("Building.SwitchedToFacility"));
-    }
-
-    // ============================================================= 列表 =============================================================
-    private void RefreshList()
-    {
-        var q = _searchBox.Text;
-        bool searching = !string.IsNullOrWhiteSpace(q);
-
-        _listBox.Items.Clear();
-        if (_mode == "building")
-        {
-            foreach (var b in _parser.Buildings.Where(b =>
-                !searching || b.Id.ToString().Contains(q) || (b.Name ?? "").Contains(q, StringComparison.OrdinalIgnoreCase)))
-            {
-                _listBox.Items.Add(new ItemEntry { Id = b.Id, Display = $"[{b.Id}] {b.Name}" });
-            }
-            SetStatus(Loc.F("Building.BuildingsLoaded", _parser.Buildings.Count, _listBox.Items.Count));
-        }
-        else
-        {
-            foreach (var f in _parser.Facilities.Where(f =>
-                !searching || f.Id.ToString().Contains(q) || (f.Name ?? "").Contains(q, StringComparison.OrdinalIgnoreCase)))
-            {
-                _listBox.Items.Add(new ItemEntry { Id = f.Id, Display = $"[{f.Id}] {f.Name}" });
-            }
-            SetStatus(Loc.F("Building.FacilitiesLoaded", _parser.Facilities.Count, _listBox.Items.Count));
-        }
-    }
-
-    private void ListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_listBox.SelectedItem is not ItemEntry entry) { ShowEmpty(); return; }
-        if (_mode == "building")
-        {
-            _building = _parser.GetBuildingById(entry.Id);
-            if (_building == null) { ShowEmpty(); return; }
-            LoadBuilding();
-        }
-        else
-        {
-            _facility = _parser.GetFacilityById(entry.Id);
-            if (_facility == null) { ShowEmpty(); return; }
-            LoadFacility();
-        }
-    }
-
-    private void ShowEmpty()
-    {
-        _loadingUi = true;
-        foreach (var tb in _textBoxes.Values) tb.Text = "";
-        foreach (var nb in _numBoxes.Values) nb.Value = nb.MinValue;
-        foreach (var cb in _checkBoxes.Values) cb.IsChecked = false;
-        if (_buildingJson != null) _buildingJson.Text = "";
-        if (_facilityJson != null) _facilityJson.Text = "";
-        if (_buildingPreview != null) _buildingPreview.Source = null;
-        if (_buildingPreviewTip != null) _buildingPreviewTip.Text = "";
-        _loadingUi = false;
-    }
-
-    // ============================================================= 属性读写 =============================================================
-    private void LoadBuilding()
-    {
-        if (_building == null) return;
-        _loadingUi = true;
-        SetNum("B.Id", _building.Id);
-        SetNum("B.Type", _building.Type);
-        SetNum("B.ProduceMoney", _building.ProduceMoney);
-        SetNum("B.ProduceGear", _building.ProduceGear);
-        SetNum("B.ProduceAtomic", _building.ProduceAtomic);
-        SetNum("B.ArmyId", _building.ArmyId);
-        SetNum("B.FacilityId", _building.FacilityId);
-        SetNum("B.StyleCount", _building.StyleCount);
-        SetNum("B.MeritExp", _building.MeritExp);
-        _textBoxes["B.Name"].Text = _building.Name ?? "";
-        _textBoxes["B.ResName"].Text = _building.ResName ?? "";
-        _loadingUi = false;
-        RefreshBuildingPreview();
-        UpdateJsonPreview();
-    }
-
-    private void LoadFacility()
-    {
-        if (_facility == null) return;
-        _loadingUi = true;
-        SetNum("F.Id", _facility.Id);
-        SetNum("F.Level", _facility.Level);
-        SetNum("F.Type", _facility.Type);
-        SetNum("F.CityRecovery", _facility.CityRecovery);
-        SetNum("F.ArmyRecovery", _facility.ArmyRecovery);
-        SetNum("F.ProduceMoney", _facility.ProduceMoney);
-        SetNum("F.ProduceGear", _facility.ProduceGear);
-        SetNum("F.ProduceAtomic", _facility.ProduceAtomic);
-        SetNum("F.CostMoney", _facility.CostMoney);
-        SetNum("F.CostGear", _facility.CostGear);
-        SetNum("F.CostAtomic", _facility.CostAtomic);
-        SetNum("F.Only", _facility.Only);
-        _textBoxes["F.Name"].Text = _facility.Name ?? "";
-        _textBoxes["F.UnlockArmy"].Text = FormatList(_facility.UnlockArmy);
-        _textBoxes["F.UnlockArmyType"].Text = FormatList(_facility.UnlockArmyType);
-        _loadingUi = false;
-        UpdateJsonPreview();
-    }
-
-    private void ApplyActive()
-    {
-        if (_mode == "building" && _building != null) ApplyBuilding();
-        else if (_mode == "facility" && _facility != null) ApplyFacility();
-    }
-
-    private void ApplyBuilding()
-    {
-        if (_building == null) return;
-        _building.Id = GetInt("B.Id");
-        _building.Type = GetInt("B.Type");
-        _building.ProduceMoney = GetInt("B.ProduceMoney");
-        _building.ProduceGear = GetInt("B.ProduceGear");
-        _building.ProduceAtomic = GetInt("B.ProduceAtomic");
-        _building.ArmyId = GetInt("B.ArmyId");
-        _building.FacilityId = GetInt("B.FacilityId");
-        _building.StyleCount = GetInt("B.StyleCount");
-        _building.MeritExp = GetInt("B.MeritExp");
-        _building.Name = _textBoxes["B.Name"].Text;
-        var res = _textBoxes["B.ResName"].Text;
-        _building.ResName = string.IsNullOrWhiteSpace(res) ? null : res;
-
-        SyncListItem(_building.Id, _building.Name);
-        SetStatus(Loc.F("Building.BuildingUpdated", _building.Id));
-        UpdateJsonPreview();
-    }
-
-    private void ApplyFacility()
-    {
-        if (_facility == null) return;
-        _facility.Id = GetInt("F.Id");
-        _facility.Level = GetInt("F.Level");
-        _facility.Type = GetInt("F.Type");
-        _facility.CityRecovery = GetInt("F.CityRecovery");
-        _facility.ArmyRecovery = GetInt("F.ArmyRecovery");
-        _facility.ProduceMoney = GetInt("F.ProduceMoney");
-        _facility.ProduceGear = GetInt("F.ProduceGear");
-        _facility.ProduceAtomic = GetInt("F.ProduceAtomic");
-        _facility.CostMoney = GetInt("F.CostMoney");
-        _facility.CostGear = GetInt("F.CostGear");
-        _facility.CostAtomic = GetInt("F.CostAtomic");
-        _facility.Only = GetInt("F.Only");
-        _facility.Name = _textBoxes["F.Name"].Text;
-        _facility.UnlockArmy = ParseIntList(_textBoxes["F.UnlockArmy"].Text);
-        _facility.UnlockArmyType = ParseIntList(_textBoxes["F.UnlockArmyType"].Text);
-
-        SyncListItem(_facility.Id, _facility.Name);
-        SetStatus(Loc.F("Building.FacilityUpdated", _facility.Id));
-        UpdateJsonPreview();
+        f.JsonPreview(height: 180);
     }
 
     private UIElement BuildBuildingPreview()
@@ -409,189 +153,103 @@ public class BuildingFacilityEditScene : UserControl
         return panel;
     }
 
-    private void RefreshBuildingPreview()
+    private void RefreshBuildingPreview(BuildingSettingData? building)
     {
-        if (_buildingPreview == null) return;
-        if (_building == null || _mode != "building")
+        if (building == null)
         {
             _buildingPreview.Source = null;
             _buildingPreviewTip.Text = "";
             return;
         }
-        string name = $"building_{_building.Id}.png";
+        string name = $"building_{building.Id}.png";
         var img = HdAtlasImageLoader.Load("buildings_hd", name);
         _buildingPreview.Source = img;
         _buildingPreviewTip.Text = img == null ? Loc.F("Building.TextureNotFound", name) : name;
     }
 
-    private void SyncListItem(int id, string name)
+    // ============================================================= 模式 =============================================================
+
+    private void SwitchMode(bool facility)
     {
-        if (_listBox.SelectedItem is ItemEntry le && le.Id == id)
-        {
-            var idx = _listBox.SelectedIndex;
-            _listBox.Items[idx] = new ItemEntry { Id = id, Display = $"[{id}] {name}" };
-            _listBox.SelectedIndex = idx;
-        }
+        if (_facilityMode == facility) return;
+        Session.Flush();
+        _facilityMode = facility;
+        ShowMode();
+        SetStatus(facility ? Loc.T("Building.SwitchedToFacility") : Loc.T("Building.SwitchedToBuilding"));
     }
 
+    private void ShowMode()
+    {
+        ActiveEditor = _facilityMode ? _facilities : _buildings;
+        _listHost.Content = _facilityMode ? _facilities.ListPanel : _buildings.ListPanel;
+        _formHost.Content = _facilityMode ? _facilities.Form.View : _buildings.Form.View;
+    }
+
+    /// <summary>跳到建筑引用的设施：切换单选按钮（触发模式切换），再选中该设施。</summary>
     private void JumpToFacility(int id)
     {
         var target = _parser.GetFacilityById(id);
         if (id <= 0 || target == null)
         {
-            MessageBox.Show(Loc.F("Building.FacilityNotFound", id), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information);
+            EditorDialogs.Info(DialogOwner, Loc.T("Common.Hint"), Loc.F("Building.FacilityNotFound", id));
             return;
         }
-        _mode = "facility";
-        _propHost.Content = _facilityScroll;
-        _searchBox.Text = "";
-        RefreshList();
-        foreach (ItemEntry item in _listBox.Items)
-            if (item.Id == id) { _listBox.SelectedItem = item; _listBox.ScrollIntoView(item); break; }
+        _facilityRadio.IsChecked = true;
+        _facilities.Select(target);
         SetStatus(Loc.F("Building.JumpedToFacility", id));
     }
 
-    private void SetNum(string key, double v) { if (_numBoxes.TryGetValue(key, out var b)) b.Value = v; }
-    private double GetNum(string key) => _numBoxes.TryGetValue(key, out var b) ? b.Value : 0;
-    private int GetInt(string key) => (int)Math.Round(GetNum(key));
+    // ============================================================= 命令 =============================================================
 
-    private static string FormatList(List<int>? list) => list == null ? "" : string.Join(", ", list);
+    protected override IReadOnlyList<string> InvalidFields() => _buildings.Form.InvalidFields.Concat(_facilities.Form.InvalidFields).ToList();
 
-    private static List<int> ParseIntList(string? s)
+    /// <summary>新增：选中了记录时以它为模板（字段顺序与未知字段一起继承），否则用默认值。</summary>
+    protected override void OnAddCommand()
     {
-        var r = new List<int>();
-        if (string.IsNullOrWhiteSpace(s)) return r;
-        foreach (var p in s.Split(new[] { ',', ' ', ';', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries))
-            if (int.TryParse(p.Trim(), out var v)) r.Add(v);
-        return r;
-    }
-
-    private void UpdateJsonPreview()
-    {
-        bool building = _mode == "building";
-        var target = building ? _buildingJson : _facilityJson;
-        if (target == null) return;
-        object? cur = building ? _building : _facility;
-        if (cur == null) { target.Text = ""; return; }
-        try { target.Text = JsonSerializer.Serialize(cur, new JsonSerializerOptions { WriteIndented = true }); }
-        catch { target.Text = Loc.T("Common.SerializeFailed"); }
-    }
-
-    // ============================================================= 操作 =============================================================
-    private void OnAdd(object sender, RoutedEventArgs e)
-    {
+        Session.Flush();
         // 默认名称会写进 JSON，是数据不是界面文字，保持原样
-        if (_mode == "building")
-        {
-            int newId = _parser.GetNextBuildingId();
-            var b = new BuildingSettingData { Id = newId, Name = $"NewBuilding{newId}", Type = 1 };
-            _parser.BuildingItems.Add(b);
-            RefreshList();
-            foreach (ItemEntry item in _listBox.Items)
-                if (item.Id == newId) { _listBox.SelectedItem = item; break; }
-            SetStatus(Loc.F("Building.BuildingAdded", newId));
-        }
-        else
+        if (_facilityMode)
         {
             int newId = _parser.GetNextFacilityId();
-            var f = new FacilitySettingData { Id = newId, Name = $"NewFacility{newId}", Level = 1, Type = 1 };
-            _parser.FacilityItems.Add(f);
-            RefreshList();
-            foreach (ItemEntry item in _listBox.Items)
-                if (item.Id == newId) { _listBox.SelectedItem = item; break; }
+            var source = _facilities.Current;
+            var facility = source != null ? _parser.FacilityTable.Clone(source) : new FacilitySettingData { Name = $"NewFacility{newId}", Level = 1, Type = 1 };
+            facility.Id = newId;
+            _facilities.Insert(facility, Loc.F("JsonEditor.History.Add", newId));
             SetStatus(Loc.F("Building.FacilityAdded", newId));
         }
-    }
-
-    private void OnDelete(object sender, RoutedEventArgs e)
-    {
-        if (_mode == "building")
-        {
-            if (_building == null) { MessageBox.Show(Loc.T("Building.SelectBuildingFirst"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
-            if (MessageBox.Show(Loc.F("Building.DeleteBuildingConfirm", _building.Id, _building.Name), Loc.T("Common.Delete"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-            int id = _building.Id;
-            _parser.BuildingItems.Remove(_building);
-            _building = null;
-            RefreshList();
-            ShowEmpty();
-            SetStatus(Loc.F("Building.BuildingDeleted", id));
-        }
         else
         {
-            if (_facility == null) { MessageBox.Show(Loc.T("Building.SelectFacilityFirst"), Loc.T("Common.Hint"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
-            if (MessageBox.Show(Loc.F("Building.DeleteFacilityConfirm", _facility.Id, _facility.Name), Loc.T("Common.Delete"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-            int id = _facility.Id;
-            _parser.FacilityItems.Remove(_facility);
-            _facility = null;
-            RefreshList();
-            ShowEmpty();
-            SetStatus(Loc.F("Building.FacilityDeleted", id));
+            int newId = _parser.GetNextBuildingId();
+            var source = _buildings.Current;
+            var building = source != null ? _parser.BuildingTable.Clone(source) : new BuildingSettingData { Name = $"NewBuilding{newId}", Type = 1 };
+            building.Id = newId;
+            _buildings.Insert(building, Loc.F("JsonEditor.History.Add", newId));
+            SetStatus(Loc.F("Building.BuildingAdded", newId));
         }
     }
 
-    private void OnSave(object sender, RoutedEventArgs e)
-    {
-        if (_parser.SaveAll())
-        {
-            SetStatus(Loc.F("Common.SavedTo", $"{_parser.BuildingConfigPath} / {_parser.FacilityConfigPath}"));
-            MessageBox.Show(Loc.F("Building.SaveSuccessMessage", _parser.BuildingConfigPath, _parser.FacilityConfigPath),
-                Loc.T("Common.SaveSuccess"), MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-        else
-        {
-            MessageBox.Show(Loc.T("Common.SaveFailed"), Loc.T("Common.Error"), MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    private void OnReload(object sender, RoutedEventArgs e)
-    {
-        var res = MessageBox.Show(Loc.F("Common.ReloadConfirm", "BuildingSettings.json & FacilitySettings.json"), Loc.T("Common.Reload"), MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (res != MessageBoxResult.Yes) return;
-        _parser.LoadAll();
-        RefreshList();
-        ShowEmpty();
-        SetStatus(Loc.T("Common.ReloadedFromDisk"));
-    }
-
-    private void OnValidate(object sender, RoutedEventArgs e)
+    protected override void OnValidateCommand()
     {
         var problems = new List<string>();
         var seenB = new HashSet<int>();
-        foreach (var b in _parser.Buildings)
+        foreach (var b in _parser.BuildingItems)
         {
             if (!seenB.Add(b.Id)) problems.Add(Loc.F("Building.Validate.BuildingDuplicateId", b.Id));
             if (b.FacilityId != 0 && _parser.GetFacilityById(b.FacilityId) == null)
                 problems.Add(Loc.F("Building.Validate.FacilityMissing", b.Id, b.FacilityId));
         }
         var seenF = new HashSet<int>();
-        foreach (var f in _parser.Facilities)
+        foreach (var f in _parser.FacilityItems)
         {
             if (!seenF.Add(f.Id)) problems.Add(Loc.F("Building.Validate.FacilityDuplicateId", f.Id));
             if (string.IsNullOrEmpty(f.Name)) problems.Add(Loc.F("Building.Validate.FacilityNameEmpty", f.Id));
         }
-
         if (problems.Count == 0)
-            MessageBox.Show(Loc.F("Building.ValidationPassed", _parser.Buildings.Count, _parser.Facilities.Count), Loc.T("Common.Validate"), MessageBoxButton.OK, MessageBoxImage.Information);
-        else
         {
-            var msg = string.Join("\n", problems.Take(80));
-            if (problems.Count > 80) msg += "\n" + Loc.F("Common.ValidationMore", problems.Count, 80);
-            MessageBox.Show(msg, Loc.F("Common.ValidationProblems", problems.Count), MessageBoxButton.OK, MessageBoxImage.Warning);
+            EditorDialogs.Info(DialogOwner, Loc.T("Common.Validate"), Loc.F("Building.ValidationPassed", _parser.BuildingItems.Count, _parser.FacilityItems.Count));
+            SetStatus(Loc.F("Common.ValidationDone", 0));
+            return;
         }
-        SetStatus(Loc.F("Common.ValidationDone", problems.Count));
-    }
-
-    private void SetStatus(string s)
-    {
-        _statusText.Text = s;
-        Debug.WriteLine($"[BuildingFacilityEditScene] {s}");
-    }
-
-    // ============================================================= 列表项类型 =============================================================
-    private class ItemEntry
-    {
-        public int Id { get; set; }
-        public string Display { get; set; } = "";
-        public override string ToString() => Display;
+        ShowValidation(problems, _parser.BuildingItems.Count + _parser.FacilityItems.Count);
     }
 }

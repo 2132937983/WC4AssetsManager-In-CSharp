@@ -1,19 +1,14 @@
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Unicode;
-using WC4MapEditor.Core.Assets;
 using WC4MapEditor.Core.Config;
+using WC4MapEditor.Core.Services;
 
 namespace WC4MapEditor.Core.Parsers.ArmySetting;
 
 /// <summary>
 /// 军队 Buff 解析器（ArmyBuffSettings.json + stringtable_tw.ini 中的 army_buff_desc_{Id}）。
-/// 采用与 CountryTechSettingParser 相同的单例与路径解析约定。
+/// JSON 的读写与字段保持交给 <see cref="GameJsonTable{T}"/>，文本写入共享字符串表（记在本解析器名下）。
 /// </summary>
-public class ArmyBuffSettingParser
+public sealed class ArmyBuffSettingParser : IGameSettingsSource
 {
     private static readonly object _lock = new();
     private static ArmyBuffSettingParser? _instance;
@@ -32,141 +27,55 @@ public class ArmyBuffSettingParser
         }
     }
 
-    private readonly AssetManager _manager = AssetManager.Default;
-    private List<ArmyBuffSettingData> _buffs = new();
-    private StringTableParser? _stringTable;
-
-    public IReadOnlyList<ArmyBuffSettingData> All => _buffs;
-    public List<ArmyBuffSettingData> Items => _buffs;
-    public string ConfigPath { get; private set; } = "";
-    public string StringTablePath { get; private set; } = "";
-
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
-        PropertyNameCaseInsensitive = true,
-        AllowTrailingCommas = true,
-        ReadCommentHandling = JsonCommentHandling.Skip
-    };
-
     private ArmyBuffSettingParser()
     {
-        ResolvePaths();
+        Table = new GameJsonTable<ArmyBuffSettingData>(GameJson.AssetPath("json", "ArmyBuffSettings.json"));
+        Strings = StringTableStore.Default;
+        Texts = new RecordTextKeys(Strings, this, "army_buff_desc_{0}");
         LoadAll();
     }
 
-    private void ResolvePaths()
-    {
-        if (!_manager.IsLoaded)
-        {
-            try { _manager.ScanDefault(); } catch { }
-        }
+    public GameJsonTable<ArmyBuffSettingData> Table { get; }
+    public StringTableParser Strings { get; }
 
-        var root = _manager.AssetsRoot;
-        if (!string.IsNullOrEmpty(root) && Directory.Exists(root))
-        {
-            ConfigPath = Path.Combine(root, "json", "ArmyBuffSettings.json");
-            StringTablePath = Path.Combine(root, "stringtable_tw.ini");
-        }
-        else
-        {
-            var baseDir = AppContext.BaseDirectory;
-            string? candidate = null;
-            string? current = baseDir;
-            for (int i = 0; i < 8 && !string.IsNullOrEmpty(current); i++)
-            {
-                var test = Path.Combine(current, "Resource", "WC4DATA", "assets");
-                if (Directory.Exists(test)) { candidate = test; break; }
-                current = Path.GetDirectoryName(current);
-            }
-            candidate ??= Path.GetFullPath(Path.Combine(baseDir ?? "", "..", "..", "..", "..", "Resource", "WC4DATA", "assets"));
+    /// <summary>每条 Buff 的文本键：0 = 描述。</summary>
+    public RecordTextKeys Texts { get; }
 
-            ConfigPath = Path.Combine(candidate, "json", "ArmyBuffSettings.json");
-            StringTablePath = Path.Combine(candidate, "stringtable_tw.ini");
-        }
+    public IReadOnlyList<IEditableTable> Tables => [Table];
+    StringTableParser? IGameSettingsSource.Strings => Strings;
 
-        Debug.WriteLine($"[ArmyBuffSettingParser] ConfigPath={ConfigPath} StringTablePath={StringTablePath}");
-    }
+    public List<ArmyBuffSettingData> Items => Table.Items;
+    public string ConfigPath => Table.FilePath;
+    public string StringTablePath => Strings.FilePath;
 
-    public void LoadAll()
-    {
-        LoadBuffs();
-        _stringTable = new StringTableParser(StringTablePath);
-    }
+    public void LoadAll() => Table.Load();
 
-    private void LoadBuffs()
-    {
-        try
-        {
-            if (!File.Exists(ConfigPath))
-            {
-                Debug.WriteLine($"[ArmyBuffSettingParser] 文件不存在: {ConfigPath}");
-                return;
-            }
-            var json = File.ReadAllText(ConfigPath);
-            var data = JsonSerializer.Deserialize<List<ArmyBuffSettingData>>(json, JsonOpts);
-            if (data != null) _buffs = data;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ArmyBuffSettingParser] 加载失败: {ex.Message}");
-        }
-    }
-
-    public ArmyBuffSettingData? GetById(int id)
-    {
-        foreach (var b in _buffs) if (b.Id == id) return b;
-        return null;
-    }
+    public ArmyBuffSettingData? GetById(int id) => Items.FirstOrDefault(b => b.Id == id);
 
     /// <summary>获取 Buff 描述（stringtable 的 army_buff_desc_{Id}）。</summary>
-    public string GetBuffDesc(int id) => _stringTable?.GetValue($"army_buff_desc_{id}", "") ?? "";
+    public string GetBuffDesc(int id) => Texts.Get(0, id);
 
     /// <summary>设置 Buff 描述（写入 stringtable 的 army_buff_desc_{Id}）。</summary>
-    public void SetBuffDesc(int id, string desc) => _stringTable?.SetValue($"army_buff_desc_{id}", desc);
+    public void SetBuffDesc(int id, string desc) => Texts.Set(0, id, desc);
 
-    public int GetNextId()
+    public int GetNextId() => Math.Max(1000, Items.Count == 0 ? 0 : Items.Max(b => b.Id)) + 1;
+
+    /// <summary>删除 Buff 及其描述文本。</summary>
+    public void Remove(ArmyBuffSettingData buff)
     {
-        int max = 1000;
-        foreach (var b in _buffs) if (b.Id > max) max = b.Id;
-        return max + 1;
+        Items.Remove(buff);
+        Texts.Remove(buff.Id);
     }
 
-    public bool AddBuff(ArmyBuffSettingData buff)
+    /// <summary>改 Id：新 Id 已被别的 Buff 占用时返回 false；描述文本跟着移到新 Id。</summary>
+    public bool ChangeId(ArmyBuffSettingData buff, int newId)
     {
-        if (GetById(buff.Id) != null) return false;
-        _buffs.Add(buff);
+        if (buff.Id == newId) return true;
+        if (Items.Any(b => b.Id == newId)) return false;
+        Texts.Move(buff.Id, newId);
+        buff.Id = newId;
         return true;
     }
-
-    public bool RemoveBuff(int id)
-    {
-        var b = GetById(id);
-        if (b == null) return false;
-        _buffs.Remove(b);
-        _stringTable?.Remove($"army_buff_desc_{id}");
-        return true;
-    }
-
-    public bool SaveAll()
-    {
-        try
-        {
-            var json = JsonSerializer.Serialize(_buffs, JsonOpts);
-            File.WriteAllText(ConfigPath, json);
-            _stringTable?.Save();
-            Debug.WriteLine($"[ArmyBuffSettingParser] 保存成功: {ConfigPath}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ArmyBuffSettingParser] 保存失败: {ex.Message}");
-            return false;
-        }
-    }
-
-    public void Reload() => LoadAll();
 
     public static void ClearInstance()
     {

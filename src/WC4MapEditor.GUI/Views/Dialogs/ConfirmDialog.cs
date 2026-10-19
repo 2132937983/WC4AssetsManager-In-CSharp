@@ -21,6 +21,12 @@ public sealed class ConfirmDialog : IDisposable
     public string ConfirmText { get; set; } = Loc.T("Common.Confirm");
     public string CancelText { get; set; } = Loc.T("Common.Cancel");
 
+    /// <summary>
+    /// 确认按钮是否用危险色（默认是：删除 / 覆盖这类不可逆操作）。
+    /// 普通的二选一（例如"返回主界面"时并没有未保存的修改）设为 false，用主色按钮。
+    /// </summary>
+    public bool Destructive { get; set; } = true;
+
     public ConfirmDialog(Window owner)
     {
         _owner = owner;
@@ -143,8 +149,9 @@ public sealed class ConfirmDialog : IDisposable
         cancelButton.MinWidth = 88;
         cancelButton.Margin = new Thickness(10, 0, 0, 0);
 
-        // 确认按钮用危险色：这个对话框基本只用于删除 / 覆盖这类不可逆操作
-        var confirmButton = EditorTheme.DangerButton(ConfirmText, (_, _) => CloseWithResult(true));
+        var confirmButton = Destructive
+            ? EditorTheme.DangerButton(ConfirmText, (_, _) => CloseWithResult(true))
+            : EditorTheme.PrimaryButton(ConfirmText, (_, _) => CloseWithResult(true));
         confirmButton.MinWidth = 88;
         confirmButton.Margin = new Thickness(10, 0, 0, 0);
 

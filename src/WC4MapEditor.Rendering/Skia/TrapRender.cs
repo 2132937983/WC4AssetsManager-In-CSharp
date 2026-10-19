@@ -6,18 +6,20 @@ using SkiaSharp;
 using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Helpers;
 using WC4MapEditor.Core.Models;
+using WC4MapEditor.Core.Modifiers;
 
 namespace WC4MapEditor.Rendering.Skia;
 
+/// <summary>
+/// 陷阱层：每个陷阱按等级（编制，1-5）画 1-5 个地雷图标，海洋格用 sea_trap.png、其它格用 land_trap.png，
+/// 上方画所属军团（Trap.LegionId = 军团 ActionId）的国旗。
+/// </summary>
 public class TrapRender : IDisposable
 {
-    private const int ATLAS_TILE_SIZE = 32;
     private const double TRAP_IMAGE_SIZE_RATIO = 0.6;
     private const double FLAG_SIZE_RATIO = 0.5;
     private const double BASE_RADIUS = 15.0;
     private const double BASE_HEX_SIZE = 20.0;
-    private static readonly double HEX_HORIZONTAL_SPACING = BASE_HEX_SIZE * 1.5;
-    private static readonly double HEX_VERTICAL_SPACING = BASE_HEX_SIZE * Math.Sqrt(3);
 
     private readonly Camera _camera;
     private readonly MapData _mapData;
@@ -46,8 +48,12 @@ public class TrapRender : IDisposable
     private Dictionary<int, int>? _legionCountryMap;
     private ObservableCollection<Legion>? _subscribedLegions;
 
-    private readonly List<SKRect> _spriteRects = new();
-    private readonly List<SKRotationScaleMatrix> _transforms = new();
+    /// <summary>
+    /// 陆地 / 海洋陷阱各一批：DrawAtlas 一次只能用一张图，以前整批都用陆地图绘制（海洋图的切片矩形套在陆地图上），
+    /// 海洋陷阱从来显示不出 sea_trap.png（VB 同样的 bug）。
+    /// </summary>
+    private readonly SpriteBatch _landSprites = new();
+    private readonly SpriteBatch _seaSprites = new();
     private readonly List<(SKRect DstRect, SKImage Image)> _flagDrawList = new();
     // 复用的绘制画笔；原先陷阱图集每帧、国旗每面各 new 一个 SKPaint。
     private readonly SKPaint _imagePaint = new() { IsAntialias = true };
@@ -252,8 +258,8 @@ public class TrapRender : IDisposable
 
         try
         {
-            _spriteRects.Clear();
-            _transforms.Clear();
+            _landSprites.Clear();
+            _seaSprites.Clear();
             _flagDrawList.Clear();
 
             float zoom = (float)_camera.ZoomLevel;
@@ -266,31 +272,26 @@ public class TrapRender : IDisposable
             // 放在循环外分配一次：stackalloc 的栈空间直到方法返回才释放，放进循环会随陷阱数累积。
             Span<SKPoint> positions = stackalloc SKPoint[MAX_TRAP_POSITIONS];
 
+            // 征服地图不存地形（全部是默认的海洋值），分不出海陆，这时一律用陆地图标
+            bool mapHasLand = ArmyPlacementRules.HasLandTiles(_mapData);
+
             foreach (var trap in _mapData.Traps)
             {
-                if (trap.Coordinate < 0 || trap.Coordinate >= _mapData.MapWidth * _mapData.MapHeight)
-                    continue;
+                int cell = trap.CellIndex;
+                if (cell >= _mapData.MapWidth * _mapData.MapHeight) continue;
 
-                var screenPos = CalculateScreenPosition(trap.Coordinate);
+                var screenPos = CalculateScreenPosition(cell);
                 if (screenPos == null) continue;
                 if (!IsInVisibleBounds(screenPos.Value, visibleBounds)) continue;
 
-                bool isSea = IsSeaHex(trap.Coordinate);
-                var trapImage = (isSea && _seaTrapImage != null) ? _seaTrapImage : _landTrapImage;
+                bool isSea = _seaTrapImage != null && ArmyPlacementRules.IsSea(_mapData, cell, mapHasLand);
+                var batch = isSea ? _seaSprites : _landSprites;
+                var trapImage = isSea ? _seaTrapImage : _landTrapImage;
                 if (trapImage == null) continue;
 
                 int positionCount = GetTrapPositions(trap.Organization, screenPos.Value.X, screenPos.Value.Y, zoom, positions);
-
                 for (int p = 0; p < positionCount; p++)
-                {
-                    var pos = positions[p];
-                    _spriteRects.Add(new SKRect(0, 0, trapImage.Width, trapImage.Height));
-                    float scaleX = trapSize / trapImage.Width;
-                    float scaleY = trapSize / trapImage.Height;
-                    float tx = pos.X - trapSize / 2;
-                    float ty = pos.Y - trapSize / 2;
-                    _transforms.Add(new SKRotationScaleMatrix(scaleX, 0, tx, ty));
-                }
+                    batch.Add(trapImage, positions[p], trapSize);
 
                 float flagOffsetY = -(float)hexHeight * 0.4f;
                 float flagX = screenPos.Value.X;
@@ -319,15 +320,36 @@ public class TrapRender : IDisposable
 
     private void DrawTrapsBatch(SKCanvas canvas)
     {
-        if (_transforms.Count == 0) return;
-
         lock (_atlasLock)
         {
-            var trapImage = _landTrapImage ?? _seaTrapImage;
-            if (trapImage == null) return;
+            if (_landTrapImage != null) _landSprites.Draw(canvas, _landTrapImage, _imagePaint);
+            if (_seaTrapImage != null) _seaSprites.Draw(canvas, _seaTrapImage, _imagePaint);
+        }
+    }
 
-            canvas.DrawAtlas(trapImage, _spriteRects.ToArray(), _transforms.ToArray(), _imagePaint);
-            _spriteRects.Clear();
+    /// <summary>同一张图的一批图标：图标按宽高中较大的一边缩放到 size（不再只按宽度缩放），中心对准目标点。</summary>
+    private sealed class SpriteBatch
+    {
+        private readonly List<SKRect> _rects = new();
+        private readonly List<SKRotationScaleMatrix> _transforms = new();
+
+        public void Add(SKImage image, SKPoint center, float size)
+        {
+            float scale = Math.Min(size / image.Width, size / image.Height);
+            _rects.Add(new SKRect(0, 0, image.Width, image.Height));
+            _transforms.Add(new SKRotationScaleMatrix(scale, 0, center.X - image.Width * scale / 2, center.Y - image.Height * scale / 2));
+        }
+
+        public void Draw(SKCanvas canvas, SKImage image, SKPaint paint)
+        {
+            if (_transforms.Count > 0)
+                canvas.DrawAtlas(image, _rects.ToArray(), _transforms.ToArray(), paint);
+            Clear();
+        }
+
+        public void Clear()
+        {
+            _rects.Clear();
             _transforms.Clear();
         }
     }
@@ -372,16 +394,6 @@ public class TrapRender : IDisposable
 
         var (screenX, screenY) = _camera.HexToScreen(col, row);
         return new SKPoint((float)screenX, (float)screenY);
-    }
-
-    private bool IsSeaHex(int hexIndex)
-    {
-        try
-        {
-            var terrain = _mapData.GetTerrain(hexIndex);
-            return terrain.TileType1 == 1;
-        }
-        catch { return false; }
     }
 
     private int GetCountryIdFromLegionId(int legionId)

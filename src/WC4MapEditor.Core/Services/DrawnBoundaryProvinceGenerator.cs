@@ -61,23 +61,8 @@ public static class DrawnBoundaryProvinceGenerator
 
         int total = mapWidth * mapHeight;
 
-        // ---------- 0. 省会：既是"能不能填充"的判据，也是扩展源 ----------
-        var capitalIndices = new HashSet<int>();
-
-        foreach (var capital in mapData.Capitals)
-        {
-            int idx = capital.Coordinate;
-            if (idx >= 0 && idx < total)
-                capitalIndices.Add(idx);
-        }
-
-        for (int i = 0; i < total; i++)
-        {
-            ref var provinceRef = ref mapData.GetProvinceRef(i);
-            if (provinceRef.IsValid && provinceRef.ProvinceValue == i)
-                capitalIndices.Add(i);
-        }
-
+        // ---------- 0. 省会：既是"能不能填充"的判据，也是扩展源（规则与背景图识别相同） ----------
+        var capitalIndices = BackgroundProvinceGenerator.CollectCapitalIndices(mapData);
         if (capitalIndices.Count == 0) return null;
 
         // ---------- 1. 边界像素 → 边界格子 ----------
@@ -145,7 +130,6 @@ public static class DrawnBoundaryProvinceGenerator
 
         int regionCount = 0;
         int filledRegions = 0;
-        int filledCells = 0;
         int skippedRegions = 0;
 
         for (int start = 0; start < total; start++)
@@ -246,23 +230,8 @@ public static class DrawnBoundaryProvinceGenerator
             }
         }
 
-        // ---------- 6. 写回省区值 ----------
-        for (int index = 0; index < total; index++)
-        {
-            int sourceIndex = owner[index];
-            if (sourceIndex < 0) continue;
-
-            // 省会格保留原值，维持"省区值 == 省会索引"的约定
-            if (capitalIndices.Contains(index)) continue;
-
-            // 海洋不属于任何省区
-            if (mapData.GetTerrainRef(index).TileType1 == 1) continue;
-
-            mapData.GetProvinceRef(index).ProvinceValue =
-                (ushort)(sourceIndex <= 0xFFFF ? sourceIndex : sourceIndex % 0x10000);
-
-            filledCells++;
-        }
+        // ---------- 6. 写回省区值（省会格写成自身索引、跳过海洋，与背景图识别同一步） ----------
+        int filledCells = BackgroundProvinceGenerator.WriteOwners(mapData, owner, capitalIndices);
 
         return new Result(
             boundaryCellCount, regionCount, filledRegions, filledCells,

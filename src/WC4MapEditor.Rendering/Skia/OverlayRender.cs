@@ -25,7 +25,7 @@ public sealed class OverlayRender
     // 帮助文本的拆行结果与最大行宽：只在 HelpText 变化（_helpLinesDirty）或字体重建后重算，
     // 原先每帧 Split + 逐行 MeasureText。
     private string[] _helpLines = Array.Empty<string>();
-    private float _helpMaxWidth;
+    private float[] _helpLineWidths = Array.Empty<float>();
     private bool _helpLinesDirty = true;
 
     // 帮助面板 / 模式名的画笔常驻复用，每帧只按透明度更新颜色；阴影径向渐变仅在透明度或矩形变化时重建。
@@ -99,6 +99,18 @@ public sealed class OverlayRender
 
     public int ViewportWidth { get; set; }
     public int ViewportHeight { get; set; }
+
+    /// <summary>帮助文本底部要留出的高度（宿主盖在画面底部的工具栏），帮助太长时在这之上分栏显示</summary>
+    public int HelpBottomMargin { get; set; }
+
+    /// <summary>帮助分栏之间的间距</summary>
+    private const float HelpColumnGap = 28f;
+
+    /// <summary>最多分几栏（窗口极矮时不再继续加栏）</summary>
+    private const int MaxHelpColumns = 3;
+
+    /// <summary>帮助文本是否仍在淡入 / 淡出（宿主据此决定要不要继续驱动重绘）</summary>
+    public bool IsFading => Math.Abs(_helpTargetOpacity - _helpOpacity) > 0.001f;
 
     public void UpdateFadeAnimation()
     {
@@ -317,8 +329,7 @@ public sealed class OverlayRender
     {
         float marginLeft = 15;
         float marginTop = 15;
-        float startX = marginLeft;
-        float startY = marginTop + _helpTextFont!.Size;
+        float shadowPadding = 8;
 
         if (_helpLinesDirty)
             RebuildHelpLines();
@@ -327,12 +338,25 @@ public sealed class OverlayRender
         if (lines.Length <= 1) return;
 
         int contentLines = lines.Length - 1;
-        float lineHeight = _helpTextFont.Size + 4;
+        float lineHeight = _helpTextFont!.Size + 4;
 
-        float textWidth = _helpMaxWidth;
-        float textHeight = contentLines * lineHeight;
+        // 帮助比可用高度还长时分成几栏，不让后面的行（全局按键说明）落到底部工具栏下面看不见
+        float availableHeight = ViewportHeight - marginTop - shadowPadding - HelpBottomMargin;
+        int perColumn = Math.Max(1, (int)(availableHeight / lineHeight));
+        int columns = Math.Min(MaxHelpColumns, (contentLines + perColumn - 1) / perColumn);
+        perColumn = (contentLines + columns - 1) / columns;
 
-        float shadowPadding = 8;
+        Span<float> columnWidths = stackalloc float[columns];
+        for (int i = 0; i < contentLines; i++)
+        {
+            int c = i / perColumn;
+            if (_helpLineWidths[i + 1] > columnWidths[c]) columnWidths[c] = _helpLineWidths[i + 1];
+        }
+
+        float textWidth = HelpColumnGap * (columns - 1);
+        foreach (float w in columnWidths) textWidth += w;
+        float textHeight = Math.Min(contentLines, perColumn) * lineHeight;
+
         var shadowRect = new SKRect(
             marginLeft - shadowPadding,
             marginTop - shadowPadding,
@@ -370,38 +394,37 @@ public sealed class OverlayRender
 
         var shadowTextPaint = _helpShadowTextPaint!;
         shadowTextPaint.Color = new SKColor(0, 0, 0, (byte)(180 * _helpOpacity));
-        for (int i = 1; i < lines.Length; i++)
-        {
-            float lineY = startY + ((i - 1) * lineHeight);
-            canvas.DrawText(lines[i], startX + 1, lineY + 1, SKTextAlign.Left, _helpTextFont, shadowTextPaint);
-        }
-
-        byte opacityByte = (byte)(_helpOpacity * 255);
         var textPaint = _helpTextPaint!;
-        textPaint.Color = new SKColor(255, 255, 255, opacityByte);
-        for (int i = 1; i < lines.Length; i++)
+        textPaint.Color = new SKColor(255, 255, 255, (byte)(_helpOpacity * 255));
+
+        float startY = marginTop + _helpTextFont.Size;
+        float columnX = marginLeft;
+        for (int c = 0; c < columns; c++)
         {
-            float lineY = startY + ((i - 1) * lineHeight);
-            canvas.DrawText(lines[i], startX, lineY, SKTextAlign.Left, _helpTextFont, textPaint);
+            int first = c * perColumn;
+            int last = Math.Min(contentLines, first + perColumn);
+            for (int i = first; i < last; i++)
+            {
+                float lineY = startY + (i - first) * lineHeight;
+                canvas.DrawText(lines[i + 1], columnX + 1, lineY + 1, SKTextAlign.Left, _helpTextFont, shadowTextPaint);
+                canvas.DrawText(lines[i + 1], columnX, lineY, SKTextAlign.Left, _helpTextFont, textPaint);
+            }
+            columnX += columnWidths[c] + HelpColumnGap;
         }
     }
 
-    /// <summary>按当前 HelpText 重新拆行并测量最大行宽（跳过首行标题，与绘制逻辑一致）。</summary>
+    /// <summary>按当前 HelpText 重新拆行并测量每行宽度（首行标题不画，宽度记 0）。</summary>
     private void RebuildHelpLines()
     {
         _helpLinesDirty = false;
         _helpLines = _helpText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        _helpLineWidths = new float[_helpLines.Length];
 
-        float maxWidth = 0;
         if (_helpTextFont != null)
         {
             for (int i = 1; i < _helpLines.Length; i++)
-            {
-                float w = _helpTextFont.MeasureText(_helpLines[i]);
-                if (w > maxWidth) maxWidth = w;
-            }
+                _helpLineWidths[i] = _helpTextFont.MeasureText(_helpLines[i]);
         }
-        _helpMaxWidth = maxWidth;
     }
 
     public void Dispose()

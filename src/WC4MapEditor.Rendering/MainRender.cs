@@ -91,6 +91,14 @@ public class MainRender : IRenderEngine
         set => _activeEngine.HelpOpacity = value;
     }
 
+    public bool IsHelpFading => _activeEngine.IsHelpFading;
+
+    public int HelpBottomMargin
+    {
+        get => _activeEngine.HelpBottomMargin;
+        set => _activeEngine.HelpBottomMargin = value;
+    }
+
     public void UpdateHelpFadeAnimation()
     {
         _activeEngine.UpdateHelpFadeAnimation();
@@ -265,6 +273,12 @@ public class MainRender : IRenderEngine
     {
         get => _activeEngine.EnableMapCaseRender;
         set => _activeEngine.EnableMapCaseRender = value;
+    }
+
+    public bool EnableClippedTileRender
+    {
+        get => _activeEngine.EnableClippedTileRender;
+        set => _activeEngine.EnableClippedTileRender = value;
     }
 
     public bool ShowBuildingNames

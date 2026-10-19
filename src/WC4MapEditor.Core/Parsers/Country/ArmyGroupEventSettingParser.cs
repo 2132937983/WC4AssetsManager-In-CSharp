@@ -1,11 +1,6 @@
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Unicode;
-using WC4MapEditor.Core.Assets;
 using WC4MapEditor.Core.Config;
+using WC4MapEditor.Core.Services;
 
 namespace WC4MapEditor.Core.Parsers.Country;
 
@@ -13,7 +8,7 @@ namespace WC4MapEditor.Core.Parsers.Country;
 /// 集团军事件解析器（ArmyGroupEventSettings.json + stringtable_tw.ini 的
 /// armygroup_event_{Id} / armygroup_event_desc_{Id}）。
 /// </summary>
-public class ArmyGroupEventSettingParser
+public sealed class ArmyGroupEventSettingParser : IGameSettingsSource
 {
     private static readonly object _lock = new();
     private static ArmyGroupEventSettingParser? _instance;
@@ -32,141 +27,54 @@ public class ArmyGroupEventSettingParser
         }
     }
 
-    private readonly AssetManager _manager = AssetManager.Default;
-    private List<ArmyGroupEventData> _events = new();
-    private StringTableParser? _stringTable;
-
-    public IReadOnlyList<ArmyGroupEventData> All => _events;
-    public IReadOnlyList<ArmyGroupEventData> Items => _events;
-    public string ConfigPath { get; private set; } = "";
-    public string StringTablePath { get; private set; } = "";
-
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
-        PropertyNameCaseInsensitive = true,
-        AllowTrailingCommas = true,
-        ReadCommentHandling = JsonCommentHandling.Skip
-    };
-
     private ArmyGroupEventSettingParser()
     {
-        ResolvePaths();
+        Table = new GameJsonTable<ArmyGroupEventData>(GameJson.AssetPath("json", "ArmyGroupEventSettings.json"));
+        Strings = StringTableStore.Default;
+        Texts = new RecordTextKeys(Strings, this, "armygroup_event_{0}", "armygroup_event_desc_{0}");
         LoadAll();
     }
 
-    private void ResolvePaths()
+    public GameJsonTable<ArmyGroupEventData> Table { get; }
+    public StringTableParser Strings { get; }
+
+    /// <summary>每个事件的文本键：0 = 标题，1 = 描述。</summary>
+    public RecordTextKeys Texts { get; }
+
+    public IReadOnlyList<IEditableTable> Tables => [Table];
+    StringTableParser? IGameSettingsSource.Strings => Strings;
+
+    public List<ArmyGroupEventData> Items => Table.Items;
+    public string ConfigPath => Table.FilePath;
+    public string StringTablePath => Strings.FilePath;
+
+    public void LoadAll() => Table.Load();
+
+    public ArmyGroupEventData? GetById(int id) => Items.FirstOrDefault(e => e.Id == id);
+
+    public string GetEventName(int id) => Texts.Get(0, id);
+    public void SetEventName(int id, string name) => Texts.Set(0, id, name);
+    public string GetEventDesc(int id) => Texts.Get(1, id);
+    public void SetEventDesc(int id, string desc) => Texts.Set(1, id, desc);
+
+    public int GetNextId() => (Items.Count == 0 ? 0 : Math.Max(0, Items.Max(e => e.Id))) + 1;
+
+    /// <summary>删除事件及其标题 / 描述文本。</summary>
+    public void Remove(ArmyGroupEventData ev)
     {
-        if (!_manager.IsLoaded)
-        {
-            try { _manager.ScanDefault(); } catch { }
-        }
-
-        var root = _manager.AssetsRoot;
-        if (!string.IsNullOrEmpty(root) && Directory.Exists(root))
-        {
-            ConfigPath = Path.Combine(root, "json", "ArmyGroupEventSettings.json");
-            StringTablePath = Path.Combine(root, "stringtable_tw.ini");
-        }
-        else
-        {
-            var baseDir = AppContext.BaseDirectory;
-            string? candidate = null;
-            string? current = baseDir;
-            for (int i = 0; i < 8 && !string.IsNullOrEmpty(current); i++)
-            {
-                var test = Path.Combine(current, "Resource", "WC4DATA", "assets");
-                if (Directory.Exists(test)) { candidate = test; break; }
-                current = Path.GetDirectoryName(current);
-            }
-            candidate ??= Path.GetFullPath(Path.Combine(baseDir ?? "", "..", "..", "..", "..", "Resource", "WC4DATA", "assets"));
-
-            ConfigPath = Path.Combine(candidate, "json", "ArmyGroupEventSettings.json");
-            StringTablePath = Path.Combine(candidate, "stringtable_tw.ini");
-        }
-
-        Debug.WriteLine($"[ArmyGroupEventSettingParser] ConfigPath={ConfigPath} StringTablePath={StringTablePath}");
+        Items.Remove(ev);
+        Texts.Remove(ev.Id);
     }
 
-    public void LoadAll()
+    /// <summary>改 Id：新 Id 已被占用时返回 false；标题 / 描述跟着移到新 Id。</summary>
+    public bool ChangeId(ArmyGroupEventData ev, int newId)
     {
-        LoadEvents();
-        _stringTable = new StringTableParser(StringTablePath);
-    }
-
-    private void LoadEvents()
-    {
-        try
-        {
-            if (!File.Exists(ConfigPath))
-            {
-                Debug.WriteLine($"[ArmyGroupEventSettingParser] 文件不存在: {ConfigPath}");
-                return;
-            }
-            var json = File.ReadAllText(ConfigPath);
-            var data = JsonSerializer.Deserialize<List<ArmyGroupEventData>>(json, JsonOpts);
-            if (data != null) _events = data;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ArmyGroupEventSettingParser] 加载失败: {ex.Message}");
-        }
-    }
-
-    public ArmyGroupEventData? GetById(int id)
-    {
-        foreach (var e in _events) if (e.Id == id) return e;
-        return null;
-    }
-
-    public string GetEventName(int id) => _stringTable?.GetValue($"armygroup_event_{id}", "") ?? "";
-    public void SetEventName(int id, string name) => _stringTable?.SetValue($"armygroup_event_{id}", name);
-    public string GetEventDesc(int id) => _stringTable?.GetValue($"armygroup_event_desc_{id}", "") ?? "";
-    public void SetEventDesc(int id, string desc) => _stringTable?.SetValue($"armygroup_event_desc_{id}", desc);
-
-    public int GetNextId()
-    {
-        int max = 0;
-        foreach (var e in _events) if (e.Id > max) max = e.Id;
-        return max + 1;
-    }
-
-    public bool AddEvent(ArmyGroupEventData ev)
-    {
-        if (GetById(ev.Id) != null) return false;
-        _events.Add(ev);
+        if (ev.Id == newId) return true;
+        if (Items.Any(e => e.Id == newId)) return false;
+        Texts.Move(ev.Id, newId);
+        ev.Id = newId;
         return true;
     }
-
-    public bool RemoveEvent(int id)
-    {
-        var e = GetById(id);
-        if (e == null) return false;
-        _events.Remove(e);
-        _stringTable?.Remove($"armygroup_event_{id}");
-        _stringTable?.Remove($"armygroup_event_desc_{id}");
-        return true;
-    }
-
-    public bool SaveAll()
-    {
-        try
-        {
-            var json = JsonSerializer.Serialize(_events, JsonOpts);
-            File.WriteAllText(ConfigPath, json);
-            _stringTable?.Save();
-            Debug.WriteLine($"[ArmyGroupEventSettingParser] 保存成功: {ConfigPath}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[ArmyGroupEventSettingParser] 保存失败: {ex.Message}");
-            return false;
-        }
-    }
-
-    public void Reload() => LoadAll();
 
     public static void ClearInstance()
     {
@@ -183,6 +91,7 @@ public class ArmyGroupEventData
 {
     [JsonPropertyName("Id")] public int Id { get; set; }
     [JsonPropertyName("EventId")] public int EventId { get; set; }
+    [JsonPropertyName("StageId")] public int StageId { get; set; }
     [JsonPropertyName("EventBuffId1")] public int EventBuffId1 { get; set; }
     [JsonPropertyName("Round1")] public int Round1 { get; set; }
     [JsonPropertyName("CountryId1")] public List<int> CountryId1 { get; set; } = new();

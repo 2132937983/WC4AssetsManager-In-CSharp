@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using WC4MapEditor.Core.Analyzers;
 using WC4MapEditor.Core.Models;
 using WC4MapEditor.Core.Parsers.BTL;
 
@@ -82,6 +83,7 @@ public class StageParser
             sw.Restart();
 
             ResetLoadFlags();
+            Header = null!;
             GetHeaderData();
             Debug.WriteLine($"[Timing-Load]   ResetLoadFlags+GetHeaderData: {sw.ElapsedMilliseconds}ms");
             return true;
@@ -134,15 +136,24 @@ public class StageParser
         return Legions;
     }
 
+    /// <summary>按文件头排出的数据块地址表（战役布局：地形块格数 = MapLength × MapWidth）。</summary>
+    private BTLLayout Layout
+    {
+        get
+        {
+            if (Header == null) GetHeaderData();
+            return BTLLayout.ForStage(Header);
+        }
+    }
+
     public List<Terrain> GetTerrainData()
     {
         if (_terrainsLoaded) return Terrains;
-        if (Header == null) GetHeaderData();
         if (!_legionsLoaded) GetLegionData();
 
-        var offsets = StageOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount);
+        var span = Layout[BtlBlock.Terrain];
         Terrains.Clear();
-        Terrains.AddRange(BTLTerrainModule.Parse(HexData, offsets.terrain, Header.SelectableTileCount));
+        Terrains.AddRange(BTLTerrainModule.Parse(HexData, span.StartInt, span.Count));
         _terrainsLoaded = true;
         return Terrains;
     }
@@ -150,12 +161,11 @@ public class StageParser
     public List<Province> GetProvinceData()
     {
         if (_provincesLoaded) return Provinces;
-        if (Header == null) GetHeaderData();
         if (!_terrainsLoaded) GetTerrainData();
 
-        var offsets = StageOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount);
+        var span = Layout[BtlBlock.Province];
         Provinces.Clear();
-        Provinces.AddRange(BTLProvinceModule.Parse(HexData, offsets.province, Header.SelectableTileCount));
+        Provinces.AddRange(BTLProvinceModule.Parse(HexData, span.StartInt, span.Count));
         _provincesLoaded = true;
         return Provinces;
     }
@@ -163,12 +173,11 @@ public class StageParser
     public List<string> GetBelongData()
     {
         if (_belongsLoaded) return Belongs;
-        if (Header == null) GetHeaderData();
         if (!_provincesLoaded) GetProvinceData();
 
-        var offsets = StageOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount);
+        var span = Layout[BtlBlock.Belong];
         Belongs.Clear();
-        Belongs.AddRange(BTLBelongModule.Parse(HexData, offsets.belong, Header.SelectableTileCount));
+        Belongs.AddRange(BTLBelongModule.Parse(HexData, span.StartInt, span.Count));
         _belongsLoaded = true;
         return Belongs;
     }
@@ -176,12 +185,11 @@ public class StageParser
     public List<Building> GetBuildingData()
     {
         if (_buildingsLoaded) return Buildings;
-        if (Header == null) GetHeaderData();
         if (!_belongsLoaded) GetBelongData();
 
-        var offsets = StageOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount);
+        var span = Layout[BtlBlock.Building];
         Buildings.Clear();
-        Buildings.AddRange(BTLBuildingModule.Parse(HexData, offsets.building, Header.BuildingCount));
+        Buildings.AddRange(BTLBuildingModule.Parse(HexData, span.StartInt, span.Count));
         _buildingsLoaded = true;
         return Buildings;
     }
@@ -189,14 +197,13 @@ public class StageParser
     public List<Army> GetArmyData()
     {
         if (_armiesLoaded) return Armies;
-        if (Header == null) GetHeaderData();
         if (!_buildingsLoaded) GetBuildingData();
 
-        int dataEnd = StageOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount).dataEnd;
+        var span = Layout[BtlBlock.Army];
         Armies.Clear();
         ArmiesV3.Clear();
 
-        var (v1, v3) = BTLArmyModule.Parse(HexData, dataEnd, Header.TroopCount, BtlVersion);
+        var (v1, v3) = BTLArmyModule.Parse(HexData, span.StartInt, span.Count, BtlVersion);
         Armies.AddRange(v1);
         ArmiesV3.AddRange(v3);
         _armiesLoaded = true;
@@ -206,12 +213,11 @@ public class StageParser
     public List<Trap> GetTrapData()
     {
         if (_trapsLoaded) return Traps;
-        if (Header == null) GetHeaderData();
         if (!_armiesLoaded) GetArmyData();
 
-        int offset = CalculateDataEndOffset() + (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion));
+        var span = Layout[BtlBlock.Trap];
         Traps.Clear();
-        Traps.AddRange(BTLTrapModule.Parse(HexData, offset, Header.TrapCount));
+        Traps.AddRange(BTLTrapModule.Parse(HexData, span.StartInt, span.Count));
         _trapsLoaded = true;
         return Traps;
     }
@@ -219,14 +225,11 @@ public class StageParser
     public List<MapCase> GetCaseData()
     {
         if (_casesLoaded) return Cases;
-        if (Header == null) GetHeaderData();
         if (!_trapsLoaded) GetTrapData();
 
-        int offset = CalculateDataEndOffset() +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12);
+        var span = Layout[BtlBlock.Case];
         Cases.Clear();
-        Cases.AddRange(BTLCaseModule.Parse(HexData, offset, Header.PlanCount));
+        Cases.AddRange(BTLCaseModule.Parse(HexData, span.StartInt, span.Count));
         _casesLoaded = true;
         return Cases;
     }
@@ -234,15 +237,11 @@ public class StageParser
     public List<Weather> GetWeatherData()
     {
         if (_weathersLoaded) return Weathers;
-        if (Header == null) GetHeaderData();
         if (!_casesLoaded) GetCaseData();
 
-        int offset = CalculateDataEndOffset() +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16);
+        var span = Layout[BtlBlock.Weather];
         Weathers.Clear();
-        Weathers.AddRange(BTLWeatherModule.Parse(HexData, offset, Header.WeatherCount));
+        Weathers.AddRange(BTLWeatherModule.Parse(HexData, span.StartInt, span.Count));
         _weathersLoaded = true;
         return Weathers;
     }
@@ -250,16 +249,11 @@ public class StageParser
     public List<MapEvent> GetEventData()
     {
         if (_eventsLoaded) return Events;
-        if (Header == null) GetHeaderData();
         if (!_weathersLoaded) GetWeatherData();
 
-        int offset = CalculateDataEndOffset() +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16) +
-                     (Header.WeatherCount * 16);
+        var span = Layout[BtlBlock.Event];
         Events.Clear();
-        Events.AddRange(BTLEventModule.Parse(HexData, offset, Header.EventCount));
+        Events.AddRange(BTLEventModule.Parse(HexData, span.StartInt, span.Count));
         _eventsLoaded = true;
         return Events;
     }
@@ -267,19 +261,13 @@ public class StageParser
     public List<Reinforcement> GetReinforcementData()
     {
         if (_reinforcementsLoaded) return Reinforcements;
-        if (Header == null) GetHeaderData();
         if (!_eventsLoaded) GetEventData();
 
-        int offset = CalculateDataEndOffset() +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16) +
-                     (Header.WeatherCount * 16) +
-                     (Header.EventCount * 44);
+        var span = Layout[BtlBlock.Reinforcement];
         Reinforcements.Clear();
         ReinforcementsV3.Clear();
 
-        var (v1, v3) = BTLReinforcementModule.Parse(HexData, offset, Header.ReinforcementCount, BtlVersion);
+        var (v1, v3) = BTLReinforcementModule.Parse(HexData, span.StartInt, span.Count, BtlVersion);
         Reinforcements.AddRange(v1);
         ReinforcementsV3.AddRange(v3);
         _reinforcementsLoaded = true;
@@ -289,18 +277,11 @@ public class StageParser
     public List<AirForce> GetAirForceData()
     {
         if (_airForcesLoaded) return AirForces;
-        if (Header == null) GetHeaderData();
         if (!_reinforcementsLoaded) GetReinforcementData();
 
-        int offset = CalculateDataEndOffset() +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16) +
-                     (Header.WeatherCount * 16) +
-                     (Header.EventCount * 44) +
-                     (Header.ReinforcementCount * BTLReinforcementModule.GetReinforcementSize(BtlVersion));
+        var span = Layout[BtlBlock.AirRaid];
         AirForces.Clear();
-        AirForces.AddRange(BTLAirForceModule.Parse(HexData, offset, Header.AirRaidCount));
+        AirForces.AddRange(BTLAirForceModule.Parse(HexData, span.StartInt, span.Count));
         _airForcesLoaded = true;
         return AirForces;
     }
@@ -308,19 +289,11 @@ public class StageParser
     public List<UnitPlacement> GetUnitPlaceData()
     {
         if (_unitPlacesLoaded) return UnitPlaces;
-        if (Header == null) GetHeaderData();
         if (!_airForcesLoaded) GetAirForceData();
 
-        int offset = CalculateDataEndOffset() +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16) +
-                     (Header.WeatherCount * 16) +
-                     (Header.EventCount * 44) +
-                     (Header.ReinforcementCount * BTLReinforcementModule.GetReinforcementSize(BtlVersion)) +
-                     (Header.AirRaidCount * 20);
+        var span = Layout[BtlBlock.UnitPlacement];
         UnitPlaces.Clear();
-        UnitPlaces.AddRange(BTLUnitPlacementModule.Parse(HexData, offset, Header.PlacementA + Header.PlacementB));
+        UnitPlaces.AddRange(BTLUnitPlacementModule.Parse(HexData, span.StartInt, span.Count));
         _unitPlacesLoaded = true;
         return UnitPlaces;
     }
@@ -328,20 +301,11 @@ public class StageParser
     public List<Capital> GetCapitalData()
     {
         if (_capitalsLoaded) return Capitals;
-        if (Header == null) GetHeaderData();
         if (!_unitPlacesLoaded) GetUnitPlaceData();
 
-        int offset = CalculateDataEndOffset() +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16) +
-                     (Header.WeatherCount * 16) +
-                     (Header.EventCount * 44) +
-                     (Header.ReinforcementCount * BTLReinforcementModule.GetReinforcementSize(BtlVersion)) +
-                     (Header.AirRaidCount * 20) +
-                     ((Header.PlacementA + Header.PlacementB) * 8);
+        var span = Layout[BtlBlock.Capital];
         Capitals.Clear();
-        Capitals.AddRange(BTLCapitalModule.Parse(HexData, offset, Header.ConqueredFlagPosition));
+        Capitals.AddRange(BTLCapitalModule.Parse(HexData, span.StartInt, span.Count));
         _capitalsLoaded = true;
         return Capitals;
     }
@@ -349,21 +313,11 @@ public class StageParser
     public List<StrategicConstruction> GetStrategyConstructionData()
     {
         if (_strategyLoaded) return StrategyConstructions;
-        if (Header == null) GetHeaderData();
         if (!_capitalsLoaded) GetCapitalData();
 
-        int offset = CalculateDataEndOffset() +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16) +
-                     (Header.WeatherCount * 16) +
-                     (Header.EventCount * 44) +
-                     (Header.ReinforcementCount * BTLReinforcementModule.GetReinforcementSize(BtlVersion)) +
-                     (Header.AirRaidCount * 20) +
-                     ((Header.PlacementA + Header.PlacementB) * 8) +
-                     (Header.ConqueredFlagPosition * 4);
+        var span = Layout[BtlBlock.Strategy];
         StrategyConstructions.Clear();
-        StrategyConstructions.AddRange(BTLStrategyModule.Parse(HexData, offset, Header.StrategyCount));
+        StrategyConstructions.AddRange(BTLStrategyModule.Parse(HexData, span.StartInt, span.Count));
         _strategyLoaded = true;
         return StrategyConstructions;
     }
@@ -371,30 +325,20 @@ public class StageParser
     public List<AirSupport> GetAirSupportData()
     {
         if (_airSupportsLoaded) return AirSupports;
-        if (Header == null) GetHeaderData();
         if (!_strategyLoaded) GetStrategyConstructionData();
 
-        int offset = CalculateDataEndOffset() +
-                     (Header.TroopCount * BTLArmyModule.GetArmySize(BtlVersion)) +
-                     (Header.TrapCount * 12) +
-                     (Header.PlanCount * 16) +
-                     (Header.WeatherCount * 16) +
-                     (Header.EventCount * 44) +
-                     (Header.ReinforcementCount * BTLReinforcementModule.GetReinforcementSize(BtlVersion)) +
-                     (Header.AirRaidCount * 20) +
-                     ((Header.PlacementA + Header.PlacementB) * 8) +
-                     (Header.ConqueredFlagPosition * 4) +
-                     (Header.StrategyCount * 16);
+        var span = Layout[BtlBlock.AirSupport];
         AirSupports.Clear();
-        AirSupports.AddRange(BTLAirSupportModule.Parse(HexData, offset, Header.AirSupportCount));
+        AirSupports.AddRange(BTLAirSupportModule.Parse(HexData, span.StartInt, span.Count));
         _airSupportsLoaded = true;
         return AirSupports;
     }
 
-    private int CalculateDataEndOffset()
+    /// <summary>文件末尾、最后一个数据块之后的字节（扩展数据块），原样取出；没有则为空。</summary>
+    public byte[] GetExtensionData()
     {
-        var offsets = StageOffsets.Calculate(Header.ArmyCount, Header.SelectableTileCount, Header.BuildingCount);
-        return offsets.dataEnd;
+        long start = Layout.End;
+        return start < HexData.Length ? HexData[(int)start..] : Array.Empty<byte>();
     }
 
     #region 直接操作 MapData 的静态方法 - 消除数据重复
@@ -474,6 +418,7 @@ public class StageParser
         mapData.Capitals = new System.Collections.ObjectModel.ObservableCollection<Capital>(parser.GetCapitalData());
         mapData.StrategyConstructions = new System.Collections.ObjectModel.ObservableCollection<StrategicConstruction>(parser.GetStrategyConstructionData());
         mapData.AirSupports = new System.Collections.ObjectModel.ObservableCollection<AirSupport>(parser.GetAirSupportData());
+        mapData.ExtensionData = parser.GetExtensionData();
         Debug.WriteLine($"[Timing-Load]   其余模块(Trap/Case/Weather/Event/Reinforce/Air/Unit/Capital/Strategy/AirSupport): {t.ElapsedMilliseconds}ms");
     }
 
@@ -484,37 +429,7 @@ public class StageParser
     {
         int totalTiles = mapWidth * mapHeight;
         var mapData = new MapData();
-        mapData.Header = new BTLHeader
-        {
-            BtlVersion = 1,
-            MapNumber = 0,
-            MapClipX = 0,
-            MapClipY = 0,
-            MapLength = mapWidth,
-            MapWidth = mapHeight,
-            ArmyCount = numLegions,
-            BuildingCount = 0,
-            TroopCount = 0,
-            PlanCount = 0,
-            EventCount = 0,
-            WeatherCount = 0,
-            VictoryCondition = 0,
-            MinTurns = 50,
-            MaxTurns = 50,
-            ReinforcementCount = 0,
-            AirRaidCount = 0,
-            TrapCount = 0,
-            StrategyCount = 0,
-            AirSupportCount = 0,
-            PlacementA = 0,
-            PlacementB = 0,
-            ConqueredFlagPosition = numLegions,
-            Unknown4 = 0,
-            SelectableTileCount = totalTiles,
-            AccumulatedEconomy = 0,
-            AccumulatedIndustry = 0,
-            AccumulatedTech = 0
-        };
+        mapData.Header = CreateNewHeader(mapWidth, mapHeight, numLegions);
 
         mapData.MapWidth = mapWidth;
         mapData.MapHeight = mapHeight;
@@ -540,6 +455,50 @@ public class StageParser
         return mapData;
     }
 
+    private static BTLHeader CreateNewHeader(int mapWidth, int mapHeight, int numLegions) => new()
+    {
+        BtlVersion = 1,
+        MapNumber = 0,
+        MapClipX = 0,
+        MapClipY = 0,
+        MapLength = mapWidth,
+        MapWidth = mapHeight,
+        ArmyCount = numLegions,
+        BuildingCount = 0,
+        TroopCount = 0,
+        PlanCount = 0,
+        EventCount = 0,
+        WeatherCount = 0,
+        VictoryCondition = 0,
+        MinTurns = 50,
+        MaxTurns = 50,
+        ReinforcementCount = 0,
+        AirRaidCount = 0,
+        TrapCount = 0,
+        StrategyCount = 0,
+        AirSupportCount = 0,
+        PlacementA = 0,
+        PlacementB = 0,
+        ConqueredFlagPosition = numLegions,
+        Unknown4 = 0,
+        SelectableTileCount = mapWidth * mapHeight,
+        AccumulatedEconomy = 0,
+        AccumulatedIndustry = 0,
+        AccumulatedTech = 0
+    };
+
+    /// <summary>
+    /// 把 MapData 序列化成战役布局的文件字节。地形块按网格大小（= MapLength × MapWidth）写出，
+    /// 省份 / 归属块的格数取两者较大者（见 <see cref="BTLWriter"/>），其余数量字段保持文件原值。
+    /// </summary>
+    public static byte[] BuildBytes(MapData mapData)
+    {
+        mapData.Header.MapLength = mapData.MapWidth;
+        mapData.Header.MapWidth = mapData.MapHeight;
+        BTLWriter.SyncEntityCounts(mapData);
+        return BTLWriter.Build(mapData, mapData.TerrainsToBytes(), mapData.ProvincesToBytes());
+    }
+
     /// <summary>
     /// 从 MapData 保存到文件，不经过 Parser 数据副本。
     /// </summary>
@@ -547,47 +506,11 @@ public class StageParser
     {
         if (mapData.Header == null) { Debug.WriteLine("[StageParser] 错误：头部数据尚未初始化"); return false; }
 
-        var header = mapData.Header;
-        header.ArmyCount = mapData.Legions.Count;
-        header.BuildingCount = mapData.Buildings.Count;
-        header.TroopCount = header.BtlVersion >= 3 ? mapData.ArmiesV3.Count : mapData.Armies.Count;
-        header.PlanCount = mapData.Cases.Count;
-        header.EventCount = mapData.Events.Count;
-        header.WeatherCount = mapData.Weathers.Count;
-        header.ReinforcementCount = header.BtlVersion >= 3 ? mapData.ReinforcementsV3.Count : mapData.Reinforcements.Count;
-        header.AirRaidCount = mapData.AirForces.Count;
-        header.TrapCount = mapData.Traps.Count;
-        header.StrategyCount = mapData.StrategyConstructions.Count;
-        header.AirSupportCount = mapData.AirSupports.Count;
-        if (mapData.TerrainCount != header.SelectableTileCount) header.SelectableTileCount = mapData.TerrainCount;
-        if (mapData.UnitPlaces.Count != header.PlacementA + header.PlacementB) { header.PlacementA = mapData.UnitPlaces.Count; header.PlacementB = 0; }
-        if (mapData.Capitals.Count != header.ConqueredFlagPosition) header.ConqueredFlagPosition = mapData.Capitals.Count;
-
-        var resultData = new List<byte>();
-        resultData.AddRange(header.ToBytes());
-        foreach (var legion in mapData.Legions) { var buf = new byte[300]; legion.ToBytes(buf, 0); resultData.AddRange(buf); }
-        resultData.AddRange(mapData.TerrainsToBytes());
-        resultData.AddRange(mapData.ProvincesToBytes());
-        foreach (var belong in mapData.Belongs) resultData.Add(byte.Parse(belong, System.Globalization.NumberStyles.HexNumber));
-        foreach (var building in mapData.Buildings) { var buf = new byte[32]; building.ToBytes(buf, 0); resultData.AddRange(buf); }
-        if (header.BtlVersion >= 3) { foreach (var t in mapData.ArmiesV3) { var buf = new byte[64]; t.ToBytes(buf, 0); resultData.AddRange(buf); } }
-        else { foreach (var t in mapData.Armies) { var buf = new byte[48]; t.ToBytes(buf, 0); resultData.AddRange(buf); } }
-        foreach (var trap in mapData.Traps) { var buf = new byte[12]; trap.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var c in mapData.Cases) { var buf = new byte[16]; c.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var w in mapData.Weathers) { var buf = new byte[16]; w.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var ev in mapData.Events) { var buf = new byte[44]; ev.ToBytes(buf, 0); resultData.AddRange(buf); }
-        if (header.BtlVersion >= 3) { foreach (var r in mapData.ReinforcementsV3) { var buf = new byte[104]; r.ToBytes(buf, 0); resultData.AddRange(buf); } }
-        else { foreach (var r in mapData.Reinforcements) { var buf = new byte[80]; r.ToBytes(buf, 0); resultData.AddRange(buf); } }
-        foreach (var af in mapData.AirForces) { var buf = new byte[20]; af.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var up in mapData.UnitPlaces) { var buf = new byte[8]; up.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var cap in mapData.Capitals) { var buf = new byte[4]; cap.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var sc in mapData.StrategyConstructions) { var buf = new byte[16]; sc.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var asup in mapData.AirSupports) { var buf = new byte[16]; asup.ToBytes(buf, 0); resultData.AddRange(buf); }
-
+        var data = BuildBytes(mapData);
         try
         {
-            File.WriteAllBytes(outputPath, resultData.ToArray());
-            Debug.WriteLine($"[StageParser] 成功保存到: {outputPath} ({resultData.Count} 字节)");
+            File.WriteAllBytes(outputPath, data);
+            Debug.WriteLine($"[StageParser] 成功保存到: {outputPath} ({data.Length} 字节)");
             return true;
         }
         catch (Exception ex)
@@ -608,37 +531,7 @@ public class StageParser
         try
         {
             int totalTiles = mapWidth * mapHeight;
-            Header = new BTLHeader
-            {
-                BtlVersion = 1,
-                MapNumber = 0,
-                MapClipX = 0,
-                MapClipY = 0,
-                MapLength = mapWidth,
-                MapWidth = mapHeight,
-                ArmyCount = numLegions,
-                BuildingCount = 0,
-                TroopCount = 0,
-                PlanCount = 0,
-                EventCount = 0,
-                WeatherCount = 0,
-                VictoryCondition = 0,
-                MinTurns = 50,
-                MaxTurns = 50,
-                ReinforcementCount = 0,
-                AirRaidCount = 0,
-                TrapCount = 0,
-                StrategyCount = 0,
-                AirSupportCount = 0,
-                PlacementA = 0,
-                PlacementB = 0,
-                ConqueredFlagPosition = numLegions,
-                Unknown4 = 0,
-                SelectableTileCount = totalTiles,
-                AccumulatedEconomy = 0,
-                AccumulatedIndustry = 0,
-                AccumulatedTech = 0
-            };
+            Header = CreateNewHeader(mapWidth, mapHeight, numLegions);
             Legions.Clear(); Terrains.Clear(); Provinces.Clear(); Belongs.Clear();
             Buildings.Clear(); Armies.Clear(); ArmiesV3.Clear(); Traps.Clear();
             Cases.Clear(); Weathers.Clear(); Events.Clear();
@@ -677,51 +570,24 @@ public class StageParser
     /// <summary>最近一次 SaveData 失败的原因（成功时为 null），供界面提示；SaveData 本身保持返回 bool 的旧契约。</summary>
     public string? LastError { get; private set; }
 
+    /// <summary>把 Parser 当前持有的数据保存成文件（与 <see cref="SaveFromMapData"/> 走同一套序列化）。</summary>
     public bool SaveData(string outputPath)
     {
         LastError = null;
         if (Header == null) { LastError = "头部数据尚未初始化"; Debug.WriteLine("[StageParser] 错误：头部数据尚未初始化"); return false; }
 
-        Header.ArmyCount = Legions.Count;
-        Header.BuildingCount = Buildings.Count;
-        Header.TroopCount = BtlVersion >= 3 ? ArmiesV3.Count : Armies.Count;
-        Header.PlanCount = Cases.Count;
-        Header.EventCount = Events.Count;
-        Header.WeatherCount = Weathers.Count;
-        Header.ReinforcementCount = BtlVersion >= 3 ? ReinforcementsV3.Count : Reinforcements.Count;
-        Header.AirRaidCount = AirForces.Count;
-        Header.TrapCount = Traps.Count;
-        Header.StrategyCount = StrategyConstructions.Count;
-        Header.AirSupportCount = AirSupports.Count;
-        if (Terrains.Count != Header.SelectableTileCount) Header.SelectableTileCount = Terrains.Count;
-        if (Provinces.Count != Header.SelectableTileCount) Header.SelectableTileCount = Provinces.Count;
-        if (Belongs.Count != Header.SelectableTileCount) Header.SelectableTileCount = Belongs.Count;
-        if (UnitPlaces.Count != Header.PlacementA + Header.PlacementB) { Header.PlacementA = UnitPlaces.Count; Header.PlacementB = 0; }
-        if (Capitals.Count != Header.ConqueredFlagPosition) Header.ConqueredFlagPosition = Capitals.Count;
-
-        var resultData = new List<byte>();
-        resultData.AddRange(Header.ToBytes());
-        foreach (var legion in Legions) { var buf = new byte[300]; legion.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var terrain in Terrains) { var buf = new byte[16]; terrain.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var province in Provinces) { var b = new byte[2]; province.ToBytes(b, 0); resultData.AddRange(b); }
-        foreach (var belong in Belongs) resultData.Add(byte.Parse(belong, System.Globalization.NumberStyles.HexNumber));
-        foreach (var building in Buildings) { var buf = new byte[32]; building.ToBytes(buf, 0); resultData.AddRange(buf); }
-        if (BtlVersion >= 3) { foreach (var t in ArmiesV3) { var buf = new byte[64]; t.ToBytes(buf, 0); resultData.AddRange(buf); } }
-        else { foreach (var t in Armies) { var buf = new byte[48]; t.ToBytes(buf, 0); resultData.AddRange(buf); } }
-        foreach (var trap in Traps) { var buf = new byte[12]; trap.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var c in Cases) { var buf = new byte[16]; c.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var w in Weathers) { var buf = new byte[16]; w.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var ev in Events) { var buf = new byte[44]; ev.ToBytes(buf, 0); resultData.AddRange(buf); }
-        if (BtlVersion >= 3) { foreach (var r in ReinforcementsV3) { var buf = new byte[104]; r.ToBytes(buf, 0); resultData.AddRange(buf); } }
-        else { foreach (var r in Reinforcements) { var buf = new byte[80]; r.ToBytes(buf, 0); resultData.AddRange(buf); } }
-        foreach (var af in AirForces) { var buf = new byte[20]; af.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var up in UnitPlaces) { var buf = new byte[8]; up.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var cap in Capitals) { var buf = new byte[4]; cap.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var sc in StrategyConstructions) { var buf = new byte[16]; sc.ToBytes(buf, 0); resultData.AddRange(buf); }
-        foreach (var asup in AirSupports) { var buf = new byte[16]; asup.ToBytes(buf, 0); resultData.AddRange(buf); }
-
-        try { File.WriteAllBytes(outputPath, resultData.ToArray()); Debug.WriteLine($"[StageParser] 成功保存到: {outputPath} ({resultData.Count} 字节)"); return true; }
-        catch (Exception ex) { Debug.WriteLine($"[StageParser] 保存失败: {ex.Message}"); return false; }
+        try
+        {
+            var mapData = new MapData();
+            PopulateMapData(this, mapData);
+            return SaveFromMapData(mapData, outputPath);
+        }
+        catch (Exception ex)
+        {
+            LastError = ex.Message;
+            Debug.WriteLine($"[StageParser] 保存失败: {ex.Message}");
+            return false;
+        }
     }
 
     #endregion

@@ -38,7 +38,7 @@ public class MapRenderScene : RenderSceneBase
             path = dlg.FileName;
         }
 
-        var loadedData = WorldParser.LoadFromFile(path);
+        var loadedData = ParseMapFileOrReport(path, WorldParser.LoadFromFile);
         if (loadedData == null) return null;
 
         loadedData.FilePath = path;

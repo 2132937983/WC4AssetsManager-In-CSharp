@@ -74,6 +74,21 @@ public sealed class KeyboardManager
     public event EventHandler<KeyboardEventArgs>? KeyDown;
     public event EventHandler<KeyboardEventArgs>? KeyUp;
 
+    /// <summary>
+    /// 绑定执行前的放行判断（由 GUI 注入）：返回 false 的绑定本次不执行，但按键仍算"已被接住"。
+    /// <para>
+    /// 渲染场景用它拦下"没有目标格"时的模式按键 —— 否则动作会落到 (0,0) 之类意料之外的格子上。
+    /// 其它绑定（全局键、同一按键的其它绑定）不受影响，照常执行。
+    /// </para>
+    /// </summary>
+    public Func<KeyBinding, bool>? BindingGate { get; set; }
+
+    /// <summary>
+    /// 最近一次 <see cref="ProcessKeyDown"/> 是否是按住不放产生的自动重复（按下后尚未收到抬起）。
+    /// 开关类动作（Tab 格子信息、F1、空格切换模式……）据此忽略长按，避免反复开关。
+    /// </summary>
+    public bool LastKeyDownWasRepeat { get; private set; }
+
     /// <summary>供依赖注入使用的公开构造（替代单例入口）</summary>
     public KeyboardManager() { }
 
@@ -121,10 +136,10 @@ public sealed class KeyboardManager
     /// </summary>
     public bool ProcessKeyDown(int keyCode)
     {
-        _pressedKeys.Add(keyCode);
+        LastKeyDownWasRepeat = !_pressedKeys.Add(keyCode);
         UpdateModifiers();
 
-        Debug.WriteLine($"[KeyboardManager] ProcessKeyDown: KeyCode={keyCode}, Modifiers={_currentModifiers}, Bindings={_bindings.Count}");
+        Debug.WriteLine($"[KeyboardManager] ProcessKeyDown: KeyCode={keyCode}, Modifiers={_currentModifiers}, Repeat={LastKeyDownWasRepeat}, Bindings={_bindings.Count}");
 
         var args = new KeyboardEventArgs(keyCode, _currentModifiers, _pressedKeys);
         KeyDown?.Invoke(this, args);
@@ -144,6 +159,11 @@ public sealed class KeyboardManager
             if (binding.Matches(keyCode, _currentModifiers) && binding.Callback != null)
             {
                 handled = true;
+                if (BindingGate != null && !BindingGate(binding))
+                {
+                    Debug.WriteLine($"[KeyboardManager] Binding gated: {binding.Id}");
+                    continue;
+                }
                 Debug.WriteLine($"[KeyboardManager] Binding matched: {binding.Id} ({binding})");
                 try
                 {
@@ -174,6 +194,7 @@ public sealed class KeyboardManager
     {
         _pressedKeys.Clear();
         _currentModifiers = KeyModifiers.None;
+        LastKeyDownWasRepeat = false;
     }
 
     public bool IsKeyDown(int keyCode) => _pressedKeys.Contains(keyCode);
@@ -201,13 +222,19 @@ public sealed class KeyboardManager
         }
     }
 
-    public static bool IsCtrlKey(int keyCode) => keyCode == CtrlKeyCode;
-    public static bool IsShiftKey(int keyCode) => keyCode == ShiftKeyCode;
-    public static bool IsAltKey(int keyCode) => keyCode == AltKeyCode;
+    public static bool IsCtrlKey(int keyCode) => keyCode is LeftCtrlKeyCode or RightCtrlKeyCode;
+    public static bool IsShiftKey(int keyCode) => keyCode is LeftShiftKeyCode or RightShiftKeyCode;
+    public static bool IsAltKey(int keyCode) => keyCode is LeftAltKeyCode or RightAltKeyCode;
 
-    public const int CtrlKeyCode = 17;
-    public const int ShiftKeyCode = 16;
-    public const int AltKeyCode = 18;
+    // 修饰键的 WPF Key 枚举值：GUI 交给本类的键码全是 (int)System.Windows.Input.Key。
+    // 早先这里写的是 WinForms 虚拟键码（Ctrl=17、Shift=16、Alt=18），而 WPF 里 18 是空格，
+    // 没有外部修饰键状态时的回退逻辑会把空格当成 Alt。
+    public const int LeftShiftKeyCode = 116;
+    public const int RightShiftKeyCode = 117;
+    public const int LeftCtrlKeyCode = 118;
+    public const int RightCtrlKeyCode = 119;
+    public const int LeftAltKeyCode = 120;
+    public const int RightAltKeyCode = 121;
 }
 
 public sealed class KeyboardEventArgs : EventArgs

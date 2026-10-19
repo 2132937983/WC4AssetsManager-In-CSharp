@@ -1,506 +1,408 @@
+using WC4MapEditor.Core.Config;
 using WC4MapEditor.Core.Models;
 
 namespace WC4MapEditor.Core.Modifiers;
 
+/// <summary>
+/// 陷阱（地雷）模块。由单位部署模式引入（VB 的独立陷阱模式进不去，用户实际用到的陷阱功能都在单位模式里）。
+/// <para>
+/// 数据约定（来自游戏自带地图）：<see cref="Trap.LegionId"/> 存的是军团的 ActionId（不是归属值），
+/// 等级 = <see cref="Trap.Organization"/>（1-4），血量 = <see cref="Trap.StandardHealth"/>(等级)，
+/// v3 地图的陷阱 Extra1 = 33。新建的陷阱都按这个约定生成；建筑所在格不放陷阱（BTLRuleChecker 会报警告）。
+/// </para>
+/// </summary>
 public sealed class TrapModifier : ModifierBase
 {
     public override string Name => "trap";
     public override string DisplayName => "陷阱修改器";
 
+    /// <summary>陷阱最高等级：游戏数据只用 1-4，循环等级、随机等级与批量生成都在 1..MaxLevel 之间。</summary>
+    public const int MaxLevel = 4;
+
+    /// <summary>v3 地图规范陷阱的 Extra1（游戏自带 v3 地图里的规范陷阱全部是 33，v1 地图是 0）。</summary>
+    private const short V3TrapExtra = 33;
+
+    /// <summary>随机等级时 1-4 级的相对权重（与 VB 版一致：低等级更常见）。</summary>
+    private static readonly double[] LevelWeights = [1.0, 0.8, 0.6, 0.4];
+
     private Trap? _copiedTrap;
-    private int _selectedLegionId;
     private readonly Random _random = new();
 
-    public int SelectedLegionId
-    {
-        get => _selectedLegionId;
-        set => _selectedLegionId = value;
-    }
+    #region 基础 CRUD
 
+    /// <summary>放置陷阱：参数是 <see cref="Trap"/> 时原样放到该格，否则放一个按本格归属生成的 1 级陷阱。</summary>
     public override ModifierResult Apply(int col, int row, object? parameter = null)
     {
-        if (!IsValidCoord(col, row)) return ModifierResult.Fail("坐标超出范围");
-        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+        if (!IsValidCoord(col, row)) return ModifierResult.Fail(OutOfRangeText);
 
-        short coordIndex = (short)(row * _mapData.MapWidth + col);
-
-        Trap trap;
-        if (parameter is Trap t)
-        {
-            trap = t;
-            trap.Coordinate = coordIndex;
-        }
-        else
-        {
-            trap = Trap.CreateDefault(coordIndex);
-            trap.LegionId = (short)_selectedLegionId;
-        }
-
-        int idx = _mapData.FindTrapIndex(col, row);
-        if (idx >= 0)
-            _mapData.ReplaceTrap(idx, trap);
-        else
-            _mapData.Traps.Add(trap);
-
+        var trap = parameter is Trap given ? WithCell(given, col, row) : NewTrap(col, row, 1, ResolveTrapLegion(col, row));
+        Put(col, row, trap);
         MarkModified();
-        return ModifierResult.Ok($"已放置陷阱 ({col}, {row})");
+        return ModifierResult.Ok(Loc.F("Module.Trap.Placed", col, row, trap.Organization, trap.LegionId, trap.Health));
     }
 
     public override ModifierResult Remove(int col, int row)
     {
-        if (!IsValidCoord(col, row)) return ModifierResult.Fail("坐标超出范围");
-        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+        if (!IsValidCoord(col, row)) return ModifierResult.Fail(OutOfRangeText);
 
-        int idx = _mapData.FindTrapIndex(col, row);
-        if (idx < 0) return ModifierResult.Fail("该位置没有陷阱");
+        int idx = IndexOf(col, row);
+        if (idx < 0) return ModifierResult.Fail(NoTrapText);
 
-        _mapData.RemoveTrapAt(idx);
+        _mapData!.Traps.RemoveAt(idx);
         MarkModified();
-        return ModifierResult.Ok($"已删除陷阱 ({col}, {row})");
+        return ModifierResult.Ok(Loc.F("Module.Trap.Removed", col, row));
     }
 
     public override bool CanApply(int col, int row) => IsValidCoord(col, row);
 
-    public override bool CanRemove(int col, int row)
-    {
-        if (!IsValidCoord(col, row)) return false;
-        return _mapData?.FindTrapIndex(col, row) >= 0;
-    }
+    public override bool CanRemove(int col, int row) => GetTrapAt(col, row).HasValue;
 
-    public override object? GetDataAt(int col, int row)
-    {
-        if (!IsValidCoord(col, row)) return null;
-        int idx = _mapData!.FindTrapIndex(col, row);
-        return idx >= 0 ? _mapData.Traps[idx] : null;
-    }
+    public override object? GetDataAt(int col, int row) => GetTrapAt(col, row);
 
     public override bool SetDataAt(int col, int row, object data)
     {
-        if (!IsValidCoord(col, row) || _mapData == null) return false;
-        if (data is not Trap trap) return false;
-
-        trap.Coordinate = (short)(row * _mapData.MapWidth + col);
-        int idx = _mapData.FindTrapIndex(col, row);
-        if (idx >= 0)
-            _mapData.ReplaceTrap(idx, trap);
-        else
-            _mapData.Traps.Add(trap);
-
+        if (!IsValidCoord(col, row) || data is not Trap trap) return false;
+        Put(col, row, WithCell(trap, col, row));
         MarkModified();
         return true;
     }
 
-    #region 复制/粘贴
-
-    public ModifierResult CopyTrap(int col, int row)
+    public Trap? GetTrapAt(int col, int row)
     {
-        if (!IsValidCoord(col, row)) return ModifierResult.Fail("坐标超出范围");
-        int idx = _mapData!.FindTrapIndex(col, row);
-        if (idx < 0) return ModifierResult.Fail("该位置没有陷阱");
-        _copiedTrap = _mapData.Traps[idx];
-        return ModifierResult.Ok("已复制陷阱数据");
+        if (!IsValidCoord(col, row)) return null;
+        int idx = IndexOf(col, row);
+        return idx >= 0 ? _mapData!.Traps[idx] : null;
     }
 
-    public ModifierResult PasteTrap(int col, int row)
+    /// <summary>格子上陷阱的一行说明（状态栏用）；没有陷阱时返回 null。</summary>
+    public string? DescribeTrapAt(int col, int row)
     {
-        if (!IsValidCoord(col, row)) return ModifierResult.Fail("坐标超出范围");
-        if (_copiedTrap == null) return ModifierResult.Fail("没有已复制的陷阱数据");
-        return Apply(col, row, _copiedTrap);
+        var trap = GetTrapAt(col, row);
+        return trap == null ? null : Loc.F("Module.Trap.Describe", trap.Value.Organization, trap.Value.LegionId, trap.Value.Health);
+    }
+
+    /// <summary>
+    /// 新陷阱的所属军团（ActionId）：按 <see cref="ArmyPlacementRules.ResolveOwner"/> 取本格归属（省会优先），
+    /// 再换算成该军团的 ActionId；没有归属或找不到军团时为 0。
+    /// </summary>
+    public int ResolveTrapLegion(int col, int row)
+    {
+        if (_mapData == null) return 0;
+        return LegionActionId(ArmyPlacementRules.ResolveOwner(_mapData, col, row));
     }
 
     #endregion
 
-    #region 基础CRUD
+    #region 放置 / 等级 / 随机 (F / Shift+F / Shift+R)
 
-    public ModifierResult UpdateTrap(Trap trap)
+    /// <summary>在空格上放一个 1 级陷阱（F）。已有陷阱或建筑所在格拒绝。</summary>
+    public ModifierResult CreateTrapAt(int col, int row)
     {
-        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+        if (!IsValidCoord(col, row)) return ModifierResult.Fail(OutOfRangeText);
+        if (IndexOf(col, row) >= 0) return ModifierResult.Fail(Loc.T("Module.Trap.Exists", "该位置已有陷阱"));
+        if (HasBuildingAt(col, row)) return ModifierResult.Fail(OnBuildingText);
+        return Apply(col, row);
+    }
 
-        var coord = HexCoord.FromIndex(trap.Coordinate, _mapData.MapWidth);
-        int idx = _mapData.FindTrapIndex(coord.Col, coord.Row);
-        if (idx >= 0)
-            _mapData.ReplaceTrap(idx, trap);
-        else
-            _mapData.Traps.Add(trap);
+    /// <summary>陷阱等级 1→2→3→4→1 循环（Shift+F，VB 的 F 键行为）。血量为旧等级标准值时随等级更新。</summary>
+    public ModifierResult CycleTrapLevel(int col, int row)
+    {
+        if (!IsValidCoord(col, row)) return ModifierResult.Fail(OutOfRangeText);
+        int idx = IndexOf(col, row);
+        if (idx < 0) return ModifierResult.Fail(NoTrapText);
 
+        var trap = _mapData!.Traps[idx];
+        int oldLevel = trap.Organization;
+        int newLevel = oldLevel is >= 1 and < MaxLevel ? oldLevel + 1 : 1;
+        _mapData.Traps[idx] = WithLevel(trap, newLevel);
         MarkModified();
-        return ModifierResult.Ok("已更新陷阱数据");
+        return ModifierResult.Ok(Loc.F("Module.Trap.LevelCycled", col, row, oldLevel, newLevel));
+    }
+
+    /// <summary>
+    /// 随机化格子上陷阱的属性（Shift+R）：等级随机 1..<see cref="MaxLevel"/>、血量取该等级标准值、
+    /// 所属军团按本格归属重算。格子上没有陷阱时新建一个（建筑所在格除外）。
+    /// </summary>
+    public ModifierResult RandomizeTrapAttributes(int col, int row)
+    {
+        if (!IsValidCoord(col, row)) return ModifierResult.Fail(OutOfRangeText);
+        int idx = IndexOf(col, row);
+        if (idx < 0 && HasBuildingAt(col, row)) return ModifierResult.Fail(OnBuildingText);
+
+        int level = _random.Next(1, MaxLevel + 1);
+        var trap = idx >= 0 ? _mapData!.Traps[idx] : NewTrap(col, row, level, 0);
+        trap.Organization = (short)level;
+        trap.Health = Trap.StandardHealth(level);
+        trap.LegionId = (short)ResolveTrapLegion(col, row);
+
+        Put(col, row, trap);
+        MarkModified();
+        return ModifierResult.Ok(Loc.F("Module.Trap.Randomized", col, row, trap.Organization, trap.LegionId, trap.Health));
+    }
+
+    #endregion
+
+    #region 复制 / 粘贴 / 删除 (Ctrl+C / Ctrl+V / Ctrl+X / Ctrl+Delete)
+
+    public bool HasCopiedTrap => _copiedTrap.HasValue;
+
+    public ModifierResult CopyTrap(int col, int row)
+    {
+        var trap = GetTrapAt(col, row);
+        if (trap == null) return ModifierResult.Fail(NoTrapText);
+        _copiedTrap = trap;
+        return ModifierResult.Ok(Loc.F("Module.Trap.Copied", trap.Value.Organization, trap.Value.LegionId, trap.Value.Health));
+    }
+
+    /// <summary>清空陷阱剪贴板（Ctrl+C 在没有陷阱的格子上改为复制单位时调用，之后 Ctrl+V 粘贴的就是这个单位）。</summary>
+    public void ClearCopiedTrap() => _copiedTrap = null;
+
+    public ModifierResult PasteTrap(int col, int row)
+    {
+        if (!IsValidCoord(col, row)) return ModifierResult.Fail(OutOfRangeText);
+        if (_copiedTrap == null) return ModifierResult.Fail(Loc.T("Module.Trap.NothingToPaste", "没有已复制的陷阱数据"));
+        if (HasBuildingAt(col, row)) return ModifierResult.Fail(OnBuildingText);
+
+        Put(col, row, WithCell(_copiedTrap.Value, col, row));
+        MarkModified();
+        return ModifierResult.Ok(Loc.F("Module.Trap.Pasted", col, row));
+    }
+
+    /// <summary>删除这些格子上的陷阱，返回删除数量；一个都没有时失败。</summary>
+    public ModifierResult RemoveTraps(IEnumerable<HexCoord> cells)
+    {
+        if (_mapData == null) return ModifierResult.Fail(NoMapText);
+
+        var set = new HashSet<int>();
+        foreach (var c in cells)
+            if (IsValidCoord(c.Col, c.Row)) set.Add(c.ToIndex(_mapData.MapWidth));
+
+        int removed = 0;
+        for (int i = _mapData.Traps.Count - 1; i >= 0; i--)
+        {
+            if (!set.Contains(_mapData.Traps[i].CellIndex)) continue;
+            _mapData.Traps.RemoveAt(i);
+            removed++;
+        }
+
+        if (removed == 0) return ModifierResult.Fail(NoTrapText);
+        MarkModified();
+        return ModifierResult.Ok(Loc.F("Module.Trap.RemovedBatch", removed), removed);
     }
 
     public ModifierResult DeleteAllTraps()
     {
-        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+        if (_mapData == null) return ModifierResult.Fail(NoMapText);
 
         int count = _mapData.Traps.Count;
         _mapData.Traps.Clear();
-        MarkModified();
-        return ModifierResult.Ok($"已删除所有陷阱，共 {count} 个");
+        if (count > 0) MarkModified();
+        return ModifierResult.Ok(Loc.F("Module.Trap.AllDeleted", count), count);
     }
 
     #endregion
 
-    #region 随机化陷阱属性 (R键)
-
-    public ModifierResult RandomizeTrapAttributes(int col, int row)
-    {
-        if (!IsValidCoord(col, row)) return ModifierResult.Fail("坐标超出范围");
-        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
-
-        int idx = _mapData.FindTrapIndex(col, row);
-        Trap trap;
-        if (idx >= 0)
-        {
-            trap = _mapData.Traps[idx];
-        }
-        else
-        {
-            trap = Trap.CreateDefault((short)(row * _mapData.MapWidth + col));
-        }
-
-        trap.Organization = (byte)_random.Next(1, 11);
-        trap.LegionId = (short)_random.Next(0, 256);
-        trap.Health = (byte)_random.Next(50, 101);
-
-        if (idx >= 0)
-            _mapData.ReplaceTrap(idx, trap);
-        else
-            _mapData.Traps.Add(trap);
-
-        MarkModified();
-        return ModifierResult.Ok($"已随机化陷阱: 编制={trap.Organization}, 军团={trap.LegionId}, 血量={trap.Health}");
-    }
-
-    #endregion
-
-    #region 随机化陷阱等级 (Ctrl+R)
-
-    public ModifierResult RandomizeTrapLevels(int legionValue, int probability)
-    {
-        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
-        if (probability < 1 || probability > 100) return ModifierResult.Fail("概率必须在1-100之间");
-
-        int modifiedCount;
-
-        if (legionValue == -1)
-        {
-            modifiedCount = 0;
-            var existingLegions = _mapData.Legions.Select(l => l.ActionId).Distinct();
-            foreach (var legionId in existingLegions)
-            {
-                modifiedCount += RandomizeTrapLevelsForSingleLegion(legionId, probability);
-            }
-        }
-        else
-        {
-            modifiedCount = RandomizeTrapLevelsForSingleLegion(legionValue, probability);
-        }
-
-        MarkModified();
-        return ModifierResult.Ok($"随机化陷阱等级完成: 修改了 {modifiedCount} 个陷阱");
-    }
-
-    private int RandomizeTrapLevelsForSingleLegion(int legionValue, int probability)
-    {
-        int modifiedCount = 0;
-
-        for (int i = 0; i < _mapData!.Traps.Count; i++)
-        {
-            var trap = _mapData.Traps[i];
-            if (trap.LegionId != legionValue) continue;
-
-            double[] weights = [probability, probability * 0.8, probability * 0.6, probability * 0.4];
-            for (int w = 0; w < weights.Length; w++)
-                weights[w] = Math.Max(weights[w], 1);
-
-            double totalWeight = weights.Sum();
-            double randValue = _random.NextDouble() * totalWeight;
-
-            int newLevel;
-            if (randValue <= weights[0])
-                newLevel = 1;
-            else if (randValue <= weights[0] + weights[1])
-                newLevel = 2;
-            else if (randValue <= weights[0] + weights[1] + weights[2])
-                newLevel = 3;
-            else
-                newLevel = 4;
-
-            trap.Organization = (byte)newLevel;
-            _mapData.ReplaceTrap(i, trap);
-            modifiedCount++;
-        }
-
-        return modifiedCount;
-    }
-
-    #endregion
-
-    #region 批量生成陷阱 (G键)
-
-    public ModifierResult BatchGenerateTraps(int probability)
-    {
-        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
-        if (probability < 0 || probability > 100) return ModifierResult.Fail("概率必须在0-100之间");
-
-        int generatedCount = 0;
-        var existingCoords = new HashSet<int>();
-        foreach (var trap in _mapData.Traps)
-            existingCoords.Add(trap.Coordinate);
-
-        for (int row = 0; row < _mapData.MapHeight; row++)
-        {
-            for (int col = 0; col < _mapData.MapWidth; col++)
-            {
-                if (_random.Next(0, 100) >= probability) continue;
-
-                int hexIndex = row * _mapData.MapWidth + col;
-                if (existingCoords.Contains(hexIndex)) continue;
-
-                var trap = Trap.CreateDefault((short)hexIndex);
-                trap.Organization = (byte)_random.Next(1, 6);
-                trap.LegionId = (short)_random.Next(0, 256);
-                trap.Health = (byte)_random.Next(50, 101);
-
-                _mapData.Traps.Add(trap);
-                existingCoords.Add(hexIndex);
-                generatedCount++;
-            }
-        }
-
-        MarkModified();
-        return ModifierResult.Ok($"已生成 {generatedCount} 个陷阱");
-    }
-
-    #endregion
-
-    #region 按归属批量生成陷阱 (Ctrl+G)
-
-    public ModifierResult GenerateTrapsByBelong(int belongValue, int probability)
-    {
-        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
-        if (probability < 0 || probability > 100) return ModifierResult.Fail("概率必须在0-100之间");
-
-        int totalTrapsCreated;
-
-        if (belongValue == -1)
-        {
-            totalTrapsCreated = 0;
-            var existingLegions = _mapData.Legions.Select(l => l.ActionId).Distinct();
-            foreach (var legionId in existingLegions)
-            {
-                totalTrapsCreated += GenerateTrapsForSingleBelong(legionId, probability);
-            }
-        }
-        else
-        {
-            totalTrapsCreated = GenerateTrapsForSingleBelong(belongValue, probability);
-        }
-
-        MarkModified();
-        return ModifierResult.Ok($"批量生成陷阱完成: 生成了 {totalTrapsCreated} 个陷阱");
-    }
-
-    private int GenerateTrapsForSingleBelong(int belongValue, int probability)
-    {
-        int trapsCreated = 0;
-        var existingCoords = new HashSet<int>();
-        foreach (var trap in _mapData!.Traps)
-            existingCoords.Add(trap.Coordinate);
-
-        for (int row = 0; row < _mapData.MapHeight; row++)
-        {
-            for (int col = 0; col < _mapData.MapWidth; col++)
-            {
-                int hexIndex = row * _mapData.MapWidth + col;
-                int cellBelong = _mapData.GetBelongValue(col, row);
-
-                if (cellBelong != belongValue) continue;
-                if (existingCoords.Contains(hexIndex)) continue;
-                if (_random.Next(0, 100) >= probability) continue;
-
-                var trap = Trap.CreateDefault((short)hexIndex);
-                trap.LegionId = (short)belongValue;
-                trap.Organization = (byte)_random.Next(1, 6);
-                trap.Health = (byte)_random.Next(50, 101);
-
-                _mapData.Traps.Add(trap);
-                existingCoords.Add(hexIndex);
-                trapsCreated++;
-            }
-        }
-
-        return trapsCreated;
-    }
-
-    #endregion
-
-    #region 按概率自由生成陷阱 (Ctrl+G)
+    #region 批量 (Ctrl+R / Ctrl+G / Ctrl+I / Ctrl+F)
 
     /// <summary>
-    /// 按概率在地图上自由生成陷阱：跳过海洋/空地以及已有建筑的格子，其余格子按概率随机生成。
-    /// 与 GenerateTrapsByBelong 不同，该方法不按归属筛选。
+    /// 随机化陷阱等级（Ctrl+R）：所属军团为 <paramref name="legionValue"/>（ActionId，-1 = 全部陷阱）的每个陷阱
+    /// 以 <paramref name="probability"/>% 的几率重新抽取等级（1-4 级权重 1 : 0.8 : 0.6 : 0.4）。
+    /// VB 版把概率乘到四个权重上，归一化后毫无作用、且每个陷阱都会被改；这里改为"每个陷阱的重抽几率"。
     /// </summary>
-    public ModifierResult GenerateTrapsFree(int probability)
+    public ModifierResult RandomizeTrapLevels(int legionValue, int probability)
     {
-        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
-        if (probability < 0 || probability > 100) return ModifierResult.Fail("概率必须在0-100之间");
+        if (_mapData == null) return ModifierResult.Fail(NoMapText);
+        if (probability < 1 || probability > 100)
+            return ModifierResult.Fail(Loc.T("Module.Trap.BadProbability1", "概率必须在1-100之间"));
 
-        int generatedCount = 0;
+        int modified = 0;
+        for (int i = 0; i < _mapData.Traps.Count; i++)
+        {
+            var trap = _mapData.Traps[i];
+            if (legionValue != -1 && trap.LegionId != legionValue) continue;
+            if (_random.Next(1, 101) > probability) continue;
 
-        // 预先收集所有需要排除的格子：避免在双重循环里逐格做线性查找
-        // （FindBuildingIndex / FindArmyIndex 都是遍历整个集合，大地图上会非常慢）。
-        var excluded = new HashSet<int>();
+            _mapData.Traps[i] = WithLevel(trap, RandomLevel());
+            modified++;
+        }
 
-        // 已有陷阱
-        foreach (var trap in _mapData.Traps)
-            excluded.Add(trap.Coordinate);
+        if (modified > 0) MarkModified();
+        return ModifierResult.Ok(Loc.F("Module.Trap.LevelsRandomized", modified), modified);
+    }
 
-        // 已有建筑
-        foreach (var building in _mapData.Buildings)
-            excluded.Add(building.Coordinate);
+    /// <summary>
+    /// 按归属与概率批量生成陷阱（Ctrl+G）。只在归属数据范围内、没有陷阱 / 建筑 / 单位的格子上生成，
+    /// <paramref name="includeSea"/> 为 false 时跳过海洋格（没有地形数据的征服地图不分海陆）。
+    /// 格子的归属按 <see cref="ArmyPlacementRules.ResolveOwner"/>（省会优先）推断，
+    /// 没有归属的格子不生成；<paramref name="belongFilter"/> = -1 表示所有归属，否则只在推断归属等于它的格子上生成。
+    /// 陷阱等级随机 1..<see cref="MaxLevel"/>，血量取标准值，所属军团为该归属对应军团的 ActionId。
+    /// </summary>
+    public ModifierResult GenerateTraps(int belongFilter, int probability, bool includeSea)
+    {
+        if (_mapData == null) return ModifierResult.Fail(NoMapText);
+        if (probability < 0 || probability > 100)
+            return ModifierResult.Fail(Loc.T("Module.Trap.BadProbability", "概率必须在0-100之间"));
 
-        // 已有单位（v1 与 v3 都算）
-        foreach (var army in _mapData.Armies)
-            excluded.Add(army.Coordinate);
-        foreach (var army in _mapData.ArmiesV3)
-            excluded.Add(army.Coordinate);
-
+        var occupied = OccupiedCells();
+        bool hasLand = ArmyPlacementRules.HasLandTiles(_mapData);
+        int generated = 0;
         for (int row = 0; row < _mapData.MapHeight; row++)
         {
             for (int col = 0; col < _mapData.MapWidth; col++)
             {
-                int hexIndex = row * _mapData.MapWidth + col;
+                int cell = row * _mapData.MapWidth + col;
+                if (occupied.Contains(cell) || !_mapData.IsInBelongRange(col, row)) continue;
+                if (!includeSea && ArmyPlacementRules.IsSea(_mapData, cell, hasLand)) continue;
 
-                // 已有陷阱 / 建筑 / 单位的格子都不生成
-                if (excluded.Contains(hexIndex)) continue;
-
-                // 排除海洋与空地：TileType1 为 0 或 1 时地形层不绘制陆地（OCEAN_TILE_TYPE = 1）
-                var terrain = _mapData.GetTerrainAt(col, row);
-                if (terrain.TileType1 == 0 || terrain.TileType1 == 1) continue;
-
+                int owner = ArmyPlacementRules.ResolveOwner(_mapData, col, row);
+                if (belongFilter != -1 && owner != belongFilter) continue;
+                if (owner < 0 || _mapData.ResolveLegionByBelong(owner) is not { } legion) continue;
                 if (_random.Next(0, 100) >= probability) continue;
 
-                // 确定陷阱的所属军团（Trap.LegionId）：
-                // 优先用该格自身的归属值；该格无归属（0xFF）时回退到所在省份「省会格子」的归属值；
-                // 两者都取不到则跳过该格 —— 否则会生成 LegionId 无效（255）的陷阱，
-                // 渲染层找不到对应国家，国旗会画成灰色方块。
-                int cellBelong = _mapData.GetBelongValue(col, row);
-                int legionId = (cellBelong >= 0 && cellBelong != 0xFF)
-                    ? cellBelong
-                    : _mapData.GetProvinceCapitalBelong(col, row);
-
-                if (legionId < 0 || legionId >= 0xFF) continue;
-
-                var newTrap = Trap.CreateDefault((short)hexIndex);
-                newTrap.LegionId = (short)legionId;
-                newTrap.Organization = (byte)_random.Next(1, 6);
-                newTrap.Health = (byte)_random.Next(50, 101);
-
-                _mapData.Traps.Add(newTrap);
-                excluded.Add(hexIndex);
-                generatedCount++;
+                _mapData.Traps.Add(NewTrap(col, row, _random.Next(1, MaxLevel + 1), legion.ActionId));
+                occupied.Add(cell);
+                generated++;
             }
         }
 
-        MarkModified();
-        return ModifierResult.Ok($"已生成 {generatedCount} 个陷阱");
+        if (generated > 0) MarkModified();
+        return ModifierResult.Ok(Loc.F("Module.Trap.Generated", generated), generated);
     }
 
-    #endregion
-
-    #region 按省区批量生成陷阱 (Ctrl+I)
-
+    /// <summary>
+    /// 每个省份以 <paramref name="probability"/>% 的几率在一个随机的陆地格上放一个陷阱（Ctrl+I）。
+    /// 跳过无省份（0 / 0xFFFF）、海洋、归属数据范围外以及已有陷阱 / 建筑 / 单位的格子；所属军团取省份归属对应军团的 ActionId。
+    /// </summary>
     public ModifierResult GenerateTrapsByProvince(int probability)
     {
-        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
-        if (probability < 0 || probability > 100) return ModifierResult.Fail("概率必须在0-100之间");
-        int cellCount = _mapData.MapWidth * _mapData.MapHeight;
-        if (cellCount == 0)
-            return ModifierResult.Fail("没有省区数据");
+        if (_mapData == null) return ModifierResult.Fail(NoMapText);
+        if (probability < 0 || probability > 100)
+            return ModifierResult.Fail(Loc.T("Module.Trap.BadProbability", "概率必须在0-100之间"));
 
-        int generatedCount = 0;
-        var existingCoords = new HashSet<int>();
-        foreach (var trap in _mapData.Traps)
-            existingCoords.Add(trap.Coordinate);
-
-        var provinceMap = new Dictionary<int, List<int>>();
-        // 直接按下标读省区（旧写法每次访问 Provinces 都会复制整张地图，循环条件里更是每轮一次）
-        for (int i = 0; i < cellCount; i++)
+        var occupied = OccupiedCells();
+        bool hasLand = ArmyPlacementRules.HasLandTiles(_mapData);
+        var candidates = new SortedDictionary<int, List<int>>();
+        int total = _mapData.MapWidth * _mapData.MapHeight;
+        for (int cell = 0; cell < total; cell++)
         {
-            int pv = _mapData.GetProvinceRef(i).ProvinceValue;
-            if (!provinceMap.ContainsKey(pv))
-                provinceMap[pv] = new List<int>();
-            provinceMap[pv].Add(i);
+            int provinceValue = _mapData.GetProvinceRef(cell).ProvinceValue;
+            if (!ArmyPlacementRules.IsProvince(provinceValue) || occupied.Contains(cell)) continue;
+            if (ArmyPlacementRules.IsSea(_mapData, cell, hasLand)) continue;
+            if (!_mapData.IsInBelongRange(cell % _mapData.MapWidth, cell / _mapData.MapWidth)) continue;
+
+            if (!candidates.TryGetValue(provinceValue, out var cells))
+                candidates[provinceValue] = cells = new List<int>();
+            cells.Add(cell);
         }
 
-        foreach (var kvp in provinceMap)
+        int generated = 0;
+        foreach (var (provinceValue, cells) in candidates)
         {
             if (_random.Next(0, 100) >= probability) continue;
 
-            var hexIndices = kvp.Value;
-            int selectedIndex = hexIndices[_random.Next(0, hexIndices.Count)];
-
-            if (!existingCoords.Contains(selectedIndex))
-            {
-                var trap = Trap.CreateDefault((short)selectedIndex);
-                trap.Organization = (byte)_random.Next(1, 6);
-                trap.LegionId = (short)_random.Next(0, 256);
-                trap.Health = (byte)_random.Next(50, 101);
-
-                _mapData.Traps.Add(trap);
-                existingCoords.Add(selectedIndex);
-                generatedCount++;
-            }
+            var coord = HexCoord.FromIndex(cells[_random.Next(cells.Count)], _mapData.MapWidth);
+            int legion = LegionActionId(ArmyPlacementRules.ProvinceBelong(_mapData, provinceValue));
+            _mapData.Traps.Add(NewTrap(coord.Col, coord.Row, _random.Next(1, MaxLevel + 1), legion));
+            generated++;
         }
 
-        MarkModified();
-        return ModifierResult.Ok($"已按省区生成 {generatedCount} 个陷阱");
+        if (generated > 0) MarkModified();
+        return ModifierResult.Ok(Loc.F("Module.Trap.GeneratedByProvince", generated), generated);
+    }
+
+    /// <summary>等级为 <paramref name="level"/> 的所有陷阱所在格（按格子下标排序，Ctrl+F 依次跳转）。</summary>
+    public IReadOnlyList<HexCoord> FindTrapsByLevel(int level)
+    {
+        if (_mapData == null) return [];
+        return _mapData.Traps
+            .Where(t => t.Organization == level && t.CellIndex < _mapData.MapWidth * _mapData.MapHeight)
+            .Select(t => t.CellIndex)
+            .Distinct()
+            .Order()
+            .Select(cell => HexCoord.FromIndex(cell, _mapData.MapWidth))
+            .ToList();
     }
 
     #endregion
 
-    #region 查找陷阱 (F键)
+    #region 内部
 
-    public ModifierResult FindTrapByOrganization(int targetLevel)
+    private static string OutOfRangeText => Loc.T("Module.Trap.OutOfRange", "坐标超出范围");
+
+    private static string NoMapText => Loc.T("Module.Trap.NoMap", "地图数据未初始化");
+
+    private static string NoTrapText => Loc.T("Module.Trap.NoTrap", "该位置没有陷阱");
+
+    private static string OnBuildingText => Loc.T("Module.Trap.OnBuilding", "建筑所在格不能放置陷阱");
+
+    private int IndexOf(int col, int row)
     {
-        if (_mapData == null) return ModifierResult.Fail("地图数据未初始化");
+        int cell = row * _mapData!.MapWidth + col;
+        var traps = _mapData.Traps;
+        for (int i = 0; i < traps.Count; i++)
+            if (traps[i].CellIndex == cell) return i;
+        return -1;
+    }
 
-        var foundTraps = new List<(int Index, Trap Trap)>();
-        for (int i = 0; i < _mapData.Traps.Count; i++)
+    private bool HasBuildingAt(int col, int row) => _mapData!.FindBuildingIndex(col, row) >= 0;
+
+    private void Put(int col, int row, Trap trap)
+    {
+        int idx = IndexOf(col, row);
+        if (idx >= 0) _mapData!.Traps[idx] = trap;
+        else _mapData!.Traps.Add(trap);
+    }
+
+    private Trap WithCell(Trap trap, int col, int row)
+    {
+        trap.Coordinate = unchecked((short)(row * _mapData!.MapWidth + col));
+        return trap;
+    }
+
+    /// <summary>按数据约定新建陷阱：指定等级、该等级标准血量、所属军团 ActionId，v3 地图 Extra1 = 33。</summary>
+    private Trap NewTrap(int col, int row, int level, int legionActionId)
+    {
+        var trap = Trap.CreateDefault(row * _mapData!.MapWidth + col);
+        trap.Organization = (short)level;
+        trap.Health = Trap.StandardHealth(level);
+        trap.LegionId = (short)legionActionId;
+        if (_mapData.Header.BtlVersion >= 3) trap.Extra1 = V3TrapExtra;
+        return trap;
+    }
+
+    /// <summary>改等级；血量是旧等级的标准值时同步成新等级的标准值（手工改过的血量保持不变）。</summary>
+    private static Trap WithLevel(Trap trap, int level)
+    {
+        if (trap.Health == Trap.StandardHealth(trap.Organization))
+            trap.Health = Trap.StandardHealth(level);
+        trap.Organization = (short)level;
+        return trap;
+    }
+
+    private int RandomLevel()
+    {
+        double roll = _random.NextDouble() * LevelWeights.Sum();
+        for (int i = 0; i < LevelWeights.Length; i++)
         {
-            if (_mapData.Traps[i].Organization == targetLevel)
-                foundTraps.Add((i, _mapData.Traps[i]));
+            roll -= LevelWeights[i];
+            if (roll < 0) return i + 1;
         }
-
-        if (foundTraps.Count > 0)
-        {
-            var first = foundTraps[0];
-            var coord = HexCoord.FromIndex(first.Trap.Coordinate, _mapData.MapWidth);
-            return ModifierResult.Ok($"找到 {foundTraps.Count} 个编制为 {targetLevel} 的陷阱，第一个在 ({coord.Col}, {coord.Row})");
-        }
-
-        return ModifierResult.Fail($"没有找到编制为 {targetLevel} 的陷阱");
+        return LevelWeights.Length;
     }
 
-    #endregion
+    /// <summary>归属值 → 该军团的 ActionId（按 <see cref="MapData.ResolveLegionByBelong"/> 解析）；无归属或找不到军团时为 0。</summary>
+    private int LegionActionId(int owner)
+        => owner >= 0 ? _mapData!.ResolveLegionByBelong(owner)?.ActionId ?? 0 : 0;
 
-    #region 查询
-
-    public IReadOnlyList<Trap> GetAllTraps()
+    /// <summary>已有陷阱、建筑、单位（v1 + v3）的格子：批量生成时都跳过。</summary>
+    private HashSet<int> OccupiedCells()
     {
-        return _mapData?.Traps ?? [];
-    }
-
-    public Trap? GetTrapAt(int col, int row)
-    {
-        if (_mapData == null) return null;
-        int idx = _mapData.FindTrapIndex(col, row);
-        return idx >= 0 ? _mapData.Traps[idx] : null;
-    }
-
-    public int GetTrapCount()
-    {
-        return _mapData?.Traps.Count ?? 0;
+        var cells = new HashSet<int>();
+        foreach (var t in _mapData!.Traps) cells.Add(t.CellIndex);
+        foreach (var b in _mapData.Buildings) cells.Add(b.Coordinate);
+        foreach (var a in _mapData.Armies) cells.Add((ushort)a.Coordinate);
+        foreach (var a in _mapData.ArmiesV3) cells.Add((ushort)a.Coordinate);
+        return cells;
     }
 
     #endregion

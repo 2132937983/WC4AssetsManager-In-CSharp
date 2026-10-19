@@ -23,11 +23,18 @@ namespace WC4MapEditor.Rendering.Skia;
 /// 退化为红色圆形占位，保证每个首都都有可见标记。
 /// </para>
 /// <para>只在军团编辑模式启用（由 RenderSceneBase.UpdateRenderLayersByMode 控制）。</para>
+/// <para>
+/// 国旗边长随缩放变化（缩放 1 时为 VB 的 60 像素，放大不超过 60、缩小到 16 为止）：
+/// VB 固定 60 像素，地图缩小后相邻首都的国旗会叠成一片。
+/// </para>
 /// </summary>
 public sealed class CapitalFlagRender : IDisposable
 {
-    /// <summary>国旗绘制尺寸（屏幕像素）。对齐 VB 版固定 60 像素，不随缩放变化。</summary>
+    /// <summary>缩放为 1 时的国旗边长（屏幕像素，对齐 VB 版的 60 像素），也是放大后的上限。</summary>
     private const int FLAG_SIZE = 60;
+
+    /// <summary>地图缩得很小时国旗的最小边长（屏幕像素），保证仍然看得见。</summary>
+    private const int MIN_FLAG_SIZE = 16;
 
     /// <summary>取不到国旗时的兜底标记颜色（红色圆形）</summary>
     private static readonly SKColor FALLBACK_CIRCLE_COLOR = SKColors.Red;
@@ -150,7 +157,7 @@ public sealed class CapitalFlagRender : IDisposable
         double hexSpacingX = HEX_HORIZONTAL_SPACING * zoomLevel;
         double hexSpacingY = HEX_VERTICAL_SPACING * zoomLevel;
         int totalCells = mapWidth * mapHeight;
-        float half = FLAG_SIZE / 2.0f;
+        float half = (float)Math.Clamp(FLAG_SIZE * zoomLevel, MIN_FLAG_SIZE, FLAG_SIZE) / 2.0f;
 
         using var imagePaint = new SKPaint { IsAntialias = true };
         using var fallbackPaint = new SKPaint { IsAntialias = true, Color = FALLBACK_CIRCLE_COLOR };
@@ -163,13 +170,14 @@ public sealed class CapitalFlagRender : IDisposable
             int col = hexIndex % mapWidth;
             int row = hexIndex / mapWidth;
 
-            if (IsTileClipped(mapData, col, row)) continue;
+            // 数据范围外的格子（红叉层）不画国旗：游戏不会读取那里的首都
+            if (!mapData.IsInBelongRange(col, row)) continue;
 
             // 与地形/领域/归属国旗层共用同一套屏幕坐标公式
             float x = (float)(offsetX + col * hexSpacingX);
             float y = (float)(offsetY + (col % 2) * (hexSpacingY / 2) + row * hexSpacingY);
 
-            // 国旗尺寸固定，视口外直接跳过
+            // 视口外直接跳过
             if (x + half < 0 || x - half > viewportWidth || y + half < 0 || y - half > viewportHeight) continue;
 
             int countryId = ResolveCapitalCountryId(mapData, col, row, hexIndex);
@@ -246,46 +254,42 @@ public sealed class CapitalFlagRender : IDisposable
         return table;
     }
 
-    /// <summary>地图裁剪区之外的格子不绘制（与归属国旗层一致）</summary>
-    private static bool IsTileClipped(MapData mapData, int col, int row)
-    {
-        int clipX = mapData.Header?.MapClipX ?? 0;
-        int clipY = mapData.Header?.MapClipY ?? 0;
-        if (clipY > 0 && row < clipY) return true;
-        if (clipX > 0 && col < clipX) return true;
-        return false;
-    }
-
-    /// <summary>
-    /// 取国旗图片：优先战术地图解析出的 flag_{countryId}.png，其次 CountryFlag 目录下的文件。
-    /// 战术地图缓存返回的是共享对象，不归本层所有，Dispose 时不能释放。
-    /// </summary>
+    /// <summary>取国旗图片（按国家缓存），自己解码出来的记入 <see cref="_ownedImages"/>，Dispose 时释放。</summary>
     private SKImage? GetFlagImage(int countryId)
     {
         lock (_flagCacheLock)
         {
             if (_flagCache.TryGetValue(countryId, out var cached)) return cached;
 
-            SKImage? image = null;
-            try
-            {
-                var cache = TacticalMapImageCache.Instance;
-                if (cache.IsInitialized)
-                    image = cache.GetImage($"flag_{countryId}.png");
-
-                if (image == null)
-                {
-                    image = LoadFlagImageFromFile(countryId);
-                    if (image != null) _ownedImages.Add(countryId);
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[CapitalFlagRender] 加载国旗失败(国家{countryId}): {ex.Message}");
-            }
-
+            var image = LoadFlagImage(countryId, out bool owned);
+            if (owned) _ownedImages.Add(countryId);
             _flagCache[countryId] = image;
             return image;
+        }
+    }
+
+    /// <summary>
+    /// 加载国旗：优先战术地图图集里的 flag_{countryId}.png（与 VB 相同），其次 StageMark/CountryFlag 目录下的文件。
+    /// 图集返回的是共享对象（<paramref name="owned"/> = false，调用方不得释放）；
+    /// 文件解码出来的归调用方所有（<paramref name="owned"/> = true）。军团截图也走这里。
+    /// </summary>
+    internal static SKImage? LoadFlagImage(int countryId, out bool owned)
+    {
+        owned = false;
+        try
+        {
+            var cache = TacticalMapImageCache.Instance;
+            if (cache.IsInitialized && cache.GetImage($"flag_{countryId}.png") is { } atlasImage)
+                return atlasImage;
+
+            var fileImage = LoadFlagImageFromFile(countryId);
+            owned = fileImage != null;
+            return fileImage;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CapitalFlagRender] 加载国旗失败(国家{countryId}): {ex.Message}");
+            return null;
         }
     }
 
