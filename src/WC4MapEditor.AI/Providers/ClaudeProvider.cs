@@ -156,8 +156,11 @@ public sealed class ClaudeProvider : IAiProvider
         if (root.TryGetProperty("stop_reason", out var stop) && stop.ValueKind == JsonValueKind.String)
         {
             var reason = stop.GetString();
-            if (reason == "max_tokens" && result.ToolCalls.Count == 0)
-                result.Error = "响应被 max_tokens 截断";
+            // 有工具调用时被截断，意味着 arguments 是半截 JSON —— 必须判失败，不能交给执行器
+            if (reason == "max_tokens")
+                result.Error = result.ToolCalls.Count > 0
+                    ? "响应被 max_tokens 截断：工具调用参数不完整（不是合法 JSON），请把长内容拆成多段后重试"
+                    : "响应被 max_tokens 截断";
         }
 
         return result;
@@ -183,6 +186,7 @@ public sealed class ClaudeProvider : IAiProvider
         var toolInput = new Dictionary<int, StringBuilder>();
         var toolMeta = new Dictionary<int, (string id, string name)>();
         bool isSse = false;
+        bool maxTokensReached = false;
         var nonSseBuf = new StringBuilder();
 
         using var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
@@ -273,8 +277,8 @@ public sealed class ClaudeProvider : IAiProvider
                         if (root.TryGetProperty("delta", out var md) &&
                             md.TryGetProperty("stop_reason", out var sr) && sr.ValueKind == JsonValueKind.String)
                         {
-                            if (sr.GetString() == "max_tokens" && result.ToolCalls.Count == 0)
-                                result.Error = "响应被 max_tokens 截断";
+                            // 这里工具调用还没组装完，先记下来，等循环结束后再按有无 tool_use 决定文案
+                            if (sr.GetString() == "max_tokens") maxTokensReached = true;
                         }
                         break;
                 }
@@ -297,6 +301,13 @@ public sealed class ClaudeProvider : IAiProvider
             var (id, name) = toolMeta[idx];
             if (!string.IsNullOrEmpty(name))
                 result.ToolCalls.Add(new AiToolCall { Id = id, Name = name, ArgumentsJson = toolInput[idx].ToString() });
+        }
+
+        if (maxTokensReached)
+        {
+            result.Error = result.ToolCalls.Count > 0
+                ? "响应被 max_tokens 截断：工具调用参数不完整（不是合法 JSON），请把长内容拆成多段后重试"
+                : "响应被 max_tokens 截断";
         }
 
         return result;

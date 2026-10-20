@@ -174,6 +174,7 @@ public sealed class OpenAiCompatibleProvider : IAiProvider
         var toolMeta = new Dictionary<int, (string id, string name)>();
         bool isSse = false;
         var nonSseBuf = new StringBuilder();
+        string? finishReason = null;
 
         string? line;
         while ((line = await reader.ReadLineAsync(ct).ConfigureAwait(false)) != null)
@@ -211,6 +212,11 @@ public sealed class OpenAiCompatibleProvider : IAiProvider
                 }
 
                 if (!root.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0) continue;
+
+                // finish_reason=length 表示输出被截断；带工具调用时 arguments 必然是半截 JSON
+                if (choices[0].TryGetProperty("finish_reason", out var fr) && fr.ValueKind == JsonValueKind.String)
+                    finishReason = fr.GetString();
+
                 var delta = choices[0].TryGetProperty("delta", out var d) ? d : default;
 
                 if (delta.ValueKind == JsonValueKind.Object)
@@ -278,6 +284,14 @@ public sealed class OpenAiCompatibleProvider : IAiProvider
             var (id, name) = toolMeta[idx];
             if (!string.IsNullOrEmpty(name))
                 result.ToolCalls.Add(new AiToolCall { Id = id, Name = name, ArgumentsJson = toolArgs[idx].ToString() });
+        }
+
+        // 被 max_tokens 截断的工具调用参数一定不完整：直接判本轮失败，
+        // 别把一个半截 JSON 交给执行器（否则只会得到"缺少 code 参数"这种误导信息）。
+        if (finishReason == "length" && result.ToolCalls.Count > 0)
+        {
+            result.Error = "本轮输出被截断（finish_reason=length），工具调用参数不完整。"
+                         + "请把长代码/长参数拆成多段后重试。";
         }
 
         return result;
@@ -409,7 +423,8 @@ public sealed class OpenAiCompatibleProvider : IAiProvider
                 break;
 
             case "assistant" when m.ToolCalls is { Count: > 0 }:
-                dict["content"] = m.Text;
+                // content 允许为空串，但不要给 null：部分网关会因此判请求非法
+                dict["content"] = m.Text ?? "";
                 dict["tool_calls"] = m.ToolCalls.Select(tc => new Dictionary<string, object?>
                 {
                     ["id"] = tc.Id,
@@ -417,7 +432,8 @@ public sealed class OpenAiCompatibleProvider : IAiProvider
                     ["function"] = new Dictionary<string, object?>
                     {
                         ["name"] = tc.Name,
-                        ["arguments"] = tc.ArgumentsJson
+                        // 历史里的坏参数（多为被截断的 JSON）必须在这里降级，否则整段对话每轮 400
+                        ["arguments"] = tc.NormalizedArgumentsJson
                     }
                 }).ToList();
                 break;

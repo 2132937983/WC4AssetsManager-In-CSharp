@@ -99,6 +99,54 @@ public sealed class AiToolCall
     /// <summary>参数原文（JSON 对象字符串）。解析失败时原样透传给工具执行器。</summary>
     public string ArgumentsJson { get; set; } = "{}";
 
+    /// <summary>
+    /// 参数是否"有内容但不是合法 JSON 对象"。
+    /// <para>
+    /// 典型来源：流式输出被 max_tokens 截断，arguments 是半截 JSON（引号/括号没闭合）。
+    /// 空参数不算坏 —— 无参数工具允许传空。
+    /// </para>
+    /// </summary>
+    public bool HasBrokenArguments
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(ArgumentsJson)) return false;
+            try
+            {
+                using var doc = JsonDocument.Parse(ArgumentsJson);
+                return doc.RootElement.ValueKind != JsonValueKind.Object;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 回传给网关用的参数：空或非法一律降级成 <c>{}</c>。
+    /// <para>
+    /// 历史消息每轮都会整体重发，留一段坏 JSON 会让网关每轮都回 400
+    /// （"Assistant tool call function.arguments must be valid JSON"），整段对话就作废了。
+    /// </para>
+    /// </summary>
+    public string NormalizedArgumentsJson
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(ArgumentsJson)) return "{}";
+            try
+            {
+                using var doc = JsonDocument.Parse(ArgumentsJson);
+                return doc.RootElement.ValueKind == JsonValueKind.Object ? ArgumentsJson : "{}";
+            }
+            catch
+            {
+                return "{}";
+            }
+        }
+    }
+
     public JsonElement? ParsedArguments()
     {
         try

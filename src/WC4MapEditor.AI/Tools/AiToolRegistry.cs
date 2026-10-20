@@ -85,7 +85,14 @@ public static class AiToolRegistry
             new()
             {
                 Name = "run_lua",
-                Description = "执行一段 Lua 代码操作地图。全局对象 map 暴露完整编辑 API：地形(GetTerrain/SetTerrain/FloodFillTerrain)、归属(GetBelong/SetBelong)、建筑(AddBuilding/ForEachBuilding/RemoveBuilding...)、单位(AddArmy/SetArmyPlan/GenerateArmiesByProbability...)、军团(AddLegion/SetLegionColor/SetLegionCampAt/SetLegionDefeatConditionAt/SetAllLegionsEconomy...)、工具(ExportHd/ConnectBuildings...)。用 print() 输出结果。整次执行可一次撤销。适合批量/复杂操作。",
+                Description = "执行一段 Lua 代码操作地图。推荐先用内置工具箱：代码开头写 `local ai = require('ai')`，"
+                            + "建筑/单位/军团/地形/归属/记录都有高层接口（速查：run_lua_file scripts/ai/help.lua，"
+                            + "巡检：run_lua_file scripts/ai/audit.lua）；批量改字段用 ai.*.bulk（先 dry_run=true）。"
+                            + "底层全局对象 map 也全量可用：地形(GetTerrain/SetTerrain/FloodFillTerrain)、归属(GetBelong/SetBelong)、"
+                            + "建筑(AddBuilding/ForEachBuilding/RemoveBuilding...)、单位(AddArmy/SetArmyField/GenerateArmiesByProbability...)、"
+                            + "军团(AddLegion/SetLegionColor/SetLegionCampAt/SetAllLegionsEconomy...)、工具(ExportHd/ConnectBuildings...)。"
+                            + "代码一次别超过约 150 行：过长会被 max_tokens 截断，工具参数会变成半截 JSON。"
+                            + "用 print() 输出结果。整次执行可一次撤销。适合批量/复杂操作。",
                 ParametersJson = """
 {"type":"object","properties":{"code":{"type":"string","description":"Lua 源码"}},"required":["code"]}
 """,
@@ -311,7 +318,12 @@ public static class AiToolRegistry
     /// <summary>执行一个工具调用，返回给 AI 的结果文本。</summary>
     public static string Execute(string toolName, string argumentsJson)
     {
-        var args = ParseArgs(argumentsJson);
+        var args = ParseArgs(argumentsJson, out string? argError);
+        if (argError != null)
+        {
+            return $"工具参数不是合法 JSON：{Shorten(argumentsJson, 300)}（{argError}）。"
+                 + "常见原因是上一轮输出被 max_tokens 截断，请把内容拆小后重试。";
+        }
 
         try
         {
@@ -377,7 +389,14 @@ public static class AiToolRegistry
     {
         if (toolName == "capture_screenshot")
         {
-            var (text, images) = ToolCaptureScreenshot(ParseArgs(argumentsJson));
+            var args = ParseArgs(argumentsJson, out string? argError);
+            if (argError != null)
+            {
+                output = $"工具参数不是合法 JSON：{Shorten(argumentsJson, 300)}（{argError}）";
+                return Array.Empty<string>();
+            }
+
+            var (text, images) = ToolCaptureScreenshot(args);
             output = text;
             return images;
         }
@@ -436,18 +455,39 @@ public static class AiToolRegistry
         };
     }
 
-    private static JsonElement ParseArgs(string json)
+    /// <summary>
+    /// 解析工具参数；失败时通过 <paramref name="error"/> 报出来。
+    /// <para>
+    /// 不要静默回落成空表：那样所有工具都会变成"缺少 xxx 参数"，
+    /// 把真正的原因（参数 JSON 是半截/非法）藏掉 —— 模型会照着这个假线索反复重试。
+    /// </para>
+    /// </summary>
+    private static JsonElement ParseArgs(string json, out string? error)
     {
+        error = null;
+
         try
         {
             using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(json) ? "{}" : json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                error = "参数必须是 JSON 对象，收到 " + doc.RootElement.ValueKind;
+                return EmptyObject();
+            }
             return doc.RootElement.Clone();
         }
-        catch
+        catch (Exception ex)
         {
-            return JsonDocument.Parse("{}").RootElement.Clone();
+            error = ex.Message;
+            return EmptyObject();
         }
     }
+
+    private static JsonElement EmptyObject()
+        => JsonDocument.Parse("{}").RootElement.Clone();
+
+    private static string Shorten(string? s, int max)
+        => string.IsNullOrEmpty(s) ? "" : (s.Length <= max ? s : s[..max] + "…");
 
     private static string GetString(JsonElement args, string name, string def = "")
         => args.ValueKind == JsonValueKind.Object

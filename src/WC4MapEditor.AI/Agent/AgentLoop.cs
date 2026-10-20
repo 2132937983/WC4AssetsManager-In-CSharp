@@ -196,12 +196,39 @@ public sealed class AgentLoop
 
                 toolCallsTotal += result.ToolCalls.Count;
 
+                // 参数不是合法 JSON 的调用：一不执行，二不能原样写进历史。
+                // 历史每轮整体重发，留着半截 JSON 会让网关每轮都回 400
+                //（"Assistant tool call function.arguments must be valid JSON"），整段对话作废。
+                var brokenCalls = new List<(AiToolCall Call, string Raw)>();
+                foreach (var call in result.ToolCalls)
+                {
+                    if (call.HasBrokenArguments)
+                    {
+                        brokenCalls.Add((call, call.ArgumentsJson));
+                        call.ArgumentsJson = "{}";
+                    }
+                }
+
                 // assistant 带工具调用 → 逐个执行 → 回传结果
                 messages.Add(new AiChatMessage { Role = "assistant", Text = result.Text, ToolCalls = result.ToolCalls });
 
                 foreach (var call in result.ToolCalls)
                 {
                     _cts.Token.ThrowIfCancellationRequested();
+
+                    var broken = brokenCalls.FirstOrDefault(b => ReferenceEquals(b.Call, call));
+                    if (broken.Call != null)
+                    {
+                        string notice = $"参数不是合法 JSON，已拒绝执行 {call.Name}。"
+                            + "常见原因：输出被 max_tokens 截断，或代码里的引号/换行没有转义。"
+                            + $"\n原始参数片段：{Truncate(broken.Raw, 300)}"
+                            + "\n请把内容拆小（例如一次只给一段 Lua）后重新调用。";
+                        OnToolCall?.Invoke(call.Name, broken.Raw);
+                        OnToolResult?.Invoke(call.Name, notice, false);
+                        messages.Add(AiChatMessage.ToolResult(call.Id, call.Name, notice));
+                        continue;
+                    }
+
                     OnToolCall?.Invoke(call.Name, call.ArgumentsJson);
 
                     string output = "";
@@ -509,7 +536,10 @@ public sealed class AgentLoop
 1. 操作地图前先用 get_map_info 了解地图；不确定命令时先跑 help 或先查询再修改。
 2. 需要打开地图文件（如 stage10101.btl）时用 open_map，路径可为 assets 内相对路径（如 stage/stage10101.btl）。
 3. 修改类操作不可轻率：Lua 执行整批可撤销（Ctrl+Z），但请在回复里说明你改了什么、影响多大。
-4. 批量/条件类修改优先用 run_lua（map 对象 API 全量可用），单条功能用 run_cli_command。
+4. 地图数据编辑优先用内置 Lua 工具箱：run_lua 里写 `local ai = require('ai')`，函数速查见
+   run_lua_file scripts/ai/help.lua，接手陌生地图先跑 run_lua_file scripts/ai/audit.lua。
+   批量/条件类修改用它的 *.bulk（先 dry_run=true 看命中），单条功能用 run_cli_command；
+   工具箱没覆盖的（如陷阱 trap）再用命令。
 5. 需要看某个编辑界面时用 open_scene 切场景（先用 list_scenes 查名称）。
 6. 查资源/图集用 list_assets、read_asset_text、get_asset_summary（AM 资产管理器）；
    查 setting.txt 文本用 get_config_text、查游戏文本(国家名/城市名/事件名)用 get_stringtable_value 或 list_stringtable_keys 或 search_stringtable、
@@ -533,6 +563,9 @@ public sealed class AgentLoop
 执行准则（最重要）：
 16. **描述不算执行**。不要在正文里写"我将调用 xxx"「接下来我会用 yyy」然后停下 —— 必须真的发起工具调用。
 17. 任务没真正做完之前，不要输出"已完成/已创建"之类结论；只有工具的返回结果确认了才可以说完成。
+18. **长代码拆段**：run_lua 的 code 一次不超过约 150 行（或 6000 字符）。一次塞太多会被
+    max_tokens 截断，工具参数变成半截 JSON（表现为"参数不是合法 JSON"或"缺少 code 参数"）。
+    套路：先跑一段看输出，确认后再跑下一段；长脚本可先 write_file 到 scripts/ 再 run_lua_file。
 """;
 
         // 文本协议模式下必然要带上回退说明（否则模型没有工具、也不知道能写代码块）

@@ -46,6 +46,8 @@ NoFileSelected = "未选择文件，创建测试地图"
 LoadError = "加载异常："
 
 [全局编辑]
+#界面语言（Resource/Lang 下的文件名）
+Language = "zh-CN"
 #主题颜色
 ThemeColor = 0x002fa7
 #截图的倍率参数
