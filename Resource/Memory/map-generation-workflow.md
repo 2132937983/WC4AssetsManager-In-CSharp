@@ -1,204 +1,419 @@
 # map-generation-workflow
 
-> 保存时间: 2026-10-21（人工写入）
-> 摘要: 生成/重画大范围地图（欧洲、亚洲、某国家）的标准流程：先用 geo rasterize 从 GeoJSON 产出海陆/归属掩码，再用 build-map.lua 落地，最后用 ai.mapgen 校验。禁止用 SetTerrain 逐格画大陆。
+> 保存时间: 2026-10-21 21:52:09
 
 ---
 
-## 0. 先记住三条硬规则
+# map-generation-workflow
 
-1. **不要用 `SetTerrain` 逐格“画”大陆。** 模型没有全图的几何先验，逐格生成的结果一定是“一半海一半陆”或一团团城市斑块，而且自己看不出问题。
-2. **几何来自数据，不来自模型。** 模型只负责：选地区、给 bbox、给宽高、选风格、填城市/势力；海岸线由 GeoJSON 栅格化得到。
-3. **先干跑、再校验、最后落地。** 任何写地图的步骤先用 `dry_run=true` / `validate_mask`，数字过了再写。
+> 摘要: 本项目生成欧洲/东亚/局部地区战役地图的标准能力。核心是 spec 驱动 + 真实地理数据 + 掩码栅格化 + build-map 落地 + 校验。禁止用 SetTerrain 逐格画大陆。
 
 ---
 
-## 1. 准备地理数据
+## 0. 硬规则
 
-用 Natural Earth（公有领域）的 1:110m 数据，放到 `Resource/Geo/`：
-
-- 陆地：`ne_110m_land.geojson`
-- 国家边界：`ne_110m_admin_0_countries.geojson`
-
-下载地址（GitHub，raw）：
-
-```
-https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_land.geojson
-https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson
-```
-
-任意来源的 GeoJSON 都可以，只要能解析 `Polygon` / `MultiPolygon` / `FeatureCollection`。
+1. **几何来自数据，不来自模型。** 海岸线、国家边界、城市坐标必须来自 GeoJSON / GeoNames / spec，不能让 AI 凭记忆画。
+2. **不要用 `map.SetTerrain` 逐格画大陆。** 结果一定是半海半陆或城市斑块，而且难以自查。
+3. **先 dry_run，再 validate，最后落地。** 写地图前必须看报表；落图后必须跑 `ai.mapgen.validate`。
+4. **不要新建 btl 才能改地形。** 用 MCP `apply_map_spec` 或 `run_lua_file` 在当前场景重跑；用 `save <路径>` 保存。
+5. **不要写死绝对路径。** spec / lua 里用 `scripts/mapgen/regions/...` 相对路径；`build-map.lua` 会自动向上查找仓库根。
+6. **台湾相关项目内命名统一为“中国台湾”。** 文件名如 `china_taiwan.txt`、`maps/china_taiwan.btl`；原始 GeoNames/Natural Earth 数据除外。
 
 ---
 
-## 2. 生成海陆掩码
+## 1. 已有可复用资产
 
-```
-geo rasterize --geojson Resource/Geo/ne_110m_land.geojson ^
-              --out scripts/mapgen/regions/europe.land.txt ^
-              --width 200 --height 180 ^
-              --bbox -25,34,45,72 --smooth 1 --min-island 4
-```
+地理数据：
 
-参数：
+- `Resource/Geo/ne_10m_land.geojson`
+- `Resource/Geo/ne_10m_admin_0_countries.geojson`
+- `Resource/Geo/ne_50m_admin_0_countries.geojson`
+- `Resource/Geo/ne_10m_populated_places.geojson`
+- `Resource/Geo/east_asia_countries.geojson`
+- `Resource/Geo/europe_ww2_countries.geojson`
+- `Resource/Geo/sunset_countries.geojson`
+- `Resource/Geo/TW/TW.txt`、`Resource/Geo/TW.zip`：GeoNames 台湾原始数据，可选；当前 `china_taiwan.txt` 已含 650 城，不依赖它也能重建。
 
-| 参数 | 说明 |
-|---|---|
-| `--geojson` | 输入 GeoJSON |
-| `--out` | 输出 ASCII 掩码（`X`=陆地，`.`=海） |
-| `--width/--height` | 地图尺寸（格），必须与地图一致 |
-| `--bbox` | 经纬度窗口 `minLon,minLat,maxLon,maxLat`；省略则用数据自身范围 |
-| `--smooth` | 3×3 多数表决次数，1 次可去掉锯齿与孤立点 |
-| `--min-island` | 小于这个格数的陆块删除（4~8 比较自然） |
+建图脚本与数据：
 
-输出会打印：陆地格数/比例、陆块数量、最大陆块占比、长宽比提示。**陆地比例是第一个要看的数字**（欧洲 bbox `-25,34,45,72` 实测约 47%，11 个陆块，最大占 91%）。
+- `scripts/mapgen/build-map.lua`：核心建图器，支持 `type_mask_file`、`snap_sea_radius`、`clear_cities`、`belong`、`post`。
+- `scripts/mapgen/_ww2_run.lua`：欧洲二战 spec 运行脚本。
+- `scripts/mapgen/_east_asia_run.lua`：东亚 spec 运行脚本。
+ - scripts/mapgen/_qingdao_run.lua、_sunset_run.lua：局部/场景示例。
+ - scripts/mapgen/_qingdao_run.lua、_sunset_run.lua：局部/场景示例。
+- `scripts/mapgen/make-provinces.lua`：按省会多源 BFS 生成省区。
+- `scripts/mapgen/finalize_sunset.lua`：落日行动补齐归属/省区/单位示例。
+- `scripts/mapgen/regions/*.txt`：spec + 海陆掩码 + 归属掩码 + 地形类型掩码。这些必须提交，另一台电脑靠它们复现。
 
-掩码格式与 `scripts/mapgen/build-map.lua` 的 `[terrain] mode=mask` 完全兼容，投影也一致（含“奇数列下移半格”），不会与城市坐标错位。
+已有成品图：
 
----
-
-## 3. 生成归属掩码（可选，但推荐）
-
-```
-geo rasterize --geojson Resource/Geo/ne_110m_admin_0_countries.geojson ^
-              --owners ^
-              --out scripts/mapgen/regions/europe.owner.txt ^
-              --width 200 --height 180 --bbox -25,34,45,72
-```
-
-会额外生成 `europe.owner.txt.map`：
-
-```
-A = 8
-B = 9
-...
-```
-
-左边是掩码字符，右边是**国家 ID**（取自 GeoJSON 的 `id` / `ISO_A2` / `name`，可用 `--property` 指定）。  
-若属性不是数字，用 `--id-property` 指定含国家 ID 的字段。
-
-> 归属掩码的字符对不上军团时，`build-map` 会把这些格计入“跳过”，并在报表里列出缺失的国家 ID。
+- `maps/ww2_europe_1941.btl`：260×180，22 势力，654 城。
+- `maps/east_asia_1941.btl`：208×144，12 势力，922 城。
+- `maps/china_taiwan.btl`：150×210，1 势力，650 城。
+- `maps/operation_sunset.btl`：200×180，5 势力，231 城，23 单位，80 省区。
+- `maps/qingdao.btl`：160×170，1 势力，15 城。
 
 ---
 
-## 4. 改 build-map 的地区数据文件
+## 2. 标准生成流程
 
-以 `scripts/mapgen/regions/europe.txt` 为例：
+### 2.1 欧洲 260×180 / 22 势力
 
-```ini
-[map]
-name = 欧洲
-dry_run = true          # 先 true
-overwrite = false
-
-[projection]
-mode = window           # 有底图/精确标定时可改 ref
-lon_west = -25
-lon_east = 45
-lat_north = 72
-lat_south = 34
-
-[terrain]
-enabled = true
-mode = mask
-mask_file = scripts/mapgen/regions/europe.land.txt
-land_type = 0           # 陆地地形值
-sea_type = 1            # 海必须是 1
-smooth = 1
-
-[belong]
-enabled = true
-mode = mask
-mask_file = scripts/mapgen/regions/europe.owner.txt
-map_file = scripts/mapgen/regions/europe.owner.txt.map
-land_only = true
-
-[post]
-create_coast = true
-connect_buildings = true
+```text
+new_campaign width=260 height=180 legions=22
 ```
 
-顺序语义：**先铺海陆 → 再铺归属 → 最后落城市**（城市自己的势力会覆盖归属掩码，城市格不会落海）。
+设置真实 WC4 国家 ID：
 
----
-
-## 5. 执行
-
+```lua
+local targets = {1,2,3,5,7,11,12,13,16,17,18,19,20,21,22,23,24,25,26,27,28,57}
+for i = 0, #targets - 1 do map.SetLegionCountryIdAt(i, 1000 + i) end
+for i = 0, #targets - 1 do map.SetLegionCountryIdAt(i, targets[i + 1]) end
+map.ApplyLegionColorsFromSettings()
+map.SetLegionField(2, 'IsPlayerControlled', 1)
 ```
-lua scripts/mapgen/build-map.lua
+
+落地：
+
+```text
+run_lua_file scripts/mapgen/_ww2_run.lua
 ```
 
-第一次一定 `dry_run = true`，看报表：
-
-- 城市坐标是否落在预期位置（`ref` 模式看残差是否 ≤1.5 格）；
-- 有多少城市「落在海里」「越界」「重复格」；
-- 归属掩码预计写多少格、跳过多少格；
-- 缺失的国家 ID（先把军团建好再跑）。
-
-确认后把 `dry_run` 改成 `false` 再跑一次；整次执行可 `Ctrl+Z` 一次撤销。
-
----
-
-## 6. 校验几何
-
-在 `run_lua` 里：
+校验：
 
 ```lua
 local ai = require('ai')
-ai.mapgen.validate{ expected_min = 0.40, expected_max = 0.55 }
+local r = ai.mapgen.validate{ expected_min = 0.40, expected_max = 0.55, min_largest = 0.80 }
+print('validate=' .. tostring(r.ok))
 ```
 
-或在落地前只检查掩码：
+保存：
+
+```text
+save maps/ww2_europe_1941.btl
+```
+
+预期：654 城、0 落海、归属 100%。
+
+### 2.2 东亚 208×144 / 12 势力
+
+```text
+new_campaign width=208 height=144 legions=12
+```
+
+国家 ID：
 
 ```lua
-ai.mapgen.validate_mask{ path = 'scripts/mapgen/regions/europe.land.txt',
-                         expected_min = 0.40, expected_max = 0.55 }
+local targets = {1,2,5,6,9,10,19,32,33,34,35,36}
+for i = 0, #targets - 1 do map.SetLegionCountryIdAt(i, 1000 + i) end
+for i = 0, #targets - 1 do map.SetLegionCountryIdAt(i, targets[i + 1]) end
+map.ApplyLegionColorsFromSettings()
 ```
 
-指标与含义：
+落地：
 
-| 指标 | 含义 | 常见阈值 |
-|---|---|---|
-| `land_ratio` | 陆地占比 | 按 bbox 定，欧洲 `-25,34,45,72` 约 0.47 |
-| `largest_ratio` | 最大陆块占陆地比例 | ≥ 0.80（太小 = 碎成群岛） |
-| `coastline` | 海岸线格数 | 与陆地比例相称即可 |
-| `uniform_row_ratio` / `uniform_col_ratio` | 整行/整列完全同色的比例（按行列硬切最可靠的信号） | ≤ 0.35（"一半海一半陆"会接近 1.0） |
-| `max_land_run` / `max_sea_run` | 最长连续陆地/海洋（仅参考） | — |
-| `buildings_in_sea` | 落海建筑数 | 必须 0 |
-| `empty_legions` | 没有领土的军团索引 | 按设计检查 |
-
-不达标时按顺序修：
-
-1. **比例不对** → 调 `--bbox`（欧洲常见错误是把北非/中东算进来，或纬度范围太窄）。
-2. **太碎** → `--min-island` 调大；`--smooth` 加一次。
-3. **直线伪影** → 检查是否用了手绘/二值图掩码；`--smooth 1` 或重新栅格化。
-4. **城市落海** → 城市经纬度或投影窗口错；先用 `dry_run` 看坐标，必要时改 `ref` 模式。
-5. **空势力** → 归属掩码里该国被邻国覆盖，或国家 ID 与军团对不上。
-
----
-
-## 7. 不要做的事
-
-- 不要用 `ai.each_cell` + `map.SetTerrain` 手写大陆轮廓；
-- 不要在 `from_cities` 模式下把半径调到几十格“糊出大陆”（会变成均匀大圆斑）；
-- 不要跳过 `dry_run` 直接写数据；
-- 不要把 `sea_type` 写成 1 以外的值（引擎判海洋看 `Tile1 == 1`）；
-- 不要忘了保存地图（`.btl`），脚本不会自动存盘。
-
----
-
-## 8. 之后仍然手工的部分
-
-- 山脉、河流、森林、地形变体：地形编辑模式 / `terrain` 命令；
-- 省区（Province）：省区编辑模式（Lua 只能读、不能写）；
-- 单位、将领、陷阱、增援：对应编辑模式或命令；
-- 城市等级/名称微调：`ai.building.set` / `ai.building.bulk`。
-
----
-
-## 9. 一句话流程
-
+```text
+run_lua_file scripts/mapgen/_east_asia_run.lua
 ```
-GeoJSON → geo rasterize（land / owners）→ build-map（dry_run）→ 看报表
-        → dry_run=false 落地 → ai.mapgen.validate → 修 bbox/掩码 → 保存
+
+补省区：
+
+```text
+province clear
+run_lua_file scripts/mapgen/make-provinces.lua
+```
+
+校验：
+
+```lua
+local r = ai.mapgen.validate{ expected_min = 0.35, expected_max = 0.60, min_largest = 0.80 }
+```
+
+保存：
+
+```text
+save maps/east_asia_1941.btl
+```
+
+预期：922 城、0 落海、归属 100%。
+
+### 2.3 中国台湾 150×210 / 1 势力
+
+```text
+new_campaign width=150 height=210 legions=1
+```
+
+```lua
+map.SetLegionCountryIdAt(0, 9)
+map.ApplyLegionColorsFromSettings()
+map.SetLegionField(0, 'IsPlayerControlled', 1)
+```
+
+落地：
+
+```text
+ - scripts/mapgen/_qingdao_run.lua、_sunset_run.lua：局部/场景示例。
+```
+
+校验：
+
+```lua
+local r = ai.mapgen.validate{ expected_min = 0.25, expected_max = 0.40, min_largest = 0.90 }
+```
+
+保存：
+
+```text
+save maps/china_taiwan.btl
+```
+
+预期：650 城、0 落海、归属 100%。
+
+---
+
+## 3. 城市生成方法
+
+欧洲/东亚用 Natural Earth `ne_10m_populated_places.geojson`：
+
+1. 按 bbox 过滤 `LONGITUDE/LATITUDE`。
+2. 名称优先取 `NAME_ZH` / `NAME_ZHT`，去掉空格。
+3. 按 `ISO_A2` / `ADM0_A3` 映射到 spec 的势力名。
+4. 按人口排序、去重、每势力配额，目标数量通常 600~950。
+5. 城市等级阈值：
+   - ≥200 万：5
+   - ≥50 万：4
+   - ≥15 万：3
+   - ≥5 万：2
+   - 其余：1
+6. 沿海城市用 spec 的 `snap_sea_radius = 2~3` 吸附到最近陆地。
+
+中国台湾历史数据来自 GeoNames `TW/TW.txt`，但当前 spec 已固化 650 城；复建不依赖原始文件。
+
+上海/GeoNames 小地名补中文规则（重要）：GeoNames `CN.txt` 里很多村镇只有罗马化/Wade-Giles 名，没有中文 alternate，直接生成会出英文。规则：
+
+1. 先选 GeoNames 记录，若该记录 alternate 有中文则直接用；
+2. 若没有，用 `scripts/mapgen/regions/shanghai_zh_names.json` 映射转换；
+3. 该映射来源：GeoNames 全量同反查中文 alternate + MyMemory 在线翻译 + OpenStreetMap 逆地理中文名，不用 Google；
+4. 用 `scripts/mapgen/apply_shanghai_zh_names.py` 应用到 spec；
+5. 映射值不能含空格，否则 spec 解析会错；改完必须 `clear_cities = true` 重建。
+
+
+城市写入后检查：
+
+```lua
+print('buildings=' .. map.BuildingCount)
+```
+
+`ai.mapgen.validate` 中 `buildings_in_sea` 必须为 0。
+
+---
+
+## 4. 地形生成方法
+
+### 4.1 海陆与归属
+
+```text
+geo rasterize --geojson Resource/Geo/ne_10m_land.geojson --out scripts/mapgen/regions/xxx.land.txt --width W --height H --bbox=minLon,minLat,maxLon,maxLat --smooth 0 --min-island 1
+```
+
+归属：
+
+```text
+geo rasterize --geojson Resource/Geo/xxx_countries.geojson --owners --out scripts/mapgen/regions/xxx.owner.txt --width W --height H --bbox=... --smooth 0
+```
+
+`geo rasterize --owners` 会生成 `.map`，格式 `字符 = 国家ID`。
+
+### 4.2 地形类型掩码
+
+`build-map.lua` 支持：
+
+```ini
+[terrain]
+enabled = true
+mode = mask
+mask_file = scripts/mapgen/regions/xxx.land.txt
+type_mask_file = scripts/mapgen/regions/xxx.terrain.txt
+smooth = 0
+```
+
+类型掩码字符：`0-9` 直接作为地形 ID，`A-V` 对应 10-31。陆地格按字符写地形；海/未知字符回落到 `land_type`。
+
+常用地形 ID：
+
+| ID | 地形 |
+|---|---|
+| 0 | 平地 |
+| 1 | 海洋 |
+| 2 | 沙漠 |
+| 3/4/5 | 矮/中/高雪山 |
+| 6/7/8 | 矮/中/高土山 |
+| 9/10/11 | 矮/中/高绿山 |
+| 12/13/14 | 矮/中/高沙山 |
+| 15 | 仙人掌 |
+| 16 | 阔叶林 |
+| 20 | 针叶林 |
+| 21 | 积雪针叶林 |
+| 22 | 热带森林 |
+| 26 | 农田 |
+| 31 | 雪地 |
+
+山脉不要涂成一坨同款中山。按“山脊核心/中段/外缘”分大、中、小三级，并保留缺口：
+
+- 核心：55%~70% 大山，其余中/小山；
+- 中段：50%~70% 中山，其余小山；
+- 外缘：25%~55% 小山，其余留给平地/森林。
+
+已有案例：阿尔卑斯、喀尔巴阡、日本中央山脉、朝鲜山地、长白山、锡霍特山、中国台湾中央山脉/玉山/雪山。
+
+城市周围 1 格强制平地，避免城市长在山上。
+
+### 4.3 后处理
+
+```ini
+[post]
+create_coast = true
+process_ocean_layer2 = true
+greening = 0
+```
+
+- `create_coast`：海岸线地形。
+- `process_ocean_layer2`：海洋第二层。
+- `greening`：随机把平地转森林，已有类型掩码时通常设 0。
+- `smooth` 必须为 0：1 格宽海峡会被 3×3 多数表决填成陆地。
+
+---
+
+## 5. 省区、归属、单位
+
+### 5.1 省区
+
+```text
+province clear
+run_lua_file scripts/mapgen/make-provinces.lua
+```
+
+规则：
+
+- 选五级城 + 部分四级城作为省会；
+- 省区值 = 省会格子线性索引；
+- 每个势力内多源 BFS，不跨势力；
+- 兜底把剩余陆地分给最近同势力省会。
+
+检查：
+
+```lua
+local W,H=map.Width,map.Height
+local prov,cap,cells={},0,0
+for r=0,H-1 do for c=0,W-1 do
+  local v=map.GetProvince(c,r)
+  if v~=65535 then cells=cells+1; prov[v]=true; if v==r*W+c then cap=cap+1 end end
+end end
+local n=0
+for _ in pairs(prov) do n=n+1 end
+print('provinces='..n..' cells='..cells..' capitals='..cap)
+```
+
+### 5.2 归属
+
+用归属掩码落地后，必须没有无归属陆地：
+
+```lua
+local miss=0
+for r=0,map.Height-1 do for c=0,map.Width-1 do
+  if map.GetTerrain(c,r)~=1 and map.GetBelong(c,r)==255 then miss=miss+1 end
+end end
+print('missing_belong='..miss)
+```
+
+`missing_belong` 必须为 0。`map.GetBelong` 返回军团索引；每个势力格数总和应等于陆地格数。
+
+### 5.3 单位
+
+清旧单位：
+
+```lua
+local old={}
+map.ForEachArmy(function(a) old[#old+1]={a.Col,a.Row} end)
+for _,p in ipairs(old) do map.RemoveArmy(p[1],p[2]) end
+```
+
+放新单位：
+
+```lua
+map.AddArmy(c,r)
+map.SetArmyLegion(c,r,legionIndex)
+map.SetArmyField(c,r,'UnitType',unitType)
+map.SetArmyField(c,r,'Level',level)
+map.SetArmyField(c,r,'Organization',org)
+map.SetArmyField(c,r,'Experience',60)
+map.SetArmyField(c,r,'Morale',80)
+```
+
+落点必须避开建筑和已有单位，优先找城市附近空闲陆地。
+
+---
+
+## 6. MCP / 记忆能力
+
+MCP 已具备记忆读写能力，不需要补：
+
+- `list_memories`：列出 `Resource/Memory/*.md`。
+- `read_memory`：读取指定记忆。
+- `save_memory`：保存/覆盖记忆，同名会先备份。
+- `delete_memory`：删除记忆。
+
+本文件就是通过 `save_memory title=map-generation-workflow` 维护的。新会话开始应先 `list_memories`，再按需 `read_memory`。
+
+MCP 地图能力要点：
+
+- `apply_map_spec`：在当前场景重跑 spec，不新建 btl。
+- `run_cli_command save <路径>`：直接保存，不弹对话框。
+- `run_cli_command edit_mode <模式>` / `redraw`：模式切换与强制重绘，用于性能诊断。
+- `run_lua` / `run_lua_file`：执行 Lua 与建图脚本。
+- `capture_screenshot` / `ai.shot`：截图。
+
+性能诊断日志：
+
+```text
+%TEMP%\wc4-render-profile.log
+```
+
+建筑/单位模式已去掉逐格归属旗层，避免高倍缩放卡顿。
+
+---
+
+## 7. 跨电脑复现
+
+必须提交：
+
+```text
+scripts/mapgen/regions/
+scripts/mapgen/*.lua
+Resource/Geo/
+maps/
+.gitattributes
+```
+
+不要提交/不要依赖：
+
+- 本机绝对路径；
+- 临时 Python 生成脚本；
+- `screenshots/`；
+- `Logs/`。
+
+另一台电脑只需：
+
+1. 拉取仓库；
+2. 启动编辑器，确认 MCP 地址 `http://127.0.0.1:4396/wc4-mcp`；
+3. 用 `run_lua_file scripts/mapgen/_xxx_run.lua` 或直接打开 `maps/*.btl`。
+
+---
+
+## 8. 一句话流程
+
+```text
+GeoJSON → geo rasterize（land/owners）→ 写 spec + cities + terrain mask
+        → new_campaign + 设置国家ID → run_lua_file _xxx_run.lua
+        → province clear + make-provinces → 放单位 → validate → save
 ```

@@ -57,3 +57,7 @@ screenshots/
 # 旧 Lua 工具脚本（scripts/读取军团工具.lua）导出的军团表
 scripts/legion-map.txt
 
+# GeoNames 中国全量原始数据过大；上海 spec 已固化 240 城，不提交原始 CN
+Resource/Geo/CN/
+Resource/Geo/CN.zip
+
