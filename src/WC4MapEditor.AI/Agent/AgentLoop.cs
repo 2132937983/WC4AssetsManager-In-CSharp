@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using WC4MapEditor.AI.Providers;
 using WC4MapEditor.AI.Settings;
@@ -31,6 +32,9 @@ public sealed class AgentLoop
     private List<AiChatMessage> _history = new();
     private CancellationTokenSource? _cts;
 
+    /// <summary>本对话里最近一次 submit_plan 登记的计划（仅用于提示与轨迹，不强制校验）。</summary>
+    private AgentPlan? _plan;
+
     public IReadOnlyList<AiChatMessage> History => _history;
 
     public bool IsRunning { get; private set; }
@@ -39,6 +43,7 @@ public sealed class AgentLoop
     public void Reset()
     {
         _history.Clear();
+        _plan = null;
         VisionRejected = false;   // 新对话重新给模型一次机会（可能换了模型/网关）
     }
 
@@ -48,6 +53,13 @@ public sealed class AgentLoop
         if (IsRunning) return "（正在执行上一轮，请等待完成）";
         IsRunning = true;
         _cts = new CancellationTokenSource();
+
+        var turnWatch = Stopwatch.StartNew();
+        string turnId = Guid.NewGuid().ToString("N")[..8];
+        string finalText = "";
+        int toolCallsTotal = 0;          // 本轮对话累计调用了几次工具
+        int roundsUsed = 0;
+        AgentTrajectory.Write("turn_start", new { turnId, model = _settings.Model, user = Truncate(userText, 500) });
 
         try
         {
@@ -68,11 +80,11 @@ public sealed class AgentLoop
 
             IAiProvider provider = CreateProvider();
 
-            string finalText = "";
-            int toolCallsTotal = 0;      // 本轮对话累计调用了几次工具
             int nudges = 0;              // "该调工具了"的提醒只发一次，免得空转烧 token
             int textToolRounds = 0;      // 文本协议回退执行了几段 Lua（限制总量，防跑飞）
             bool hadError = false;
+            bool payloadRetried = false;    // 413 后只清一次并重试
+            bool sequenceRetried = false;   // 工具调用顺序错后只修一次并重试
             bool streaming = OnTextDelta != null && _settings.StreamEnabled;
 
             // 文本协议模式下**不发送工具定义**：模型没得"口头调用"，只能按回退协议写代码块。
@@ -84,12 +96,51 @@ public sealed class AgentLoop
 
             for (int round = 0; round < Math.Max(1, _settings.MaxToolRounds); round++)
             {
+                roundsUsed = round + 1;
+
+                // 发请求前先修历史（网关对结构很敏感）：
+                //  · 工具结果必须紧跟 assistant.tool_calls，且每条调用都要有结果；
+                //  · 历史图片只保留最近 2 张，避免多轮截图把请求撑到 413。
+                NormalizeToolSequence(messages);
+                if (!_settings.VisionEnabled || VisionRejected) StripImages(messages);
+                else PruneImages(messages, keepLast: 2);
+
+                AgentTrajectory.Write("request", new
+                {
+                    turnId,
+                    round = round + 1,
+                    messages = messages.Count,
+                    tools = tools.Count,
+                });
+
                 var result = await provider.SendAsync(messages, tools, _cts.Token,
                         streaming ? OnTextDelta : null, OnStatus)
                     .ConfigureAwait(true);
 
                 if (result.HasError)
                 {
+                    AgentTrajectory.Write("error", new { turnId, round = round + 1, error = result.Error });
+
+                    // 413：请求体太大（历史里堆了截图 / 超长工具输出）。清图 + 截断后重试一次。
+                    if (LooksLikePayloadTooLarge(result.Error) && !payloadRetried)
+                    {
+                        payloadRetried = true;
+                        PruneImages(messages, keepLast: 0);
+                        TruncateToolResults(messages, maxChars: 4000);
+                        OnRound?.Invoke("请求体过大（413）：已移除历史图片并截断长输出，重试中");
+                        continue;
+                    }
+
+                    // 400 "tool call result does not follow tool call"：历史里工具调用与结果错位，
+                    // 重排成「assistant.tool_calls → 紧随其后的 tool 结果」后重试一次。
+                    if (LooksLikeToolSequenceError(result.Error) && !sequenceRetried)
+                    {
+                        sequenceRetried = true;
+                        NormalizeToolSequence(messages);
+                        OnRound?.Invoke("工具调用/结果顺序不合法（400）：已重排历史，重试中");
+                        continue;
+                    }
+
                     // 模型拒绝图片输入（HTTP 400 model_incompatible / doesn't support image input）：
                     // 不该整轮结束 —— 把历史里的图剔掉、明确告诉它"你看不了图"，用文字继续跑。
                     if (LooksLikeImageRejection(result.Error) && HasImages(messages))
@@ -151,7 +202,7 @@ public sealed class AgentLoop
                             OnRound?.Invoke($"文本协议：已执行模型给出的{(isLua ? " Lua" : " 命令")}（第 {textToolRounds} 段）");
 
                             messages.Add(AiChatMessage.User(
-                                "（系统）上一步执行输出：\n" + output
+                                "（系统）上一步执行输出：\n" + CapToolOutput(output)
                                 + "\n请依据输出继续：需要更多信息就再给一个代码块（```lua 或 ```cli），完成后再给最终结论。"));
                             continue;
                         }
@@ -212,6 +263,11 @@ public sealed class AgentLoop
                 // assistant 带工具调用 → 逐个执行 → 回传结果
                 messages.Add(new AiChatMessage { Role = "assistant", Text = result.Text, ToolCalls = result.ToolCalls });
 
+                // 截图消息不能插在 tool 结果中间：OpenAI 要求 assistant.tool_calls 后面紧跟全部 tool 结果，
+                // 中间夹一条 user 图消息会被网关判成 "tool call result does not follow tool call"。
+                // 所以先收起来，等所有 tool 结果都写完后统一追加。
+                var imageMessages = new List<AiChatMessage>();
+
                 foreach (var call in result.ToolCalls)
                 {
                     _cts.Token.ThrowIfCancellationRequested();
@@ -226,9 +282,39 @@ public sealed class AgentLoop
                         OnToolCall?.Invoke(call.Name, broken.Raw);
                         OnToolResult?.Invoke(call.Name, notice, false);
                         messages.Add(AiChatMessage.ToolResult(call.Id, call.Name, notice));
+                        AgentTrajectory.Write("tool_rejected", new { turnId, name = call.Name, reason = "bad_json" });
                         continue;
                     }
 
+                    // submit_plan：只登记计划，不执行地图操作；把计划回灌给模型，要求按步骤做并验证
+                    if (string.Equals(call.Name, "submit_plan", StringComparison.Ordinal))
+                    {
+                        var plan = AgentPlan.TryParse(call.ArgumentsJson);
+                        if (plan != null)
+                        {
+                            _plan = plan;
+                            OnToolCall?.Invoke(call.Name, call.ArgumentsJson);
+                            string planText = $"计划已记录（{plan.Steps.Count} 步）";
+                            OnToolResult?.Invoke(call.Name, planText, true);
+                            messages.Add(AiChatMessage.ToolResult(call.Id, call.Name, planText));
+
+                            imageMessages.Add(AiChatMessage.User(
+                                "（系统）计划已登记：\n" + plan.ToPromptText()
+                                + "\n请按顺序执行；每完成一步用工具确认结果（地图改动后至少跑 ai.mapgen.validate 或 info）。"
+                                + "全部完成再下结论。"));
+
+                            AgentTrajectory.Write("plan", new
+                            {
+                                turnId,
+                                goal = plan.Goal,
+                                steps = plan.Steps,
+                                verify = plan.Verify,
+                            });
+                            continue;
+                        }
+                    }
+
+                    var toolWatch = Stopwatch.StartNew();
                     OnToolCall?.Invoke(call.Name, call.ArgumentsJson);
 
                     string output = "";
@@ -239,14 +325,24 @@ public sealed class AgentLoop
                     bool ok = !output.StartsWith("失败") && !output.StartsWith("[FAIL]") && !output.StartsWith("未知工具");
                     OnToolResult?.Invoke(call.Name, output, ok);
 
-                    messages.Add(AiChatMessage.ToolResult(call.Id, call.Name, output));
+                    AgentTrajectory.Write("tool", new
+                    {
+                        turnId,
+                        name = call.Name,
+                        args = Truncate(call.ArgumentsJson, 2000),
+                        output = Truncate(output, 4000),
+                        ok,
+                        ms = toolWatch.ElapsedMilliseconds,
+                    });
+
+                    messages.Add(AiChatMessage.ToolResult(call.Id, call.Name, CapToolOutput(output)));
 
                     // 截图类工具会产出图片：补一条带图消息，模型才真的"看得见"。
                     // 只发文本协议（OpenAI 的 tool 消息）塞不下图片，所以图片单独作为一条 user 消息。
                     if (artifactPaths.Count > 0 && (!_settings.VisionEnabled || VisionRejected))
                     {
                         // 图生成了但发不出去：告诉模型"别看图了，用文字" —— 否则它会一直等一张永远收不到的图
-                        messages.Add(AiChatMessage.User(
+                        imageMessages.Add(AiChatMessage.User(
                             "（系统）当前模型不支持图片输入，截图无法发送给你。"
                             + "请改用文字信息继续分析（坐标、工具输出、脚本打印的数据）。"));
                     }
@@ -261,17 +357,20 @@ public sealed class AgentLoop
 
                         if (images.Count > 0)
                         {
-                            messages.Add(AiChatMessage.UserWithImages(
+                            imageMessages.Add(AiChatMessage.UserWithImages(
                                 "（系统）上面工具刚生成的图，请直接看图分析。图上的文字标注就是格子坐标（列,行）。",
                                 images));
                         }
                         else
                         {
-                            messages.Add(AiChatMessage.User(
+                            imageMessages.Add(AiChatMessage.User(
                                 "（系统）图片读取失败或超出大小限制，请只用文字信息继续分析。"));
                         }
                     }
                 }
+
+                // 全部 tool 结果写完后，才允许出现 user 消息
+                messages.AddRange(imageMessages);
             }
 
             // 一次工具都没调用成功时，别让用户以为"AI 干完了"：
@@ -303,6 +402,16 @@ public sealed class AgentLoop
         }
         finally
         {
+            AgentTrajectory.Write("turn_end", new
+            {
+                turnId,
+                ms = turnWatch.ElapsedMilliseconds,
+                rounds = roundsUsed,
+                toolCalls = toolCallsTotal,
+                finalLength = finalText?.Length ?? 0,
+                planSteps = _plan?.Steps.Count ?? 0,
+            });
+
             IsRunning = false;
             _cts?.Dispose();
             _cts = null;
@@ -465,6 +574,124 @@ public sealed class AgentLoop
     }
 
     /// <summary>
+    /// 只保留最近 <paramref name="keepLast"/> 条带图消息，其余改成文字占位。
+    /// 历史每轮都会整体重发，截图 base64 累积起来会把请求撑到 413。
+    /// </summary>
+    private static void PruneImages(List<AiChatMessage> messages, int keepLast)
+    {
+        int kept = 0;
+        for (int i = messages.Count - 1; i >= 0; i--)
+        {
+            var m = messages[i];
+            if (m.Images is not { Count: > 0 }) continue;
+
+            kept++;
+            if (kept <= keepLast) continue;
+
+            messages[i] = new AiChatMessage
+            {
+                Role = m.Role,
+                Text = (m.Text ?? "") + "\n（历史截图已省略，以减小请求体积）",
+            };
+        }
+    }
+
+    /// <summary>历史里的超长工具输出会被压缩，避免一次 413（UI 日志里仍保留原文）。</summary>
+    private static void TruncateToolResults(List<AiChatMessage> messages, int maxChars)
+    {
+        foreach (var m in messages)
+        {
+            if (m.Role != "tool" || m.Text is not { } text || text.Length <= maxChars) continue;
+            m.Text = text[..maxChars] + "\n…（输出过长，已截断）";
+        }
+    }
+
+    /// <summary>写入上下文的工具输出上限；较大的只会留在界面日志里。</summary>
+    private static string CapToolOutput(string output, int maxChars = 24000)
+        => output.Length <= maxChars
+            ? output
+            : output[..maxChars] + $"\n…（输出过长，仅前 {maxChars} 字符进入上下文）";
+
+    /// <summary>
+    /// 把工具调用/结果修正成网关能接受的结构：
+    /// assistant.tool_calls 后面必须紧跟每个调用的 tool 结果，孤儿 tool 结果丢弃，
+    /// 缺失的结果补占位（压缩历史 / 中断 / 手工编辑都可能破坏顺序）。
+    /// </summary>
+    private static void NormalizeToolSequence(List<AiChatMessage> messages)
+    {
+        var output = new List<AiChatMessage>(messages.Count);
+
+        for (int i = 0; i < messages.Count; i++)
+        {
+            var m = messages[i];
+            if (m.Role == "tool") continue;   // 没有对应调用，直接丢弃
+
+            output.Add(m);
+
+            if (m.Role != "assistant" || m.ToolCalls is not { Count: > 0 } calls) continue;
+
+            var results = new List<AiChatMessage>();
+            int j = i + 1;
+            while (j < messages.Count && messages[j].Role == "tool")
+            {
+                results.Add(messages[j]);
+                j++;
+            }
+            i = j - 1;
+
+            var remaining = new List<AiChatMessage>(results);
+            foreach (var call in calls)
+            {
+                int index = -1;
+                if (!string.IsNullOrEmpty(call.Id))
+                    index = remaining.FindIndex(r => string.Equals(r.ToolCallId, call.Id, StringComparison.Ordinal));
+                if (index < 0)
+                    index = remaining.FindIndex(r => string.Equals(r.ToolName, call.Name, StringComparison.Ordinal));
+
+                if (index >= 0)
+                {
+                    output.Add(remaining[index]);
+                    remaining.RemoveAt(index);
+                }
+                else
+                {
+                    output.Add(AiChatMessage.ToolResult(call.Id, call.Name,
+                        "（工具结果缺失：历史被压缩或中断，已补占位。如仍需要该结果，请重新调用。）"));
+                }
+            }
+
+            // remaining 里剩下的 tool 结果没有匹配的调用，丢弃
+        }
+
+        messages.Clear();
+        messages.AddRange(output);
+    }
+
+    /// <summary>413 / 请求体过大。</summary>
+    private static bool LooksLikePayloadTooLarge(string? error)
+    {
+        if (string.IsNullOrEmpty(error)) return false;
+        string e = error.ToLowerInvariant();
+        return e.Contains("413")
+            || e.Contains("too large")
+            || e.Contains("request entity")
+            || e.Contains("payload")
+            || e.Contains("请求体过大")
+            || e.Contains("请求过大");
+    }
+
+    /// <summary>400 "tool call result does not follow tool call" 一类结构错误。</summary>
+    private static bool LooksLikeToolSequenceError(string? error)
+    {
+        if (string.IsNullOrEmpty(error)) return false;
+        string e = error.ToLowerInvariant();
+        return e.Contains("does not follow tool call")
+            || e.Contains("tool call result")
+            || e.Contains("tool_call_id")
+            || (e.Contains("invalid params") && e.Contains("tool"));
+    }
+
+    /// <summary>
     /// 取出回复里第一段指定语言的 ```代码块；没有则返回空串。
     /// 按 <paramref name="languages"/> 的顺序找（调用方把优先的放前面）。
     /// </summary>
@@ -566,6 +793,13 @@ public sealed class AgentLoop
 18. **长代码拆段**：run_lua 的 code 一次不超过约 150 行（或 6000 字符）。一次塞太多会被
     max_tokens 截断，工具参数变成半截 JSON（表现为"参数不是合法 JSON"或"缺少 code 参数"）。
     套路：先跑一段看输出，确认后再跑下一段；长脚本可先 write_file 到 scripts/ 再 run_lua_file。
+19. **生成/重画大范围地形前，先读记忆 map-generation-workflow**。标准做法：
+    用 `geo rasterize` 从 GeoJSON 产出海陆/归属掩码 → `build-map.lua`（先 dry_run）落地
+    → `ai.mapgen.validate()` 检查陆地比例/陆块/海岸线/城市落海。
+    **禁止用 SetTerrain / each_cell 逐格画大陆轮廓**：模型没有几何先验，结果必然是半海半陆。
+20. **多步任务先登记计划**：涉及生成地图、批量改数据、跨多个模式或超过 3 步时，
+    先调用 submit_plan（goal + steps + verify），再按步骤执行；每完成一步用工具确认，
+    全部完成并验证通过后再下结论。简单的一步操作不用计划，别为了走流程多绕一圈。
 """;
 
         // 文本协议模式下必然要带上回退说明（否则模型没有工具、也不知道能写代码块）

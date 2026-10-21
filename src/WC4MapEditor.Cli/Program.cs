@@ -2246,7 +2246,7 @@ public class Program
     private static bool IsReadOnlyCommand(string commandLine)
     {
         string first = commandLine.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
-        return first is "info" or "check" or "help" or "inspect" or "compare" or "convert";
+        return first is "info" or "verify" or "help" or "inspect" or "compare" or "convert";
     }
 
     /// <summary>加载 → 执行一条控制台命令 → 按需写回</summary>

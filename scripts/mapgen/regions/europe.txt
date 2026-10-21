@@ -5,8 +5,8 @@
 #        然后在控制台执行   lua scripts/mapgen/build-map.lua
 #
 #  ★ 三处必须按你的地图改：
-#    1. [projection] 的经纬度窗口 —— 下面填的是"假设背景图正好覆盖 西经11°~东经45°、
-#       北纬34°~72°"的等距窗口。你的背景图不同就改这 4 个数；
+#    1. [projection] 的经纬度窗口 —— 下面填的是"西经25°~东经45°、北纬34°~72°"
+#       的等距窗口（与 europe.land.txt 掩码的 bbox 一致）。你的背景图不同就改这 4 个数；
 #       想更准就把 mode 改成 ref，用 [ref] 标定 3 个以上地标。
 #    2. [owners] 的国家ID —— 全是占位值！必须换成你这张图 stringtable 里真实存在的
 #       country_<id>。不确定就先跑 lua scripts/读取军团工具.lua 拿到"势力↔国家ID"对照。
@@ -22,7 +22,7 @@ print_limit = 80            # 控制台最多打印多少行，其余写进报�
 
 [projection]
 mode        = window
-lon_west    = -11
+lon_west    = -25
 lon_east    = 45
 lat_north   = 72
 lat_south   = 34
@@ -79,9 +79,9 @@ lat_south   = 34
 
 [cities]
 # 名称 纬度 经度 势力 等级(1~5，5=大都会)
-# 冰岛在下面的经纬度窗口之外（会报"越界"）。要把它们也放进来，就把
-# lon_west 改成 -25、lon_east 改成 84（代价是欧洲本土变小），或者改用 ref 模式按背景图标定。
-# 雷克雅未克 64.15  -21.94  冰岛     2
+# 冰岛已在窗口内（lon_west = -25）。若你的背景图右边界更大，可把 lon_east 调到 84 并把
+# 乌拉尔以东的城市也放进来（代价是欧洲本土变小），或者改用 ref 模式按背景图标定。
+雷克雅未克   64.15  -21.94  冰岛     2
 都柏林       53.35   -6.26  爱尔兰   3
 伦敦         51.51   -0.13  英国     5
 爱丁堡       55.95   -3.19  英国     3
@@ -170,11 +170,11 @@ lat_south   = 34
 安卡拉       39.93   32.86  土耳其   4
 
 [terrain]
-# 海陆地形：默认关闭。要一次性把海陆铺出来就把 enabled 改成 true（仍受 [map] 的 dry_run 约束）
-enabled   = false
-mode      = from_cities      # 省事版：按城市分布自动长陆地，保证所有城市都在陆地上
-# mode    = mask             # 可控版：用掩码文件画真实海岸线（配合下面的 mask_file）
-# mask_file = scripts/mapgen/regions/europe.land.txt
+# 海陆地形：mask 文件由 Natural Earth 110m 陆地数据栅格化而来（geo rasterize），
+# 覆盖经 -25~45、纬 34~72，陆地约占 47%。仍受 [map] 的 dry_run 约束。
+enabled   = true
+mode      = mask             # 用掩码文件画真实海岸线
+mask_file = scripts/mapgen/regions/europe.land.txt
 land_type = 0                # 陆地写什么地形值
 sea_type  = 1                # 海必须是 1
 smooth    = 1                # 掩码模式下的多数表决平滑
@@ -185,6 +185,15 @@ radius_2  = 4
 radius_3  = 6
 radius_4  = 9
 radius_5  = 13
+
+[belong]
+# 归属掩码：由 `geo rasterize --owners` 生成（掩码 + 字符映射）。
+# 开启后会按国家边界铺归属；城市格随后覆盖（城市自己的势力优先）。
+enabled   = false
+mode      = mask
+mask_file = scripts/mapgen/regions/europe.owner.txt
+map_file  = scripts/mapgen/regions/europe.owner.txt.map
+land_only = true             # 只在陆地上写归属
 
 [post]
 # 落数据时顺带做的后处理（干跑时不会执行）。按需取消注释。

@@ -68,7 +68,7 @@
 
 | 用途 | 需要 |
 |---|---|
-| 运行发布版 | Windows 10/11，[.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) |
+| 运行发布版 | Windows 10/11，[.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)；使用 MCP 服务时还需 ASP.NET Core Runtime 10 |
 | 从源码构建 | Windows 10/11，.NET 10 SDK |
 | 编辑地图 | 自备游戏 `assets` 数据（见下） |
 
@@ -290,7 +290,7 @@ dotnet run --project src/WC4MapEditor.Cli -- run map.btl batch.zme -o out.btl
 
 ### 能力
 
-- **35 个工具**：地图/场景（`get_map_info`、`open_map`、`new_campaign`…）、命令与 Lua 执行、资源与配置查询、建筑/单位/军团属性读写、批量改字段、文件读写、记忆、截图。
+- **36 个工具**：地图/场景（`get_map_info`、`open_map`、`new_campaign`…）、命令与 Lua 执行、资源与配置查询、建筑/单位/军团属性读写、批量改字段、文件读写、记忆、截图，以及多步任务用的 `submit_plan`。
 - **视觉**：`capture_screenshot` 支持整幅、局部放大、整个编辑器窗口三种；截图会作为图片消息回传给模型，图片带坐标标注。
 - **记忆**：`save_memory` 把跨会话知识写成 Markdown 存到 `Resource/Memory/`。
 - **安全**：工具直接作用在当前地图或项目文件上；写文件会自动留 `.bak`，Lua 整批可撤销。
@@ -311,6 +311,55 @@ dotnet run --project src/WC4MapEditor.Cli -- run map.btl batch.zme -o out.btl
 AI 的 `run_lua` 描述与系统提示词已经指向这套接口；接手陌生地图时先跑 `audit.lua`。
 
 > 长脚本请分段执行。一次塞太多会被 `max_tokens` 截断，工具参数会变成半截 JSON；编辑器会拦截并提示，不会把坏参数写进对话历史。
+
+---
+
+## MCP Server（外部 Agent 接入）
+
+编辑器启动后会在本机开启一个 **MCP（Model Context Protocol）** 服务，把内置 AI 的 35 个工具暴露给外部 agent（Claude Desktop、Cline、Codex 等；`submit_plan` 仅内部对话使用，不对外）：
+
+- 地址：`http://127.0.0.1:4396/wc4-mcp`（Streamable HTTP，仅监听回环）
+- 端口：环境变量 `WC4MCP_PORT` 可覆盖
+- 工具：与内置 AI 完全一致（`run_lua`、`run_lua_file`、`get_map_info`、`capture_screenshot`、`geo` 命令、记忆等）
+- 截图工具会以 MCP 图片内容返回，支持视觉的客户端可以直接看图
+
+客户端配置示例：
+
+```json
+{
+  "mcpServers": {
+    "wc4-editor": {
+      "url": "http://127.0.0.1:4396/wc4-mcp"
+    }
+  }
+}
+```
+
+注意：
+
+- 服务只绑定 `127.0.0.1`，没有鉴权；不要做端口转发或暴露到局域网。
+- 不需要时设 `WC4MCP=0` 可完全禁用；端口用 `WC4MCP_PORT` 修改。
+- 框架依赖发布时，需要安装 **ASP.NET Core Runtime 10**（MCP 使用 ASP.NET Core 的 HTTP 传输）；缺少时编辑器仍能启动，只是 MCP 服务不可用。
+- 外部 agent 与内置 AI 共用同一份工具实现，行为（`dry_run`、撤销、路径校验）一致。
+
+---
+
+## Agent 轨迹与评测
+
+内置 Agent 每轮会写轨迹到 `Logs/Agent/trajectory-yyyyMMdd.jsonl`（JSONL，`Logs/` 已忽略），记录：
+
+- 每轮请求的消息数/工具数；
+- 每次工具调用的参数（截断）、结果（截断）、成功与否、耗时；
+- `submit_plan` 登记的计划；
+- 整轮耗时、轮数、工具调用数。
+
+用它做回归对比：
+
+```powershell
+dotnet run --project src/WC4MapEditor.AgentEval -- .\Logs\Agent\trajectory-20261021.jsonl
+```
+
+输出对话数、工具成功率、平均/最长耗时、平均轮数、失败工具排行。换模型、改提示词或改工具实现后，跑同一批任务再比一次即可判断有没有退化。
 
 ---
 
@@ -337,6 +386,8 @@ AI 的 `run_lua` 描述与系统提示词已经指向这套接口；接手陌生
 │  ├─ WC4MapEditor.Rendering/    # SkiaSharp 渲染与截图
 │  ├─ WC4MapEditor.Scripting/    # MoonSharp 绑定（IMapScriptApi / LuaMapApi）
 │  ├─ WC4MapEditor.AI/           # Provider / Agent 循环 / 工具 / 聊天窗
+│  ├─ WC4MapEditor.Mcp/          # MCP Server（把 AI 工具暴露给外部 agent）
+│  ├─ WC4MapEditor.AgentEval/    # Agent 轨迹统计（成功率/轮数/耗时/失败分布）
 │  ├─ WC4MapEditor.GUI/          # 全部 WPF 界面（场景 / 对话框 / 主题）
 │  └─ WC4MapEditor.Cli/          # 独立命令行工具（wc4me）
 ├─ ocr_map.py / ocr_map_gui.py   # 配套 OCR 小工具（Python）

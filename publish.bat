@@ -75,7 +75,7 @@ echo.
 echo ========================================
 echo   发布成功！
 echo   输出目录: %OUTPUT%
-echo   运行需要安装 .NET 10 运行时
+echo   运行需要 .NET 10 Desktop Runtime（MCP 还需 ASP.NET Core Runtime 10）
 echo ========================================
 echo.
 

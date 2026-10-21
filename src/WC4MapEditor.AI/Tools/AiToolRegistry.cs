@@ -99,6 +99,16 @@ public static class AiToolRegistry
             },
             new()
             {
+                Name = "submit_plan",
+                Description = "登记多步执行计划（只在对话循环里生效，不修改地图）。"
+                            + "涉及生成地图、批量改数据、跨多个模式的任务，先调用它写出 goal/steps/verify，"
+                            + "再按步骤执行；简单的一步操作不需要。",
+                ParametersJson = """
+{"type":"object","properties":{"goal":{"type":"string","description":"要达成的目标"},"steps":{"type":"array","items":{"type":"string"},"description":"按顺序执行的步骤（最多 20 条）"},"verify":{"type":"string","description":"完成后如何验证，例如 ai.mapgen.validate / info / 截图"}},"required":["goal","steps"]}
+""",
+            },
+            new()
+            {
                 Name = "run_lua_file",
                 Description = "执行编辑器 scripts 目录下的一个 .lua 脚本文件（等效用户拖入脚本）。先 list_scripts 看有哪些。",
                 ParametersJson = """
@@ -146,7 +156,7 @@ public static class AiToolRegistry
             new()
             {
                 Name = "get_stringtable_value",
-                Description = "[CM] 读取 stringtable_tw.ini 中的键值（国家名/城市名/事件名等游戏文本）。键如 country_8、battle_cityname_001、conquest_event_5。",
+                Description = "[CM] 读取 stringtable 中的键值（国家名/城市名/事件名等游戏文本），文件路径由 WC4DATA 自动探测。键如 country_8、battle_cityname_001、conquest_event_5。",
                 ParametersJson = """
 {"type":"object","properties":{"key":{"type":"string","description":"stringtable 键名"}},"required":["key"]}
 """,
@@ -154,7 +164,7 @@ public static class AiToolRegistry
             new()
             {
                 Name = "list_stringtable_keys",
-                Description = "[CM] 列出 stringtable_tw.ini 中以指定前缀开头的键（如 country_、battle_cityname_、conquest_event_）。省略前缀则列出全部键（最多 500 个）。",
+                Description = "[CM] 列出 stringtable 中以指定前缀开头的键（如 country_、battle_cityname_、conquest_event_）。省略前缀则列出全部键（最多 500 个）。输出会注明实际读取的 stringtable 文件路径。",
                 ParametersJson = """
 {"type":"object","properties":{"prefix":{"type":"string","description":"键前缀过滤，如 country_"}},"required":[]}
 """,
@@ -191,7 +201,7 @@ public static class AiToolRegistry
             new()
             {
                 Name = "get_country_list",
-                Description = "列出所有国家：ID、名称（取 stringtable）、是否玩家控制等。修改归属/军团前用它了解国家。",
+                Description = "列出所有国家：ID、名称（stringtable 的 country_<id> 优先，缺失时用 CountrySettings.json 的 Name）与数据来源路径。修改归属/军团前用它了解国家。",
                 ParametersJson = """{"type":"object","properties":{},"required":[]}"""
             },
             new()
@@ -338,6 +348,7 @@ public static class AiToolRegistry
                 case "new_map": return ToolNewMap(args);
                 case "run_cli_command": return ToolRunCommand(args);
                 case "run_lua": return ToolRunLua(args);
+                case "submit_plan": return "submit_plan 由对话循环记录，直接调用不会执行任何地图操作。";
                 case "run_lua_file": return ToolRunLuaFile(args);
                 case "list_scripts": return ToolListScripts();
                 // AM
@@ -725,15 +736,16 @@ public static class AiToolRegistry
         string prefix = GetString(args, "prefix");
         try
         {
+            var parser = ConfigManager.Instance.GetStringTableParser();
             var data = ConfigManager.Instance.GetStringTableData();
-            if (data.Count == 0) return "（stringtable 未加载）";
+            if (data.Count == 0) return $"（stringtable 未加载或为空：{parser.FilePath}）";
             var keys = string.IsNullOrEmpty(prefix)
                 ? data.Keys.ToList()
                 : data.Keys.Where(k => k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToList();
             keys.Sort(StringComparer.OrdinalIgnoreCase);
-            if (keys.Count == 0) return $"（无以 {prefix} 开头的键）";
+            if (keys.Count == 0) return $"（无以 {prefix} 开头的键；来源：{parser.FilePath}）";
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"共 {keys.Count} 个键（显示前 500）:");
+            sb.AppendLine($"共 {keys.Count} 个键（显示前 500，来源：{parser.FilePath}）:");
             foreach (var k in keys.Take(500))
             {
                 string v = data[k];
@@ -843,13 +855,15 @@ public static class AiToolRegistry
         {
             var csp = CountrySettingParser.Instance;
             var countries = csp.Countries;
-            if (countries.Count == 0) return "（国家列表为空，可能未加载 CountrySettings.json）";
+            if (countries.Count == 0)
+                return $"（国家列表为空：没有读到 {csp.CountrySettingsPath}）";
 
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"共 {countries.Count} 个国家:");
+            // 带上来源：这条曾经让人误以为"没配 WC4DATA 却有国家名"，其实是自动找到了游戏数据
+            sb.AppendLine($"共 {countries.Count} 个国家（来源：{csp.CountrySettingsPath}，名称优先取 stringtable）:");
             foreach (var c in countries)
             {
-                string name = csp.GetCountryName(c.Id);
+                string name = csp.GetCountryDisplayName(c.Id);
                 sb.AppendLine($"  ID={c.Id} 名称={name}");
             }
             return sb.ToString().TrimEnd();

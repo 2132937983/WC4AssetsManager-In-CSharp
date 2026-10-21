@@ -37,7 +37,7 @@ terrain greening -p 60
 
 | 来源 | 谁注册的 | 例子 |
 |---|---|---|
-| **CLI 命令树** | `src/WC4MapEditor.Core/Commands/CliCommandHost.cs` | `building`、`belong`、`legion`、`army`、`terrain`、`province`、`trap`、`info`、`check`、`fix`、`run` |
+| **CLI 命令树** | `src/WC4MapEditor.Core/Commands/CliCommandHost.cs` | `building`、`belong`、`legion`、`army`、`terrain`、`province`、`trap`、`info`、`verify`、`fix`、`geo`、`run` |
 | **控制台本地命令** | `DebugConsole` | `help`、`clear`、`exit`、`echo`、`history`、`log` |
 | **场景层命令** | 当前场景（`RenderSceneBase`） | `undo`、`redo`、`lua`、`goto`、`geo_*`、`bg_province` 等 |
 
@@ -77,7 +77,7 @@ dotnet run --project src/WC4MapEditor.Cli -- run map.btl batch.zme -o out.btl
 | `modify` 选项 | 说明 |
 |---|---|
 | `-o`, `--output` | 输出文件（默认覆盖原文件） |
-| `--no-save` | 只执行不写回；`info` / `check` / `inspect` / `compare` / `convert` 默认就不写回 |
+| `--no-save` | 只执行不写回；`info` / `verify` / `inspect` / `compare` / `convert` 默认就不写回 |
 
 > 选项要写在**命令体之前**。命令体（含它自己的选项，如 `-p 60`）按原顺序透传。
 > 命令规则只有一份（`Core/Commands/CliCommandHost.cs`），改一处 GUI 与 CLI 同时生效。
@@ -102,7 +102,7 @@ belong set 108 23 0    # 哈尔滨市
 belong set 103 19 0    ; 齐齐哈尔市
 ```
 
-**路径**：`run` / `check` / `fix` / `lua` 的相对路径基于**程序所在目录**，不是当前目录。路径含空格要加引号：
+**路径**：`run` / `verify` / `fix` / `lua` 的相对路径基于**程序所在目录**，不是当前目录。路径含空格要加引号：
 
 ```
 run "Maps/背景图/tno-russia-belong.zme"
@@ -132,7 +132,7 @@ legion list --out=my-list.log          → 相对路径按程序目录展开
 `[日志] 本次输出已写入: <路径>`
 
 覆盖范围：控制台手打、拖入的 `.zme`、`run xxx.zme` 里的每一行、Lua 里发起的命令 —— 都会经过同一个入口。
-唯一例外是命令**自己声明了** `--out`（目前只有 `check`，它用它来另存完整报告），这时由该命令自己处理。
+唯一例外是命令**自己声明了** `--out`（目前只有 `verify`，它用它来另存完整报告），这时由该命令自己处理。
 
 ---
 
@@ -295,13 +295,47 @@ legion list --out=my-list.log          → 相对路径按程序目录展开
 | `list` | 列出所有陷阱（"行动ID"列 = 陷阱记录里存的军团行动序号，"归属"列 = 所在格子的归属值） |
 | `remove-all` | 删除所有陷阱 |
 
-### info / check / fix
+### info / verify / fix
 
 | 命令 | 说明 | 参数 |
 |---|---|---|
 | `info` | 显示地图信息（尺寸、建筑/单位/省区/归属格数等） | |
-| `check [file]` | 检查 btl 格式、玩法规则与事件引用（军团 / 关联事件 / 进攻目标格 / 占领事件）；省略路径则检查当前地图 | `<file>` ; `-o/--out` 另存完整报告 |
+| `verify [file]` | 检查 btl 格式、玩法规则与事件引用（军团 / 关联事件 / 进攻目标格 / 占领事件）；省略路径则检查当前地图 | `<file>` ; `-o/--out` 另存完整报告 |
 | `fix <file>` | 按玩法规则修复 btl（会写回文件，自动备份 `.bak`） | `<file>` |
+
+### geo — GeoJSON 转地图掩码
+
+把真实地理数据栅格化成 `build-map.lua` 用的 ASCII 掩码，**不读取、不修改地图**，不需要先打开文件。
+
+| 命令 | 说明 |
+|---|---|
+| `geo rasterize --geojson <path> --out <path> --width <n> --height <n>` | 输出海陆掩码（`X`=陆，`.`=海），供 `[terrain] mode=mask` |
+| `geo rasterize ... --owners` | 输出归属掩码（每格一个势力字符），并生成 `<out>.map` 字符映射，供 `[belong] mode=mask` |
+
+常用选项：
+
+| 选项 | 说明 |
+|---|---|
+| `--bbox minLon,minLat,maxLon,maxLat` | 经纬度窗口；省略则用 GeoJSON 自身包围盒 |
+| `--smooth <n>` | 海陆模式多数表决次数（1 可去掉锯齿/孤立点） |
+| `--min-island <n>` | 小于 n 格的陆块删除 |
+| `--property <name>` | 归属模式取哪个属性作势力键（默认自动尝试 `id`/`ISO_A2`/`name`） |
+| `--id-property <name>` | 势力键不是数字时，用它取国家 ID |
+| `--map-out <path>` | 归属模式的字符映射输出（默认 `<out>.map`） |
+
+示例：
+
+```text
+geo rasterize --geojson Resource/Geo/ne_110m_land.geojson ^
+              --out scripts/mapgen/regions/europe.land.txt ^
+              --width 200 --height 180 --bbox -25,34,45,72 --smooth 1 --min-island 4
+
+geo rasterize --geojson Resource/Geo/ne_110m_admin_0_countries.geojson ^
+              --owners --out scripts/mapgen/regions/europe.owner.txt ^
+              --width 200 --height 180 --bbox -25,34,45,72
+```
+
+> 为什么要有它：模型逐格 `SetTerrain` 画大陆必然出现"一半海一半陆"。几何应从数据来，模型只选地区和参数。完整流程见记忆 `map-generation-workflow`。
 
 ### run — 执行脚本文件
 
@@ -397,7 +431,7 @@ belong stats                ← 复查：会把每个值解析成势力名
 
 ```
 legion list --out
-check D:\maps\my.btl --out
+verify D:\maps\my.btl --out
 ```
 
 ---

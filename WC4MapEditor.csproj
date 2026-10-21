@@ -47,6 +47,7 @@
     <ProjectReference Include="src\WC4MapEditor.Core\WC4MapEditor.Core.csproj" />
     <ProjectReference Include="src\WC4MapEditor.Rendering\WC4MapEditor.Rendering.csproj" />
     <ProjectReference Include="src\WC4MapEditor.GUI\WC4MapEditor.GUI.csproj" />
+    <ProjectReference Include="src\WC4MapEditor.Mcp\WC4MapEditor.Mcp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

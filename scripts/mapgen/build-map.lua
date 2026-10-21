@@ -22,6 +22,8 @@
     [ref]            格子列 格子行 纬度 经度           （仅 mode=ref 时需要，≥3 个点）
     [post]           create_coast= / process_ocean_layer2= / connect_buildings= / greening=  （可选）
     [terrain]        海陆地形：enabled= / mode=mask|from_cities / mask_file= / land_type= / sea_type= …
+    [belong]         归属掩码：enabled= / mode=mask / mask_file= / map_file= / land_only=
+                     （掩码与字符映射由 `geo rasterize --owners` 生成；先铺国家领土，城市格随后覆盖）
 
     投影三种模式：
       window —— 最省事。给"背景图整幅覆盖的经纬度窗口"，按地图实际宽高线性换算。
@@ -47,6 +49,11 @@
       干跑时也会拿计划地形做校验，所以**不写地形就能先看出哪些城市会掉进海里**。
 
   四、AI 建图建议流程
+    0. **不要逐格 SetTerrain 画大陆**（模型没有几何先验，必然半海半陆）。
+       先用 `geo rasterize` 从 GeoJSON 生成海陆/归属掩码，再用本脚本落地：
+         geo rasterize --geojson <地区>.geojson --out <地区>.land.txt --width W --height H --smooth 1
+         geo rasterize --geojson <国家边界>.geojson --owners --out <地区>.owner.txt --width W --height H
+       详细步骤见记忆 map-generation-workflow（Resource/Memory/）。
     1. 先看地图现状：map.Width x map.Height 打印在报表头部；地形必须是海=1、陆=其它
     2. 定投影：有背景图 → 用 ref 标定（挑 3~4 个辨识度高的地标，报错残差 >1.5 格就重挑）；
        没有背景图 → 用 window 给一个大致经纬度窗口
@@ -112,21 +119,83 @@ local function write_first(paths, text)
 end
 
 local function rnd(x) return math.floor(x + 0.5) end
-local function trim(s) return (string.gsub(s, '^%s*(.-)%s*$', '%1')) end
+
+--- 手写 trim：不用 '^%s*(.-)%s*$'。
+--- MoonSharp 的 gsub 在 200 字符的掩码行上会抛 "pattern too complex"。
+local function trim(s)
+    local a, b = 1, #s
+    while a <= b do
+        local c = string.sub(s, a, a)
+        if c ~= ' ' and c ~= '\t' and c ~= '\r' and c ~= '\n' then break end
+        a = a + 1
+    end
+    while b >= a do
+        local c = string.sub(s, b, b)
+        if c ~= ' ' and c ~= '\t' and c ~= '\r' and c ~= '\n' then break end
+        b = b - 1
+    end
+    return string.sub(s, a, b)
+end
+
+--- 按 \n 切行。
+--- 不用 string.gmatch(text, '([^\n]*)\n')：MoonSharp 下模式匹配按字节看字符，
+--- 中文「上」的码位是 U+4E0A，低字节正好是 0x0A，会被当成换行把一行拆开。
+--- plain find 不受这个影响。
+local function split_lines(text)
+    local lines = {}
+    local start = 1
+    while true do
+        local nl = string.find(text, '\n', start, true)
+        if nl == nil then
+            lines[#lines + 1] = string.sub(text, start)
+            break
+        end
+        lines[#lines + 1] = string.sub(text, start, nl - 1)
+        start = nl + 1
+    end
+    return lines
+end
+
+--- 手动按 ASCII 空格/TAB 切词。
+--- 不用 string.gmatch(line, '%S+')：MoonSharp 按码位低字节判断空白，
+--- 「希」（U+5E0C）的低字节是 0x0C（换页符），会被当成空白切掉，城市势力变成「腊」。
 local function split_ws(line)
-    local t = {}
-    for w in string.gmatch(line, '%S+') do t[#t + 1] = w end
+    local t, buf = {}, {}
+
+    local function flush()
+        if #buf > 0 then
+            t[#t + 1] = table.concat(buf)
+            buf = {}
+        end
+    end
+
+    for i = 1, #line do
+        local c = string.sub(line, i, i)
+        if c == ' ' or c == '\t' or c == '\r' or c == '\n' then
+            flush()
+        else
+            buf[#buf + 1] = c
+        end
+    end
+    flush()
     return t
+end
+
+--- 按第一个 '=' 切键值（手动切，理由同上：中文键可能被 %s 误判）
+local function split_kv(line)
+    local eq = string.find(line, '=', 1, true)
+    if eq == nil then return nil, nil end
+    return trim(string.sub(line, 1, eq - 1)), trim(string.sub(line, eq + 1))
 end
 local function to_num(s) return tonumber(s) end
 
 -- ========== 3. 解析数据文件 ==========
 
 local function parse_spec(text)
-    local spec = { map = {}, proj = {}, owners = {}, cities = {}, refs = {}, post = {}, terrain = {} }
+    local spec = { map = {}, proj = {}, owners = {}, cities = {}, refs = {}, post = {}, terrain = {}, belong = {} }
     local section, lineNo = nil, 0
 
-    for raw in string.gmatch(text .. '\n', '([^\n]*)\n') do
+    for _, raw in ipairs(split_lines(text)) do
         lineNo = lineNo + 1
         local line = string.gsub(raw, '#.*$', '')     -- 去注释
         line = trim(string.gsub(line, '\r', ''))
@@ -137,17 +206,19 @@ local function parse_spec(text)
             elseif section == nil then
                 return nil, string.format('第 %d 行出现在任何 [节] 之前：%s', lineNo, line)
             elseif section == 'owners' then
-                local k, v = string.match(line, '^(.-)%s*=%s*(%-?%d+)$')
-                if k then spec.owners[trim(k)] = tonumber(v) end
+                local k, v = split_kv(line)
+                local num = v and tonumber(v)
+                if k and num then spec.owners[k] = num end
             elseif section == 'map' or section == 'proj' or section == 'post'
-                or section == 'projection' or section == 'terrain' then
-                local k, v = string.match(line, '^(.-)%s*=%s*(.*)$')
+                or section == 'projection' or section == 'terrain' or section == 'belong' then
+                local k, v = split_kv(line)
                 if k then
-                    k = string.lower(trim(k)); v = trim(v)
+                    k = string.lower(k)
                     local num = tonumber(v)
                     local target = (section == 'projection') and spec.proj or
                                     (section == 'map') and spec.map or
-                                    (section == 'terrain') and spec.terrain or spec.post
+                                    (section == 'terrain') and spec.terrain or
+                                    (section == 'belong') and spec.belong or spec.post
                     -- true/false 必须转成布尔值：留在字符串里的话 "false" 也是真值，
                     -- 开关（dry_run/overwrite/…）会静默失效
                     local low = string.lower(v)
@@ -355,7 +426,7 @@ local function read_mask(path)
     if not text then return nil, nil end
 
     local rows, maxLen = {}, 0
-    for raw in string.gmatch(text .. '\n', '([^\n]*)\n') do
+    for _, raw in ipairs(split_lines(text)) do
         local line = string.gsub(raw, '\r', '')
         if not string.match(line, '^%s*[#;]') then
             rows[#rows + 1] = line
@@ -365,6 +436,28 @@ local function read_mask(path)
     while #rows > 0 and trim(rows[#rows]) == '' do table.remove(rows) end
     if #rows == 0 then return nil, hit end
     return { rows = rows, w = math.max(1, maxLen), h = #rows }, hit
+end
+
+--- 读归属掩码的字符映射（geo rasterize --owners 生成的 <out>.map）：
+---   每行 `A = 7`，A 是掩码里的字符，7 是国家ID。
+local function read_owner_map(path)
+    if path == nil or path == '' then return nil, nil end
+    local text, hit = read_first({ path, 'publish/' .. path, '../' .. path })
+    if not text then return nil, nil end
+
+    local map, count = {}, 0
+    for _, raw in ipairs(split_lines(text)) do
+        local line = trim(string.gsub(string.gsub(raw, '\r', ''), '#.*$', ''))
+        if line ~= '' then
+            local ch, id = string.match(line, '^(%S)%s*=%s*(%-?%d+)$')
+            if ch and id then
+                map[ch] = tonumber(id)
+                count = count + 1
+            end
+        end
+    end
+
+    return (count > 0) and map or nil, hit
 end
 
 --- 3×3 多数表决：去掉孤立点，让海岸线不那么碎
@@ -653,6 +746,36 @@ local function main()
 
     -- ---- 7.3 势力 → 军团索引 ----
     local countryIds, ownerOf = {}, {}
+
+    -- [belong] mode=mask：先把归属掩码里的国家ID并进来，一起解析军团索引
+    local belongSpec = spec.belong or {}
+    local ownerMask, ownerMaskPath, ownerMap, ownerMapPath = nil, nil, nil, nil
+    if belongSpec.enabled and tostring(belongSpec.mode or 'mask') == 'mask' then
+        local maskPath = tostring(belongSpec.mask_file or '')
+        if maskPath == '' then
+            say('⚠ [belong] mode=mask 需要 mask_file')
+        else
+            ownerMask, ownerMaskPath = read_mask(maskPath)
+            if not ownerMask then
+                say('⚠ 读不到归属掩码：' .. maskPath)
+            else
+                local mapPath = tostring(belongSpec.map_file or (maskPath .. '.map'))
+                ownerMap, ownerMapPath = read_owner_map(mapPath)
+                if not ownerMap then
+                    say('⚠ 读不到归属字符映射：' .. mapPath)
+                else
+                    local mapCount = 0
+                    for _ in pairs(ownerMap) do mapCount = mapCount + 1 end
+                    say(string.format('归属掩码：%s（%d×%d）　字符映射：%s（%d 条）',
+                        ownerMaskPath or maskPath, ownerMask.w, ownerMask.h, ownerMapPath or mapPath, mapCount))
+                    for _, cid in pairs(ownerMap) do
+                        if not ownerOf[cid] then ownerOf[cid] = true; countryIds[#countryIds + 1] = cid end
+                    end
+                end
+            end
+        end
+    end
+
     for _, r in ipairs(rows) do
         local cid = spec.owners[r.c.owner]
         r.cid = cid
@@ -678,6 +801,48 @@ local function main()
         end
     end
     say('')
+
+    -- ---- 7.3b 归属掩码：先把国家领土铺开，城市格随后会覆盖 ----
+    local belongApplied, belongFailed, belongSkipped = 0, 0, 0
+    local function applyBelong(write)
+        if not ownerMask or not ownerMap then return end
+
+        local landOnly = (belongSpec.land_only ~= false)
+        local dW, dH = math.max(1, W - 1), math.max(1, H - 1)
+
+        for col = 0, W - 1 do
+            for row = 0, H - 1 do
+                local r0 = row + (((col % 2) == 1) and 0.5 or 0)
+                local mx = math.floor(col / dW * ownerMask.w) + 1
+                local my = math.floor(r0 / dH * ownerMask.h) + 1
+                if mx > ownerMask.w then mx = ownerMask.w end
+                if my > ownerMask.h then my = ownerMask.h end
+
+                local ch = string.sub(ownerMask.rows[my] or '', mx, mx)
+                local cid = ownerMap[ch]
+                if cid ~= nil then
+                    local idx = indexOf[cid]
+                    if idx == nil then
+                        belongSkipped = belongSkipped + 1
+                    elseif landOnly and getTerrain(col, row) == SEA_TERRAIN then
+                        belongSkipped = belongSkipped + 1
+                    elseif write then
+                        local res = map.SetBelong(col, row, idx)
+                        if res and res.Success then belongApplied = belongApplied + 1
+                        else belongFailed = belongFailed + 1 end
+                    else
+                        belongApplied = belongApplied + 1
+                    end
+                end
+            end
+        end
+
+        say(string.format('%s：%d 格，失败 %d 格，跳过 %d 格%s',
+            write and '归属掩码写入' or '归属掩码预演',
+            belongApplied, belongFailed, belongSkipped,
+            landOnly and '（跳过海面与未知军团）' or ''))
+        say('')
+    end
 
     -- ---- 7.4 报表 ----
     local report = {}
@@ -711,15 +876,18 @@ local function main()
     -- ---- 7.5 写数据 ----
     local built, named, belonged, failed = 0, 0, 0, 0
     if dryRun then
+        applyBelong(false)
         say('★ 干跑结束：没有改任何数据。确认坐标无误后，把数据文件 [map] 里的 dry_run 改成 false 再跑。')
     else
-        -- ---- 先铺海陆地形，再落城市（这样城市是落在已定型的陆地上）----
+        -- ---- 先铺海陆地形，再铺归属，最后落城市（城市是落在已定型的陆地上）----
         if planned then
             say('开始写海陆地形…')
             local changed, same, failed = paint_terrain(planned, W, H, say)
             say(string.format('地形写入完成：改动 %d 格，原本就对 %d 格，失败 %d 格', changed, same, failed))
             say('')
         end
+
+        applyBelong(true)
 
         for _, r in ipairs(rows) do
             if not r.skip and r.st ~= '越界' and r.st ~= '重复格' and r.st ~= '势力未定义' then

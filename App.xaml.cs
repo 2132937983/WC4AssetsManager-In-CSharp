@@ -103,6 +103,46 @@ public partial class App : Application
 
         var mainWindow = Services.GetRequiredService<MainWindow>();
         mainWindow.Show();
+
+        // 启动本地 MCP 服务：外部 agent（Claude Desktop / Cline 等）可直接驱动编辑器。
+        // 只监听 127.0.0.1；端口可用环境变量 WC4MCP_PORT 覆盖。
+        StartMcpServer();
+    }
+
+    private static async void StartMcpServer()
+    {
+        try
+        {
+            // 不需要时可用 WC4MCP=0 关掉（例如只做离线编辑、或端口已被别的实例占用）
+            if (string.Equals(Environment.GetEnvironmentVariable("WC4MCP"), "0", StringComparison.Ordinal))
+            {
+                Console.WriteLine("[MCP] 已按 WC4MCP=0 禁用");
+                return;
+            }
+
+            int port = WC4MapEditor.Mcp.McpServerHost.DefaultPort;
+            if (int.TryParse(Environment.GetEnvironmentVariable("WC4MCP_PORT"), out int custom)
+                && custom > 0 && custom <= 65535)
+            {
+                port = custom;
+            }
+
+            if (!await WC4MapEditor.Mcp.McpServerHost.StartAsync(port).ConfigureAwait(true))
+            {
+                Console.WriteLine("[MCP] 未启动：" + (WC4MapEditor.Mcp.McpServerHost.LastError ?? "未知原因"));
+            }
+        }
+        catch (Exception ex)
+        {
+            // 缺少 ASP.NET Core Runtime 时，类型加载会在这里失败；MCP 不可用不应影响编辑器本体
+            Console.WriteLine("[MCP] 启动异常（可能缺少 ASP.NET Core Runtime 10）：" + ex.Message);
+        }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        try { WC4MapEditor.Mcp.McpServerHost.StopAsync().GetAwaiter().GetResult(); } catch { }
+        base.OnExit(e);
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)

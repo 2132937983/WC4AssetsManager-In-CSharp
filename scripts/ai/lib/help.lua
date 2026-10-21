@@ -122,6 +122,17 @@ ai.record.bulk{ kind='weather', field='Duration', value=1, op='add',
 ai.record.add{ kind='event' } / .add{ kind='airraid', col=40, row=30 }
 ai.record.remove{ kind='event', index=3 } / .clear{ kind='weather' }
 
+----------------------------- 建图 / 几何校验 -----------------------------
+先读记忆 map-generation-workflow（不要用 SetTerrain 逐格画大陆）：
+  geo rasterize --geojson <GeoJSON> --out <mask.txt> --width 200 --height 180 \
+                [--bbox minLon,minLat,maxLon,maxLat] [--smooth 1] [--min-island 4]
+  geo rasterize ... --owners        （额外输出归属掩码与 <out>.map 字符映射）
+然后 build-map.lua 读 [terrain] mode=mask / [belong] mode=mask 落地。
+
+ai.mapgen.validate()                    当前地图：陆地比例/陆块/海岸线/城市落海/归属
+ai.mapgen.validate{ expected_min=0.40, expected_max=0.55 }
+ai.mapgen.validate_mask{ path='scripts/mapgen/regions/europe.land.txt' }
+
 ----------------------------- 不在 Lua 里的能力 -----------------------------
 · 陷阱（trap）：只有 CLI 命令（trap list/place/remove/generate…）
 · 切换场景 / 打开地图 / 新建地图：用 open_scene、open_map、new_campaign 等工具

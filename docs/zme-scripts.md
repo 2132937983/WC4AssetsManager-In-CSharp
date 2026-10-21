@@ -89,7 +89,7 @@ run "Maps/背景图/tno-russia-belong.zme"
 | 运行方式 | 可用命令 |
 |---|---|
 | **拖放 `.zme`** | CLI 命令树 + 控制台本地命令（`help`/`clear`/`echo`/`log`…）+ 场景层命令（`undo`/`redo`/`lua`/`goto`/`geo_*`…） |
-| **`run xxx.zme`** | **只有 CLI 命令树**（`terrain`/`province`/`building`/`belong`/`legion`/`army`/`trap`/`info`/`check`/`fix`/`run`） |
+| **`run xxx.zme`** | **只有 CLI 命令树**（`terrain`/`province`/`building`/`belong`/`legion`/`army`/`trap`/`info`/`verify`/`fix`/`run`） |
 
 也就是说：脚本里要用 `undo`、`lua`、`goto` 这类命令，得**拖放**运行，或者把命令换成 CLI 树里的等价形式。
 

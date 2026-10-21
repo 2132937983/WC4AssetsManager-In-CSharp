@@ -41,6 +41,7 @@ Resource/*
 !Resource/Config/
 !Resource/Memory/
 !Resource/Lang/
+!Resource/Geo/
 
 # 大块数据与外部工具可执行文件，任何层级都排除
 **/WC4DATA

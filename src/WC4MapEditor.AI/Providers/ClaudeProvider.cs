@@ -390,19 +390,23 @@ public sealed class ClaudeProvider : IAiProvider
             }
             else if (m.Role == "tool")
             {
-                apiMessages.Add(new Dictionary<string, object?>
+                var block = new Dictionary<string, object?>
                 {
-                    ["role"] = "user",
-                    ["content"] = new List<Dictionary<string, object?>>
+                    ["type"] = "tool_result",
+                    ["tool_use_id"] = m.ToolCallId ?? "",
+                    ["content"] = m.Text ?? ""
+                };
+
+                // Anthropic 要求 user/assistant 交替：多个工具结果必须放进同一条 user 消息，
+                // 不能一条 tool 结果一条消息（否则第二个结果就会变成连续 user，被网关拒绝）。
+                if (apiMessages.Count > 0 && apiMessages[^1]["role"] is "user")
+                    ((List<Dictionary<string, object?>>)apiMessages[^1]["content"]!).Add(block);
+                else
+                    apiMessages.Add(new Dictionary<string, object?>
                     {
-                        new()
-                        {
-                            ["type"] = "tool_result",
-                            ["tool_use_id"] = m.ToolCallId ?? "",
-                            ["content"] = m.Text ?? ""
-                        }
-                    }
-                });
+                        ["role"] = "user",
+                        ["content"] = new List<Dictionary<string, object?>> { block }
+                    });
             }
             else // user
             {
@@ -428,7 +432,11 @@ public sealed class ClaudeProvider : IAiProvider
                     }
                 }
 
-                apiMessages.Add(new Dictionary<string, object?> { ["role"] = "user", ["content"] = content });
+                // 截图消息紧跟在工具结果后面时，合并进同一条 user 消息，保持角色交替
+                if (apiMessages.Count > 0 && apiMessages[^1]["role"] is "user")
+                    ((List<Dictionary<string, object?>>)apiMessages[^1]["content"]!).AddRange(content);
+                else
+                    apiMessages.Add(new Dictionary<string, object?> { ["role"] = "user", ["content"] = content });
             }
         }
         return apiMessages;

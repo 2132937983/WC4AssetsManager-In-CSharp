@@ -33,6 +33,7 @@ ai.army = require('ai.lib.army')
 ai.legion = require('ai.lib.legion')
 ai.terrain = require('ai.lib.terrain')
 ai.record = require('ai.lib.record')
+ai.mapgen = require('ai.lib.mapgen')
 
 -- 逐格遍历（引擎没有 map.ForEachCell）
 ai.each_cell = ai.core.each_cell

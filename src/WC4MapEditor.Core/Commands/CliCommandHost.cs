@@ -47,12 +47,12 @@ public sealed partial class CliCommandHost : ICommandHost
 
         // 只有"没有任何命令认领 --out"时才由这里接管。
         // 没把 --out 注册成全局选项，是因为命令里已经有同/近名的选项
-        // （check 自带 --out 写报告、terrain resize-map 有 -o/--ocean），
+        // （verify 自带 --out 写报告、terrain resize-map 有 -o/--ocean），
         // 注册成全局选项会和它们的解析打架。
         if (TrySplitOutOption(args, out string? outPath, out string[] rest))
         {
             // 判断 --out 是不是被命令自己认领了：完整参数能解析通过、不抱怨 --out，
-            // 就说明是它自己的选项（check 自带 --out），交给它自己处理；
+            // 就说明是它自己的选项（verify 自带 --out），交给它自己处理；
             // 反之报"无法识别 --out"，就是没人认领，由这里接管。
             bool claimedByCommand = true;
             foreach (var err in _rootCommand.Parse(args).Errors)

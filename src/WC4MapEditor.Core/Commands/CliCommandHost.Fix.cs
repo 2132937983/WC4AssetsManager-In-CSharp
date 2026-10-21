@@ -13,7 +13,7 @@ public sealed partial class CliCommandHost
     /// <summary>
     /// fix 命令：按玩法规则修复 btl（对齐 Java 版纠错）。
     /// <para>
-    /// 与 check 不同，这个命令<b>会修改文件</b>，所以写回前先备份为 .bak。
+    /// 与 verify 不同，这个命令<b>会修改文件</b>，所以写回前先备份为 .bak。
     /// </para>
     /// </summary>
     private Command BuildFixCommand()

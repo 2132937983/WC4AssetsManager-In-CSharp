@@ -14,7 +14,13 @@ namespace WC4MapEditor.Core.Commands;
 public sealed partial class CliCommandHost
 {
     /// <summary>
-    /// check 命令：检查 btl 文件的格式完整性。
+    /// verify 命令：检查 btl 文件的格式完整性。
+    /// <para>
+    /// 为什么不叫 <c>check</c>：System.CommandLine（beta5 与 2.0.0 都一样）会把
+    /// <c>check</c> 当成保留 token，只要命令树里存在这个名字，<c>Parse</c> 就抛
+    /// "An item with the same key has already been added. Key: check"，
+    /// 导致所有命令都不可用。别名也不行，只能换名。
+    /// </para>
     /// <para>
     /// 直接读文件、不经过编辑模式，所以不需要 <c>WithModifiers</c> 的写入口
     /// （只在"省略路径、用当前地图"时才去问一下 <c>MapData.FilePath</c>）。
@@ -22,7 +28,7 @@ public sealed partial class CliCommandHost
     /// </summary>
     private Command BuildCheckCommand()
     {
-        var cmd = new Command("check", "检查 btl 文件格式与玩法规则（省略路径则检查当前地图）");
+        var cmd = new Command("verify", "检查 btl 文件格式与玩法规则（省略路径则检查当前地图）");
 
         var fileArg = new Argument<string?>("file")
         {
@@ -56,7 +62,7 @@ public sealed partial class CliCommandHost
                 if (string.IsNullOrWhiteSpace(current))
                 {
                     _output.WriteLine("当前地图还没有对应的文件（可能尚未保存或来自新建）。");
-                    _output.WriteLine("用法: check <btl文件路径>");
+                    _output.WriteLine("用法: verify <btl文件路径>");
                     return;
                 }
 
