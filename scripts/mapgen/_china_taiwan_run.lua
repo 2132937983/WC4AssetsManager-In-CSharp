@@ -72,7 +72,7 @@
 ================================================================================]]
 
 -- ========== 0. 只改这一行：指向你要建的地区数据文件 ==========
-local SPEC = 'd:/CSharpProjects/WC4AssetsManager-In-CSharp/scripts/mapgen/regions/taiwan.txt'
+local SPEC = 'scripts/mapgen/regions/china_taiwan.txt'
 
 -- ========== 1. 常量 ==========
 local REPORT_CANDIDATES = {

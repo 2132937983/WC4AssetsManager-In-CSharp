@@ -98,10 +98,36 @@ local function read_file(path)
 end
 
 --- 依次试候选路径读文件，返回 文本, 命中的路径
+--- 候选路径会向上多找几级：编辑器可能从 bin/Debug/net10.0-windows 启动，
+--- 而数据文件在仓库根的 scripts/mapgen/regions/。
+local function expand_paths(p)
+    local list = { p, 'publish/' .. p, '../' .. p }
+    local up = ''
+    for _ = 1, 6 do
+        up = up .. '../'
+        list[#list + 1] = up .. p
+    end
+
+    -- 兼容另一台电脑上的绝对路径：只取 basename，再从 regions/ 找
+    local base = tostring(p):match('[^/\\]+$')
+    if base and tostring(p):find('regions/', 1, true) then
+        local rel = 'scripts/mapgen/regions/' .. base
+        list[#list + 1] = rel
+        up = ''
+        for _ = 1, 6 do
+            up = up .. '../'
+            list[#list + 1] = up .. rel
+        end
+    end
+    return list
+end
+
 local function read_first(paths)
     for _, p in ipairs(paths) do
-        local text = read_file(p)
-        if text then return text, p end
+        for _, cand in ipairs(expand_paths(p)) do
+            local text = read_file(cand)
+            if text then return text, cand end
+        end
     end
     return nil, nil
 end
@@ -109,11 +135,13 @@ end
 local function write_first(paths, text)
     if not has_io then return nil end
     for _, p in ipairs(paths) do
-        local f = io.open(p, 'w')
-        if f then
-            f:write(text)
-            f:close()
-            return p
+        for _, cand in ipairs(expand_paths(p)) do
+            local f = io.open(cand, 'w')
+            if f then
+                f:write(text)
+                f:close()
+                return cand
+            end
         end
     end
     return nil

@@ -38,15 +38,15 @@ lat_south   = 35.65
 [terrain]
 enabled = true
 mode = mask
-mask_file = d:/CSharpProjects/WC4AssetsManager-In-CSharp/scripts/mapgen/regions/qingdao.land.txt
-type_mask_file = d:/CSharpProjects/WC4AssetsManager-In-CSharp/scripts/mapgen/regions/qingdao.terrain.txt
+mask_file = scripts/mapgen/regions/qingdao.land.txt
+type_mask_file = scripts/mapgen/regions/qingdao.terrain.txt
 smooth = 0
 
 [belong]
 enabled = true
 mode = mask
-mask_file = d:/CSharpProjects/WC4AssetsManager-In-CSharp/scripts/mapgen/regions/qingdao.owner.txt
-map_file = d:/CSharpProjects/WC4AssetsManager-In-CSharp/scripts/mapgen/regions/qingdao.owner.txt.map
+mask_file = scripts/mapgen/regions/qingdao.owner.txt
+map_file = scripts/mapgen/regions/qingdao.owner.txt.map
 land_only = true
 
 [post]

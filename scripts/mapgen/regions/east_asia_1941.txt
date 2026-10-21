@@ -967,15 +967,15 @@ lat_south   = 0
 [terrain]
 enabled = true
 mode = mask
-mask_file = d:/CSharpProjects/WC4AssetsManager-In-CSharp/scripts/mapgen/regions/east_asia.land.txt
-type_mask_file = d:/CSharpProjects/WC4AssetsManager-In-CSharp/scripts/mapgen/regions/east_asia.terrain.txt
+mask_file = scripts/mapgen/regions/east_asia.land.txt
+type_mask_file = scripts/mapgen/regions/east_asia.terrain.txt
 smooth = 0
 
 [belong]
 enabled = true
 mode = mask
-mask_file = d:/CSharpProjects/WC4AssetsManager-In-CSharp/scripts/mapgen/regions/east_asia.owner.txt
-map_file = d:/CSharpProjects/WC4AssetsManager-In-CSharp/scripts/mapgen/regions/east_asia.owner.txt.map
+mask_file = scripts/mapgen/regions/east_asia.owner.txt
+map_file = scripts/mapgen/regions/east_asia.owner.txt.map
 land_only = true
 
 [post]

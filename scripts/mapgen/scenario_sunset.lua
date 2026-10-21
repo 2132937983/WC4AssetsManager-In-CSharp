@@ -1,7 +1,12 @@
 -- 落日行动：修正归属 + 加登陆场 + 放起始部队
 local W, H = map.Width, map.Height
-local path = 'd:/CSharpProjects/WC4AssetsManager-In-CSharp/scripts/mapgen/regions/sunset.owner.txt'
-local f = assert(io.open(path, 'r'))
+local path = 'scripts/mapgen/regions/sunset.owner.txt'
+local f
+for _, cand in ipairs({ path, '../' .. path, '../../' .. path, '../../../' .. path, '../../../../' .. path }) do
+    f = io.open(cand, 'r')
+    if f then path = cand break end
+end
+assert(f, '找不到 sunset.owner.txt')
 local rows = {}
 for line in f:lines() do
     if line ~= '' and line:sub(1, 1) ~= '#' then rows[#rows + 1] = line end
