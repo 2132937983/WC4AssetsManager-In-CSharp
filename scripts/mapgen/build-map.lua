@@ -623,6 +623,8 @@ local function main()
     local belongRadius = tonumber(m.belong_radius) or 0
     local printLimit = tonumber(m.print_limit) or 80
     local skipSea = (m.skip_sea ~= false)
+    -- >0 时，落在海里的城市会在半径内找最近陆地格并吸附（掩码精度不够时很实用）
+    local snapSea = tonumber(m.snap_sea_radius) or 0
 
     say(string.format('地图尺寸：%d × %d　势力：%d 个　城市：%d 座　ref 标定点：%d 个',
         W, H, (function() local c = 0; for _ in pairs(spec.owners) do c = c + 1 end; return c end)(),
@@ -714,6 +716,38 @@ local function main()
     for _, c in ipairs(spec.cities) do
         local col, row = to_hex(fn, c.lat, c.lon)
         local st, note = 'OK', ''
+        local snapped = nil
+
+        -- 沿海城市在粗掩码上常常差一格：在 snap_sea_radius 内找最近的、未被占用的陆地格
+        if snapSea > 0 and col >= 0 and col < W and row >= 0 and row < H
+            and getTerrain(col, row) == SEA_TERRAIN then
+            for radius = 1, snapSea do
+                local found = nil
+                for dr = -radius, radius do
+                    for dc = -radius, radius do
+                        if math.max(math.abs(dc), math.abs(dr)) == radius then
+                            local nc, nr = col + dc, row + dr
+                            if nc >= 0 and nc < W and nr >= 0 and nr < H
+                                and getTerrain(nc, nr) ~= SEA_TERRAIN
+                                and not seen[nc .. ',' .. nr] then
+                                found = { nc, nr }
+                                break
+                            end
+                        end
+                    end
+                    if found then break end
+                end
+                if found then
+                    snapped = { col, row }
+                    col, row = found[1], found[2]
+                    break
+                end
+            end
+        end
+
+        if snapped then
+            note = string.format('吸附自 (%d,%d)', snapped[1], snapped[2])
+        end
 
         if col < 0 or col >= W or row < 0 or row >= H then
             st, note = '越界', string.format('算出 (%d,%d) 超出地图', col, row)
