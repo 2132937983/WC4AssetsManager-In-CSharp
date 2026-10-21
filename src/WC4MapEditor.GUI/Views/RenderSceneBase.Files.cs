@@ -130,26 +130,28 @@ public abstract partial class RenderSceneBase
     /// 按场景自己的格式保存。成功后更新文件路径、场景记录（另存为后切走再切回仍指向新文件）与场景标签，
     /// 并作废磁盘缓存（否则切回来会加载到比文件更旧的缓存，看起来像"保存没生效"）。
     /// </summary>
-    private void SaveSceneFile(string filePath)
+    private bool SaveSceneFile(string filePath, bool notify = true)
     {
         var mapData = _mapData;
-        if (mapData == null) return;
+        if (mapData == null) return false;
 
         try
         {
             if (!SaveMapData(mapData, filePath))
             {
-                MessageBox.Show(Loc.T("Render.Save.Failed"), Loc.T("Render.Save.ErrorTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+                if (notify)
+                    MessageBox.Show(Loc.T("Render.Save.Failed"), Loc.T("Render.Save.ErrorTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
                 _debugConsole.WriteLine(Loc.T("Render.Console.SaveFailed"));
-                return;
+                return false;
             }
         }
         catch (Exception ex)
         {
             // 解析器把"文件被占用 / 无写权限 / 磁盘已满"等真实原因原样抛出，这里展示给用户
-            MessageBox.Show(Loc.F("Render.Save.FailedWithReason", ex.Message), Loc.T("Render.Save.ErrorTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+            if (notify)
+                MessageBox.Show(Loc.F("Render.Save.FailedWithReason", ex.Message), Loc.T("Render.Save.ErrorTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
             _debugConsole.WriteLine(Loc.F("Render.Console.SaveFailedWithReason", ex.Message));
-            return;
+            return false;
         }
 
         mapData.FilePath = filePath;
@@ -164,8 +166,10 @@ public abstract partial class RenderSceneBase
                 _sceneNameLabel.Text = scene.SceneName;
         }
 
-        MessageBox.Show(Loc.F("Render.Save.SavedTo", filePath), Loc.T("Render.Save.SuccessTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+        if (notify)
+            MessageBox.Show(Loc.F("Render.Save.SavedTo", filePath), Loc.T("Render.Save.SuccessTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
         _debugConsole.WriteLine(Loc.F("Render.Console.SavedTo", filePath));
+        return true;
     }
 
     /// <summary>战役地形导出为世界地图 .bin；场景仍对应原来的 .btl，文件路径与场景记录都不变。</summary>

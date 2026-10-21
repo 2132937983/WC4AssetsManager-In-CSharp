@@ -117,6 +117,11 @@ public class BelongFlagRender : IDisposable
         _stateLock.EnterReadLock();
         try
         {
+            float flagSize = CalculateFlagSize();
+            // 旗子太小时既看不清，又要为整屏每个格子准备 sprite / DrawAtlas 数据。
+            // 必须在初始化图集之前判断，否则每帧重建 64×64 国旗图集，比绘制本身还慢。
+            if (flagSize < 16f) return;
+
             if (_flagAtlas == null)
             {
                 _stateLock.ExitReadLock();
@@ -127,7 +132,6 @@ public class BelongFlagRender : IDisposable
 
             if (mapData.Belongs == null || mapData.Belongs.Count == 0) return;
 
-            float flagSize = CalculateFlagSize();
             PrepareDrawAtlasData(flagSize, mapData);
             DrawAtlasBatch(canvas);
         }

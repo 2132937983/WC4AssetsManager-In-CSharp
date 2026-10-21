@@ -25,8 +25,10 @@ public sealed class BuildingDeployMode : ModeBase
     public override bool RequiresSelection => true;
 
     /// <summary>对齐 VB：建筑、国家领域、归属国旗，外加数据范围外格子的红叉（VB 建筑模式 Draw 里的 DrawClippedTiles）。</summary>
+    // 建筑模式不画逐格归属旗：高倍缩放时这一层会为大量格子准备 sprite，
+    // 名称/领地已经足够定位；归属旗仍可在归属编辑模式查看。
     public override ModeRenderLayers RenderLayers => ModeRenderLayers.Building | ModeRenderLayers.LegionDomain
-                                                   | ModeRenderLayers.BelongFlag | ModeRenderLayers.ClippedTiles;
+                                                   | ModeRenderLayers.ClippedTiles;
 
     /// <summary>框选只选中有建筑的格子。</summary>
     public override Func<HexCoord, bool>? CreateSelectionFilter(MapData map)

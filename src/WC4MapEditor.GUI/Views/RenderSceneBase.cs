@@ -2296,6 +2296,42 @@ public abstract partial class RenderSceneBase : UserControl, IDisposable
             Window.SetCurrentScene(newScene);
         }, "打开地图文件并切换到对应编辑场景", "<文件路径>");
 
+        // 供 MCP / 控制台直接保存（不弹 MessageBox，路径可绝对）
+        _commandManager.RegisterCommand("save", args =>
+        {
+            if (_mapData == null)
+            {
+                _debugConsole.WriteLine("当前没有地图");
+                return;
+            }
+
+            string path = args.Length > 0 ? string.Join(" ", args) : _mapData.FilePath;
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                _debugConsole.WriteLine("用法: save <文件路径>");
+                return;
+            }
+
+            bool ok = SaveSceneFile(path, notify: false);
+            _debugConsole.WriteLine(ok ? "已保存: " + path : "保存失败: " + path);
+        }, "保存当前地图（不弹对话框）", "[文件路径]");
+
+        // 供 MCP / 控制台切换编辑模式（性能诊断、批量截图）
+        _commandManager.RegisterCommand("redraw", _ => _renderEngine.Invalidate(), "强制重绘当前场景");
+
+        _commandManager.RegisterCommand("edit_mode", args =>
+        {
+            if (args.Length < 1 || !Enum.TryParse<EditMode>(args[0], true, out var mode))
+            {
+                _debugConsole.WriteLine("用法: edit_mode <None|TerrainPaint|BuildingDeploy|ArmyDeploy|...>");
+                return;
+            }
+
+            _editModeManager.SwitchMode(mode);
+            _renderEngine.Invalidate();
+            _debugConsole.WriteLine("已切换编辑模式: " + mode);
+        }, "切换编辑模式", "<模式名>");
+
         _commandManager.RegisterCommand("new_campaign", args =>
         {
             if (args.Length < 2 || !int.TryParse(args[0], out int w) || !int.TryParse(args[1], out int h))

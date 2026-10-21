@@ -15,13 +15,14 @@
     5. 核对满意后把 dry_run 改成 false，再跑一次真正落数据（Ctrl+Z 可整体撤销）
 
   三、数据文件格式（纯文本 .txt，不是 Lua；# 之后是注释，字段用空格或 TAB 分隔）
-    [map]            name=地区名 / dry_run= / overwrite= / belong_radius= / print_limit= ...
+    [map]            name=地区名 / dry_run= / overwrite= / clear_cities= / belong_radius= / print_limit= ...
     [projection]     mode = window | ref | manual      （三选一，见下方说明）
     [owners]         势力名 = 国家ID                    （国家ID 查 stringtable 的 country_<id>）
     [cities]         名称 纬度 经度 势力 等级(1~5)
     [ref]            格子列 格子行 纬度 经度           （仅 mode=ref 时需要，≥3 个点）
     [post]           create_coast= / process_ocean_layer2= / connect_buildings= / greening=  （可选）
     [terrain]        海陆地形：enabled= / mode=mask|from_cities / mask_file= / land_type= / sea_type= …
+                     type_mask_file = 可选的地形类型掩码（0-9 / A-V 对应地形ID；陆地上覆盖 land_type）
     [belong]         归属掩码：enabled= / mode=mask / mask_file= / map_file= / land_only=
                      （掩码与字符映射由 `geo rasterize --owners` 生成；先铺国家领土，城市格随后覆盖）
 
@@ -460,7 +461,8 @@ local function read_owner_map(path)
     return (count > 0) and map or nil, hit
 end
 
---- 3×3 多数表决：去掉孤立点，让海岸线不那么碎
+--- 六边形 7 邻域多数表决：去掉孤立点，让海岸线不那么碎。
+--- 不能再用 3×3：奇数列下移半格，左上/左下/右上/右下并不是六个邻居。
 local function smooth_mask(mask, landChar)
     local w, h = mask.w, mask.h
     local function at(x, y)
@@ -477,12 +479,18 @@ local function smooth_mask(mask, landChar)
                 line[#line + 1] = '-'                       -- "不动"格不参与平滑
             else
                 local cnt = 0
-                for dy = -1, 1 do
-                    for dx = -1, 1 do
-                        if at(x + dx, y + dy) == landChar then cnt = cnt + 1 end
-                    end
+                local offsets = { {0,0}, {-1,0}, {1,0}, {0,-1}, {0,1} }
+                if (x % 2) == 1 then
+                    offsets[#offsets + 1] = { -1, 1 }
+                    offsets[#offsets + 1] = { 1, 1 }
+                else
+                    offsets[#offsets + 1] = { -1, -1 }
+                    offsets[#offsets + 1] = { 1, -1 }
                 end
-                line[#line + 1] = (cnt >= 5) and landChar or '.'
+                for _, o in ipairs(offsets) do
+                    if at(x + o[1], y + o[2]) == landChar then cnt = cnt + 1 end
+                end
+                line[#line + 1] = (cnt >= 4) and landChar or '.'
             end
         end
         out[#out + 1] = table.concat(line)
@@ -490,8 +498,19 @@ local function smooth_mask(mask, landChar)
     return { rows = out, w = w, h = h }
 end
 
+--- 地形类型掩码字符：0-9 → 0-9，A-V → 10-31，a-v → 10-31。
+local function decode_terrain_char(ch)
+    local b = string.byte(ch)
+    if not b then return nil end
+    if b >= 48 and b <= 57 then return b - 48 end       -- '0'-'9'
+    if b >= 65 and b <= 90 then return b - 55 end       -- 'A'=10
+    if b >= 97 and b <= 122 then return b - 87 end      -- 'a'=10
+    return nil
+end
+
 --- 掩码 → 每格地形。返回 plan[row*W+col] = 地形类型
-local function plan_from_mask(mask, W, H, t)
+--- typeMask 可选：与海陆掩码同尺寸，陆地上的字符决定具体地形（山/森林/沙漠…）。
+local function plan_from_mask(mask, W, H, t, typeMask)
     local landChar = tostring(t.land_char or 'X')
     local keepChar = tostring(t.keep_char or '-')
     local landType = tonumber(t.land_type) or 0
@@ -500,15 +519,24 @@ local function plan_from_mask(mask, W, H, t)
     local dW, dH = math.max(1, W - 1), math.max(1, H - 1)
     local plan, stats = {}, { land = 0, sea = 0, keep = 0 }
     local chars = {}
+    local sameSize = (mask.w == W and mask.h == H)
 
     for col = 0, W - 1 do
         for row = 0, H - 1 do
-            -- 归一化位置：与城市投影同源（col/(W-1)、未修正行号/(H-1)）
-            local r0 = row + (((col % 2) == 1) and 0.5 or 0)
-            local mx = math.floor(col / dW * mask.w) + 1
-            local my = math.floor(r0 / dH * mask.h) + 1
-            if mx > mask.w then mx = mask.w end
-            if my > mask.h then my = mask.h end
+            local mx, my
+            if sameSize then
+                -- 掩码与地图同尺寸：直接一一对应。
+                -- 掩码本身已经按“奇数列下移半格”的十六进制几何生成，
+                -- 这里再加一次偏移会让海岸线错位半格。
+                mx, my = col + 1, row + 1
+            else
+                -- 归一化位置：与城市投影同源（col/(W-1)、未修正行号/(H-1)）
+                local r0 = row + (((col % 2) == 1) and 0.5 or 0)
+                mx = math.floor(col / dW * mask.w) + 1
+                my = math.floor(r0 / dH * mask.h) + 1
+                if mx > mask.w then mx = mask.w end
+                if my > mask.h then my = mask.h end
+            end
 
             local ch = string.sub(mask.rows[my] or '', mx, mx)
             chars[ch] = (chars[ch] or 0) + 1
@@ -516,7 +544,14 @@ local function plan_from_mask(mask, W, H, t)
             if ch == keepChar then
                 stats.keep = stats.keep + 1
             elseif ch == landChar then
-                plan[row * W + col] = landType
+                local terrain = landType
+                if typeMask then
+                    local tch = string.sub(typeMask.rows[my] or '', mx, mx)
+                    local tv = decode_terrain_char(tch)
+                    -- 类型掩码里的海/空格/未知字符一律回落到 land_type
+                    if tv ~= nil and tv ~= seaType then terrain = tv end
+                end
+                plan[row * W + col] = terrain
                 stats.land = stats.land + 1
             else
                 plan[row * W + col] = seaType
@@ -620,6 +655,8 @@ local function main()
     local m = spec.map or {}
     local dryRun = (m.dry_run ~= false)                 -- 默认干跑
     local overwrite = (m.overwrite == true)
+    -- 在当前地图上重跑时，先清掉旧城市建筑再按新坐标重建，避免地形变化后重复/错位
+    local clearCities = (m.clear_cities == true)
     local belongRadius = tonumber(m.belong_radius) or 0
     local printLimit = tonumber(m.print_limit) or 80
     local skipSea = (m.skip_sea ~= false)
@@ -671,6 +708,17 @@ local function main()
                         say(string.format('海陆掩码：%s（%d × %d%s）', hit, mask.w, mask.h,
                             smooth ~= 0 and '，已多数表决平滑' or ''))
 
+                        local typeMask = nil
+                        if t.type_mask_file then
+                            typeMask = read_mask(tostring(t.type_mask_file))
+                            if typeMask then
+                                say(string.format('地形类型掩码：%s（%d × %d）',
+                                    tostring(t.type_mask_file), typeMask.w, typeMask.h))
+                            else
+                                say('⚠ 读不到地形类型掩码：' .. tostring(t.type_mask_file) .. '（回落到 land_type）')
+                            end
+                        end
+
                         local maskAspect = mask.w / math.max(1, mask.h)
                         local mapAspect = (W - 1) / math.max(1, H - 1)
                         if maskAspect > mapAspect * 1.25 or maskAspect < mapAspect * 0.8 then
@@ -678,7 +726,7 @@ local function main()
                                 maskAspect, mapAspect))
                         end
 
-                        planned, terrainStats, _ = plan_from_mask(mask, W, H, t)
+                        planned, terrainStats, _ = plan_from_mask(mask, W, H, t, typeMask)
                         terrainDesc = 'mask（' .. tostring(hit) .. '）'
                     end
                 end
@@ -752,14 +800,40 @@ local function main()
         if col < 0 or col >= W or row < 0 or row >= H then
             st, note = '越界', string.format('算出 (%d,%d) 超出地图', col, row)
         elseif seen[col .. ',' .. row] then
-            st, note = '重复格', '已被 ' .. seen[col .. ',' .. row] .. ' 占用'
+            -- 两个城市被吸附/投影到同一格：在附近找一格空闲陆地，别把第二座城丢掉
+            local found = nil
+            for radius = 1, 3 do
+                for dr = -radius, radius do
+                    for dc = -radius, radius do
+                        if math.max(math.abs(dc), math.abs(dr)) == radius then
+                            local nc, nr = col + dc, row + dr
+                            if nc >= 0 and nc < W and nr >= 0 and nr < H
+                                and getTerrain(nc, nr) ~= SEA_TERRAIN
+                                and not seen[nc .. ',' .. nr] then
+                                found = { nc, nr }
+                                break
+                            end
+                        end
+                    end
+                    if found then break end
+                end
+                if found then break end
+            end
+
+            if found then
+                note = string.format('避让重复格 (%d,%d) → (%d,%d)', col, row, found[1], found[2])
+                col, row = found[1], found[2]
+            else
+                st, note = '重复格', '已被 ' .. seen[col .. ',' .. row] .. ' 占用'
+            end
         else
             local terrain = getTerrain(col, row)
             if terrain == SEA_TERRAIN then
                 st, note = '落在海里', string.format('地形=%d', terrain)
             else
                 local exist = map.GetBuilding(col, row)
-                if exist and not overwrite then
+                -- clear_cities 模式下旧城市会被统一删除，所以这里不要把"已有建筑"当成跳过理由
+                if exist and not overwrite and not clearCities then
                     st, note = '已有建筑', tostring(exist.BuildingTypeName or exist.BuildingType)
                 end
             end
@@ -914,14 +988,36 @@ local function main()
         say('★ 干跑结束：没有改任何数据。确认坐标无误后，把数据文件 [map] 里的 dry_run 改成 false 再跑。')
     else
         -- ---- 先铺海陆地形，再铺归属，最后落城市（城市是落在已定型的陆地上）----
+        local tBuild = os.clock()
+        local tPhase = os.clock()
         if planned then
             say('开始写海陆地形…')
             local changed, same, failed = paint_terrain(planned, W, H, say)
             say(string.format('地形写入完成：改动 %d 格，原本就对 %d 格，失败 %d 格', changed, same, failed))
+            say(string.format('阶段耗时（地形）：%.2fs', os.clock() - tPhase))
             say('')
         end
 
+        tPhase = os.clock()
         applyBelong(true)
+        say(string.format('阶段耗时（归属）：%.2fs', os.clock() - tPhase))
+
+        if clearCities then
+            local old = {}
+            map.ForEachBuilding(function(b)
+                if b.BuildingType >= 11 and b.BuildingType <= 15 then
+                    old[#old + 1] = { b.Col, b.Row }
+                end
+            end)
+
+            local removed = 0
+            for _, p in ipairs(old) do
+                local res = map.RemoveBuilding(p[1], p[2])
+                if res and res.Success then removed = removed + 1 end
+            end
+            say(string.format('清除旧城市建筑：%d 座', removed))
+            say('')
+        end
 
         for _, r in ipairs(rows) do
             if not r.skip and r.st ~= '越界' and r.st ~= '重复格' and r.st ~= '势力未定义' then
@@ -998,6 +1094,7 @@ local function main()
         say('')
         say(string.format('落建筑 %d 座（其中带名字 %d 座），写归属 %d 座，失败 %d 座',
             built, named, belonged, failed))
+        say(string.format('总耗时：%.2fs', os.clock() - tBuild))
         say('★ 完成。Ctrl+Z 可整体撤销；记得保存地图。')
     end
 

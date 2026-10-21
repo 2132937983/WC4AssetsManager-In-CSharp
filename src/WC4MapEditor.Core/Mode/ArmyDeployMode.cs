@@ -27,8 +27,9 @@ public sealed class ArmyDeployMode : ModeBase
     public override bool RequiresSelection => true;
 
     // VB 单位模式：国家领域、建筑、单位、陷阱、归属国旗，以及数据范围外格子的红叉（基类 Draw → DrawClippedTiles）
+    // 单位模式同样不画逐格归属旗，避免高倍缩放时归属旗层拖慢单位编辑
     public override ModeRenderLayers RenderLayers => ModeRenderLayers.Building | ModeRenderLayers.Army | ModeRenderLayers.Trap
-                                                   | ModeRenderLayers.LegionDomain | ModeRenderLayers.BelongFlag | ModeRenderLayers.ClippedTiles;
+                                                   | ModeRenderLayers.LegionDomain | ModeRenderLayers.ClippedTiles;
 
     /// <summary>框选只命中有单位（v1 或 v3）的格子。</summary>
     public override Func<HexCoord, bool>? CreateSelectionFilter(MapData map)

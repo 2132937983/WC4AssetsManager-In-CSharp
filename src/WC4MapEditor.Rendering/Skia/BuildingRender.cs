@@ -79,6 +79,12 @@ public class BuildingRender : IDisposable
     private readonly SKPaint _dragGhostPaint;
     private readonly SKPaint _dragGhostTrianglePaint;
 
+    // 名称/设施等级缓存成 SKTextBlob：原来每帧对每个建筑做两次中文文本整形，
+    // 建筑/单位编辑模式一开名称就掉帧。字体尺寸按 0.5px 量化，避免缩放时无限增长。
+    private readonly Dictionary<(int NameId, int SizeKey), SKTextBlob> _nameBlobs = new();
+    private readonly Dictionary<(int Level, int SizeKey), SKTextBlob> _levelBlobs = new();
+    private const float MIN_NAME_ZOOM = 0.65f;
+
     public bool ShowBuildingNames
     {
         get => _showBuildingNames;
@@ -120,6 +126,7 @@ public class BuildingRender : IDisposable
 
         _cityNames = GetSharedCityNames();
         _cityNameCache.Clear();
+        ClearTextBlobs();
         Debug.WriteLine("[BuildingRender] 城市名称已重新加载");
     }
 
@@ -477,14 +484,26 @@ public class BuildingRender : IDisposable
 
     private void DrawFacilityLevel(SKCanvas canvas, float screenX, float screenY, int level)
     {
-        string levelText = level.ToString();
+        if (_camera.ZoomLevel < MIN_NAME_ZOOM) return;
+
         float textSize = (float)(8 * _camera.ZoomLevel);
-        _facilityLevelFont.Size = textSize;
+        int sizeKey = Math.Max(1, (int)MathF.Round(textSize * 2));
+        var key = (level, sizeKey);
 
+        if (!_levelBlobs.TryGetValue(key, out var blob))
+        {
+            if (_levelBlobs.Count > 512) ClearTextBlobs();
+            _facilityLevelFont.Size = sizeKey / 2f;
+            blob = SKTextBlob.Create(level.ToString(), _facilityLevelFont);
+            _levelBlobs[key] = blob;
+        }
+
+        float textWidth = blob.Bounds.Width;
         float shadowOffset = (float)(1 * Math.Max(0.5f, _camera.ZoomLevel));
+        float y = screenY + textSize * 0.3f;
 
-        canvas.DrawText(levelText, screenX + shadowOffset, screenY + shadowOffset + textSize * 0.3f, SKTextAlign.Center, _facilityLevelFont, _buildingNameShadowPaint);
-        canvas.DrawText(levelText, screenX, screenY + textSize * 0.3f, SKTextAlign.Center, _facilityLevelFont, _facilityTextPaint);
+        canvas.DrawText(blob, screenX - textWidth / 2 + shadowOffset, y + shadowOffset, _buildingNameShadowPaint);
+        canvas.DrawText(blob, screenX - textWidth / 2, y, _facilityTextPaint);
     }
 
     private void DrawCityLevelsBatch(SKCanvas canvas, List<CityLevelDrawCall> batch)
@@ -522,10 +541,12 @@ public class BuildingRender : IDisposable
     {
         if (nameList.Count == 0) return;
 
-        const float MIN_FONT_SIZE = 18.0f;
-        float textSize = (float)(16 * _camera.ZoomLevel);
-        textSize = Math.Max(textSize, MIN_FONT_SIZE);
-        _buildingNameFont.Size = textSize;
+        // 不再按缩放隐藏名称；全图 600+ 城市时 18px 会糊成一片，所以只降低最小字号
+        const float MIN_FONT_SIZE = 10.0f;
+        float textSize = Math.Max((float)(16 * _camera.ZoomLevel), MIN_FONT_SIZE);
+        int sizeKey = Math.Max(1, (int)MathF.Round(textSize * 2));
+        float renderSize = sizeKey / 2f;
+        _buildingNameFont.Size = renderSize;
 
         float shadowOffset = (float)(1 * Math.Max(0.5f, _camera.ZoomLevel));
 
@@ -534,13 +555,28 @@ public class BuildingRender : IDisposable
             string cityName = GetCityName(nameCall.Building.Name);
             if (string.IsNullOrEmpty(cityName)) continue;
 
+            if (!_nameBlobs.TryGetValue((nameCall.Building.Name, sizeKey), out var blob))
+            {
+                if (_nameBlobs.Count > 4096) ClearTextBlobs();
+                blob = SKTextBlob.Create(cityName, _buildingNameFont);
+                _nameBlobs[(nameCall.Building.Name, sizeKey)] = blob;
+            }
+
             float yOffset = nameCall.ImageSize * 0.45f + textSize * 0.8f;
-            float x = nameCall.ScreenX;
+            float x = nameCall.ScreenX - blob.Bounds.Width / 2;
             float y = nameCall.ScreenY + yOffset;
 
-            canvas.DrawText(cityName, x + shadowOffset, y + shadowOffset, SKTextAlign.Center, _buildingNameFont, _buildingNameShadowPaint);
-            canvas.DrawText(cityName, x, y, SKTextAlign.Center, _buildingNameFont, _buildingNamePaint);
+            canvas.DrawText(blob, x + shadowOffset, y + shadowOffset, _buildingNameShadowPaint);
+            canvas.DrawText(blob, x, y, _buildingNamePaint);
         }
+    }
+
+    private void ClearTextBlobs()
+    {
+        foreach (var blob in _nameBlobs.Values) blob.Dispose();
+        _nameBlobs.Clear();
+        foreach (var blob in _levelBlobs.Values) blob.Dispose();
+        _levelBlobs.Clear();
     }
 
     private void RenderFallbackTriangle(SKCanvas canvas, float screenX, float screenY, float size)
@@ -720,6 +756,7 @@ public class BuildingRender : IDisposable
         _provinceHighlightPaint?.Dispose();
         _dragGhostPaint?.Dispose();
         _dragGhostTrianglePaint?.Dispose();
+        ClearTextBlobs();
         _buildingNameFont?.Dispose();
         _facilityLevelFont?.Dispose();
 

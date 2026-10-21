@@ -84,11 +84,10 @@ internal static class McpToolBridge
 
             try
             {
-                content.Add(new ImageContentBlock
-                {
-                    MimeType = image.MimeType,
-                    Data = Convert.FromBase64String(image.Base64),
-                });
+                // Data 字段要求的是 base64 的 UTF-8 字节，直接塞原始 PNG 字节会被客户端判成非法 base64
+                content.Add(ImageContentBlock.FromBytes(
+                    Convert.FromBase64String(image.Base64),
+                    image.MimeType));
             }
             catch
             {
@@ -117,7 +116,7 @@ internal static class McpToolBridge
                         || name.StartsWith("search_", StringComparison.Ordinal);
 
         bool destructive = name is "write_file" or "delete_memory"
-            or "run_lua" or "run_lua_file" or "run_cli_command"
+            or "run_lua" or "run_lua_file" or "apply_map_spec" or "run_cli_command"
             or "set_object_field" or "set_object_field_batch"
             or "open_map" or "new_map" or "new_campaign" or "new_conquest"
             or "open_scene";

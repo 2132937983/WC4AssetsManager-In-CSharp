@@ -117,6 +117,16 @@ public static class AiToolRegistry
             },
             new()
             {
+                Name = "apply_map_spec",
+                Description = "在当前已打开的地图上重新应用 mapgen spec（直接改当前场景，不新建 .btl）。"
+                            + "spec 里 clear_cities=true 时会先删除旧城市建筑再按新坐标重建，可反复执行。"
+                            + "适合连续调整海岸线/山脉，不需要 new_campaign。",
+                ParametersJson = """
+{"type":"object","properties":{"spec":{"type":"string","description":"spec 路径，默认 scripts/mapgen/regions/europe_ww2.txt"}},"required":[]}
+""",
+            },
+            new()
+            {
                 Name = "list_scripts",
                 Description = "列出编辑器 scripts 目录下可执行的 .lua 脚本文件。",
                 ParametersJson = """{"type":"object","properties":{},"required":[]}"""
@@ -350,6 +360,7 @@ public static class AiToolRegistry
                 case "run_lua": return ToolRunLua(args);
                 case "submit_plan": return "submit_plan 由对话循环记录，直接调用不会执行任何地图操作。";
                 case "run_lua_file": return ToolRunLuaFile(args);
+                case "apply_map_spec": return ToolApplyMapSpec(args);
                 case "list_scripts": return ToolListScripts();
                 // AM
                 case "list_assets": return ToolListAssets(args);
@@ -629,6 +640,46 @@ public static class AiToolRegistry
         }
 
         string code = File.ReadAllText(full);
+        var result = AiBridge.RunLua(code);
+        if (result == null) return "失败：主程序未注册 Lua 执行器";
+        return FormatScriptResult(result);
+    }
+
+    /// <summary>在仓库/输出目录里找到 scripts/... 下的文件。</summary>
+    private static string? FindRepoFile(string relative)
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        for (int i = 0; i < 8 && dir != null; i++, dir = dir.Parent)
+        {
+            string candidate = Path.Combine(dir.FullName, relative);
+            if (File.Exists(candidate)) return candidate;
+        }
+        return null;
+    }
+
+    /// <summary>当前场景重新应用 build-map spec：只改地图数据，不创建新 .btl。</summary>
+    private static string ToolApplyMapSpec(JsonElement args)
+    {
+        string spec = GetString(args, "spec");
+        if (string.IsNullOrWhiteSpace(spec))
+            spec = "scripts/mapgen/regions/europe_ww2.txt";
+
+        string specPath = Path.IsPathRooted(spec)
+            ? Path.GetFullPath(spec)
+            : FindRepoFile(spec) ?? Path.GetFullPath(spec);
+
+        string scriptPath = FindRepoFile("scripts/mapgen/build-map.lua")
+                            ?? Path.Combine(AppContext.BaseDirectory, "scripts", "mapgen", "build-map.lua");
+
+        if (!File.Exists(scriptPath)) return "失败：找不到 scripts/mapgen/build-map.lua";
+        if (!File.Exists(specPath)) return $"失败：找不到 spec {specPath}";
+
+        string code = File.ReadAllText(scriptPath);
+        code = System.Text.RegularExpressions.Regex.Replace(
+            code,
+            @"local SPEC = '[^']*'",
+            "local SPEC = '" + specPath.Replace('\\', '/') + "'");
+
         var result = AiBridge.RunLua(code);
         if (result == null) return "失败：主程序未注册 Lua 执行器";
         return FormatScriptResult(result);

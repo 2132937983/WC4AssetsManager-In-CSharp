@@ -1,0 +1,56 @@
+[map]
+name        = 青岛 1941
+dry_run     = false
+overwrite   = false
+clear_cities = true
+belong_radius = 0
+print_limit = 60
+snap_sea_radius = 2
+
+[projection]
+mode        = window
+lon_west    = 119.8
+lon_east    = 121.1
+lat_north   = 37.05
+lat_south   = 35.65
+
+[owners]
+中国 = 9
+
+[cities]
+# 名称 纬度 经度 势力 等级
+青岛 36.067 120.383 中国 5
+黄岛 35.960 120.188 中国 4
+即墨 36.389 120.447 中国 4
+胶州 36.264 120.033 中国 4
+城阳 36.307 120.396 中国 4
+崂山 36.193 120.622 中国 3
+莱西 36.889 120.517 中国 3
+平度 36.777 119.960 中国 3
+胶南 35.850 120.000 中国 2
+红岛 36.250 120.270 中国 2
+蓝村 36.400 120.100 中国 2
+王哥庄 36.250 120.650 中国 2
+沙子口 36.120 120.550 中国 2
+惜福镇 36.320 120.500 中国 2
+上马 36.270 120.150 中国 2
+
+[terrain]
+enabled = true
+mode = mask
+mask_file = d:/CSharpProjects/WC4AssetsManager-In-CSharp/scripts/mapgen/regions/qingdao.land.txt
+type_mask_file = d:/CSharpProjects/WC4AssetsManager-In-CSharp/scripts/mapgen/regions/qingdao.terrain.txt
+smooth = 0
+
+[belong]
+enabled = true
+mode = mask
+mask_file = d:/CSharpProjects/WC4AssetsManager-In-CSharp/scripts/mapgen/regions/qingdao.owner.txt
+map_file = d:/CSharpProjects/WC4AssetsManager-In-CSharp/scripts/mapgen/regions/qingdao.owner.txt.map
+land_only = true
+
+[post]
+create_coast = true
+process_ocean_layer2 = true
+connect_buildings = false
+greening = 0

@@ -28,6 +28,11 @@ public class LegionDomainRender : IDisposable
 
     private SKPaint? _domainPaint;
 
+    // 整张地图的势力领地烘焙成一张 SKPicture（基准缩放 1.0）。
+    // 原先每帧对可视格子逐个 Save/Translate/DrawPath/Restore，建筑编辑模式一开就掉帧；
+    // 现在平移/缩放只是 DrawPicture + Canvas.Scale，不再逐格重画。
+    private SKPicture? _domainPicture;
+
     /// <summary>
     /// 按颜色分组的格子位置。原实现每帧新建 Dictionary、并为每种颜色新建 List，
     /// 在可视范围内逐格分配；这里改为复用容器（List 回收进池）。
@@ -83,6 +88,8 @@ public class LegionDomainRender : IDisposable
 
     public void InvalidateCache()
     {
+        _domainPicture?.Dispose();
+        _domainPicture = null;
         ClearColorCache();
     }
 
@@ -118,27 +125,36 @@ public class LegionDomainRender : IDisposable
         int mapHeight = mapData.MapHeight;
         if (mapWidth == 0 || mapHeight == 0) return;
 
-        float scaledHexSize = (float)(BASE_HEX_SIZE * _zoomLevel);
-        double hexSpacingX = HEX_HORIZONTAL_SPACING * _zoomLevel;
-        double hexSpacingY = HEX_VERTICAL_SPACING * _zoomLevel;
+        if (_domainPicture == null)
+            BuildDomainPicture(mapData);
 
-        int padding = 2;
-        int startCol = Math.Max(0, (int)((-_offsetX) / hexSpacingX) - padding);
-        int startRow = Math.Max(0, (int)((-_offsetY) / hexSpacingY) - padding);
-        int endCol = Math.Min(mapWidth - 1, startCol + (int)(_viewportWidth / hexSpacingX) + padding * 2);
-        int endRow = Math.Min(mapHeight - 1, startRow + (int)(_viewportHeight / hexSpacingY) + padding * 2);
+        if (_domainPicture == null) return;
 
-        // 回收上一帧的 List 并清空字典（Dictionary.Clear 保留内部数组，不会重新分配）。
-        foreach (var reused in _colorGroups.Values)
+        // 领地按基准尺寸烘焙，平移/缩放只作用于画布，不再按格子重建绘制命令
+        canvas.Save();
+        canvas.Translate((float)_offsetX, (float)_offsetY);
+        canvas.Scale((float)_zoomLevel);
+        canvas.DrawPicture(_domainPicture);
+        canvas.Restore();
+    }
+
+    private void BuildDomainPicture(MapData mapData)
+    {
+        int mapWidth = mapData.MapWidth;
+        int mapHeight = mapData.MapHeight;
+        if (mapWidth == 0 || mapHeight == 0 || _domainPaint == null) return;
+
+        var recorder = new SKPictureRecorder();
+        var pictureCanvas = recorder.BeginRecording(new SKRect(
+            0, 0,
+            (float)(mapWidth * HEX_HORIZONTAL_SPACING + BASE_HEX_SIZE * 2),
+            (float)(mapHeight * HEX_VERTICAL_SPACING + BASE_HEX_SIZE * 2)));
+
+        var path = GetHexagonPath((float)BASE_HEX_SIZE);
+
+        for (int row = 0; row < mapHeight; row++)
         {
-            reused.Clear();
-            _colorGroupPool.Push(reused);
-        }
-        _colorGroups.Clear();
-
-        for (int row = startRow; row <= endRow; row++)
-        {
-            for (int col = startCol; col <= endCol; col++)
+            for (int col = 0; col < mapWidth; col++)
             {
                 int index = row * mapWidth + col;
 
@@ -154,28 +170,19 @@ public class LegionDomainRender : IDisposable
                 SKColor color = GetLegionColor(belongValue, mapData);
                 if (color == default) continue;
 
-                float x = (float)(_offsetX + col * hexSpacingX);
-                float y = (float)(_offsetY + (col % 2) * (hexSpacingY / 2) + row * hexSpacingY);
+                float x = (float)(col * HEX_HORIZONTAL_SPACING);
+                float y = (float)((col % 2) * (HEX_VERTICAL_SPACING / 2) + row * HEX_VERTICAL_SPACING);
 
-                if (!_colorGroups.TryGetValue(color, out var positions))
-                {
-                    positions = _colorGroupPool.Count > 0
-                        ? _colorGroupPool.Pop()
-                        : new List<(float x, float y)>(16);
-                    _colorGroups[color] = positions;
-                }
-                positions.Add((x, y));
+                _domainPaint.Color = color;
+                pictureCanvas.Save();
+                pictureCanvas.Translate(x, y);
+                pictureCanvas.DrawPath(path, _domainPaint);
+                pictureCanvas.Restore();
             }
         }
 
-        if (_domainPaint == null) return;
-
-        foreach (var kvp in _colorGroups)
-        {
-            _domainPaint.Color = kvp.Key;
-            foreach (var pos in kvp.Value)
-                DrawHexagon(canvas, pos.x, pos.y, scaledHexSize);
-        }
+        _domainPicture?.Dispose();
+        _domainPicture = recorder.EndRecording();
     }
 
     private static int GetBelongValue(int index, MapData mapData)
@@ -281,6 +288,9 @@ public class LegionDomainRender : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+
+        _domainPicture?.Dispose();
+        _domainPicture = null;
 
         _domainPaint?.Dispose();
         _domainPaint = null;

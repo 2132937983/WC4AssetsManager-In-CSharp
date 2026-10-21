@@ -428,12 +428,19 @@ public class SkiaRenderEngine : IRenderEngine
     {
         if (canvas == null || mapData == null) return;
 
+        RenderProfiler.BeginFrame(
+            $"bg={EnableBackgroundRender} prov={EnableProvinceRender} dom={EnableLegionDomainRender} " +
+            $"bld={EnableBuildingRender} army={EnableArmyRender} flag={EnableBelongFlagRender} " +
+            $"clip={EnableClippedTileRender} sel={EnableSelectionRender} names={ShowBuildingNames} " +
+            $"zoom={camera.ZoomLevel:0.00}");
+
         canvas.Clear(SKColors.Black);
 
         InitializeTerrainRenderers();
         RebindEntityRenderersIfNeeded(camera, mapData);
         InitializeEntityRenderers(camera, mapData);
 
+        long t0 = Stopwatch.GetTimestamp();
         if (EnableBackgroundRender && _backgroundRender != null)
         {
             _backgroundRender.SetCameraState(camera.OffsetX, camera.OffsetY, camera.ZoomLevel,
@@ -441,7 +448,9 @@ public class SkiaRenderEngine : IRenderEngine
                 EnableBackgroundRender, EnableTerrainsRender);
             _backgroundRender.Render(canvas, mapData);
         }
+        RenderProfiler.Add("background", t0);
 
+        t0 = Stopwatch.GetTimestamp();
         if (_provinceRender != null)
         {
             _provinceRender.EnableProvinceRender = EnableProvinceRender;
@@ -453,10 +462,14 @@ public class SkiaRenderEngine : IRenderEngine
             _provinceRender.ViewportHeight = (int)camera.ViewportHeight;
             _provinceRender.Render(canvas, mapData);
         }
+        RenderProfiler.Add("province", t0);
 
+        t0 = Stopwatch.GetTimestamp();
         // 手绘边界：压在省区配色之上，方便对着省区看边界描得对不对
         RenderProvinceBoundary(canvas, camera);
+        RenderProfiler.Add("province_boundary", t0);
 
+        t0 = Stopwatch.GetTimestamp();
         if (_legionDomainRender != null)
         {
             _legionDomainRender.EnableLegionDomainRender = EnableLegionDomainRender;
@@ -467,16 +480,21 @@ public class SkiaRenderEngine : IRenderEngine
             _legionDomainRender.ViewportHeight = (int)camera.ViewportHeight;
             _legionDomainRender.Render(canvas, mapData);
         }
+        RenderProfiler.Add("legion_domain", t0);
 
+        t0 = Stopwatch.GetTimestamp();
         if (EnableBuildingRender && _buildingRender != null)
         {
             _buildingRender.Render(canvas, true);
         }
+        RenderProfiler.Add("building", t0);
 
+        t0 = Stopwatch.GetTimestamp();
         if (EnableArmyRender && _armyRender != null)
         {
             _armyRender.Render(canvas);
         }
+        RenderProfiler.Add("army", t0);
 
         if (EnableTrapRender && _trapRender != null)
         {
@@ -505,6 +523,7 @@ public class SkiaRenderEngine : IRenderEngine
         // 归属国旗：压在建筑、单位、陷阱、援军、战略建筑、空军等**实体层之上**，
         // 但仍在 天气 / 地图框 / 选区 / 首都国旗 之下。
         // 想再往上抬（例如压过天气和选区），把这一段整体往下移即可。
+        t0 = Stopwatch.GetTimestamp();
         if (_belongFlagRender != null)
         {
             _belongFlagRender.EnableBelongFlagRender = EnableBelongFlagRender;
@@ -515,6 +534,7 @@ public class SkiaRenderEngine : IRenderEngine
             _belongFlagRender.ViewportHeight = (int)camera.ViewportHeight;
             _belongFlagRender.Render(canvas, mapData);
         }
+        RenderProfiler.Add("belong_flag", t0);
 
         // 将领头像压在归属国旗之上（对齐 VB MainRender：国旗之后再画头像，免得被国旗挡住）。
         // 头像位置由本帧前面的 _armyRender.Render 收集。
@@ -534,17 +554,22 @@ public class SkiaRenderEngine : IRenderEngine
         }
 
         // 数据范围外的格子：红叉画在实体层之上、选区之下（对齐 VB 版各模式 DrawSkia 里的裁剪区标记）
+        t0 = Stopwatch.GetTimestamp();
         if (EnableClippedTileRender)
         {
             _clippedTileRender ??= new ClippedTileRender();
             _clippedTileRender.Render(canvas, mapData, camera.OffsetX, camera.OffsetY, camera.ZoomLevel,
                 (int)camera.ViewportWidth, (int)camera.ViewportHeight);
         }
+        RenderProfiler.Add("clipped", t0);
 
+        t0 = Stopwatch.GetTimestamp();
         // 参考底图（视图层）叠在全部地图层之上、选区之下（对齐 VB MainRender 的绘制顺序）：
         // 半透明底图要能盖在省份配色与实体上，描图时才看得清两者是否对齐。
         RenderViewLayer(canvas, camera);
+        RenderProfiler.Add("view_layer", t0);
 
+        t0 = Stopwatch.GetTimestamp();
         if (EnableSelectionRender && _selectionRender != null)
         {
             _selectionRender.OffsetX = camera.OffsetX;
@@ -555,9 +580,11 @@ public class SkiaRenderEngine : IRenderEngine
             _selectionRender.MapData = mapData;
             _selectionRender.Render(canvas, mapData.MapWidth, mapData.MapHeight);
         }
+        RenderProfiler.Add("selection", t0);
 
         // 首都国旗：画在实体与选区之上（对齐 VB 版 Modifier.DrawSkia 的最后绘制），
         // 但仍位于帮助文字/模式名与经纬度标尺之下。
+        t0 = Stopwatch.GetTimestamp();
         if (_capitalFlagRender != null)
         {
             _capitalFlagRender.EnableCapitalFlagRender = EnableCapitalFlagRender;
@@ -568,6 +595,7 @@ public class SkiaRenderEngine : IRenderEngine
             _capitalFlagRender.ViewportHeight = (int)camera.ViewportHeight;
             _capitalFlagRender.Render(canvas, mapData);
         }
+        RenderProfiler.Add("capital_flag", t0);
 
         if (_overlayRender != null)
         {
@@ -587,6 +615,8 @@ public class SkiaRenderEngine : IRenderEngine
             _geoRulerRender.MapHeight = mapData.MapHeight;
             _geoRulerRender.Render(canvas);
         }
+
+        RenderProfiler.EndFrame();
     }
 
     public void Invalidate()
