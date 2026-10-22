@@ -1,0 +1,487 @@
+{
+  "1": {
+    "name": "Washington",
+    "country": "USA",
+    "postal": "WA"
+  },
+  "101": {
+    "name": "British Columbia",
+    "country": "CAN",
+    "postal": "BC"
+  },
+  "2": {
+    "name": "Idaho",
+    "country": "USA",
+    "postal": "ID"
+  },
+  "3": {
+    "name": "Montana",
+    "country": "USA",
+    "postal": "MT"
+  },
+  "102": {
+    "name": "Alberta",
+    "country": "CAN",
+    "postal": "AB"
+  },
+  "103": {
+    "name": "Saskatchewan",
+    "country": "CAN",
+    "postal": "SK"
+  },
+  "4": {
+    "name": "North Dakota",
+    "country": "USA",
+    "postal": "ND"
+  },
+  "104": {
+    "name": "Manitoba",
+    "country": "CAN",
+    "postal": "MB"
+  },
+  "5": {
+    "name": "Minnesota",
+    "country": "USA",
+    "postal": "MN"
+  },
+  "105": {
+    "name": "Ontario",
+    "country": "CAN",
+    "postal": "ON"
+  },
+  "6": {
+    "name": "Michigan",
+    "country": "USA",
+    "postal": "MI"
+  },
+  "7": {
+    "name": "Ohio",
+    "country": "USA",
+    "postal": "OH"
+  },
+  "8": {
+    "name": "Pennsylvania",
+    "country": "USA",
+    "postal": "PA"
+  },
+  "9": {
+    "name": "New York",
+    "country": "USA",
+    "postal": "NY"
+  },
+  "106": {
+    "name": "Québec",
+    "country": "CAN",
+    "postal": "QC"
+  },
+  "10": {
+    "name": "Vermont",
+    "country": "USA",
+    "postal": "VT"
+  },
+  "11": {
+    "name": "New Hampshire",
+    "country": "USA",
+    "postal": "NH"
+  },
+  "12": {
+    "name": "Maine",
+    "country": "USA",
+    "postal": "ME"
+  },
+  "107": {
+    "name": "New Brunswick",
+    "country": "CAN",
+    "postal": "NB"
+  },
+  "13": {
+    "name": "Arizona",
+    "country": "USA",
+    "postal": "AZ"
+  },
+  "201": {
+    "name": "Sonora",
+    "country": "MEX",
+    "postal": "SO"
+  },
+  "202": {
+    "name": "Baja California",
+    "country": "MEX",
+    "postal": "BC"
+  },
+  "14": {
+    "name": "California",
+    "country": "USA",
+    "postal": "CA"
+  },
+  "15": {
+    "name": "New Mexico",
+    "country": "USA",
+    "postal": "NM"
+  },
+  "203": {
+    "name": "Chihuahua",
+    "country": "MEX",
+    "postal": "CH"
+  },
+  "16": {
+    "name": "Texas",
+    "country": "USA",
+    "postal": "TX"
+  },
+  "204": {
+    "name": "Coahuila",
+    "country": "MEX",
+    "postal": "CO"
+  },
+  "205": {
+    "name": "Tamaulipas",
+    "country": "MEX",
+    "postal": "TM"
+  },
+  "206": {
+    "name": "Nuevo León",
+    "country": "MEX",
+    "postal": "NL"
+  },
+  "207": {
+    "name": "Quintana Roo",
+    "country": "MEX",
+    "postal": "QR"
+  },
+  "208": {
+    "name": "Campeche",
+    "country": "MEX",
+    "postal": "CM"
+  },
+  "209": {
+    "name": "Tabasco",
+    "country": "MEX",
+    "postal": "TB"
+  },
+  "210": {
+    "name": "Chiapas",
+    "country": "MEX",
+    "postal": "CS"
+  },
+  "17": {
+    "name": "Alaska",
+    "country": "USA",
+    "postal": "AK"
+  },
+  "108": {
+    "name": "Yukon",
+    "country": "CAN",
+    "postal": "YT"
+  },
+  "211": {
+    "name": "Colima",
+    "country": "MEX",
+    "postal": "CL"
+  },
+  "212": {
+    "name": "Nayarit",
+    "country": "MEX",
+    "postal": "NA"
+  },
+  "213": {
+    "name": "Baja California Sur",
+    "country": "MEX",
+    "postal": "BS"
+  },
+  "214": {
+    "name": "Sinaloa",
+    "country": "MEX",
+    "postal": "SI"
+  },
+  "18": {
+    "name": "Louisiana",
+    "country": "USA",
+    "postal": "LA"
+  },
+  "19": {
+    "name": "Mississippi",
+    "country": "USA",
+    "postal": "MS"
+  },
+  "20": {
+    "name": "Alabama",
+    "country": "USA",
+    "postal": "AL"
+  },
+  "21": {
+    "name": "Florida",
+    "country": "USA",
+    "postal": "FL"
+  },
+  "22": {
+    "name": "Georgia",
+    "country": "USA",
+    "postal": "GA"
+  },
+  "23": {
+    "name": "South Carolina",
+    "country": "USA",
+    "postal": "SC"
+  },
+  "24": {
+    "name": "North Carolina",
+    "country": "USA",
+    "postal": "NC"
+  },
+  "25": {
+    "name": "Virginia",
+    "country": "USA",
+    "postal": "VA"
+  },
+  "26": {
+    "name": "District of Columbia",
+    "country": "USA",
+    "postal": "DC"
+  },
+  "27": {
+    "name": "Maryland",
+    "country": "USA",
+    "postal": "MD"
+  },
+  "28": {
+    "name": "Delaware",
+    "country": "USA",
+    "postal": "DE"
+  },
+  "29": {
+    "name": "New Jersey",
+    "country": "USA",
+    "postal": "NJ"
+  },
+  "30": {
+    "name": "Connecticut",
+    "country": "USA",
+    "postal": "CT"
+  },
+  "31": {
+    "name": "Rhode Island",
+    "country": "USA",
+    "postal": "RI"
+  },
+  "32": {
+    "name": "Massachusetts",
+    "country": "USA",
+    "postal": "MA"
+  },
+  "215": {
+    "name": "Yucatán",
+    "country": "MEX",
+    "postal": "YU"
+  },
+  "216": {
+    "name": "Veracruz",
+    "country": "MEX",
+    "postal": "VE"
+  },
+  "217": {
+    "name": "Jalisco",
+    "country": "MEX",
+    "postal": "JA"
+  },
+  "218": {
+    "name": "Michoacán",
+    "country": "MEX",
+    "postal": "MI"
+  },
+  "219": {
+    "name": "Guerrero",
+    "country": "MEX",
+    "postal": "GR"
+  },
+  "220": {
+    "name": "Oaxaca",
+    "country": "MEX",
+    "postal": "OA"
+  },
+  "33": {
+    "name": "Oregon",
+    "country": "USA",
+    "postal": "OR"
+  },
+  "109": {
+    "name": "Nunavut",
+    "country": "CAN",
+    "postal": "NU"
+  },
+  "110": {
+    "name": "Newfoundland and Labrador",
+    "country": "CAN",
+    "postal": "NL"
+  },
+  "111": {
+    "name": "Nova Scotia",
+    "country": "CAN",
+    "postal": "NS"
+  },
+  "112": {
+    "name": "Northwest Territories",
+    "country": "CAN",
+    "postal": "NT"
+  },
+  "34": {
+    "name": "Hawaii",
+    "country": "USA",
+    "postal": "HI"
+  },
+  "113": {
+    "name": "Prince Edward Island",
+    "country": "CAN",
+    "postal": "PE"
+  },
+  "221": {
+    "name": "?",
+    "country": "MEX",
+    "postal": ""
+  },
+  "35": {
+    "name": "Utah",
+    "country": "USA",
+    "postal": "UT"
+  },
+  "36": {
+    "name": "Wyoming",
+    "country": "USA",
+    "postal": "WY"
+  },
+  "37": {
+    "name": "Nevada",
+    "country": "USA",
+    "postal": "NV"
+  },
+  "38": {
+    "name": "Colorado",
+    "country": "USA",
+    "postal": "CO"
+  },
+  "39": {
+    "name": "South Dakota",
+    "country": "USA",
+    "postal": "SD"
+  },
+  "40": {
+    "name": "Nebraska",
+    "country": "USA",
+    "postal": "NE"
+  },
+  "41": {
+    "name": "Kansas",
+    "country": "USA",
+    "postal": "KS"
+  },
+  "42": {
+    "name": "Oklahoma",
+    "country": "USA",
+    "postal": "OK"
+  },
+  "43": {
+    "name": "Iowa",
+    "country": "USA",
+    "postal": "IA"
+  },
+  "44": {
+    "name": "Missouri",
+    "country": "USA",
+    "postal": "MO"
+  },
+  "222": {
+    "name": "México",
+    "country": "MEX",
+    "postal": "MX"
+  },
+  "223": {
+    "name": "Puebla",
+    "country": "MEX",
+    "postal": "PU"
+  },
+  "224": {
+    "name": "Morelos",
+    "country": "MEX",
+    "postal": "MO"
+  },
+  "225": {
+    "name": "Querétaro",
+    "country": "MEX",
+    "postal": "QT"
+  },
+  "226": {
+    "name": "Hidalgo",
+    "country": "MEX",
+    "postal": "HG"
+  },
+  "227": {
+    "name": "Guanajuato",
+    "country": "MEX",
+    "postal": "GJ"
+  },
+  "228": {
+    "name": "San Luis Potosí",
+    "country": "MEX",
+    "postal": "SL"
+  },
+  "229": {
+    "name": "Zacatecas",
+    "country": "MEX",
+    "postal": "ZA"
+  },
+  "230": {
+    "name": "Aguascalientes",
+    "country": "MEX",
+    "postal": "AG"
+  },
+  "231": {
+    "name": "Durango",
+    "country": "MEX",
+    "postal": "DG"
+  },
+  "232": {
+    "name": "Tlaxcala",
+    "country": "MEX",
+    "postal": "TL"
+  },
+  "233": {
+    "name": "Distrito Federal",
+    "country": "MEX",
+    "postal": "DF"
+  },
+  "45": {
+    "name": "Wisconsin",
+    "country": "USA",
+    "postal": "WI"
+  },
+  "46": {
+    "name": "Illinois",
+    "country": "USA",
+    "postal": "IL"
+  },
+  "47": {
+    "name": "Kentucky",
+    "country": "USA",
+    "postal": "KY"
+  },
+  "48": {
+    "name": "Arkansas",
+    "country": "USA",
+    "postal": "AR"
+  },
+  "49": {
+    "name": "Tennessee",
+    "country": "USA",
+    "postal": "TN"
+  },
+  "50": {
+    "name": "West Virginia",
+    "country": "USA",
+    "postal": "WV"
+  },
+  "51": {
+    "name": "Indiana",
+    "country": "USA",
+    "postal": "IN"
+  }
+}

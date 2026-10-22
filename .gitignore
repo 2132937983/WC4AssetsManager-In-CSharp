@@ -61,3 +61,13 @@ scripts/legion-map.txt
 Resource/Geo/CN/
 Resource/Geo/CN.zip
 
+# 全球 admin1 原始数据 40MB；北美只用过滤后的 na_*_admin1.geojson
+Resource/Geo/ne_10m_admin_1_states_provinces.geojson
+
+# 湖河原始数据只用于生成 north_america.water.tsv，不直接入库
+Resource/Geo/ne_10m_lakes.geojson
+Resource/Geo/ne_10m_rivers_lake_centerlines.geojson
+
+# Natural Earth 全套原始 GeoJSON（体积大，本地地图生成用，不直接提交）
+Resource/Geo/NaturalEarth/
+

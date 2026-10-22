@@ -1,7 +1,7 @@
 # ═══════════════════════════════════════════════════════════════════════
 #  罗马城市地图 · 建图数据（罗马帝国鼎盛期的主要城市，用现代坐标）
 #  用法：把 build-map.lua 里的 SPEC 常量改成
-#        SPEC = 'scripts/mapgen/regions/rome.txt'  然后 lua scripts/mapgen/build-map.lua
+#        SPEC = 'scripts/mapgen/regions/rome.txt'  然后 lua scripts/mapgen/core/build-map.lua
 #
 #  ★ [owners] 的国家ID 是占位值，必须换成你地图 stringtable 里真实的 country_<id>：
 #    罗马 / 希腊 / 迦太基 / 埃及 / 帕提亚 —— 看你打算用哪几个势力来表现

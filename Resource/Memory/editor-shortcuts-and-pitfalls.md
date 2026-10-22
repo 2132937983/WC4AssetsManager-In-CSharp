@@ -34,7 +34,7 @@
 - `lua <脚本.lua>` 命令**由渲染场景注册**，且第一句就要求已加载地图 → **非地图场景里没有 Lua**；
 - AI 的 `run_lua` / `run_lua_file` 在非地图场景同样是空实现（`BeginScene` 把 `LuaCodeRunner` 设为 `null`）；
 - 脚本整批可撤销（`Ctrl+Z` 一次退回），所以批量改图的脚本比较安全；
-- Lua 里**没有**经纬度接口 —— 需要经纬度换算的脚本要自带投影（参考 `scripts/mapgen/build-map.lua`）。
+- Lua 里**没有**经纬度接口 —— 需要经纬度换算的脚本要自带投影（参考 `scripts/mapgen/core/build-map.lua`）。
 
 ## AI 助手的能力边界
 

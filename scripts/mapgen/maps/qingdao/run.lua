@@ -9,7 +9,7 @@
 
   二、怎么用
     1. 改下面那个 SPEC 常量（本文件里搜 `local SPEC`），指向你的地区数据文件
-    2. 控制台 F3：  lua scripts/mapgen/build-map.lua
+    2. 控制台 F3：  lua scripts/mapgen/core/build-map.lua
     3. 第一次务必让 [map] 里 dry_run = true —— 只打印报表、不动地图
     4. 照报表里的坐标在背景图上核对（或直接看渲染结果），改数据文件再跑
     5. 核对满意后把 dry_run 改成 false，再跑一次真正落数据（Ctrl+Z 可整体撤销）
@@ -72,7 +72,7 @@
 ================================================================================]]
 
 -- ========== 0. 只改这一行：指向你要建的地区数据文件 ==========
-local SPEC = 'scripts/mapgen/regions/china_taiwan.txt'
+local SPEC = 'scripts/mapgen/regions/qingdao.txt'
 
 -- ========== 1. 常量 ==========
 local REPORT_CANDIDATES = {

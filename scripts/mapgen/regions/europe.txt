@@ -2,14 +2,14 @@
 #  欧洲地图 · 建图数据
 #  用法：把 build-map.lua 里的 SPEC 常量改成
 #        SPEC = 'scripts/mapgen/regions/europe.txt'
-#        然后在控制台执行   lua scripts/mapgen/build-map.lua
+#        然后在控制台执行   lua scripts/mapgen/core/build-map.lua
 #
 #  ★ 三处必须按你的地图改：
 #    1. [projection] 的经纬度窗口 —— 下面填的是"西经25°~东经45°、北纬34°~72°"
 #       的等距窗口（与 europe.land.txt 掩码的 bbox 一致）。你的背景图不同就改这 4 个数；
 #       想更准就把 mode 改成 ref，用 [ref] 标定 3 个以上地标。
 #    2. [owners] 的国家ID —— 全是占位值！必须换成你这张图 stringtable 里真实存在的
-#       country_<id>。不确定就先跑 lua scripts/读取军团工具.lua 拿到"势力↔国家ID"对照。
+#       country_<id>。不确定就先跑 lua scripts/tools/legion-report.lua 拿到"势力↔国家ID"对照。
 #    3. [cities] 的势力名 —— 要和 [owners] 左边的名字完全一致。
 # ═══════════════════════════════════════════════════════════════════════
 

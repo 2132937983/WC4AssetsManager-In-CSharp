@@ -36,13 +36,13 @@
 
 建图脚本与数据：
 
-- `scripts/mapgen/build-map.lua`：核心建图器，支持 `type_mask_file`、`snap_sea_radius`、`clear_cities`、`belong`、`post`。
-- `scripts/mapgen/_ww2_run.lua`：欧洲二战 spec 运行脚本。
-- `scripts/mapgen/_east_asia_run.lua`：东亚 spec 运行脚本。
- - scripts/mapgen/_qingdao_run.lua、_sunset_run.lua：局部/场景示例。
- - scripts/mapgen/_qingdao_run.lua、_sunset_run.lua：局部/场景示例。
-- `scripts/mapgen/make-provinces.lua`：按省会多源 BFS 生成省区。
-- `scripts/mapgen/finalize_sunset.lua`：落日行动补齐归属/省区/单位示例。
+- `scripts/mapgen/core/build-map.lua`：核心建图器，支持 `type_mask_file`、`snap_sea_radius`、`clear_cities`、`belong`、`post`。
+- `scripts/mapgen/maps/europe/run.lua`：欧洲二战 spec 运行脚本。
+- `scripts/mapgen/maps/east_asia/run.lua`：东亚 spec 运行脚本。
+ - scripts/mapgen/maps/qingdao/run.lua、_sunset_run.lua：局部/场景示例。
+ - scripts/mapgen/maps/qingdao/run.lua、_sunset_run.lua：局部/场景示例。
+- `scripts/mapgen/core/make-provinces.lua`：按省会多源 BFS 生成省区。
+- `scripts/mapgen/maps/sunset/finalize.lua`：落日行动补齐归属/省区/单位示例。
 - `scripts/mapgen/regions/*.txt`：spec + 海陆掩码 + 归属掩码 + 地形类型掩码。这些必须提交，另一台电脑靠它们复现。
 
 已有成品图：
@@ -76,7 +76,7 @@ map.SetLegionField(2, 'IsPlayerControlled', 1)
 落地：
 
 ```text
-run_lua_file scripts/mapgen/_ww2_run.lua
+run_lua_file scripts/mapgen/maps/europe/run.lua
 ```
 
 校验：
@@ -113,14 +113,14 @@ map.ApplyLegionColorsFromSettings()
 落地：
 
 ```text
-run_lua_file scripts/mapgen/_east_asia_run.lua
+run_lua_file scripts/mapgen/maps/east_asia/run.lua
 ```
 
 补省区：
 
 ```text
 province clear
-run_lua_file scripts/mapgen/make-provinces.lua
+run_lua_file scripts/mapgen/core/make-provinces.lua
 ```
 
 校验：
@@ -152,7 +152,7 @@ map.SetLegionField(0, 'IsPlayerControlled', 1)
 落地：
 
 ```text
- - scripts/mapgen/_qingdao_run.lua、_sunset_run.lua：局部/场景示例。
+ - scripts/mapgen/maps/qingdao/run.lua、_sunset_run.lua：局部/场景示例。
 ```
 
 校验：
@@ -194,7 +194,7 @@ save maps/china_taiwan.btl
 1. 先选 GeoNames 记录，若该记录 alternate 有中文则直接用；
 2. 若没有，用 `scripts/mapgen/regions/shanghai_zh_names.json` 映射转换；
 3. 该映射来源：GeoNames 全量同反查中文 alternate + MyMemory 在线翻译 + OpenStreetMap 逆地理中文名，不用 Google；
-4. 用 `scripts/mapgen/apply_shanghai_zh_names.py` 应用到 spec；
+4. 用 `scripts/mapgen/maps/shanghai/apply_zh_names.py` 应用到 spec；
 5. 映射值不能含空格，否则 spec 解析会错；改完必须 `clear_cities = true` 重建。
 
 
@@ -290,7 +290,7 @@ greening = 0
 
 ```text
 province clear
-run_lua_file scripts/mapgen/make-provinces.lua
+run_lua_file scripts/mapgen/core/make-provinces.lua
 ```
 
 规则：
@@ -406,7 +406,7 @@ maps/
 
 1. 拉取仓库；
 2. 启动编辑器，确认 MCP 地址 `http://127.0.0.1:4396/wc4-mcp`；
-3. 用 `run_lua_file scripts/mapgen/_xxx_run.lua` 或直接打开 `maps/*.btl`。
+3. 用 `run_lua_file scripts/mapgen/maps/<地区>/run.lua` 或直接打开 `maps/*.btl`。
 
 ---
 

@@ -9,7 +9,7 @@
 
   二、怎么用
     1. 改下面那个 SPEC 常量（本文件里搜 `local SPEC`），指向你的地区数据文件
-    2. 控制台 F3：  lua scripts/mapgen/build-map.lua
+    2. 控制台 F3：  lua scripts/mapgen/core/build-map.lua
     3. 第一次务必让 [map] 里 dry_run = true —— 只打印报表、不动地图
     4. 照报表里的坐标在背景图上核对（或直接看渲染结果），改数据文件再跑
     5. 核对满意后把 dry_run 改成 false，再跑一次真正落数据（Ctrl+Z 可整体撤销）
@@ -72,7 +72,7 @@
 ================================================================================]]
 
 -- ========== 0. 只改这一行：指向你要建的地区数据文件 ==========
-local SPEC = 'scripts/mapgen/regions/europe_ww2.txt'
+local SPEC = 'scripts/mapgen/regions/shanghai.txt'
 
 -- ========== 1. 常量 ==========
 local REPORT_CANDIDATES = {
@@ -98,10 +98,36 @@ local function read_file(path)
 end
 
 --- 依次试候选路径读文件，返回 文本, 命中的路径
+--- 候选路径会向上多找几级：编辑器可能从 bin/Debug/net10.0-windows 启动，
+--- 而数据文件在仓库根的 scripts/mapgen/regions/。
+local function expand_paths(p)
+    local list = { p, 'publish/' .. p, '../' .. p }
+    local up = ''
+    for _ = 1, 6 do
+        up = up .. '../'
+        list[#list + 1] = up .. p
+    end
+
+    -- 兼容另一台电脑上的绝对路径：只取 basename，再从 regions/ 找
+    local base = tostring(p):match('[^/\\]+$')
+    if base and tostring(p):find('regions/', 1, true) then
+        local rel = 'scripts/mapgen/regions/' .. base
+        list[#list + 1] = rel
+        up = ''
+        for _ = 1, 6 do
+            up = up .. '../'
+            list[#list + 1] = up .. rel
+        end
+    end
+    return list
+end
+
 local function read_first(paths)
     for _, p in ipairs(paths) do
-        local text = read_file(p)
-        if text then return text, p end
+        for _, cand in ipairs(expand_paths(p)) do
+            local text = read_file(cand)
+            if text then return text, cand end
+        end
     end
     return nil, nil
 end
@@ -109,11 +135,13 @@ end
 local function write_first(paths, text)
     if not has_io then return nil end
     for _, p in ipairs(paths) do
-        local f = io.open(p, 'w')
-        if f then
-            f:write(text)
-            f:close()
-            return p
+        for _, cand in ipairs(expand_paths(p)) do
+            local f = io.open(cand, 'w')
+            if f then
+                f:write(text)
+                f:close()
+                return cand
+            end
         end
     end
     return nil
@@ -461,7 +489,8 @@ local function read_owner_map(path)
     return (count > 0) and map or nil, hit
 end
 
---- 3×3 多数表决：去掉孤立点，让海岸线不那么碎
+--- 六边形 7 邻域多数表决：去掉孤立点，让海岸线不那么碎。
+--- 不能再用 3×3：奇数列下移半格，左上/左下/右上/右下并不是六个邻居。
 local function smooth_mask(mask, landChar)
     local w, h = mask.w, mask.h
     local function at(x, y)
@@ -478,12 +507,18 @@ local function smooth_mask(mask, landChar)
                 line[#line + 1] = '-'                       -- "不动"格不参与平滑
             else
                 local cnt = 0
-                for dy = -1, 1 do
-                    for dx = -1, 1 do
-                        if at(x + dx, y + dy) == landChar then cnt = cnt + 1 end
-                    end
+                local offsets = { {0,0}, {-1,0}, {1,0}, {0,-1}, {0,1} }
+                if (x % 2) == 1 then
+                    offsets[#offsets + 1] = { -1, 1 }
+                    offsets[#offsets + 1] = { 1, 1 }
+                else
+                    offsets[#offsets + 1] = { -1, -1 }
+                    offsets[#offsets + 1] = { 1, -1 }
                 end
-                line[#line + 1] = (cnt >= 5) and landChar or '.'
+                for _, o in ipairs(offsets) do
+                    if at(x + o[1], y + o[2]) == landChar then cnt = cnt + 1 end
+                end
+                line[#line + 1] = (cnt >= 4) and landChar or '.'
             end
         end
         out[#out + 1] = table.concat(line)
@@ -981,14 +1016,19 @@ local function main()
         say('★ 干跑结束：没有改任何数据。确认坐标无误后，把数据文件 [map] 里的 dry_run 改成 false 再跑。')
     else
         -- ---- 先铺海陆地形，再铺归属，最后落城市（城市是落在已定型的陆地上）----
+        local tBuild = os.clock()
+        local tPhase = os.clock()
         if planned then
             say('开始写海陆地形…')
             local changed, same, failed = paint_terrain(planned, W, H, say)
             say(string.format('地形写入完成：改动 %d 格，原本就对 %d 格，失败 %d 格', changed, same, failed))
+            say(string.format('阶段耗时（地形）：%.2fs', os.clock() - tPhase))
             say('')
         end
 
+        tPhase = os.clock()
         applyBelong(true)
+        say(string.format('阶段耗时（归属）：%.2fs', os.clock() - tPhase))
 
         if clearCities then
             local old = {}
@@ -1082,6 +1122,7 @@ local function main()
         say('')
         say(string.format('落建筑 %d 座（其中带名字 %d 座），写归属 %d 座，失败 %d 座',
             built, named, belonged, failed))
+        say(string.format('总耗时：%.2fs', os.clock() - tBuild))
         say('★ 完成。Ctrl+Z 可整体撤销；记得保存地图。')
     end
 

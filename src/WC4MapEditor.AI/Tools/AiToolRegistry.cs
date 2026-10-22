@@ -127,6 +127,21 @@ public static class AiToolRegistry
             },
             new()
             {
+                Name = "generate_units",
+                Description = "随机生成/放置单位。mode=capitals：每个省区省会放置 1 个单位；"
+                            + "mode=probability：按编辑器原生概率规则在省区格子上随机生成单位。"
+                            + "belong=-1 表示全部势力；clear=true 会先清空现有单位。",
+                ParametersJson = """
+{"type":"object","properties":{
+ "mode":{"type":"string","enum":["capitals","probability"],"description":"capitals=每省一个单位；probability=按概率随机撒单位","default":"capitals"},
+ "belong":{"type":"integer","description":"势力/军团归属，-1 为全部","default":-1},
+ "probability":{"type":"integer","description":"probability 模式的生成概率 1-100","default":5},
+ "clear":{"type":"boolean","description":"是否先清空现有单位","default":false}
+},"required":[]}
+""",
+            },
+            new()
+            {
                 Name = "list_scripts",
                 Description = "列出编辑器 scripts 目录下可执行的 .lua 脚本文件。",
                 ParametersJson = """{"type":"object","properties":{},"required":[]}"""
@@ -361,6 +376,7 @@ public static class AiToolRegistry
                 case "submit_plan": return "submit_plan 由对话循环记录，直接调用不会执行任何地图操作。";
                 case "run_lua_file": return ToolRunLuaFile(args);
                 case "apply_map_spec": return ToolApplyMapSpec(args);
+                case "generate_units": return ToolGenerateUnits(args);
                 case "list_scripts": return ToolListScripts();
                 // AM
                 case "list_assets": return ToolListAssets(args);
@@ -668,10 +684,10 @@ public static class AiToolRegistry
             ? Path.GetFullPath(spec)
             : FindRepoFile(spec) ?? Path.GetFullPath(spec);
 
-        string scriptPath = FindRepoFile("scripts/mapgen/build-map.lua")
-                            ?? Path.Combine(AppContext.BaseDirectory, "scripts", "mapgen", "build-map.lua");
+        string scriptPath = FindRepoFile("scripts/mapgen/core/build-map.lua")
+                            ?? Path.Combine(AppContext.BaseDirectory, "scripts", "mapgen", "core", "build-map.lua");
 
-        if (!File.Exists(scriptPath)) return "失败：找不到 scripts/mapgen/build-map.lua";
+        if (!File.Exists(scriptPath)) return "失败：找不到 scripts/mapgen/core/build-map.lua";
         if (!File.Exists(specPath)) return $"失败：找不到 spec {specPath}";
 
         string code = File.ReadAllText(scriptPath);
@@ -679,6 +695,73 @@ public static class AiToolRegistry
             code,
             @"local SPEC = '[^']*'",
             "local SPEC = '" + specPath.Replace('\\', '/') + "'");
+
+        var result = AiBridge.RunLua(code);
+        if (result == null) return "失败：主程序未注册 Lua 执行器";
+        return FormatScriptResult(result);
+    }
+
+    /// <summary>随机生成单位：probability 走编辑器原生规则，capitals 走每省一个单位。</summary>
+    private static string ToolGenerateUnits(JsonElement args)
+    {
+        string mode = GetString(args, "mode").Trim().ToLowerInvariant();
+        if (mode != "probability" && mode != "capitals") mode = "capitals";
+        int belong = GetInt(args, "belong", -1);
+        int probability = Math.Clamp(GetInt(args, "probability", 5), 1, 100);
+        bool clear = GetBool(args, "clear", false);
+
+        string code = $"""
+local mode = '{mode}'
+local belong = {belong}
+local probability = {probability}
+local clear = {(clear ? "true" : "false")}
+
+if clear then map.RemoveAllArmies() end
+
+if mode == 'probability' then
+    local r = map.GenerateArmiesByProbability(belong, probability)
+    print(string.format('mode=probability belong=%d probability=%d ok=%s %s',
+        belong, probability, tostring(r and r.Success), tostring(r and r.Message or '')))
+else
+    local W, H = map.Width, map.Height
+    local placed = 0
+    for r = 0, H - 1 do
+        for c = 0, W - 1 do
+            if map.GetProvince(c, r) == r * W + c then
+                local owner = map.GetBelong(c, r)
+                if owner >= 0 and owner < map.LegionCount then
+                    local tc, tr = nil, nil
+                    for rad = 0, 12 do
+                        for dr = -rad, rad do
+                            for dc = -rad, rad do
+                                local nc, nr = c + dc, r + dr
+                                if nc >= 0 and nc < W and nr >= 0 and nr < H
+                                    and map.GetTerrain(nc, nr) ~= 1
+                                    and map.GetBuilding(nc, nr) == nil
+                                    and map.GetArmy(nc, nr) == nil then
+                                    tc, tr = nc, nr
+                                    break
+                                end
+                            end
+                            if tc then break end
+                        end
+                        if tc then break end
+                    end
+                    if tc then
+                        local res = map.AddArmy(tc, tr)
+                        if res and res.Success then
+                            map.SetArmyLegion(tc, tr, owner)
+                            placed = placed + 1
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if placed > 0 then map.RandomizeLegionArmies(-1) end
+    print(string.format('mode=capitals placed=%d armies=%d', placed, map.ArmyCount))
+end
+""";
 
         var result = AiBridge.RunLua(code);
         if (result == null) return "失败：主程序未注册 Lua 执行器";

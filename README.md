@@ -290,7 +290,7 @@ dotnet run --project src/WC4MapEditor.Cli -- run map.btl batch.zme -o out.btl
 
 ### 能力
 
-- **37 个工具**：地图/场景（`get_map_info`、`open_map`、`new_campaign`…）、命令与 Lua 执行、资源与配置查询、建筑/单位/军团属性读写、批量改字段、文件读写、记忆、截图，多步任务用的 `submit_plan`，以及原地重跑建图 spec 的 `apply_map_spec`。
+- **38 个工具**：地图/场景（`get_map_info`、`open_map`、`new_campaign`…）、命令与 Lua 执行、资源与配置查询、建筑/单位/军团属性读写、批量改字段、文件读写、记忆、截图，多步任务用的 `submit_plan`，原地重跑建图 spec 的 `apply_map_spec`，以及随机放置单位的 `generate_units`。
 - **视觉**：`capture_screenshot` 支持整幅、局部放大、整个编辑器窗口三种；截图会作为图片消息回传给模型，图片带坐标标注。
 - **记忆**：`save_memory` 把跨会话知识写成 Markdown 存到 `Resource/Memory/`。
 - **安全**：工具直接作用在当前地图或项目文件上；写文件会自动留 `.bak`，Lua 整批可撤销。
@@ -316,7 +316,7 @@ AI 的 `run_lua` 描述与系统提示词已经指向这套接口；接手陌生
 
 ## MCP Server（外部 Agent 接入）
 
-编辑器启动后会在本机开启一个 **MCP（Model Context Protocol）** 服务，把内置 AI 的 36 个工具暴露给外部 agent（Claude Desktop、Cline、Codex 等；`submit_plan` 仅内部对话使用，不对外）：
+编辑器启动后会在本机开启一个 **MCP（Model Context Protocol）** 服务，把内置 AI 的 37 个工具暴露给外部 agent（Claude Desktop、Cline、Codex 等；`submit_plan` 仅内部对话使用，不对外）：
 
 - 地址：`http://127.0.0.1:4396/wc4-mcp`（Streamable HTTP，仅监听回环）
 - 端口：环境变量 `WC4MCP_PORT` 可覆盖
@@ -377,8 +377,12 @@ dotnet run --project src/WC4MapEditor.AgentEval -- .\Logs\Agent\trajectory-20261
 ├─ docs/                         # 命令 / 脚本 / Lua / 架构文档
 ├─ scripts/
 │  ├─ ai/                        # AI Lua 工具箱（require('ai')）
-│  ├─ mapgen/                    # 地图生成示例与区域模板
-│  └─ 读取军团工具.lua
+│  ├─ mapgen/                    # 地图生成
+│  │  ├─ core/                   # 通用建图引擎（build-map 等）
+│  │  ├─ maps/                   # 各地区专用 run / 后处理脚本
+│  │  └─ regions/                # spec、掩码、城市数据
+│  └─ tools/
+│     └─ legion-report.lua
 ├─ Resource/
 │  ├─ Texture/ Config/ Lang/ Memory/   # 随仓库提供
 │  └─ WC4DATA/assets/                  # 游戏数据（不入库，需自备）
